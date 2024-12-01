@@ -24,7 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+
 
 #ALLOWED_HOSTS = ['lunchnetsalessystem-c7bbb644044e.herokuapp.com', 'localhost']
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'lunchnetsalessystem-c7bbb644044e.herokuapp.com,localhost').split(',')
@@ -132,13 +133,11 @@ USE_TZ = True
 # lunchnetsale/settings.py
 
 STATIC_URL = '/static/'
-
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
-
 # settings.py に追加
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
