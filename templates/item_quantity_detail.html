@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}item List{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+{% load humanize %}
+<div class="container mt-4">
+  <!-- templates/item_quantity_detail.html -->
+  <h2 class="mb-1">販売場所別　持参数データ</h2>
+  <hr class="my-4">
+  <p>選択された日付: {{ selected_date }}</p>
+  <table id="item-table" class="table"><!---->
+      <thead>
+          <tr>
+              <th class="product-name-column">商品名</th>
+              {% for location in sales_locations %}
+                  <th class="location-header">{{ location }}</th>
+              {% endfor %}
+          </tr>
+      </thead>
+      <tbody>
+          {% for product_name, quantities in item_details.items %}
+          <tr>
+              <td class="product-name-column">{{ product_name }}</td>
+              {% for location in sales_locations %}
+                  <td class="quantity-cell">
+                      {% if location in quantities %}
+                          {{ quantities|dict_key:location }}  <!-- location_quantityを表示 -->
+                      {% else %}
+                          0  <!-- 存在しない場合は0を表示 -->
+                      {% endif %}
+                  </td>
+              {% endfor %}
+          </tr>
+          {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td class="product-name-column">合計</td>
+            {% for location in sales_locations %}
+                <td class="quantity-cell">
+                    {{ location_totals|get_item:location|default:0 }}  <!-- 合計を表示 -->
+                </td>
+            {% endfor %}
+        </tr>
+      </tfoot>
+  </table>
+</div>
+<style>
+    table {
+        width: 100%;
+        table-layout: fixed;
+        text-align: center;
+    }
+    th, td {
+        padding: 10px;
+    }
+    th {
+        background-color: #f8f9fa;
+    }
+    td {
+        border: 1px solid #dee2e6;
+    }
+
+    /* 商品名列のスタイル */
+    .product-name-column {
+        width: 130px;  /* 商品名列の幅を狭く設定 */
+        text-align: left;  /* 商品名を左揃えに設定 */
+        white-space: nowrap;  /* テキストが折り返されないように設定 */
+        overflow: hidden;  /* はみ出たテキストを非表示 */
+        text-overflow: ellipsis;  /* はみ出た部分を「...」で省略 */
+    }
+
+    /* 販売場所のヘッダー (location) を縦書きにするスタイル */
+    .location-header {
+        width: 37px;  /* 横幅を狭く設定 */
+        writing-mode: vertical-rl;  /* 文字を縦に表示 */
+        white-space: nowrap;  /* テキストが折り返されないように設定 */
+        text-align: center;  /* 文字を中央に配置 */
+    }
+
+    /* マウスが乗った時の行と列の色変更 */
+    .highlight-row {
+        background-color: #dfe6e9;  /* 行の色 */
+    }
+
+    .highlight-column {
+        background-color: #b2bec3;  /* 列の色 */
+    }
+
+      /* テーブルのフッターとボディの間に二重線を設定 */
+      #item-table {
+          border-collapse: collapse;
+          width: 100%;  /* テーブルの幅を100%に設定（必要に応じて調整） */
+      }
+
+      /* ヘッダーのスタイル */
+      #item-table th {
+          text-align: center;  /* ヘッダーの文字位置を中央に設定 */
+          font-weight: bold;   /* ヘッダーを太字に設定（必要に応じて） */
+      }
+
+      /* フッター行のスタイル */
+      #item-table tfoot tr {
+          font-weight: bold;  /* フッターのテキストを太字に設定 */
+      }
+
+      /* フッター内のセル */
+      #item-table tfoot td {
+          text-align: center;  /* フッターの文字位置を中央に設定 */
+      }
+
+      /* テーブルのボーダーを設定 */
+      #item-table th, #item-table td {
+          border: 1px solid #ddd;  /* 通常のボーダー */
+          padding: 8px;  /* パディング */
+          text-align: center;  /* センタリング */
+      }
+
+      /* 二重線のスタイル */
+      #item-table tfoot {
+          border-top: 3px double #000;  /* フッターの上に二重線を設定 */
+      }
+
+      /* ヘッダーのハイライト効果 */
+      #item-table th.highlight {
+          background-color: #d1e7dd;  /* ハイライト時の背景色 */
+      }
+
+      /* フッターのハイライト効果 */
+      #item-table tfoot tr.highlight {
+          background-color: #d1e7dd;  /* ハイライト時の背景色 */
+      }
+
+</style>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const table = document.getElementById('item-table');
+
+        if (!table) {
+            console.error('テーブル要素が見つかりません。');
+            return;
+        }
+
+        const rows = table.querySelectorAll('tbody tr');
+        const headerCells = table.querySelectorAll('thead th');
+        const footerRow = table.querySelector('tfoot tr');
+
+        // ヘッダーにハイライト効果を追加
+        headerCells.forEach(cell => {
+            cell.addEventListener('mouseenter', function() {
+                cell.classList.add('highlight'); // ハイライトクラスを追加
+            });
+
+            cell.addEventListener('mouseleave', function() {
+                cell.classList.remove('highlight'); // ハイライトクラスを削除
+            });
+        });
+
+        // フッターにハイライト効果を追加
+        footerRow.addEventListener('mouseenter', function() {
+            footerRow.classList.add('highlight'); // ハイライトクラスを追加
+        });
+
+        footerRow.addEventListener('mouseleave', function() {
+            footerRow.classList.remove('highlight'); // ハイライトクラスを削除
+        });
+
+        // 各行にハイライト効果を追加
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('.quantity-cell');
+            const productNameCell = row.querySelector('.product-name-column');
+
+            cells.forEach(cell => {
+                cell.addEventListener('mouseenter', function(event) {
+                    const index = event.target.cellIndex;
+                    highlightRow(row);
+                    highlightColumn(index);
+
+                    // 商品名のセルもハイライト
+                    if (productNameCell) {
+                        productNameCell.style.backgroundColor = '#d1e7dd'; // ハイライト色
+                    }
+                });
+
+                cell.addEventListener('mouseleave', function(event) {
+                    const index = event.target.cellIndex;
+                    unhighlightRow(row);
+                    unhighlightColumn(index);
+
+                    // 商品名のセルもハイライトを戻す
+                    if (productNameCell) {
+                        productNameCell.style.backgroundColor = ''; // 元の色に戻す
+                    }
+                });
+            });
+        });
+    });
+
+    function highlightRow(row) {
+        row.style.backgroundColor = '#d1e7dd'; // ハイライト色
+    }
+
+    function unhighlightRow(row) {
+        row.style.backgroundColor = ''; // 元の色に戻す
+    }
+
+    function highlightColumn(index) {
+        const cells = document.querySelectorAll('#item-table tbody tr');
+        cells.forEach(row => {
+            const cell = row.cells[index];
+            if (cell) {
+                cell.style.backgroundColor = '#d1e7dd'; // ハイライト色
+            }
+        });
+    }
+
+    function unhighlightColumn(index) {
+        const cells = document.querySelectorAll('#item-table tbody tr');
+        cells.forEach(row => {
+            const cell = row.cells[index];
+            if (cell) {
+                cell.style.backgroundColor = ''; // 元の色に戻す
+            }
+        });
+    }
+</script>
+
+
+
+
+{% endblock %}

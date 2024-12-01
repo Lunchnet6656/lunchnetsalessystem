@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Confirm Delete</title>
+</head>
+<body>
+    <h1>Are you sure you want to delete the following products?</h1>
+    <ul>
+        {% for product in products %}
+        <li>{{ product.name }} (Week: {{ product.week }})</li>
+        {% endfor %}
+    </ul>
+    <form method="POST">
+        {% csrf_token %}
+        <button type="submit">Confirm Delete</button>
+        <a href="{% url 'product_list' %}">Cancel</a>
+    </form>
+</body>
+</html>

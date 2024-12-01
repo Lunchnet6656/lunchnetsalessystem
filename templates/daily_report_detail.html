@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}日計表一覧{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+<div class="container mt-4 mb-5">
+  <h1 class="mb-4">日計表一覧　{{ date|japanese_date }}</h1>
+  <hr class="my-2"> 
+  <div class="table-responsive">
+  <table id="reportTable" class="table table-striped">
+      <thead>
+          <tr>
+            <th onclick="sortTable(0)" style="cursor: pointer;">NO <span id="sortIcon0"></span></th>
+            <th onclick="sortTable(1)" style="cursor: pointer;">販売場所 <span id="sortIcon1"></span></th>
+            <th onclick="sortTable(2)" style="cursor: pointer;">担当者 <span id="sortIcon2"></span></th>
+            <th onclick="sortTable(3)" style="cursor: pointer;">持参数 <span id="sortIcon3"></span></th>
+            <th onclick="sortTable(4)" style="cursor: pointer;">販売数 <span id="sortIcon4"></span></th>
+            <th onclick="sortTable(5)" style="cursor: pointer;">残数 <span id="sortIcon5"></span></th>
+            <th onclick="sortTable(6)" style="cursor: pointer;">総売上 <span id="sortIcon6"></span></th>
+            <th onclick="sortTable(7)" style="cursor: pointer;">更新日時 <span id="sortIcon7"></span></th>
+            <!--非表示
+            <th onclick="sortTable(6)" style="cursor: pointer;">PayPay <span id="sortIcon6"></span></th>
+            <th onclick="sortTable(7)" style="cursor: pointer;">電子決済 <span id="sortIcon7"></span></th>
+            <th onclick="sortTable(8)" style="cursor: pointer;">現金 <span id="sortIcon8"></span></th>
+            <th onclick="sortTable(9)" style="cursor: pointer;">差額 <span id="sortIcon9"></span></th>-->
+            <th>Action</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for report in reports_by_location %}
+          <tr>
+              <td>{{ report.location_no }}</td>
+              <td>{{ report.location }}</td>
+              <td>{{ report.person_in_charge }}</td>
+              <td>{{ report.total_quantity }}</td>
+              <td>{{ report.total_sales_quantity }}</td>
+              <td>{{ report.total_remaining }}</td>
+              <td>{{ report.total_revenue|yen_format }}</td>
+              <td>{{ report.updated_at|date:"Y/m/d H:i" }}</td>
+              <!--非表示
+              <td>{{ report.paypay|yen_format }}</td>
+              <td>{{ report.digital_payment|yen_format }}</td>
+              <td>{{ report.cash|yen_format }}</td>
+              <td>{{ report.sales_difference|yen_format }}</td>-->
+              <td>
+                  <a href="{% url 'daily_report_edit' report.pk %}" class="btn btn-primary">明細</a>
+                  <form action="{% url 'daily_report_delete' report.pk %}" method="post" style="display:inline;" onsubmit="return confirmDelete('{{ report.location }}');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">削除</button>
+                  </form>
+              </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+  </table>
+  </div>
+  <div>
+    <h3>送信件数: 　{{ submitted_count }}件 / {{ total_locations }}件中</h3>
+    <h4>未送信の売り場:</h4>
+    <ul>
+        {% for location in not_submitted_locations %}
+            <li>{{ location }}</li>
+        {% empty %}
+            <li>すべての場所が送信されています。</li>
+        {% endfor %}
+    </ul>
+  </div>
+  <a class="fs-4" href="{% url 'daily_report_list' %}">戻る</a>
+</div>
+
+<script>
+let sortOrder = true; // true for ascending, false for descending
+
+function sortTable(columnIndex) {
+    const table = document.getElementById("reportTable");
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    const compareRows = (a, b) => {
+        const aText = a.cells[columnIndex].innerText.replace(/,/g, '');
+        const bText = b.cells[columnIndex].innerText.replace(/,/g, '');
+
+        const aValue = isNaN(aText) ? aText : parseFloat(aText);
+        const bValue = isNaN(bText) ? bText : parseFloat(bText);
+
+        return (aValue > bValue ? 1 : -1) * (sortOrder ? 1 : -1);
+    };
+
+    rows.sort(compareRows);
+    rows.forEach(row => tbody.appendChild(row));
+
+    updateSortIcons(columnIndex);
+    sortOrder = !sortOrder;
+}
+
+function updateSortIcons(columnIndex) {
+    const icons = Array.from(document.querySelectorAll('th span'));
+    icons.forEach((icon, index) => {
+        icon.innerText = '';
+        if (index === columnIndex) {
+            icon.innerText = sortOrder ? '▲' : '▼';
+        }
+    });
+}
+
+function confirmDelete(locationName) {
+    return confirm(locationName + "を削除しますか？");
+}
+
+</script>
+
+<style>
+th {
+    background-color: #f8f9fa; /* ヘッダーの背景色 */
+    font-weight: bold; /* フォントを太く */
+    position: relative; /* アイコンを正しく配置するため */
+}
+
+th:hover {
+    background-color: #e9ecef; /* マウスオーバー時の背景色 */
+}
+
+th span {
+    margin-left: 5px; /* アイコンとテキストの間にスペース */
+}
+</style>
+{% endblock %}

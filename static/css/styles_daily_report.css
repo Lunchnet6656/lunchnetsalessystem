@@ -1,0 +1,77 @@
+/* styles.css */
+
+body {
+    font-family: 'Meiryo UI', sans-serif; /* フォントファミリーを設定 */
+}
+
+
+.container {
+    max-width: 800px;
+}
+
+table {
+    margin-top: 20px;
+}
+
+table th, table td {
+    white-space: nowrap;
+}
+
+table th:nth-child(2), table td:nth-child(2) {
+    max-width: 200px; /* メニューの列の幅を広げる */
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.discount-item {
+    display: flex;
+    align-items: center;
+}
+
+.discount-item input {
+    margin-left: 10px;
+    max-width: 100px;
+}
+
+/* 横スクロールと固定列の設定 */
+.table-container {
+    position: relative;
+    overflow-x: auto; /* 横スクロールを有効にする */
+    overflow-y: hidden; /* 縦スクロールを無効にする */
+}
+
+.table-container table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%; /* テーブル全体の幅を親コンテナに合わせる */
+}
+
+.table-container th, .table-container td {
+    padding: 8px;
+    text-align: left;
+    white-space: nowrap; /* テーブルの内容が折り返されないように */
+}
+
+/* 1列目を固定 */
+.table-container th.fixed-column, .table-container td.fixed-column {
+    position: sticky;
+    left: 0;
+    background-color: #fff;
+    z-index: 3; /* 他のセルより前面に表示 */
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); /* 少し影をつけて視認性を高める */
+}
+
+/* 2列目を固定 */
+.table-container th.fixed-column-2, .table-container td.fixed-column-2 {
+    position: sticky;
+    left: 80px; /* 2列目の位置を調整（1列目の幅分） */
+    background-color: #fff;
+    z-index: 3;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); /* 同じく影をつける */
+}
+
+/* 持参数と販売数の入力ボックスの幅を狭くする */
+.table-container input[type="number"] {
+    width: 60px; /* 入力ボックスの幅を狭くする */
+}

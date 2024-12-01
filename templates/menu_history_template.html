@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}メニュー履歴{% endblock %}
+
+{% block content %}
+
+{% load custom_filters %}
+{% load humanize %}
+
+<div class="container mt-4">
+    <h1 class="mb-4">メニュー別販売履歴</h1>
+
+    <form method="POST" class="mb-4">
+      {% csrf_token %}
+        <input type="text" name="menu_name" value="{{ menu_name }}" placeholder="メニュー名を入力" class="form-control" />
+        <button type="submit" class="btn btn-primary mt-2">検索</button>
+    </form>
+
+    <table class="table table-bordered">
+        <thead class="table-active">
+            <tr>
+                <th>メニュー名</th>
+                <th>日付</th>
+                <th>総持参数</th>
+                <th>総販売数</th>
+                <th>総残数</th>
+                <th>廃棄率 (%)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in summary_data %}
+                <tr>
+                    <td>{{ entry.product }}</td>
+                    <td>{{ entry.report__date|japanese_date }}</td>
+                    <td>{{ entry.total_quantity|intcomma }}</td>
+                    <td>{{ entry.total_sales_quantity|intcomma }}</td>
+                    <td>{{ entry.total_remaining|intcomma }}</td>
+                    <td>{{ entry.waste_rate|floatformat:1 }}%</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">データがありません</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

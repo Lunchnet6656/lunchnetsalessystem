@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}販売場所一覧{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+
+<!-- jQueryおよびjQuery UIの読み込み（CDNから） -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
+<style>
+    .drag-handle {
+        cursor: move; /* マウスカーソルを移動可能な状態に変更 */
+        display: flex; /* アイコンとチェックボックスを横並びに */
+        align-items: center; /* 垂直方向に中央揃え */
+        height: 50px;
+    }
+    /* テーブル全体の幅 */
+    .table {
+        table-layout: fixed; /* 正しい記述方法 */
+        width: 100%; /* または任意の幅に調整 */
+    }
+
+    .table th, .table td {
+        width: 180px;
+    }
+
+    /* 1列目の幅 */
+    .table th:first-child, .table td:first-child {
+        width: 40px; /* 1列目の幅を固定 */
+        text-align: left; /* 中央揃え */
+    }
+    .table th:nth-child(2), .table td:nth-child(2) {
+    width: 30px; /* 2列目の幅を固定（ここで任意の幅に設定） */
+    text-align: left; /* 左揃え */
+    }
+
+
+</style>
+
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1">販売場所リスト</h1>
+    <hr class="my-4">
+    <form id="locationForm" method="POST">
+        {% csrf_token %}
+        <table class="table table-sm table-striped">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th><input type="checkbox" id="selectAll"></th>
+                    <th>NO</th>
+                    <th>販売場所</th>
+                    <th>販売形式</th>
+                    <th>価格タイプ</th>
+                    <th>サービス名</th>
+                    <th>サービス価格</th>
+                    <th>直行直帰</th>
+                </tr>
+            </thead>
+            <tbody id="locationTableBody">
+                {% for location in locations %}
+                <tr>
+
+                    <td class="drag-handle">
+                        <i class="material-icons">menu</i>
+                    </td>
+                    <td><input type="checkbox" name="selected_ids" value="{{ location.id }}"></td>
+                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][no]" value="{{ location.no }}" style="width: 150px;"></td>
+                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][name]" value="{{ location.name }}" style="width: 150px;"></td>
+                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][type]" value="{{ location.type }}" style="width: 150px;"></td>
+                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][price_type]" value="{{ location.price_type }}" style="width: 150px;"></td>
+                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][service_name]" value="{{ location.service_name }}" style="width: 150px;"></td>
+                    <td><input type="number" class="location-input" name="location[{{ forloop.counter0 }}][service_price]" value="{{ location.service_price }}" style="width: 150px;"></td>
+                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][direct_return]" value="{{ location.direct_return }}" style="width: 150px;"></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center">データがありません</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-success" id="addRowButton">新規追加</button>
+        <button type="submit" name="delete" class="btn btn-danger" id="deleteButton">削除</button>
+        <button type="submit" class="btn btn-primary">上書き保存</button>
+    </form>
+</div>
+<script>
+
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('input[name="selected_ids"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        // jQuery UIのSortableをテーブルに適用
+        $("#locationTableBody").sortable({
+            handle: '.drag-handle', // ドラッグハンドルとして三本線を指定
+            update: function(event, ui) {
+                // 行の順番が変更されたときにNOフィールドを更新
+                $('#locationTableBody tr').each(function(index) {
+                    $(this).find('input[name^="location["][name$="[no]"]').val(index + 1); // 行の順番に基づいてNOフィールドを更新
+                });
+            }
+        });
+
+        // 新規行の追加
+        document.getElementById('addRowButton').addEventListener('click', function() {
+            let tableBody = document.getElementById('locationTableBody');
+            let rowCount = tableBody.rows.length; // 現在の行数からインデックスを決定
+            let newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td class="drag-handle">
+                  <span class="drag-icon"></span>
+                  <input type="checkbox" name="selected_ids" value="">
+                </td>
+                <td><input type="checkbox" name="selected_ids" value=""></td> <!-- チェックボックスの列 -->
+                <td><input type="text" name="location[${rowCount}][no]" value=""></td>
+                <td><input type="text" name="location[${rowCount}][name]" value=""></td>
+                <td><input type="text" name="location[${rowCount}][type]" value=""></td>
+                <td><input type="text" name="location[${rowCount}][price_type]" value=""></td>
+                <td><input type="text" name="location[${rowCount}][service_name]" value=""></td>
+                <td><input type="number" name="location[${rowCount}][service_price]" value=""></td>
+                <td><input type="text" name="location[${rowCount}][direct_return]" value=""></td>
+            `;
+            tableBody.appendChild(newRow);
+        });
+
+        // 削除ボタンの確認ダイアログ
+        document.getElementById('deleteButton').addEventListener('click', function() {
+          if (confirm('選択した販売場所を削除しますか？')) {
+              // フォームを送信
+              document.getElementById('locationForm').submit();
+          }
+        });
+  });
+</script>
+
+
+{% endblock %}

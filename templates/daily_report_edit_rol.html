@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}日計表編集{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+<div class="container mt-4">
+<h1>日計表明細・編集</h1>
+<form method="POST" class="mb-4">
+    {% csrf_token %}
+    <h2 class="bg-dark text-white mt-4">販売場所情報</h2>
+    <div class="row mb-3">
+      <div class="col">
+          <label>日付:</label>
+          <p>{{ report.date|japanese_date }}</p>
+          <input type="hidden" name="date" value="{{ report.date|date:'Y-m-d' }}">
+      </div>
+      <div class="col">
+          <label>販売場所:</label>
+          <p>{{ report.location }}</p>
+          <input type="hidden" name="location" value="{{ report.location }}">
+      </div>
+    </div>
+    <div class="row mb-3">
+      <div class="col">
+          <label for="person_in_charge">担当者:</label>
+          <input type="text" id="person_in_charge" class="form-control" name="person_in_charge" value="{{ report.person_in_charge }}">
+      </div>
+      <div class="col">
+          <label for="weather">天気:</label>
+          <input type="text" id="weather" class="form-control" name="weather" value="{{ report.weather }}">
+      </div>
+      <div class="col">
+          <label for="temp">体感気温:</label>
+          <input type="text" id="temp" class="form-control" name="temp" value="{{ report.temp }}">
+      </div>
+    </div>
+    <h2 class="bg-dark text-white mt-4">お弁当一覧</h2>
+    <div class="table-responsive">
+      <table class="table table-striped table-sm">
+          <thead>
+              <tr>
+                  <th>商品名</th>
+                  <th>持参数</th>
+                  <th>販売数</th>
+                  <th>残数</th>
+                  <th>売上</th>
+                  <th>完売</th>
+                  <th>人気</th>
+                  <th>不人気</th>
+              </tr>
+          </thead>
+          <tbody>
+              {% for entry in entries %}
+              <tr>
+                  <td>
+                      <input type="text" name="product_{{ forloop.counter }}" value="{{ entry.product }}">
+                  </td>
+                  <td>
+                      <input type="number" name="quantity_{{ forloop.counter }}" value="{{ entry.quantity }}">
+                  </td>
+                  <td>
+                      <input type="number" name="sales_quantity_{{ forloop.counter }}" value="{{ entry.sales_quantity }}">
+                  </td>
+                  <td>
+                      <input type="number" name="remaining_number_{{ forloop.counter }}" value="{{ entry.remaining_number }}">
+                  </td>
+                  <td>
+                      <input type="number" name="total_sales_{{ forloop.counter }}" value="{{ entry.total_sales }}">
+                  </td>
+                  <td>
+                      <input type="checkbox" name="sold_out_{{ forloop.counter }}" {% if entry.sold_out %}checked{% endif %}>
+                  </td>
+                  <td>
+                      <input type="checkbox" name="popular_{{ forloop.counter }}" {% if entry.popular %}checked{% endif %}>
+                  </td>
+                  <td>
+                      <input type="checkbox" name="unpopular_{{ forloop.counter }}" {% if entry.unpopular %}checked{% endif %}>
+                  </td>
+              </tr>
+              {% endfor %}
+          </tbody>
+
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="1">合計:</td>
+                <td>
+                  <input type="number" name="total_quantity" value="{{ report.total_quantity }}">
+                </td>
+                <td>
+                  <input type="number" name="total_sales_quantity" value="{{ report.total_sales_quantity }}">
+                </td>
+                <td>
+                  <input type="number" name="total_remaining" value="{{ report.total_remaining }}">
+                </td>
+            </tr>
+          </tfoot>
+      </table>
+    </div>
+        <h2 class="bg-dark text-white mt-4">その他売上情報</h2>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="others_sales_1">売上項目①:</label>
+                <input type="text" id="others_sales_1" class="form-control" name="others_sales_1" value="{{ report.others_sales_1 }}">
+            </div>
+            <div class="col">
+                <label for="others_price1">単価:</label>
+                <input type="number" id="others_price1" class="form-control" name="others_price1" value="{{ report.others_price1 }}">
+            </div>
+            <div class="col">
+                <label for="others_sales_quantity1">個数:</label>
+                <input type="number" id="others_sales_quantity1" class="form-control" name="others_sales_quantity1" value="{{ report.others_sales_quantity1 }}">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="others_sales_2">売上項目②:</label>
+                <input type="text" id="others_sales_2" class="form-control" name="others_sales_2" value="{{ report.others_sales_2 }}">
+            </div>
+            <div class="col">
+                <label for="others_price2">単価:</label>
+                <input type="number" id="others_price2" class="form-control" name="others_price2" value="{{ report.others_price2 }}">
+            </div>
+            <div class="col">
+                <label for="others_sales_quantity2">個数:</label>
+                <input type="number" id="others_sales_quantity2" class="form-control" name="others_sales_quantity2" value="{{ report.others_sales_quantity2 }}">
+            </div>
+        </div>
+
+
+        <h2 class="bg-dark text-white mt-4">割引情報</h2>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="no_rice_quantity">ご飯なし個数:</label>
+                <input type="number" id="no_rice_quantity" class="form-control" name="no_rice_quantity" value="{{ report.no_rice_quantity }}">
+            </div>
+            <div class="col">
+                <label for="extra_rice_quantity">ご飯追加個数:</label>
+                <input type="number" id="extra_rice_quantity" class="form-control" name="extra_rice_quantity" value="{{ report.extra_rice_quantity }}">
+            </div>
+            <div class="col">
+                <label for="coupon_type_600">クーポン600円:</label>
+                <input type="number" id="coupon_type_600" class="form-control" name="coupon_type_600" value="{{ report.coupon_type_600 }}">
+            </div>
+            <div class="col">
+                <label for="coupon_type_700">クーポン700円:</label>
+                <input type="number" id="coupon_type_700" class="form-control" name="coupon_type_700" value="{{ report.coupon_type_700 }}">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="discount_50">割引・返金50円:</label>
+                <input type="number" id="discount_50" class="form-control" name="discount_50" value="{{ report.discount_50 }}">
+            </div>
+            <div class="col">
+                <label for="discount_100">割引・返金100円:</label>
+                <input type="number" id="discount_100" class="form-control" name="discount_100" value="{{ report.discount_100 }}">
+            </div>
+            {% if report.service_name == 'なし' %}
+            {% elif report.service_name == 'サジェスト' %}
+            <div class="col">
+                <label for="service_name">サービス: {{ report.service_name }}{{ report.service_price }}円</label>
+                <input type="number" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}">
+            </div>
+            {% else %}
+            <div class="col">
+                <label for="service_name">サービス: {{ report.service_name }}{{ report.service_price }}円</label>
+
+                <div class="input-group">
+                  <span class="input-group-text">600円</span>
+                  <input type="number" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}">
+                  <span class="input-group-text">700円</span>
+                  <input type="number" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}">
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        <h2 class="bg-dark text-white mt-4">売上情報</h2>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="total_revenue">総売上:</label>
+                <input type="number" id="total_revenue" class="form-control" name="total_revenue" value="{{ report.total_revenue }}">
+            </div>
+            <div class="col">
+                <label for="total_others_sales">その他合計:</label>
+                <input type="text" id="total_others_sales" class="form-control" name="total_others_sales" value="{{ report.total_others_sales }}">
+            </div>
+            <div class="col">
+                <label for="total_discount">割引合計:</label>
+                <input type="number" id="total_discount" class="form-control" name="total_discount" value="{{ report.total_discount }}">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="paypay">PayPayの売上:</label>
+                <input type="number" id="paypay" class="form-control" name="paypay" value="{{ report.paypay }}">
+            </div>
+            <div class="col">
+                <label for="digital_payment">電子決済の売上:</label>
+                <input type="number" id="digital_payment" class="form-control" name="digital_payment" value="{{ report.digital_payment }}">
+            </div>
+            <div class="col">
+                <label for="cash">現金の売上:</label>
+                <input type="number" id="cash" class="form-control" name="cash" value="{{ report.cash }}">
+            </div>
+            <div class="col">
+                <label for="sales_difference">差額:</label>
+                <input type="number" id="sales_difference" class="form-control" name="sales_difference" value="{{ report.sales_difference }}">
+            </div>
+        </div>
+
+        <h2 class="bg-dark text-white mt-4">時間情報</h2>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="departure_time">出発時間:</label>
+                <input type="time" id="departure_time" class="form-control" name="departure_time" value="{{ report.departure_time }}">
+            </div>
+            <div class="col">
+                <label for="arrival_time">到着時間:</label>
+                <input type="time" id="arrival_time" class="form-control" name="arrival_time" value="{{ report.arrival_time }}">
+            </div>
+            <div class="col">
+                <label for="opening_time">開店時間:</label>
+                <input type="time" id="opening_time" class="form-control" name="opening_time" value="{{ report.opening_time }}">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="sold_out_time">完売時間:</label>
+                <input type="time" id="sold_out_time" class="form-control" name="sold_out_time" value="{{ report.sold_out_time }}">
+            </div>
+            <div class="col">
+                <label for="closing_time">閉店時間:</label>
+                <input type="time" id="closing_time" class="form-control" name="closing_time" value="{{ report.closing_time }}">
+            </div>
+        </div>
+
+        <h2 class="bg-dark text-white mt-4">経費情報</h2>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="gasolin">ガソリン代:</label>
+                <input type="number" id="gasolin" class="form-control" name="gasolin" value="{{ report.gasolin }}">
+            </div>
+            <div class="col">
+                <label for="highway">高速代:</label>
+                <input type="number" id="highway" class="form-control" name="highway" value="{{ report.highway }}">
+            </div>
+            <div class="col">
+                <label for="parking">駐車場代:</label>
+                <input type="number" id="parking" class="form-control" name="parking" value="{{ report.parking }}">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label for="part">パート代:</label>
+                <input type="number" id="part" class="form-control" name="part" value="{{ report.part }}">
+            </div>
+            <div class="col">
+                <label for="others">その他:</label>
+                <input type="number" id="others" class="form-control" name="others" value="{{ report.others }}">
+            </div>
+        </div>
+
+        <h2 class="bg-dark text-white mt-4">コメント</h2>
+        <div class="mb-3">
+            <label for="comments">コメント:</label>
+            <textarea id="comments" class="form-control" name="comments">{{ report.comments }}</textarea>
+        </div>
+        <div class="mb-3">
+            <label for="food_count_setting">明日の食数設定:</label>
+            <textarea id="food_count_setting" class="form-control" name="food_count_setting">{{ report.food_count_setting }}</textarea>
+        </div>
+
+
+</form>
+        <a class="fs-4" href="{% url 'daily_report_detail_rol' %}">一覧へ戻る</a>
+        <div class="mb-4"></div>
+</div>
+<style>
+
+/* コンテナ全体を横幅100%に設定 */
+.container, .table-responsive {
+    width: 100%; /* デバイスの横幅に合わせる */
+    max-width: 100%; /* 横幅を制限しない */
+    margin: 0 auto; /* 水平中央揃え */
+}
+/* 全体の文字サイズを調整 */
+body {
+    font-size: 0.9rem; /* 全体の文字サイズを少し小さく */
+}
+
+/* テーブル内の input サイズを調整 */
+.table input[type="text"],
+.table input[type="number"],
+.table input[type="checkbox"] {
+    font-size: 0.8rem; /* 入力欄の文字サイズ */
+    padding: 0.2rem 0.4rem; /* 入力欄の余白を小さく */
+    height: auto; /* 高さをデフォルトの自動調整に */
+}
+
+/* テーブルヘッダーとデータの文字サイズを調整 */
+.table th,
+.table td {
+    font-size: 0.8rem; /* セルの文字サイズを小さく */
+    padding: 0.1rem; /* セルの余白を調整 */
+}
+
+/* レスポンシブ対応: スマホ用にさらに小さく */
+@media (max-width: 576px) {
+    body {
+        font-size: 0.8rem; /* スマホ用にさらに小さい文字サイズ */
+    }
+    input[type="text"],
+    input[type="number"]{
+
+        font-size: 0.7rem; /* スマホ用入力欄の文字サイズ */
+        padding: 0.1rem 0.1rem; /* スマホ用入力欄の余白 */
+    }
+
+
+    .table th,
+    .table td {
+        font-size: 0.7rem; /* テーブル文字サイズをさらに小さく */
+        padding: 0.2rem; /* スマホ用セルの余白を小さく */
+    }
+
+    .table input[type="text"],
+    .table input[type="number"],
+    .table input[type="checkbox"] {
+        font-size: 0.7rem; /* スマホ用入力欄の文字サイズ */
+        padding: 0.1rem 0.3rem; /* スマホ用入力欄の余白 */
+    }
+
+    .table th, .table td {
+    overflow: hidden; /* コンテンツがはみ出したら隠す */
+    text-overflow: ellipsis; /* 長いテキストを省略表示 */
+}
+}
+</style>
+
+{% endblock %}

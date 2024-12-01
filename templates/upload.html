@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}データアップロード{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-1">データアップロード</h1>
+    <hr class="my-4">
+    <div class="card mb-4">
+        <div class="card-header">販売場所データのアップロード</div>
+        <div class="card-body">
+          <form method="POST" enctype="multipart/form-data">
+              {% csrf_token %}
+              <div class="mb-3">
+                  <label for="location_file" class="form-label">{{ location_form.location_file.label_tag }}</label>
+                  <input type="file" class="form-control" id="location_file" name="location_file">
+              </div>
+              <button type="submit" class="btn btn-primary">アップロード</button>
+          </form>
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header">メニューデータのアップロード(週替わり)</div>
+        <div class="card-body">
+          <form method="POST" enctype="multipart/form-data">
+              {% csrf_token %}
+              <div class="mb-3">
+                  <label for="menu_file" class="form-label">{{ menu_form.menu_file.label_tag }}</label>
+                  <input type="file" class="form-control" id="menu_file" name="menu_file">
+              </div>
+              <button type="submit" class="btn btn-primary">アップロード</button>
+          </form>
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header">持参数データのアップロード(振分け)</div>
+        <div class="card-body">
+          <form method="POST" enctype="multipart/form-data">
+              {% csrf_token %}
+              <div class="mb-3">
+                  <label for="item_quantity_file" class="form-label">{{ item_quantity_form.item_quantity_file.label_tag }}</label>
+                  <input type="file" class="form-control" id="item_quantity_file" name="item_quantity_file">
+              </div>
+              <button type="submit" class="btn btn-primary">アップロード</button>
+          </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+{% endblock %}

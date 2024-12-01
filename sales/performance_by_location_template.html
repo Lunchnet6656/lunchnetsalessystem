@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}販売場所別実績データ{% endblock %}
+
+{% block content %}
+{% load humanize %}
+{% load custom_filters %}
+<!-- performance_by_location_template.html -->
+<style>
+    /* テーブル全体の幅 */
+    .table {
+        table-layout: fixed; /* 正しい記述方法 */
+        width: 100%; /* または任意の幅に調整 */
+    }
+
+    /* 1列目の幅 */
+    .table th:first-child, .table td:first-child {
+        width: 180px; /* 1列目の幅を固定 */
+        text-align: left; /* 中央揃え */
+    }
+
+    /* 平均値の列幅 */
+    .table th:nth-last-child(2), .table td:nth-last-child(2) {
+        width: 80px; /* 平均値の列の幅を固定 */
+        text-center;
+    }
+
+    /* 前月比の列幅 */
+    .table th:last-child, .table td:last-child {
+        width: 80px; /* 前月比の列の幅を固定 */
+    }
+
+    /* セル内の文字を中央に配置 */
+    .table th, .table td {
+        text-align: center; /* 中央揃え */
+    }
+    /* ホバー効果 */
+    .table tbody tr:hover {
+        background-color: #f5f5f5; /* 行全体のホバー時の背景色 */
+    }
+
+    /* 列ホバー効果 */
+    .table tbody tr td:hover {
+        background-color: #e0e0e0; /* ホバーしたセルの背景色 */
+    }
+
+    .table tbody tr:hover td {
+        background-color: #f5f5f5; /* ホバーした行のすべてのセルの背景色 */
+    }
+
+    /* 列全体にホバー効果を適用 */
+    .table tbody tr:hover td:nth-child(n) {
+        background-color: #f5f5f5; /* 列全体のホバー時の背景色 */
+    }
+
+    .custom-table {
+        width: 35px; /* 必要に応じて調整 */
+    }
+
+    /* テーブル全体をスクロール可能にする */
+    .table-responsive {
+        max-height: 600px; /* テーブルの高さを指定（スクロール領域を制限） */
+        overflow-y: auto;  /* 垂直スクロールを有効にする */
+        overflow-x: auto; /* 横スクロールを無効にする */
+        display: block;
+        width: 100%;
+    }
+
+    /* テーブルヘッダーを固定 */
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 100; /* ヘッダーをテーブルボディの上に表示するためにz-indexを高く設定 */
+    }
+
+
+
+</style>
+<div class="container mt-4">
+    <h1 class="mb-1">販売場所別実績データ</h1>
+    <hr class="my-4">
+    <div class="card text-bg-light mb-3" style="max-width: 40rem;">
+      <div class="card-header">検索条件指定</div>
+      <div class="card-body">
+        <form method="get" action="{% url 'performance_by_location' %}" class="mb-2">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="search_year" class="form-label">年:</label>
+                    <input type="number" id="search_year" name="search_year" value="{{ search_year }}" min="2000" max="2100" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label for="search_month" class="form-label">月:</label>
+                    <input type="number" id="search_month" name="search_month" value="{{ search_month }}" min="1" max="12" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label for="search_location" class="form-label">販売場所:</label>
+                  <div class="dropdown">
+                    <!-- 切替ボタンの設定 -->
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                      販売場所を選択
+                    </button>
+                    <!-- ドロップメニューの設定 -->
+                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                      <li>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" value="all" id="selectAll">
+                          <label class="form-check-label" for="selectAll">
+                            全ての販売場所
+                          </label>
+                        </div>
+                      </li>
+                      <li><hr class="dropdown-divider"></li>
+                      {% for location in locations %}
+                      <li>
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" name="sales_locations" value="{{ location.id }}" id="location{{ location.id }}"
+                            {% if location.id|stringformat:"s" in selected_locations %}checked{% endif %}>
+                          <label class="form-check-label" for="location{{ location.id }}">
+                            {{ location.name }}
+                          </label>
+                        </div>
+                      </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                    <label></label>
+                    <button type="submit" class="btn btn-primary w-100">検索</button>
+                </div>
+            </div>
+        </form>
+      </div>
+      </div>
+
+
+
+
+    <!-- 結果表示テーブル -->
+    <div class="table-responsive mb-5">
+    <table class="table table-sm table-bordered">
+      <thead class="table-active">
+          <tr>
+              <th>販売場所</th>
+              {% for day, weekday in days_in_month %}
+                  <th class="custom-table">
+                      {{ day.day }}<br> <!-- 日付のみ表示 -->
+                      ({{ weekday }}) <!-- 曜日の頭文字表示 -->
+                  </th>
+              {% endfor %}
+              <th>平均値</th>
+              <th>前月比</th>
+          </tr>
+      </thead>
+      <tbody>
+        {% for entry in summary_data %}
+            <tr>
+                <td>
+                  <a href="{% url 'location_performance' entry.location.id search_year search_month %}">
+                    {{ entry.location }}
+                  </a>
+                </td>
+                {% for sales in entry.sales %}
+                    <td class="custom-table">{{ sales|intcomma }}</td>
+                {% endfor %}
+                <td>{{ entry.average_sales|intcomma }}</td>
+                <td>
+                    {% if entry.comparison_to_last_month is not None %}
+                        {% if entry.comparison_to_last_month == 0 %}
+                            ±0
+                        {% elif entry.comparison_to_last_month > 0 %}
+                            ＋{{ entry.comparison_to_last_month_abs|intcomma }}
+                        {% else %}
+                            ▲{{ entry.comparison_to_last_month_abs|intcomma }}
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+
+
+            </tr>
+        {% empty %}
+
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+</div>
+<script>
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.form-check-input[name="sales_locations"]');
+
+      if (this.checked) {
+        // 「全ての販売場所」が選択された場合、他のチェックボックスを無効化
+        checkboxes.forEach(checkbox => checkbox.checked = false);
+        checkboxes.forEach(checkbox => checkbox.disabled = true);
+      } else {
+        // 「全ての販売場所」が選択解除された場合、他のチェックボックスを有効化
+        checkboxes.forEach(checkbox => checkbox.disabled = false);
+      }
+    });
+</script>
+
+{% endblock %}

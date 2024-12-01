@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}item List{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+{% load humanize %}
+<div class="container mt-4">
+<h1 class="mb-1">持参数データリスト</h1>
+<hr class="my-4">
+<table class="table">
+    <thead>
+        <tr>
+            <th>日付</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+          {% for target_date in item_date %}
+          <td>{{ target_date.target_date|japanese_date }}</td>
+          <td>
+            <a href="{% url 'item_quantity_detail' target_date.target_date %}" class="btn btn-primary">詳細</a>
+          </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

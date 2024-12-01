@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}販売実績チャート{% endblock %}
+
+{% block content %}
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.3.1/decimal.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<style>
+
+
+/* スマホ縦画面のときに高さを調整 */
+@media (max-width: 767px) {
+  /* コンテナ全体を横幅100%に設定 */
+  .container {
+      width: 100%; /* デバイスの横幅に合わせる */
+      max-width: 100%; /* 横幅を制限しない */
+      margin: 0 auto; /* 水平中央揃え */
+  }
+
+    #salesChart {
+        height: 200px;  /* グラフの高さを500pxに設定 */
+    }
+}
+</style>
+
+<body>
+    <div class="container mt-4">
+        <h3>{{ location.name }} - {{ search_year }}年{{ search_month }}月の実績グラフ</h3>
+        <hr>
+        <div>
+            <strong>前月の平均販売数: <span style="color: red;">{{ avg_sales_prev_month|floatformat:0 }}</span></strong>
+        </div>
+
+        <!-- 表示期間選択 -->
+        <div class="mb-3">
+            <select id="dateRangeSelector" class="form-select">
+                <option value="1">1週目 (月〜日)</option>
+                <option value="2">2週目 (月〜日)</option>
+                <option value="3">3週目 (月〜日)</option>
+                <option value="4">4週目 (月〜日)</option>
+                <option value="month">1ヶ月</option>
+            </select>
+        </div>
+
+        <div style="height: 400px; width: 100%;">
+            <canvas id="salesChart" style="height: 100%; width: 100%;"></canvas>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="{% url 'performance_by_location' %}" class="btn btn-primary btn-sm">戻る</a>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+    // データを取得
+    var labels = {{ labels|safe }}; // 配列形式が期待される
+    var sales_data = {{ sales_per_day|safe }}; // 配列形式が期待される
+    var avg_sales_prev_month = {{ avg_sales_prev_month|floatformat:2 }};
+
+
+    // グラフ描画
+    var ctx = document.getElementById('salesChart').getContext('2d');
+    var salesChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '販売数',
+                data: sales_data,
+                borderColor: '#0b62a4',
+                fill: false,
+                datalabels: {
+                    display: true,  // 常時データラベルを表示
+                    color: 'black', // ラベルの色
+                    anchor: 'end',  // ラベルのアンカー位置
+                    align: 'top'    // ラベルの位置
+                }
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // アスペクト比を固定しない
+            plugins: {
+                datalabels: {
+                    display: true,
+                    color: 'black',
+                    anchor: 'end',
+                    align: 'top',
+                },
+                annotation: {
+                    annotations: {
+                        avgLine: {
+                            type: 'line',
+                            yMin: avg_sales_prev_month,
+                            yMax: avg_sales_prev_month,
+                            borderColor: 'red',
+                            borderWidth: 2,
+                            label: {
+                                content: '前月平均',
+                                enabled: true,
+                                position: 'center'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 初期状態で1週目のデータを表示
+    function updateChartForWeek(weekIndex) {
+        var start = weekIndex * 7;
+        var end = start + 7;
+        if (end > labels.length) {
+            end = labels.length;
+        }
+
+        // 1週目データの取得
+        var filteredLabels = labels.slice(start, end);
+        var filteredData = sales_data.slice(start, end);
+
+        // データ更新
+        salesChart.data.labels = filteredLabels;
+        salesChart.data.datasets[0].data = filteredData;
+
+        // グラフ再描画
+        salesChart.update();
+    }
+
+    // 表示範囲変更イベント
+    document.getElementById('dateRangeSelector').addEventListener('change', function () {
+        var range = this.value;
+        var filteredLabels = [];
+        var filteredData = [];
+
+        if (range === 'month') {
+            // 1ヶ月全体のデータを表示
+            filteredLabels = labels;
+            filteredData = sales_data;
+        } else {
+            // 週ごとのデータを表示 (1週目, 2週目, ...)
+            var weekIndex = parseInt(range) - 1;
+            var start = weekIndex * 7;
+            var end = start + 7;
+
+            // 1ヶ月のデータが足りない場合でも、末尾に余裕を持たせる
+            if (end > labels.length) {
+                end = labels.length;
+            }
+
+            // データスライス
+            filteredLabels = labels.slice(start, end);
+            filteredData = sales_data.slice(start, end);
+        }
+
+        // データ更新
+        salesChart.data.labels = filteredLabels;
+        salesChart.data.datasets[0].data = filteredData;
+
+        // グラフ再描画
+        salesChart.update();
+    });
+
+    // 初期状態で1週目を選択して表示
+    document.getElementById('dateRangeSelector').value = "1";
+    updateChartForWeek(0);  // 1週目のデータを表示
+
+});
+
+
+    </script>
+</body>
+{% endblock %}

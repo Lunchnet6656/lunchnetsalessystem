@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}販売実績集計データ{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+{% load humanize %}
+
+<style>
+/* テーブル全体をスクロール可能にする */
+.table-responsive {
+    max-height: 600px; /* テーブルの高さを指定（スクロール領域を制限） */
+    overflow-y: auto;  /* 垂直スクロールを有効にする */
+}
+
+/* テーブルヘッダーを固定 */
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100; /* ヘッダーをテーブルボディの上に表示するためにz-indexを高く設定 */
+}
+/* テーブルフッターの上部に二重線を設定 */
+.table tfoot {
+    border-top: 3px double #000; /* 3pxの黒い二重線を設定 */
+}
+
+/* 追加でテーブルフッターの背景色や文字色も変更したい場合 */
+.table tfoot td {
+    background-color: #b0c4de; /* フッターの背景色をオレンジ色に設定 */
+    color: black;              /* フッターの文字色を白に設定 */
+}
+
+</style>
+
+<div class="container mt-4 mb-4">
+    <h1 class="mb-1">販売実績集計データ</h1>
+    <hr class="my-4">
+    <!-- フィルターセクション：日付範囲設定 -->
+    <form method="get" class="mb-4">
+        <div class="row">
+            <div class="col-md-12">
+                <label for="search_date_start" class="form-label fs-4">日付範囲</label>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group">
+                    <label for="search_date_start" class="form-label">開始日</label>
+                    <input type="date" id="search_date_start" name="search_date_start" value="{{ search_date_start }}" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-1 d-flex align-items-center justify-content-center">
+                <span style="font-size: 1.5rem; width: 1rem;">〜</span>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group">
+                    <label for="search_date_end" class="form-label">終了日</label>
+                    <input type="date" id="search_date_end" name="search_date_end" value="{{ search_date_end }}" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" type="submit">検索</button>
+            </div>
+        </div>
+        <!-- 今月、先月、先々月ボタン -->
+        <!-- 今月、先月、先々月ボタン -->
+                <div class="row mt-3">
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="setDateRange('this_month')">今月</button>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="setDateRange('last_month')">先月</button>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="setDateRange('two_months_ago')">先々月</button>
+                    </div>
+                </div>
+    </form>
+    <!-- 結果表示テーブル -->
+<div class="table-responsive mb-4">
+<table class="table table-bordered">
+    <thead class="table-active">
+        <tr>
+            <th>日付</th>
+            <th>総持参数</th>
+            <th>総販売数</th>
+            <th>総残数</th>
+            <th>売上総額(¥)</th>
+            <th>現金(¥)</th>
+            <th>PayPay(¥)</th>
+            <th>電子決済(¥)</th>
+            <th>廃棄率(%)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in summary_data %}
+            <tr>
+                <td><a href="{% url 'menu_sales_performance' entry.date.year entry.date.month entry.date.day %}">{{ entry.date|japanese_date }}</a></td>
+                <td>{{ entry.total_quantity|intcomma }}</td>
+                <td>{{ entry.total_sales_quantity|intcomma }}</td>
+                <td>{{ entry.total_remaining|intcomma }}</td>
+                <td>{{ entry.total_revenue|intcomma }}</td>
+                <td>{{ entry.cash|intcomma }}</td>
+                <td>{{ entry.paypay|intcomma }}</td>
+                <td>{{ entry.digital_payment|intcomma }}</td>
+                <td>{{ entry.waste_rate|floatformat:2 }}</td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="9" class="text-center">データがありません</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td><strong>合計</strong></td>
+            <td><strong>{{ total_quantity|intcomma }}</strong></td>
+            <td><strong>{{ total_sales_quantity|intcomma }}</strong></td>
+            <td><strong>{{ total_remaining|intcomma }}</strong></td>
+            <td><strong>{{ total_revenue|intcomma }}</strong></td>
+            <td><strong>{{ cash|intcomma }}</strong></td>
+            <td><strong>{{ paypay|intcomma }}</strong></td>
+            <td><strong>{{ digital_payment|intcomma }}</strong></td>
+            <td><strong>{{ total_waste_rate|floatformat:2 }}</strong></td>
+        </tr>
+    </tfoot>
+</table>
+</div>
+
+<!-- CSV ダウンロードボタン -->
+<a href="{% url 'download_csv' %}?search_date_start={{ search_date_start }}&search_date_end={{ search_date_end }}" class="btn btn-secondary">CSVダウンロード</a>
+
+</div>
+
+<script>
+    function setDateRange(range) {
+        const today = new Date();
+        let startDate, endDate;
+
+        if (range === 'this_month') {
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1); // 今月の初日
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); // 今月の末日
+        } else if (range === 'last_month') {
+            startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1); // 先月の初日
+            endDate = new Date(today.getFullYear(), today.getMonth(), 0); // 先月の末日
+        } else if (range === 'two_months_ago') {
+            startDate = new Date(today.getFullYear(), today.getMonth() - 2, 1); // 先々月の初日
+            endDate = new Date(today.getFullYear(), today.getMonth() - 1, 0); // 先々月の末日
+        }
+
+        // ローカルタイムで yyyy-mm-dd に変換する関数
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0'); // 月は0始まり
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        // input フィールドに値をセット
+        document.getElementById('search_date_start').value = formatDate(startDate);
+        document.getElementById('search_date_end').value = formatDate(endDate);
+    }
+</script>
+
+
+{% endblock %}

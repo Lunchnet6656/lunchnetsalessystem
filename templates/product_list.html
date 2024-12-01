@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Product List{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+<h1 class="mb-1">メニューデータリスト</h1>
+<hr class="my-4">
+<table class="table">
+    <thead>
+        <tr>
+            <th>Week</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for week in weeks %}
+        <tr>
+            <td>{{ week.week }}</td>
+            <td>
+                <a href="{% url 'product_detail' week.week %}" class="btn btn-primary">編集</a>
+                <a href="{% url 'delete_product' week.week %}" class="btn btn-danger" onclick="return confirm('本当に削除しますか？');">削除</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

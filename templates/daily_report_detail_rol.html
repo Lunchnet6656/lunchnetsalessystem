@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}日計表一覧{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+<div class="container mt-4 mb-5">
+  <h1 class="mb-4">日計表一覧</h1>
+  <hr class="my-2">
+  <div class="table-responsive">
+  <table id="reportTable" class="table table-striped tabale-sm">
+      <thead>
+          <tr>
+            <th onclick="sortTable(0)" style="cursor: pointer;">NO <span id="sortIcon0"></span></th>
+            <th onclick="sortTable(1)" style="cursor: pointer;">販売場所 <span id="sortIcon1"></span></th>
+            <th onclick="sortTable(2)" style="cursor: pointer;">担当者 <span id="sortIcon2"></span></th>
+            <th onclick="sortTable(7)" style="cursor: pointer;">更新日時 <span id="sortIcon7"></span></th>
+            <!--非表示
+            <th onclick="sortTable(3)" style="cursor: pointer;">持参数 <span id="sortIcon3"></span></th>
+            <th onclick="sortTable(4)" style="cursor: pointer;">販売数 <span id="sortIcon4"></span></th>
+            <th onclick="sortTable(5)" style="cursor: pointer;">残数 <span id="sortIcon5"></span></th>
+            <th onclick="sortTable(6)" style="cursor: pointer;">総売上 <span id="sortIcon6"></span></th>
+            <th onclick="sortTable(6)" style="cursor: pointer;">PayPay <span id="sortIcon6"></span></th>
+            <th onclick="sortTable(7)" style="cursor: pointer;">電子決済 <span id="sortIcon7"></span></th>
+            <th onclick="sortTable(8)" style="cursor: pointer;">現金 <span id="sortIcon8"></span></th>
+            <th onclick="sortTable(9)" style="cursor: pointer;">差額 <span id="sortIcon9"></span></th>-->
+            <th>Action</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for report in reports_by_location %}
+          <tr>
+              <td>{{ report.date|japanese_date }}</td>
+              <td>{{ report.location }}</td>
+              <td>{{ report.person_in_charge }}</td>
+              <td>{{ report.updated_at|date:"Y/m/d H:i" }}</td>
+              <!--非表示
+              <td>{{ report.total_quantity }}</td>
+              <td>{{ report.total_sales_quantity }}</td>
+              <td>{{ report.total_remaining }}</td>
+              <td>{{ report.total_revenue|yen_format }}</td>
+              <td>{{ report.paypay|yen_format }}</td>
+              <td>{{ report.digital_payment|yen_format }}</td>
+              <td>{{ report.cash|yen_format }}</td>
+              <td>{{ report.sales_difference|yen_format }}</td>-->
+              <td>
+                  <a href="{% url 'daily_report_edit_rol' report.pk %}" class="btn btn-primary btn-sm">明細</a>
+              </td>
+          </tr>
+          {% empty %}
+          <tr>
+              <td colspan="9">データがありません</td>
+          </tr>
+
+        {% endfor %}
+      </tbody>
+  </table>
+  </div>
+  <a class="fs-6" href="{% url 'dashboard' %}">戻る</a>
+</div>
+
+<script>
+let sortOrder = true; // true for ascending, false for descending
+
+function sortTable(columnIndex) {
+    const table = document.getElementById("reportTable");
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    const compareRows = (a, b) => {
+        const aText = a.cells[columnIndex].innerText.replace(/,/g, '');
+        const bText = b.cells[columnIndex].innerText.replace(/,/g, '');
+
+        const aValue = isNaN(aText) ? aText : parseFloat(aText);
+        const bValue = isNaN(bText) ? bText : parseFloat(bText);
+
+        return (aValue > bValue ? 1 : -1) * (sortOrder ? 1 : -1);
+    };
+
+    rows.sort(compareRows);
+    rows.forEach(row => tbody.appendChild(row));
+
+    updateSortIcons(columnIndex);
+    sortOrder = !sortOrder;
+}
+
+function updateSortIcons(columnIndex) {
+    const icons = Array.from(document.querySelectorAll('th span'));
+    icons.forEach((icon, index) => {
+        icon.innerText = '';
+        if (index === columnIndex) {
+            icon.innerText = sortOrder ? '▲' : '▼';
+        }
+    });
+}
+
+function confirmDelete(locationName) {
+    return confirm(locationName + "を削除しますか？");
+}
+
+</script>
+
+<style>
+/* コンテナ全体を横幅100%に設定 */
+.container, .table-responsive {
+    width: 100%; /* デバイスの横幅に合わせる */
+    max-width: 100%; /* 横幅を制限しない */
+    margin: 0 auto; /* 水平中央揃え */
+}
+th {
+    background-color: #f8f9fa; /* ヘッダーの背景色 */
+    font-weight: bold; /* フォントを太く */
+    position: relative; /* アイコンを正しく配置するため */
+}
+
+th:hover {
+    background-color: #e9ecef; /* マウスオーバー時の背景色 */
+}
+
+th span {
+    margin-left: 5px; /* アイコンとテキストの間にスペース */
+}
+
+@media (max-width: 576px) {
+    body {
+      font-size: 12px;
+    }
+
+    table {
+      font-size: 10px;
+    }
+
+    .btn {
+      font-size: 10px;
+    }
+
+    .fs-6 {
+      font-size: 12px;
+    }
+  }
+</style>
+{% endblock %}

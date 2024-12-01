@@ -1,0 +1,236 @@
+
+
+h1.mb-4 {
+  position: relative;
+  display: inline-block;
+  padding-bottom: 8px !important;
+}
+
+h1.mb-4::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #555 !important;
+  border-radius: 2px;
+}
+
+
+
+/* サイドバー */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 220px; /* 必要に応じて狭くする */
+    background-color: #343a40;
+    padding-top: 60px ;
+    z-index: 998; /* 他の要素の上に表示 */
+}
+
+.sidebar ul {
+    padding-left: 0;
+}
+
+.sidebar ul li {
+    list-style: none;
+    padding: 10px;
+    text-align: left;
+}
+
+.sidebar ul li a {
+    color: #ffffff; /* 文字色 */
+    text-decoration: none; /* アンダーラインを消す */
+    display: block;
+    background-color: transparent; /* 背景を透明に */
+    border: none; /* 枠線を削除 */
+    padding: 10px 15px; /* 内側の余白調整 */
+}
+
+.sidebar ul li a:hover {
+    background-color: #007bff;
+    color: #ffffff; /* ホバー時の文字色 */
+}
+
+.sidebar ul li a.active {
+    background-color: #007bff;
+    color: #ffffff;
+}
+
+.sidebar.collapsed {
+    width: 0;
+    overflow: hidden;
+}
+
+.sidebar .list-group-item {
+    background-color: transparent; /* 背景色を透明に設定 */
+    border: none; /* 境界線も消したい場合 */
+}
+
+.sidebar .list-group-item h6 {
+    font-size: 12px;
+    font-weight: bold;
+    color: #ddd; /* セクションタイトルの色 */
+    padding-bottom: 5px;
+    border-bottom: 1px solid #444; /* セクションタイトルの下に線を追加 */
+    margin-bottom: 10px;
+}
+
+
+/* メインコンテンツ */
+.container-fluid {
+    margin-left: 20px; /* サイドバーの幅分の余白を設定 */
+    padding-top: 70px; /* ナビバーの高さ分、上部に余白を設定 */
+}
+
+.container-fluid.expanded {
+    margin-left: 180px;
+    margin-right: 20px;
+}
+
+/* ナビバー */
+.navbar {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 999;
+    height: 60px; /* ナビバーの高さを指定 */
+}
+
+/* タブレット向けスタイル */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 200px; /* サイドバーの幅を調整 */
+    }
+
+    .container-fluid {
+        margin-left: 200px; /* サイドバーの幅分の余白を設定 */
+    }
+
+    .custom-table {
+        width: 90%; /* 幅を広げてタブレットでも見やすく */
+    }
+
+    /* アイテムの余白を調整 */
+    .sidebar ul li a {
+        padding: 12px; /* アイテムの内側の余白を調整 */
+    }
+}
+
+/* スマホ向けスタイル */
+@media (max-width: 768px) {
+    /* サイドバーの調整 */
+    .sidebar {
+        width: 100%; /* 横幅いっぱい */
+        position: fixed; /* 画面に固定 */
+        top: -100%; /* 上部に配置 */
+        left: 0; /* 左端に配置 */
+        z-index: 1000; /* 他の要素より前面に */
+        height: 50%; /* 画面全体の高さ */
+        background-color: rgba(0, 0, 0, 0.9); /* 半透明の背景色 */
+        overflow-y: auto; /* 内容が多い場合にスクロール可能に */
+        display: none; /* デフォルトで非表示 */
+        padding-top: 3px; /* 上部の余白を狭く設定 */
+        transition: top 0.3s ease-in-out; /* 上からスライドインするアニメーション */
+    }
+
+    /* サイドバーを表示させるためのクラス */
+    .sidebar.expanded {
+        display: block; /* サイドバーを表示 */
+        top: 55px; /* スライドイン */
+    }
+
+    /* サイドバーを表示させるためのクラス */
+    .sidebar.expanded {
+        display: block; /* サイドバーを表示 */
+    }
+
+    .sidebar ul li a {
+        padding: 10px; /* 余白を少し減らして見やすく */
+        font-size: 20px; /* テキストサイズを調整 */
+        width: 100%; /* 横幅いっぱいに */
+    }
+
+    .container-fluid {
+        margin-left: 5px;
+        margin-right: 5px;
+        padding-top: 50px; /* ナビバー分の余白をキープ */
+    }
+
+    .container-fluid.expanded {
+        margin-left: 0px;
+        margin-right: 0px;
+        padding-top: 50px; /* ナビバー分の余白をキープ */
+    }
+
+    .sidebar.collapsed {
+        display: none; /* サイドバーを隠す */
+    }
+
+    /* ログアウトボタンはマージンなし */
+    .navbar-nav .nav-item button {
+        margin-right: 0px !important; /* ログアウトボタンにマージンを無効化 */
+    }
+
+    .navbar {
+        height: auto;
+        flex-wrap: nowrap; /* アイテムを折り返さないように */
+        z-index: 1000; /* 他の要素より前面に */
+    }
+
+    .navbar-brand {
+        font-size: 14px;
+        margin-right: auto; /* 左寄せ */
+    }
+
+    .navbar-nav {
+        display: flex; /* 横並びに */
+        justify-content: flex-end; /* 右寄せ */
+        flex-wrap: nowrap; /* 折り返しを防ぐ */
+        align-items: center; /* 垂直方向に中央揃え */
+        padding-left: 0; /* 左側の余白を排除 */
+        margin-bottom: 0;
+    }
+
+    .navbar-nav .nav-item {
+        display: flex; /* flexboxを使ってアイテムを並べる */
+        align-items: center; /* アイテムを垂直中央揃え */
+    }
+
+    .navbar-text {
+        font-size: 14px;
+        white-space: nowrap;
+        margin-right: 30px; /* 氏名とログアウトボタンの間に余白を追加 */
+    }
+
+    .btn-danger {
+        font-size: 12px; /* ボタン文字のサイズを小さく */
+        padding: 4px 8px; /* ボタンの余白を減らして小さく */
+        white-space: nowrap; /* ボタンが改行されないように */
+    }
+
+    .btn-sm {
+        font-size: 12px;
+        padding: 4px 8px; /* ボタンの余白を減らして小さく */
+        white-space: nowrap; /* ボタンが改行されないように */
+    }
+
+    h1.mb-4 {
+        font-size: 24px; /* 見出しサイズを調整 */
+    }
+
+    h1.mb-4::after {
+        height: 2px; /* 線の太さを調整 */
+    }
+
+    h5.card-title{
+        font-size: 15px;
+    }
+
+    .custom-table {
+        width: 100%; /* スマホでは横幅をフルに */
+    }
+}

@@ -1,0 +1,162 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}管理者ダッシュボード{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    {% load static %}
+    <link href="{% static 'css/styles_base.css' %}" rel="stylesheet">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div class="d-flex align-items-center">
+        <button id="sidebarCollapse" class="btn btn-dark">
+          <i class="fas fa-bars"></i>
+        </button>
+        <a class="navbar-brand d-none d-lg-inline" href="{% url 'dashboard' %}">ランチネット販売実績管理システム (LSS)</a>
+        <a class="navbar-brand d-inline d-lg-none" href="#">ランチネット販売実績管理システム</a>
+      </div>
+        <!-- ナビゲーション右端の項目 -->
+        <ul class="navbar-nav ms-auto d-flex align-items-center">
+            {% if user.is_authenticated %}
+                <!-- 氏名の表示 -->
+                <li class="nav-item d-none d-lg-inline">
+                    <span class="navbar-text text-white me-3">
+                        氏名：{{ user.last_name }} {{ user.first_name }}
+                    </span>
+                </li>
+                <!-- ログアウトボタン -->
+                <li class="nav-item me-3">
+                    <form action="{% url 'logout' %}" method="post" id="logout-form" onsubmit="confirmLogout(event)" class="m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-sm">ログアウト</button>
+                    </form>
+                </li>
+            {% else %}
+                <!-- ログインリンク -->
+                <li class="nav-item">
+                    <a class="nav-link btn btn-light btn-sm" href="{% url 'login' %}">ログイン</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    <div class="main-wrapper">
+        <div class="row">
+            <div class="col-md-2">
+              <div class="sidebar">
+                <div class="sidebar-header">
+                </div>
+                <ul class="list-group">
+                    {% if user.is_staff %} <!-- スタッフ専用 -->
+                    <!-- 管理セクション -->
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">管理</h6>
+                        <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-home"></i> TOP
+                        </a>
+                        <a href="{% url 'upload' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-upload"></i> データアップロード
+                        </a>
+                    </li>
+                    <!-- データセクション -->
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">データ管理</h6>
+                        <a href="{% url 'location_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-edit"></i> 販売場所データ確認
+                        </a>
+                        <a href="{% url 'product_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-edit"></i> メニューデータ確認
+                        </a>
+                        <a href="{% url 'item_quantity_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-edit"></i> 持参数データ確認
+                        </a>
+                    </li>
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">実績管理</h6>
+                        <a href="{% url 'daily_report_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 日計表 送信結果
+                        </a>
+                        <a href="{% url 'performance_data' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 日別実績集計データ
+                        </a>
+                        <a href="{% url 'performance_by_location' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 販売場所別実績集計データ
+                        </a>
+                        <a href="{% url 'menu_history' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> メニュー別販売履歴
+                        </a>
+                    </li>
+                    {% else %} <!-- 一般 -->
+                    <li class="list-group-item">
+                        <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-home"></i> TOP
+                        </a>
+                    </li>
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">データ</h6>
+                        <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 日計表 送信結果
+                        </a>
+                        <a href="{% url 'performance_by_location' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 販売場所別実績集計データ
+                        </a>
+                    </li>
+                    {% endif %}
+                    <!-- 日計表セクション -->
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">日計表リンク</h6>
+                        <a href="{% url 'daily_report' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-file-alt"></i> 日計表入力フォーム
+                        </a>
+                    </li>
+                </ul>
+              </div>
+          </div>
+        </div>
+          <div class="container-fluid expanded">
+            <div class="row">
+              <div class="col-md-10">
+                  <!-- メッセージ表示の追加 -->
+                  {% if messages %}
+                      <div class="alert-messages">
+                          {% for message in messages %}
+                              <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}">
+                                  {{ message }}
+                              </div>
+                          {% endfor %}
+                      </div>
+                  {% endif %}
+
+                  {% block content %}{% endblock %}
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("sidebarCollapse").onclick = function() {
+            const sidebar = document.querySelector(".sidebar");
+            const container = document.querySelector(".container-fluid");
+
+            // 画面幅に応じて処理を切り替え
+            if (window.innerWidth > 768) {
+                // PC画面
+                sidebar.classList.toggle("collapsed");
+                container.classList.toggle("expanded");
+            } else {
+                // スマホ画面
+                sidebar.classList.toggle("expanded"); // expandedクラスを切り替え
+            }
+        };
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+
+</body>
+</html>

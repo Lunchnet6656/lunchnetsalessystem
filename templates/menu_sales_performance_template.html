@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}メニュー別販売実績{% endblock %}
+
+{% block content %}
+
+{% load custom_filters %}
+{% load humanize %}
+<div class="container mt-4">
+    <h1 class="mb-1">{{ selected_date|japanese_date }} のメニュー別販売実績</h1>
+    <hr class="my-4">
+
+    <table class="table table-bordered">
+        <thead class="table-active">
+            <tr>
+                <th>メニュー</th>
+                <th>総持参数</th>
+                <th>総販売数</th>
+                <th>総残数</th>
+                <th>人気数</th>
+                <th>不人気数</th>
+                <th>廃棄率 (%)</th> <!-- 廃棄率のカラムを追加 -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in summary_data %}
+                <tr>
+                    <td>{{ entry.product }}</td>
+                    <td>{{ entry.total_quantity|intcomma }}</td>
+                    <td>{{ entry.total_sales_quantity|intcomma }}</td>
+                    <td>{{ entry.total_remaining|intcomma }}</td>
+                    <td>{{ entry.popular_count|intcomma }}</td>
+                    <td>{{ entry.unpopular_count|intcomma }}</td>
+                    <td>{{ entry.waste_rate|floatformat:1 }}</td> <!-- 廃棄率を表示 -->
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center">データがありません</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td><strong>合計</strong></td>
+                <td><strong>{{ total_quantity_sum|intcomma }}</strong></td>
+                <td><strong>{{ total_sales_quantity_sum|intcomma }}</strong></td>
+                <td><strong>{{ total_remaining_sum|intcomma }}</strong></td>
+                <td><strong>{{ total_popular_count|intcomma }}</strong></td>
+                <td><strong>{{ total_unpopular_count|intcomma }}</strong></td>
+                <td><strong>{{ total_waste_rate|floatformat:1 }}</strong></td> <!-- 合計行の廃棄率を表示 -->
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+{% endblock %}
