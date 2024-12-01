@@ -26,7 +26,8 @@ SECRET_KEY = 'django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['lunchnetsalessystem.herokuapp.com', 'localhost']
+#ALLOWED_HOSTS = ['lunchnetsalessystem-c7bbb644044e.herokuapp.com', 'localhost']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'lunchnetsalessystem-c7bbb644044e.herokuapp.com,localhost').split(',')
 
 
 # Application definition
