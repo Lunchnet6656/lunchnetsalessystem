@@ -13,6 +13,9 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 from pathlib import Path
 
 import os
+
+from datetime import timedelta
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -47,7 +50,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'axes.middleware.AxesMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -55,11 +57,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 AXES_FAILURE_LIMIT = 10  # 最大5回の失敗を許可
-AXES_COOLOFF_TIME = 1  # 1時間後に再試行可能
+AXES_COOLOFF_TIME = timedelta(hours=1)  # 1時間後に再試行可能
 AXES_LOCK_OUT_AT_FAILURE = True  # 試行失敗後にアカウントをロック
 AXES_RESET_ON_SUCCESS = True  # 成功ログインでカウントをリセット
 
