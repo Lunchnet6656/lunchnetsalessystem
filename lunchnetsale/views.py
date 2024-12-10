@@ -56,7 +56,9 @@ def login_view(request):
             messages.error(request, 'ユーザー名またはパスワードが正しくありません')
 
     return render(request, 'login.html')
-
+    
+def locked_out_view(request):
+    return render(request, 'axes/locked_out.html')
 
 def logout_view(request):
     logout(request)

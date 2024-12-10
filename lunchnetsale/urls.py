@@ -18,13 +18,15 @@ from django.contrib import admin
 from django.urls import path
 from . import views
 from django.contrib.auth import views as auth_views
+from .views import locked_out_view
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('secure-admin/', admin.site.urls),
     path('login/', views.login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('upload/', views.upload_view, name='upload'),
+    path('locked_out/', locked_out_view, name='locked_out'),
 
     path('daily_report/', views.daily_report_view, name='daily_report'), #日計表のURL
     path('submission_complete/', views.submission_complete_view, name='submission_complete'),  # 完了ページのURL
