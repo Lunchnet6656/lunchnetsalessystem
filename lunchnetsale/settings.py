@@ -66,7 +66,6 @@ AXES_FAILURE_LIMIT = 5  # 最大5回の失敗を許可
 AXES_COOLOFF_TIME = timedelta(hours=1)  # 1時間後に再試行可能
 AXES_LOCK_OUT_AT_FAILURE = True  # 試行失敗後にアカウントをロック
 AXES_RESET_ON_SUCCESS = True  # 成功ログインでカウントをリセット
-
 AXES_LOCK_OUT_URL = '/locked_out/'  # カスタムのロックアウトページのURL
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
