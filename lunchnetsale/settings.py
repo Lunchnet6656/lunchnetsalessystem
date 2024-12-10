@@ -34,7 +34,6 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'lunchnetsalessystem-c7bbb644044e.her
 # Application definition
 
 INSTALLED_APPS = [
-    'axes',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,6 +43,7 @@ INSTALLED_APPS = [
     'sales',
     'lunchnetsale',
     'django.contrib.humanize',
+    'axes',
 ]
 
 MIDDLEWARE = [
@@ -58,7 +58,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
-AXES_FAILURE_LIMIT = 5  # 最大5回の失敗を許可
+AXES_FAILURE_LIMIT = 10  # 最大5回の失敗を許可
 AXES_COOLOFF_TIME = 1  # 1時間後に再試行可能
 AXES_LOCK_OUT_AT_FAILURE = True  # 試行失敗後にアカウントをロック
 AXES_RESET_ON_SUCCESS = True  # 成功ログインでカウントをリセット
