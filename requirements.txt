@@ -2,8 +2,10 @@ asgiref==3.8.1
 Django==5.1.1
 django-axes==7.0.1
 et-xmlfile==1.1.0
+gunicorn==23.0.0
 numpy==2.1.1
 openpyxl==3.1.5
+packaging==24.2
 pandas==2.2.2
 python-dateutil==2.9.0.post0
 pytz==2024.1
