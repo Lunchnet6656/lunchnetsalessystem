@@ -214,7 +214,6 @@ def upload_view(request):
         'item_quantity_form': item_quantity_form
     })
 
-
 @login_required
 def register_user(request):
     if request.method == 'POST':
@@ -234,11 +233,12 @@ def register_user(request):
             else:
                 user.is_staff = False
             user.save()
-            return redirect('dashboard')
+            return redirect('home')
         except Exception as e:
             return render(request, 'register.html', {'error': str(e)})
 
     return render(request, 'register.html')
+
 
 # ヘルパー関数の定義
 def parse_value(value_str):
