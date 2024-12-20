@@ -26,6 +26,7 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('upload/', views.upload_view, name='upload'),
+    path('register/', views.register_user, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
 
     path('daily_report/', views.daily_report_view, name='daily_report'), #日計表のURL

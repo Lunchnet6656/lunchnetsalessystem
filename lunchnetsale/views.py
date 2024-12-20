@@ -25,6 +25,8 @@ import logging
 from django.contrib.auth import get_user_model
 from datetime import datetime
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
 
 
 
@@ -212,6 +214,31 @@ def upload_view(request):
         'item_quantity_form': item_quantity_form
     })
 
+
+@login_required
+def register_user(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password1 = request.POST['password1']
+        password2 = request.POST['password2']
+        user_role = request.POST['user_role']
+
+        if password1 != password2:
+            return render(request, 'register.html', {'error': 'パスワードが一致しません'})
+
+        try:
+            user = User.objects.create_user(username=username, password=password1)
+            # 権限の設定
+            if user_role == 'admin':
+                user.is_staff = True
+            else:
+                user.is_staff = False
+            user.save()
+            return redirect('dashboard')
+        except Exception as e:
+            return render(request, 'register.html', {'error': str(e)})
+
+    return render(request, 'register.html')
 
 # ヘルパー関数の定義
 def parse_value(value_str):
