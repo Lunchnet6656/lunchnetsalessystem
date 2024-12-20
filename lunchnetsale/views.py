@@ -222,14 +222,13 @@ def register_user(request):
         password2 = request.POST['password2']
         user_role = request.POST['user_role']
         first_name = request.POST['first_name']
-        last_name = request.POST.['last_name']
+        last_name = request.POST['last_name']
 
         if password1 != password2:
             return render(request, 'register.html', {'error': 'パスワードが一致しません'})
 
         try:
-            user = User.objects.create_user(username=username, password=password1,first_name=first_name,
-                last_name=last_name)
+            user = User.objects.create_user(username=username, password=password1, first_name=first_name, last_name=last_name)
             # 権限の設定
             if user_role == 'admin':
                 user.is_staff = True
