@@ -102,7 +102,7 @@ DATABASES = {
 }
 
 LOGIN_URL = 'login/'  # 未ログインのユーザーがアクセスしようとしたときにリダイレクトされるログインページのURL名
-LOGOUT_REDIRECT_URL = '/login/'  # ログアウト後にリダイレクトされるURL名
+LOGOUT_REDIRECT_URL = 'login/'  # ログアウト後にリダイレクトされるURL名
 
 # セッションタイムアウト設定（例: 30分）
 SESSION_COOKIE_AGE = 30 * 60  # 秒単位で指定（30分 = 1800秒）
@@ -113,6 +113,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 # セッションがアクティブな間でも、非アクティブ時間でセッションを終了する設定
 SESSION_SAVE_EVERY_REQUEST = False
 
+SESSION_EXPIRED_REDIRECT_URL = 'login/'
 
 # Password validation
 # https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators
