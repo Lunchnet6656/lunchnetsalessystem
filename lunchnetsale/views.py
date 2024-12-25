@@ -27,7 +27,7 @@ from datetime import datetime
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-
+from django.contrib.auth.forms import UserChangeForm
 
 
 def login_view(request):
@@ -114,6 +114,32 @@ def dashboard_view(request):
 
 
     return render(request, 'dashboard.html', context)
+
+@login_required
+def user_list_view(request):
+    users = User.objects.all()  # ユーザー情報を取得
+    return render(request, 'user_list.html', {'users': users})
+
+@login_required
+def user_edit_view(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    if request.method == 'POST':
+        form = UserChangeForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            return redirect('user_list')
+    else:
+        form = UserChangeForm(instance=user)
+
+    return render(request, 'user_edit.html', {'form': form})
+
+@login_required
+def user_delete_view(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    if request.method == 'POST':
+        user.delete()
+        return redirect('user_list')
+    return render(request, 'user_confirm_delete.html', {'user': user})
 
 
 @login_required

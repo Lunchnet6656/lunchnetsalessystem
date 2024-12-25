@@ -29,6 +29,11 @@ urlpatterns = [
     path('register/', views.register_user, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
 
+    path('users/', views.user_list_view, name='user_list'),
+    path('user/edit/<int:user_id>/', views.user_edit_view, name='user_edit'),
+    path('user/delete/<int:user_id>/', views.user_delete_view, name='user_delete'),
+
+
     path('daily_report/', views.daily_report_view, name='daily_report'), #日計表のURL
     path('submission_complete/', views.submission_complete_view, name='submission_complete'),  # 完了ページのURL
 
