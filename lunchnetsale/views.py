@@ -106,9 +106,11 @@ def dashboard_view(request):
     }
 
 
-    if not request.user.is_authenticated:
+    # セッションの有効期限を確認
+    if request.session.get_expiry_age() <= 0:  # セッション期限が切れている場合
         messages.warning(request, 'セッションの有効期限が切れました。再度ログインしてください。')
-        return redirect('login')  # ログインページの名前
+        return redirect('login')  # 'login' はログインページのURL名前付きルート
+
 
     return render(request, 'dashboard.html', context)
 
