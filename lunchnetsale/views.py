@@ -69,6 +69,13 @@ def logout_view(request):
 
 @login_required
 def dashboard_view(request):
+
+    # セッションの有効期限を確認
+    if request.session.get_expiry_age() <= 0:  # セッション期限が切れている場合
+        messages.warning(request, 'セッションの有効期限が切れました。再度ログインしてください。')
+        request.session.flush()  # セッションデータをクリア
+        return redirect('login')  # 'login' はログインページのURL名前付きルート
+
     today = datetime.today()
 
     # 本日の売上、販売数、残数を集計
@@ -104,12 +111,6 @@ def dashboard_view(request):
         'formatted_waste_rate': formatted_waste_rate,
         'menu_summary': menu_summary,
     }
-
-
-    # セッションの有効期限を確認
-    if request.session.get_expiry_age() <= 0:  # セッション期限が切れている場合
-        messages.warning(request, 'セッションの有効期限が切れました。再度ログインしてください。')
-        return redirect('login')  # 'login' はログインページのURL名前付きルート
 
 
     return render(request, 'dashboard.html', context)
