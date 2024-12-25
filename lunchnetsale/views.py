@@ -57,6 +57,10 @@ def login_view(request):
             logger.error(f'Authentication failed for user: {username}')
             messages.error(request, 'ユーザー名またはパスワードが正しくありません')
 
+    if not request.user.is_authenticated:
+        messages.warning(request, 'セッションの有効期限が切れました。再度ログインしてください。')
+        return redirect('login')  # ログインページの名前
+        
     return render(request, 'login.html')
 
 def locked_out_view(request):
