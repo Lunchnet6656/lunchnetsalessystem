@@ -5,7 +5,11 @@
         <h2>ユーザー編集: {{ form.instance.username }}</h2>
         <form method="post">
             {% csrf_token %}
-            {{ form.as_p }}
+            {{ form.username.label }} {{ form.username }}
+            {{ form.password.label }} {{ form.password }}
+            {{ form.firstname.label }} {{ form.firstname }}
+            {{ form.lastname.label }} {{ form.lastname }}
+            {{ form.staff_status.label }} {{ form.staff_status }}
             <button type="submit" class="btn btn-primary">保存</button>
         </form>
     </div>

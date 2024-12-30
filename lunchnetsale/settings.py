@@ -32,7 +32,7 @@ DEBUG = False
 
 
 #ALLOWED_HOSTS = ['lunchnetsalessystem-c7bbb644044e.herokuapp.com', 'localhost']
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'lunchnetsalessystem-c7bbb644044e.herokuapp.com,localhost').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'lunchnetsalessystem-c7bbb644044e.herokuapp.com,localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -95,8 +95,13 @@ WSGI_APPLICATION = 'lunchnetsale.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
 
+# デフォルトではSQLiteを使用し、環境変数が設定されていればそれを利用
 DATABASES = {
-    'default': dj_database_url.config(conn_max_age=600, ssl_require=True)
+    'default': dj_database_url.config(
+        default=f'sqlite:///{os.path.join(os.path.dirname(__file__), "db.sqlite3")}',
+        conn_max_age=600,
+        ssl_require=os.getenv('DJANGO_ENV') == 'production'  # 本番環境でのみSSLを強制
+    )
 }
 
 
