@@ -17,6 +17,11 @@
           <input type="hidden" name="date" value="{{ report.date|date:'Y-m-d' }}">
       </div>
       <div class="col">
+        <label>NO.</label>
+        <p>{{ report.location_no }}</p>
+        <input type="hidden" name="location_no" value="{{ report.location_no }}">
+    </div>
+      <div class="col">
           <label>販売場所:</label>
           <p>{{ report.location }}</p>
           <input type="hidden" name="location" value="{{ report.location }}">
@@ -159,7 +164,14 @@
                 <input type="number" id="discount_100" class="form-control" name="discount_100" value="{{ report.discount_100 }}">
             </div>
             {% if report.service_name == 'なし' %}
+            <input type="hidden" id="service_name" class="form-control" name="service_name" value="{{ report.service_name }}">
+            <input type="hidden" id="service_price" class="form-control" name="service_price" value="{{ report.service_price }}">
+            <input type="hidden" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}">
+            <input type="hidden" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}">
+            <input type="hidden" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}">
             {% elif report.service_name == 'サジェスト' %}
+            <input type="hidden" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}">
+            <input type="hidden" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}">
             <div class="col">
                 <label for="service_name">サービス: {{ report.service_name }}{{ report.service_price }}円</label>
                 <input type="number" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}">
@@ -173,6 +185,7 @@
                   <input type="number" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}">
                   <span class="input-group-text">700円</span>
                   <input type="number" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}">
+                  <input type="hidden" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}">
                 </div>
             </div>
             {% endif %}
@@ -273,7 +286,24 @@
             <textarea id="food_count_setting" class="form-control" name="food_count_setting">{{ report.food_count_setting }}</textarea>
         </div>
 
-        <button type="submit" class="btn btn-primary">上書き保存</button>
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                <ul>
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        
+        {% if not report.confirmed %}
+            <button type="submit" class="btn btn-primary">上書き保存</button>
+        {% endif %}
 
 </form>
         <a class="fs-4" href="{% url 'daily_report_detail' report.date %}">一覧へ戻る</a>

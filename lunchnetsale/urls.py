@@ -65,4 +65,6 @@ urlpatterns = [
 
     path('menu-history/', views.menu_history_view, name='menu_history'),
 
+    path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),
+
 ]

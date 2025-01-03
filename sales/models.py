@@ -67,10 +67,10 @@ class DailyReport(models.Model):
     total_quantity = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 持参数合計
     total_sales_quantity = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 販売数合計
     total_remaining = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 残数合計
-    others_sales_1 = models.CharField(max_length=100, default="")
+    others_sales_1 = models.CharField(max_length=100, default="", blank=True)
     others_price1 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     others_sales_quantity1 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
-    others_sales_2 = models.CharField(max_length=100, default="")
+    others_sales_2 = models.CharField(max_length=100, default="", blank=True)
     others_price2 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     others_sales_quantity2 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     total_others_sales = models.DecimalField(max_digits=10, decimal_places=0, default=0)
@@ -103,6 +103,7 @@ class DailyReport(models.Model):
     others = models.DecimalField(max_digits=10, decimal_places=0, default=0) # その他
     comments = models.TextField(blank=True)  # コメント
     food_count_setting = models.TextField(blank=True)  # 明日の食数設定
+    confirmed = models.BooleanField(default=False)  # 確認済みかどうか
     updated_at = models.DateTimeField(auto_now=True) # 自動で更新日時を記録
 
     def __str__(self):

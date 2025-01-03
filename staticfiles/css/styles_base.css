@@ -1,4 +1,9 @@
 
+.alert-messages {
+    margin-left: 50px; /* サイドバーの幅に合わせてメッセージをずらす */
+}
+
+
 
 h1.mb-4 {
   position: relative;
@@ -233,4 +238,8 @@ h1.mb-4::after {
     .custom-table {
         width: 100%; /* スマホでは横幅をフルに */
     }
+    .alert-messages {
+        margin-left: 0px;
+    }
+    
 }

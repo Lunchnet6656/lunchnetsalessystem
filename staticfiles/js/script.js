@@ -29,9 +29,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
 
-                    if (!confirm('送信してもよろしいですか？')) {
-                        event.preventDefault();
-                    }
+                    // スマホでも動作するように確認ダイアログを表示
+                    setTimeout(() => {
+                        if (!confirm('送信してもよろしいですか？')) {
+                            event.preventDefault();
+                        }
+                    }, 0);
                 }
             });
         }

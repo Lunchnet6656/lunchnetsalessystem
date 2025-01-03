@@ -6,10 +6,25 @@
         <form method="post">
             {% csrf_token %}
             {{ form.username.label }} {{ form.username }}
-            {{ form.password.label }} {{ form.password }}
             {{ form.first_name.label }} {{ form.first_name }}
             {{ form.last_name.label }} {{ form.last_name }}
             {{ form.is_staff.label }} {{ form.is_staff }}
+            <label for="password">新しいパスワード:</label>
+            <input type="password" name="password" id="password" placeholder="新しいパスワードを入力">
+            {% if form.errors %}
+                <div class="alert alert-danger">
+                    <ul>
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
             <button type="submit" class="btn btn-primary">保存</button>
         </form>
     </div>

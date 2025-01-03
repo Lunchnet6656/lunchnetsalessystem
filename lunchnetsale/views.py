@@ -28,7 +28,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.forms import UserChangeForm
-
+from django.views.decorators.http import require_POST
+import json
 
 def login_view(request):
     logger = logging.getLogger(__name__)
@@ -117,7 +118,7 @@ def dashboard_view(request):
 
 @login_required
 def user_list_view(request):
-    users = User.objects.all()  # ユーザー情報を取得
+    users = User.objects.all().order_by('date_joined')  # ユーザー情報を古い順に取得
     return render(request, 'user_list.html', {'users': users})
 
 @login_required
@@ -125,8 +126,11 @@ def user_edit_view(request, user_id):
     user = get_object_or_404(User, id=user_id)
     if request.method == 'POST':
         form = UserChangeForm(request.POST, instance=user)
+        new_password = request.POST.get('password')
         if form.is_valid():
-            form.save()
+            if new_password:  # 新しいパスワードが入力されている場合
+                user.set_password(new_password)  # 新しいパスワードを設定
+            form.save()  # ユーザー情報を保存
             return redirect('user_list')
     else:
         form = UserChangeForm(instance=user)
@@ -687,9 +691,10 @@ def daily_report_edit(request, pk):
                         unpopular=unpopular,
                     )
 
+            messages.success(request, "更新されました")  # メッセージを追加
             return redirect('daily_report_detail', date=report.date)  # 保存後にリダイレクト
         else:
-            print(form.errors)
+            print(form.errors)  # エラーを表示
 
     else:
         form = DailyReportForm(instance=report)
@@ -754,8 +759,8 @@ def daily_report_edit_rol(request, pk):
                         popular=popular,
                         unpopular=unpopular,
                     )
-
-            return redirect('daily_report_detail', date=report.date)  # 保存後にリダイレクト
+            messages.success(request, "更新されました")  # メッセージを追加
+            return redirect('daily_report_detail_rol')  # 保存後にリダイレクト
         else:
             print(form.errors)
 
@@ -774,7 +779,16 @@ def daily_report_delete(request, pk):
         return redirect('daily_report_detail', date=report.date)
     return redirect('daily_report_detail', date=report.date)  # GETリクエスト時は詳細ページにリダイレクト
 
-
+@require_POST
+def update_confirmation(request, report_id):
+    try:
+        report = DailyReport.objects.get(pk=report_id)
+        data = json.loads(request.body)
+        report.confirmed = data['confirmed']
+        report.save()
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error'}, status=400)
 
 
 # メニューデータ(Product)の一覧表示、編集、削除

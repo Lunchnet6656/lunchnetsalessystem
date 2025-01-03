@@ -6,7 +6,7 @@
 {% block content %}
 {% load custom_filters %}
 <div class="container mt-4 mb-5">
-  <h1 class="mb-4">日計表一覧　{{ date|japanese_date }}</h1>
+  <h1 class="mb-4">日計表一覧{{ date|japanese_date }}</h1>
   <hr class="my-2"> 
   <div class="table-responsive">
   <table id="reportTable" class="table table-striped">
@@ -26,6 +26,7 @@
             <th onclick="sortTable(8)" style="cursor: pointer;">現金 <span id="sortIcon8"></span></th>
             <th onclick="sortTable(9)" style="cursor: pointer;">差額 <span id="sortIcon9"></span></th>-->
             <th>Action</th>
+            <th>集計チェック</th>
           </tr>
       </thead>
       <tbody>
@@ -50,6 +51,16 @@
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">削除</button>
                   </form>
+              </td>
+              <td>
+                  <div style="text-align: center;">
+                      <input type="checkbox" 
+                             name="report_selection" 
+                             value="{{ report.pk }}"
+                             {% if report.confirmed %}checked{% endif %}
+                             onchange="updateConfirmationStatus(this, {{ report.pk }})"
+                             style="transform: scale(1.5);">
+                  </div>
               </td>
         </tr>
         {% endfor %}
@@ -109,6 +120,31 @@ function confirmDelete(locationName) {
     return confirm(locationName + "を削除しますか？");
 }
 
+function updateConfirmationStatus(checkbox, reportId) {
+    fetch(`/update_confirmation/${reportId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            confirmed: checkbox.checked
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            checkbox.checked = !checkbox.checked;  // 失敗した場合は元に戻す
+            alert('更新に失敗しました。');
+        } else {
+            alert(checkbox.checked ? '確認しました。修正不可です。' : '外しました。修正可能です。'); // チェック状態に応じたメッセージ
+        }
+    })
+    .catch(error => {
+        checkbox.checked = !checkbox.checked;  // エラーの場合は元に戻す
+        alert('エラーが発生しました。');
+    });
+}
+
 </script>
 
 <style>
@@ -125,5 +161,6 @@ th:hover {
 th span {
     margin-left: 5px; /* アイコンとテキストの間にスペース */
 }
+
 </style>
 {% endblock %}
