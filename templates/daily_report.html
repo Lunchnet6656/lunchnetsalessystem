@@ -66,7 +66,7 @@
           <input type="text" id="担当者" name="担当者" class="form-control" required value="{{ selected_person }}">
         {% endif %}
     </div>
-    <button type="submit" id="display-data-btn"　name="action" value="display" class="btn btn-primary">データを表示</button>
+    <button type="submit" id="display-data-btn" name="action" value="display" class="btn btn-primary">データを表示</button>
 
 
 
@@ -479,9 +479,10 @@
                     <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="食数を設定してください"></textarea>
                 </div>
 
+                <label class="form-label" style="color: red; text-decoration: underline; font-size: larger;">※閉店時間を入力したら送信できます。</label>
                 <!-- 送信ボタン -->
                 <div class="mb-3">
-                    <button type="submit" name="action" value="send" class="btn btn-success">送信</button>
+                    <button type="submit" name="action" value="send" class="btn btn-success" id="submit-button" style="display: none;">送信</button>
                 </div>
             </div>
             {% endif %}
@@ -514,5 +515,17 @@
                 });
             });
         });
+
+        // 閉店時間が入力されている場合に送信ボタンを表示
+        function toggleSubmitButton() {
+            const closingTime = document.getElementById('closing_time').value;
+            const submitButton = document.getElementById('submit-button');
+            submitButton.style.display = closingTime ? 'block' : 'none';
+        }
+    
+        // ページ読み込み時とinput変更時に実行
+        document.addEventListener('DOMContentLoaded', toggleSubmitButton);
+        document.getElementById('closing_time').addEventListener('input', toggleSubmitButton);
+        
     </script>
     {% endblock %}
