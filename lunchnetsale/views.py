@@ -30,6 +30,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.forms import UserChangeForm
 from django.views.decorators.http import require_POST
 import json
+from django import forms
 
 def login_view(request):
     logger = logging.getLogger(__name__)
@@ -121,21 +122,32 @@ def user_list_view(request):
     users = User.objects.all().order_by('date_joined')  # ユーザー情報を古い順に取得
     return render(request, 'user_list.html', {'users': users})
 
+
+# カスタムフォームを作成
+class CustomUserChangeForm(UserChangeForm):
+    password = forms.CharField(required=False, widget=forms.PasswordInput)
+    
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'is_active', 'is_staff']
+        
 @login_required
 def user_edit_view(request, user_id):
     user = get_object_or_404(User, id=user_id)
     if request.method == 'POST':
-        form = UserChangeForm(request.POST, instance=user)
+        form = CustomUserChangeForm(request.POST, instance=user)
         new_password = request.POST.get('password')
         if form.is_valid():
+            user = form.save(commit=False)
             if new_password:  # 新しいパスワードが入力されている場合
-                user.set_password(new_password)  # 新しいパスワードを設定
-            form.save()  # ユーザー情報を保存
+                user.set_password(new_password)
+            user.save()
             return redirect('user_list')
     else:
-        form = UserChangeForm(instance=user)
+        form = CustomUserChangeForm(instance=user)
 
     return render(request, 'user_edit.html', {'form': form})
+
 
 @login_required
 def user_delete_view(request, user_id):

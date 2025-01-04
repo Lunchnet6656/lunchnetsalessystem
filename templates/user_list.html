@@ -25,7 +25,7 @@
                         <td>{{ user.is_staff|yesno:"管理者,一般" }}</td>
                         <td>
                             <a href="{% url 'user_edit' user.id %}" class="btn btn-warning btn-sm">編集</a>
-                            <a href="{% url 'user_delete' user.id %}" class="btn btn-danger btn-sm" onclick="return confirm('削除しますか？');">削除</a>
+                            <a href="{% url 'user_delete' user.id %}" class="btn btn-danger btn-sm" onclick="return openCenterPopup(this.href, 'ユーザー削除', 480, 280); return false;">削除</a>
                         </td>
                     </tr>
                 {% empty %}
@@ -36,4 +36,24 @@
             </tbody>
         </table>
     </div>
+    <script>
+        function openCenterPopup(url, title, w, h) {
+            // デュアルスクリーンの場合も考慮して、画面の中心を計算
+            var left = (screen.width/2)-(w/2);
+            var top = (screen.height/2)-(h/2);
+            
+            // ポップアップウィンドウを開く
+            var popup = window.open(
+                url, 
+                title,
+                'toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=no, copyhistory=no, width='+w+', height='+h+', top='+top+', left='+left
+            );
+            
+            // ポップアップウィンドウにフォーカスを当てる
+            if (popup.focus) {
+                popup.focus();
+            }
+            return false;
+        }
+    </script>
 {% endblock %}
