@@ -18,8 +18,8 @@
         </div>
         <form method="post" onsubmit="return handleDelete(event)">
             {% csrf_token %}
-            <button type="submit" class="btn btn-danger">削除</button>
-            <button type="button" class="btn btn-secondary" onclick="window.close();">キャンセル</button>
+            <button type="submit" class="btn btn-danger w-100 py-3 mb-2">削除</button>
+            <button type="button" class="btn btn-secondary w-100 py-3 mb-3" onclick="window.close();">キャンセル</button>
         </form>
     </div>
     <script>
