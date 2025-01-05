@@ -4,16 +4,63 @@
 {% block title %}ユーザー編集{% endblock %}
 
 {% block content %}
-    <div class="container">
-        <h2>ユーザー編集: {{ form.instance.username }}</h2>
+    <div class="container mt-4">
+        <h2 class="mb-4">ユーザー編集: {{ form.instance.username }}</h2>
+        <hr class="my-4">
         <form method="post">
             {% csrf_token %}
-            {{ form.username.label }} {{ form.username }}
-            {{ form.first_name.label }} {{ form.first_name }}
-            {{ form.last_name.label }} {{ form.last_name }}
-            {{ form.is_staff.label }} {{ form.is_staff }}
-            <label for="password">新しいパスワード:</label>
-            <input type="password" name="password" id="password" placeholder="新しいパスワードを入力">
+            <div class="row mb-3">
+                <label for="username" class="col-sm-2 col-form-label">ユーザー名</label>
+                <div class="col-sm-10">
+                    {{ form.username }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <label for="first_name" class="col-sm-2 col-form-label">苗字</label>
+                <div class="col-sm-10">
+                    {{ form.last_name }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <label for="last_name" class="col-sm-2 col-form-label">名前</label>
+                <div class="col-sm-10">
+                    {{ form.first_name }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <label for="last_name" class="col-sm-2 col-form-label">権限</label>
+                <div class="col-sm-10">
+                    {{ form.is_staff }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <label for="current_password" class="col-sm-2 col-form-label">現在のパスワード</label>
+                <div class="col-sm-10">
+                    {{ form.current_password }}
+                    {% for error in form.current_password.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <label for="new_password" class="col-sm-2 col-form-label">新しいパスワード</label>
+                <div class="col-sm-10">
+                    {{ form.new_password }}
+                    {% for error in form.new_password.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <label for="confirm_password" class="col-sm-2 col-form-label">新しいパスワード（確認）</label>
+                <div class="col-sm-10">
+                    {{ form.confirm_password }}
+                    {% for error in form.confirm_password.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
             {% if form.errors %}
                 <div class="alert alert-danger">
                     <ul>

@@ -16,11 +16,34 @@
             このアカウントを削除すると、すべてのデータが完全に削除され、元に戻すことはできません。
             本当に削除してもよろしいですか？
         </div>
-        <form method="post">
+        <form method="post" onsubmit="return handleDelete(event)">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">削除</button>
             <button type="button" class="btn btn-secondary" onclick="window.close();">キャンセル</button>
         </form>
     </div>
+    <script>
+        async function handleDelete(event) {
+            event.preventDefault();
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    sessionStorage.setItem('deleteMessage', data.message);
+                    
+                    window.opener.location.href = '/users/';
+                    window.close();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+            return false;
+        }
+    </script>
 </body>
 </html>

@@ -55,5 +55,24 @@
             }
             return false;
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 削除メッセージの確認と表示
+            const deleteMessage = sessionStorage.getItem('deleteMessage');
+            if (deleteMessage) {
+                // メッセージを表示（bootstrapのアラートなど）
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.role = 'alert';
+                alertDiv.innerHTML = `
+                    ${deleteMessage}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                document.querySelector('.container').prepend(alertDiv);
+                
+                // メッセージをクリア
+                sessionStorage.removeItem('deleteMessage');
+            }
+        });
     </script>
 {% endblock %}
