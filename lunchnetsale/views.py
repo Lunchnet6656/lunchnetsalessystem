@@ -503,6 +503,8 @@ def daily_report_view(request):
                     'remaining': item.quantity,
                     'total_sales': 0
                 })
+        # menu_noでソート
+        item_data = sorted(item_data, key=lambda x: x['menu_no'])
 
         # 日付と販売場所に基づいて既存のDailyReportを取得または作成
         if action == 'send':
