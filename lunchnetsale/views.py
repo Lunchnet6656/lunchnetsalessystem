@@ -509,6 +509,19 @@ def daily_report_view(request):
         # 日付と販売場所に基づいて既存のDailyReportを取得または作成
         if action == 'send':
             print(f"送信される担当者名: {selected_person}")  # ここで値を確認
+            
+            # 既存のレポートを確認
+            existing_report = DailyReport.objects.filter(
+                date=parse_date(selected_date),
+                location=selected_location
+            ).first()
+            
+            # confirmedがTrueの場合は処理を中止
+            if existing_report and existing_report.confirmed:
+                messages.error(request, f'この日付（{selected_date}）の{selected_location}の日計表は既に集計済みのため、送信できません。', extra_tags='alert alert-danger')
+                return redirect('daily_report')
+                
+            # 既存の処理を続行
             report, created = DailyReport.objects.update_or_create(
                 date=parse_date(selected_date),
                 location=selected_location,
@@ -1065,7 +1078,7 @@ def performance_data_view(request):
     else:
         # デフォルトは今月
         start_date = make_aware(today.replace(day=1))
-        end_date = make_aware(today)
+        end_date = make_aware(today + timedelta(days=1))  # 今日を含めるために1日追加
 
     # 日付範囲に基づいてレポートを取得
     reports = DailyReport.objects.filter(date__range=[start_date, end_date])
@@ -1288,25 +1301,36 @@ def download_csv(request):
     search_date_end = request.GET.get('search_date_end')
 
     # デフォルト値として今日の日付を設定
-    today = datetime.today()
+    today = datetime.today().date()
 
-    if search_date_start and search_date_end:
-        start_date = parse_date(search_date_start)
-        end_date = parse_date(search_date_end) + timedelta(days=1)  # 終了日は含めるため1日加算
-    else:
-        # デフォルトは今日の日付を範囲とする
+    try:
+        if search_date_start and search_date_end:
+            # 文字列から日付オブジェクトに変換
+            start_date = datetime.strptime(search_date_start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(search_date_end, '%Y-%m-%d').date()
+            end_date = end_date + timedelta(days=1)
+        else:
+            # デフォルトは今日の日付を範囲とする
+            start_date = today
+            end_date = today + timedelta(days=1)
+    except ValueError:
+        # 日付の変換に失敗した場合は今日の日付を使用
         start_date = today
         end_date = today + timedelta(days=1)
 
     # 日付範囲に基づいてレポートを取得
     reports = DailyReport.objects.filter(date__range=[start_date, end_date])
 
-    # レスポンスをCSV形式で作成
-    response = HttpResponse(content_type='text/csv')
+    # レスポンスをCSV形式で作成（Shift-JISエンコーディングを指定）
+    response = HttpResponse(content_type='text/csv; charset=shift-jis')
     response['Content-Disposition'] = 'attachment; filename="販売実績集計データ.csv"'
 
+    # Shift-JIS用のCSVライターを作成
     writer = csv.writer(response)
-    writer.writerow(['日付', '総持参数', '総販売数', '総残数', '売上総額(¥)', '現金(¥)', 'PayPay(¥)', '電子決済(¥)', '廃棄率(%)'])
+    
+    # ヘッダーをShift-JISでエンコード
+    header = ['日付', '総持参数', '総販売数', '総残数', '売上総額(¥)', '現金(¥)', 'PayPay(¥)', '電子決済(¥)', '廃棄率(%)']
+    writer.writerow([h.encode('shift-jis', 'ignore').decode('shift-jis') for h in header])
 
     # 日付ごとに集計データを取得してCSVに書き込む
     date_range = (end_date - start_date).days
@@ -1324,17 +1348,22 @@ def download_csv(request):
         digital_payment = daily_reports.aggregate(digital_payment=Sum('digital_payment'))['digital_payment'] or 0
         waste_rate = 0 if total_quantity == 0 else (total_remaining / total_quantity) * 100
 
-        writer.writerow([
-            current_date,
-            total_quantity,
-            total_sales_quantity,
-            total_remaining,
-            total_revenue,
-            cash,
-            paypay,
-            digital_payment,
-            waste_rate,
-        ])
+        # 日付を文字列に変換
+        date_str = current_date.strftime('%Y-%m-%d')
+        
+        # データ行を作成してShift-JISでエンコード
+        row = [
+            date_str,
+            str(total_quantity),
+            str(total_sales_quantity),
+            str(total_remaining),
+            str(total_revenue),
+            str(cash),
+            str(paypay),
+            str(digital_payment),
+            f"{waste_rate:.1f}"
+        ]
+        writer.writerow([str(item).encode('shift-jis', 'ignore').decode('shift-jis') for item in row])
 
     return response
 
