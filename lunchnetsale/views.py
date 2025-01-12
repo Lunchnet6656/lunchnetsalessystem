@@ -1341,20 +1341,26 @@ def download_csv(request):
 # CSVダウンロード機能(allreport)
 @login_required
 def download_csv_allreport(request):
-    # HTTPレスポンスにCSVのヘッダーを設定
-    response = HttpResponse(content_type='text/csv')
+    # HTTPレスポンスにCSVのヘッダーを設定（文字コードをShift-JISに指定）
+    response = HttpResponse(content_type='text/csv; charset=shift-jis')
     response['Content-Disposition'] = 'attachment; filename="daily_reports.csv"'
 
+    # Shift-JIS用のCSVライターを作成
     writer = csv.writer(response)
 
     # モデルの全フィールドを取得
     fields = [field.name for field in DailyReport._meta.get_fields()]
 
-    # CSVヘッダーを書き込み
-    writer.writerow(['レポート', 'NO','日付','販売場所','販売場所NO','担当者','天気','気温','持参数','販売数','残数','その他1項目',
-                        'その他1単価','その他1販売数','その他2項目','その他2単価','その他2販売数','その他売上合計','総売上','ご飯なし','ご飯追加','クーポン600','クーポン700','割引・返金50円',
-                        '割引・返金100円','サービス単価','不明','サービス600','サービス700','不明','割引合計','PayPay','電子決済','現金','差額','出発時間','到着時間','開店時間','完売時間','閉店時間','ガソリン代','高速代','駐車場代','パート代',
-                        'その他経費','コメント','明日の食数設定','更新日時'])
+    # CSVヘッダーを書き込み（Shift-JISでエンコード）
+    header = ['レポート', 'NO','日付','販売場所','販売場所NO','担当者','天気','気温','持参数','販売数','残数','その他1項目',
+              'その他1単価','その他1販売数','その他2項目','その他2単価','その他2販売数','その他売上合計','総売上','ご飯なし','ご飯追加',
+              'クーポン600','クーポン700','割引・返金50円','割引・返金100円','サービス単価','不明','サービス600','サービス700',
+              '不明','割引合計','PayPay','電子決済','現金','差額','出発時間','到着時間','開店時間','完売時間','閉店時間',
+              'ガソリン代','高速代','駐車場代','パート代','その他経費','コメント','明日の食数設定','更新日時']
+
+    # 文字列をShift-JISでエンコード
+    encoded_header = [h.encode('shift-jis', 'ignore').decode('shift-jis') for h in header]
+    writer.writerow(encoded_header)
 
     # 日付範囲で絞り込み
     search_date_start = request.GET.get('search_date_start')
@@ -1367,9 +1373,16 @@ def download_csv_allreport(request):
     else:
         reports = DailyReport.objects.all()
 
-    # レコードを書き込み
+    # レコードを書き込み（文字列をShift-JISでエンコード）
     for report in reports:
-        writer.writerow([getattr(report, field) for field in fields])
+        row = []
+        for field in fields:
+            value = getattr(report, field)
+            if isinstance(value, str):
+                # 文字列の場合はShift-JISでエンコード
+                value = value.encode('shift-jis', 'ignore').decode('shift-jis')
+            row.append(value)
+        writer.writerow(row)
 
     return response
 
