@@ -228,25 +228,30 @@
         <div class="row mb-3">
             <div class="col">
                 <label for="departure_time">出発時間:</label>
-                <input type="time" id="departure_time" class="form-control" name="departure_time" value="{{ report.departure_time }}">
+                <input type="time" id="departure_time" class="form-control" name="departure_time" 
+                       value="{{ report.departure_time|time:'H:i'|default:'' }}">
             </div>
             <div class="col">
                 <label for="arrival_time">到着時間:</label>
-                <input type="time" id="arrival_time" class="form-control" name="arrival_time" value="{{ report.arrival_time }}">
+                <input type="time" id="arrival_time" class="form-control" name="arrival_time" 
+                       value="{{ report.arrival_time|time:'H:i'|default:'' }}">
             </div>
             <div class="col">
                 <label for="opening_time">開店時間:</label>
-                <input type="time" id="opening_time" class="form-control" name="opening_time" value="{{ report.opening_time }}">
+                <input type="time" id="opening_time" class="form-control" name="opening_time" 
+                       value="{{ report.opening_time|time:'H:i'|default:'' }}">
             </div>
         </div>
         <div class="row mb-3">
             <div class="col">
                 <label for="sold_out_time">完売時間:</label>
-                <input type="time" id="sold_out_time" class="form-control" name="sold_out_time" value="{{ report.sold_out_time }}">
+                <input type="time" id="sold_out_time" class="form-control" name="sold_out_time" 
+                       value="{{ report.sold_out_time|time:'H:i'|default:'' }}">
             </div>
             <div class="col">
                 <label for="closing_time">閉店時間:</label>
-                <input type="time" id="closing_time" class="form-control" name="closing_time" value="{{ report.closing_time }}">
+                <input type="time" id="closing_time" class="form-control" name="closing_time" 
+                       value="{{ report.closing_time|time:'H:i'|default:'' }}">
             </div>
         </div>
 

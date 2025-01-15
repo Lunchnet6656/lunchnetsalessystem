@@ -13,6 +13,7 @@
     <thead>
         <tr>
             <th>日付</th>
+            <th>week</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -20,6 +21,7 @@
         <tr>
           {% for target_date in item_date %}
           <td>{{ target_date.target_date|japanese_date }}</td>
+          <td>{{ target_date.target_week|japanese_date }}</td>
           <td>
             <a href="{% url 'item_quantity_detail' target_date.target_date %}" class="btn btn-primary">詳細</a>
           </td>

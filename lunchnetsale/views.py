@@ -32,6 +32,7 @@ from django.views.decorators.http import require_POST
 import json
 from django import forms
 from django.contrib.auth import update_session_auth_hash
+
 def login_view(request):
     logger = logging.getLogger(__name__)
     User = get_user_model()
@@ -467,13 +468,17 @@ def daily_report_view(request):
             sales_location__name=selected_location
         ).select_related('product', 'sales_location')
 
+
         service = SalesLocation.objects.get(name=selected_location)
         print(service.service_name)
         print(service.service_price)
+        
         # 商品の情報を取得
         products = Product.objects.filter(
-            no__in=item_quantities.values_list('product__no', flat=True)
+            no__in=item_quantities.values_list('product__no', flat=True),
+            itemquantity__target_date=selected_date  # target_dateを条件に追加
         )
+        print(f"デバッグ : {item_quantities} ")
 
         # 商品情報を辞書にまとめる
         product_data = {
@@ -503,9 +508,10 @@ def daily_report_view(request):
                     'remaining': item.quantity,
                     'total_sales': 0
                 })
+
         # menu_noでソート
         item_data = sorted(item_data, key=lambda x: x['menu_no'])
-
+        
         # 日付と販売場所に基づいて既存のDailyReportを取得または作成
         if action == 'send':
             print(f"送信される担当者名: {selected_person}")  # ここで値を確認
@@ -721,13 +727,22 @@ def daily_report_edit(request, pk):
             report.service_price = location.service_price
             break  # 一致するlocationが見つかったらループを終了
 
-
     if request.method == "POST":
-        print(request.POST)  # POST データを表示
-        # 日計表のフォームを処理
+        # TimeFormのインスタンスを作成
+        time_form = TimeForm(request.POST)
         form = DailyReportForm(request.POST, instance=report)
-        if form.is_valid():
-            form.save()  # 日計表の変更を保存
+        
+        if form.is_valid() and time_form.is_valid():
+            # 時間データを明示的に取得
+            report.departure_time = request.POST.get('departure_time')
+            report.arrival_time = request.POST.get('arrival_time')
+            report.opening_time = request.POST.get('opening_time')
+            report.sold_out_time = request.POST.get('sold_out_time')
+            report.closing_time = request.POST.get('closing_time')
+            
+            # 他のフィールドの保存
+            report = form.save(commit=False)
+            report.save()
 
             # 日計表明細の処理
             for index in range(1, len(entries) + 1):
@@ -770,11 +785,24 @@ def daily_report_edit(request, pk):
             return redirect('daily_report_detail', date=report.date)  # 保存後にリダイレクト
         else:
             print(form.errors)  # エラーを表示
+            print(time_form.errors)  # TimeFormのエラーも表示
 
     else:
         form = DailyReportForm(instance=report)
+        time_form = TimeForm(initial={
+            'departure_time': report.departure_time,
+            'arrival_time': report.arrival_time,
+            'opening_time': report.opening_time,
+            'sold_out_time': report.sold_out_time,
+            'closing_time': report.closing_time,
+        })
 
-    return render(request, 'daily_report_edit.html', {'form': form, 'report': report, 'entries': entries})
+    return render(request, 'daily_report_edit.html', {
+        'form': form,
+        'time_form': time_form,
+        'report': report,
+        'entries': entries
+    })
 
 # 編集ビュー
 @login_required
@@ -790,13 +818,22 @@ def daily_report_edit_rol(request, pk):
             report.service_price = location.service_price
             break  # 一致するlocationが見つかったらループを終了
 
-
     if request.method == "POST":
-        print(request.POST)  # POST データを表示
-        # 日計表のフォームを処理
+        # TimeFormのインスタンスを作成
+        time_form = TimeForm(request.POST)
         form = DailyReportForm(request.POST, instance=report)
-        if form.is_valid():
-            form.save()  # 日計表の変更を保存
+        
+        if form.is_valid() and time_form.is_valid():
+            # 時間データを明示的に取得
+            report.departure_time = request.POST.get('departure_time')
+            report.arrival_time = request.POST.get('arrival_time')
+            report.opening_time = request.POST.get('opening_time')
+            report.sold_out_time = request.POST.get('sold_out_time')
+            report.closing_time = request.POST.get('closing_time')
+            
+            # 他のフィールドの保存
+            report = form.save(commit=False)
+            report.save()
 
             # 日計表明細の処理
             for index in range(1, len(entries) + 1):
@@ -834,15 +871,29 @@ def daily_report_edit_rol(request, pk):
                         popular=popular,
                         unpopular=unpopular,
                     )
+
             messages.success(request, "更新されました")  # メッセージを追加
             return redirect('daily_report_detail_rol')  # 保存後にリダイレクト
         else:
-            print(form.errors)
+            print(form.errors)  # エラーを表示
+            print(time_form.errors)  # TimeFormのエラーも表示
 
     else:
         form = DailyReportForm(instance=report)
+        time_form = TimeForm(initial={
+            'departure_time': report.departure_time,
+            'arrival_time': report.arrival_time,
+            'opening_time': report.opening_time,
+            'sold_out_time': report.sold_out_time,
+            'closing_time': report.closing_time,
+        })
 
-    return render(request, 'daily_report_edit_rol.html', {'form': form, 'report': report, 'entries': entries})
+    return render(request, 'daily_report_edit_rol.html', {
+        'form': form,
+        'time_form': time_form,
+        'report': report,
+        'entries': entries
+    })
 
 # 削除ビュー
 @login_required
@@ -953,11 +1004,12 @@ def location_list_view(request):
 @login_required
 def item_quantity_list_view(request):
 
-    item_dates = ItemQuantity.objects.order_by('-target_date').values('target_date').distinct()  # target_date のみを取得
+    item_dates = ItemQuantity.objects.order_by('-target_date').values('target_date','target_week').distinct()  # target_date のみを取得
     item_date = []
     for item in item_dates:
         item_date.append({
-            'target_date': datetime.strptime(item['target_date'], '%Y-%m-%d')  # 適切なフォーマットを指定
+            'target_date': datetime.strptime(item['target_date'], '%Y-%m-%d') , # 適切なフォーマットを指定
+            'target_week': datetime.strptime(item['target_week'], '%Y-%m-%d')
         })
     context = {
         'item_date': item_date
