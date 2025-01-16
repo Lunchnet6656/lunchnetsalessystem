@@ -32,6 +32,7 @@ from django.views.decorators.http import require_POST
 import json
 from django import forms
 from django.contrib.auth import update_session_auth_hash
+from django.db.models import OuterRef, Subquery
 
 def login_view(request):
     logger = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ def dashboard_view(request):
         request.session.flush()  # セッションデータをクリア
         return redirect('login')  # 'login' はログインページのURL名前付きルート
 
-    today = datetime.today()
+    today = datetime.today()#date(2025, 1, 15)
 
     # 本日の売上、販売数、残数を集計
     daily_reports = DailyReport.objects.filter(date=today)
@@ -99,11 +100,11 @@ def dashboard_view(request):
 
 
     # メニュー別の集計
-    menu_summary = DailyReportEntry.objects.filter(report__date=today).values('product').annotate(
+    menu_summary = DailyReportEntry.objects.filter(report__date=today).values('product','product_no').annotate(
         total_quantity=Sum('quantity'),
         total_sales_quantity=Sum('sales_quantity'),
         total_remaining=Sum('remaining_number')
-    )
+    ).order_by('product_no')
 
     context = {
         'today': today,
@@ -582,6 +583,7 @@ def daily_report_view(request):
                 DailyReportEntry.objects.update_or_create(
                     report=report,
                     product=item.get('menu_name', ''),
+                    product_no=item.get('menu_no', ''),
                     defaults={
                         'quantity': request.POST.get(f'quantity_{item["menu_no"]}', 0),
                         'sales_quantity': request.POST.get(f'sales_quantity_{item["menu_no"]}', 0),
@@ -1207,20 +1209,24 @@ def performance_data_view(request):
 def menu_sales_performance_view(request, year, month, day):
     selected_date = date(year, month, day)
 
-    summary_data = DailyReportEntry.objects.filter(report__date=selected_date).values('product').annotate(
+    summary_data = DailyReportEntry.objects.filter(report__date=selected_date).values(
+    'product',
+    'product_no',  # productの識別子を使用
+    ).annotate(
         total_quantity=Sum('quantity'),
         total_sales_quantity=Sum('sales_quantity'),
         total_remaining=Sum('remaining_number'),
         popular_count=Count('id', filter=Q(popular=True)),
-        unpopular_count=Count('id', filter=Q(unpopular=True))
-    ).order_by('product')
+        unpopular_count=Count('id', filter=Q(unpopular=True)),
+    ).order_by('product_no')  # no順にソート
 
     # 合計値を計算
-    total_quantity_sum = summary_data.aggregate(Sum('total_quantity'))['total_quantity__sum'] or 0
-    total_sales_quantity_sum = summary_data.aggregate(Sum('total_sales_quantity'))['total_sales_quantity__sum'] or 0
-    total_remaining_sum = summary_data.aggregate(Sum('total_remaining'))['total_remaining__sum'] or 0
-    total_popular_count = summary_data.aggregate(Sum('popular_count'))['popular_count__sum'] or 0
-    total_unpopular_count = summary_data.aggregate(Sum('unpopular_count'))['unpopular_count__sum'] or 0
+    summary_data_filtered = summary_data.filter(product_no__range=(1, 10))  # product_noが1〜10の範囲に絞り込み
+    total_quantity_sum = summary_data_filtered.aggregate(Sum('total_quantity'))['total_quantity__sum'] or 0
+    total_sales_quantity_sum = summary_data_filtered.aggregate(Sum('total_sales_quantity'))['total_sales_quantity__sum'] or 0
+    total_remaining_sum = summary_data_filtered.aggregate(Sum('total_remaining'))['total_remaining__sum'] or 0
+    total_popular_count = summary_data_filtered.aggregate(Sum('popular_count'))['popular_count__sum'] or 0
+    total_unpopular_count = summary_data_filtered.aggregate(Sum('unpopular_count'))['unpopular_count__sum'] or 0
 
     # 廃棄率の計算
     summary_with_waste_rate = []

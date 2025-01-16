@@ -59,6 +59,7 @@
           </thead>
           <tbody>
               {% for entry in entries %}
+              {% if entry.product_no >= 1 and entry.product_no <= 10 %}
               <tr>
                   <td>
                       <input type="text" name="product_{{ forloop.counter }}" value="{{ entry.product }}">
@@ -85,6 +86,7 @@
                       <input type="checkbox" name="unpopular_{{ forloop.counter }}" {% if entry.unpopular %}checked{% endif %}>
                   </td>
               </tr>
+              {% endif %}
               {% endfor %}
           </tbody>
 
@@ -103,6 +105,44 @@
             </tr>
           </tfoot>
       </table>
+      <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>商品名</th>
+                <th>持参数</th>
+                <th>販売数</th>
+                <th>残数</th>
+                <th>売上</th>
+                <th>完売</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            {% if entry.product_no == 11 %}
+            <tr>
+                <td>
+                    <input type="text" name="product_{{ forloop.counter }}" value="{{ entry.product }}">
+                </td>
+                <td>
+                    <input type="number" name="quantity_{{ forloop.counter }}" value="{{ entry.quantity }}">
+                </td>
+                <td>
+                    <input type="number" name="sales_quantity_{{ forloop.counter }}" value="{{ entry.sales_quantity }}">
+                </td>
+                <td>
+                    <input type="number" name="remaining_number_{{ forloop.counter }}" value="{{ entry.remaining_number }}">
+                </td>
+                <td>
+                    <input type="number" name="total_sales_{{ forloop.counter }}" value="{{ entry.total_sales }}">
+                </td>
+                <td>
+                    <input type="checkbox" name="sold_out_{{ forloop.counter }}" {% if entry.sold_out %}checked{% endif %}>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
     </div>
         <h2 class="bg-dark text-white mt-4">その他売上情報</h2>
         <div class="row mb-3">

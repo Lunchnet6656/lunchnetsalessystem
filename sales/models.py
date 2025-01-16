@@ -112,6 +112,7 @@ class DailyReport(models.Model):
 # 商品ごとの日計表エントリモデル
 class DailyReportEntry(models.Model):
     report = models.ForeignKey(DailyReport, related_name='entries', on_delete=models.CASCADE)  # 日計表への外部キー
+    product_no = models.IntegerField(default=0)
     product = models.CharField(max_length=255)  ##ForeignKey(Product, on_delete=models.CASCADE)  # 商品への外部キー
     quantity = models.IntegerField()  # 持参数
     sales_quantity = models.IntegerField()  # 販売数

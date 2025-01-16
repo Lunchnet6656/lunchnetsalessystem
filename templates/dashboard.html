@@ -15,7 +15,7 @@
             <div class="col-md-9 mb-2">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>サマリー</span>
+                        <span>サマリー(おかずのみ)</span>
                     </div>
                     <div class="card-body summary-section">
                         <div class="summary-item">
@@ -50,6 +50,7 @@
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th>NO</th>
                                     <th>メニュー名</th>
                                     <th>総持参数</th>
                                     <th>総販売数</th>
@@ -59,6 +60,7 @@
                             <tbody>
                                 {% for item in menu_summary %}
                                     <tr>
+                                        <td>{{ item.product_no }}</td>
                                         <td>{{ item.product }}</td>
                                         <td>{{ item.total_quantity }}</td>
                                         <td>{{ item.total_sales_quantity }}</td>
