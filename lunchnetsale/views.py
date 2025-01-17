@@ -83,7 +83,7 @@ def dashboard_view(request):
     today = datetime.today()#date(2025, 1, 15)
 
     # 本日の売上、販売数、残数を集計
-    daily_reports = DailyReport.objects.filter(date=today)
+    daily_reports = DailyReport.objects.filter(date=today).order_by('location_no')
 
     total_quantity = sum(report.total_quantity for report in daily_reports)
     total_revenue = sum(report.total_revenue for report in daily_reports)
@@ -114,6 +114,7 @@ def dashboard_view(request):
         'total_remaining': total_remaining,
         'formatted_waste_rate': formatted_waste_rate,
         'menu_summary': menu_summary,
+        'report':daily_reports,
     }
 
 

@@ -277,7 +277,7 @@ function updateDiscount() {
             skipProcessing_b = true;
         }
         // 値が "サジェスト" の場合
-        else if (serviceNameValue === 'サジェスト 　-100円') {
+        else if (serviceNameValue === 'サジェスト -100円') {
             skipProcessing_a = true;
             skipProcessing_b = false; // 実行
         }

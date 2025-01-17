@@ -20,6 +20,8 @@ import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+CSRF_COOKIE_SECURE = True  # HTTPS を使う場合は True
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
@@ -108,8 +110,8 @@ DATABASES = {
 LOGIN_URL = '/login/'  # 未ログインのユーザーがアクセスしようとしたときにリダイレクトされるログインページのURL名
 LOGOUT_REDIRECT_URL = '/login/'  # ログアウト後にリダイレクトされるURL名
 
-# セッションタイムアウト設定（例: 3時間）
-SESSION_COOKIE_AGE = 3 * 60 * 60  # 秒単位で指定（3時間 = 10800秒）
+# セッションタイムアウト設定（例: 8時間）
+SESSION_COOKIE_AGE = 8 * 60 * 60  # 秒単位で指定（8時間 = 28800秒）
 
 # ブラウザを閉じたらセッションを終了する設定
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
