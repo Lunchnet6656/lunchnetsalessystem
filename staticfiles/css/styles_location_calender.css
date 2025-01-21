@@ -2,10 +2,10 @@
 .container {
     max-width: 900px;
     margin: auto;
-    font-family: Arial, sans-serif;
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 10px;
+    font-family: 'Roboto', Arial, sans-serif;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
     padding: 20px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -14,7 +14,7 @@ h1 {
     text-align: center;
     font-size: 1.5rem;
     margin-bottom: 20px;
-    color: #333;
+    color: #1a73e8; /* Googleブルー */
 }
 
 .calendar {
@@ -26,17 +26,18 @@ h1 {
 .calendar .header {
     display: flex;
     justify-content: space-between;
-    background-color: #f1f1f1;
+    background-color: #f1f3f4; /* 薄いグレー */
     border-radius: 8px;
     padding: 10px 0;
-    color: #555;
-    font-weight: bold;
+    color: #5f6368; /* Googleグレー */
+    font-weight: 500;
     text-align: center;
 }
 
 .calendar .header .day {
     flex: 1;
     text-align: center;
+    font-size: 0.9rem;
 }
 
 .calendar .body {
@@ -47,66 +48,70 @@ h1 {
 
 .calendar .week {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: nowrap; /* 横方向に固定 */
 }
 
 .calendar .day-cell {
     flex: 1;
     min-height: 100px;
-    background-color: #fff;
-    border: 1px solid #dddddd;
-    border-radius: 8px;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
-    padding: 10px;
+    padding: 8px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.2s ease;
 }
 
 .calendar .day-cell:hover {
-    background-color: #f0f8ff;
-    border-color: #87cefa;
+    background-color: #e8f0fe; /* Googleブルーの薄い色 */
     cursor: pointer;
-    transform: scale(1.02);
-    transition: all 0.2s;
 }
 
 .calendar .day-cell .date {
     font-weight: bold;
     font-size: 1rem;
-    color: #333;
+    color: #202124; /* 濃いグレー */
     margin-bottom: 5px;
 }
 
 .calendar .day-cell .sales {
     font-size: 0.9rem;
-    color: #666;
+    color: #5f6368; /* 中間グレー */
 }
 
-.calendar .day-cell .empty-cell {
+.calendar .day-cell .closing-time {
+    font-size: 0.8rem;
+    color: #5f6368;
+    margin-top: 5px;
+}
+
+.calendar .day-cell.empty-cell {
     visibility: hidden;
 }
 
 .calendar .day-cell:nth-child(6),
 .calendar .day-cell:nth-child(7) {
-    background-color: #fafafa;
-    color: #777;
+    background-color: #f8f9fa; /* 薄いグレー */
+    color: #5f6368; /* 中間グレー */
 }
 
 a {
     display: inline-block;
     margin-top: 20px;
     text-decoration: none;
-    color: #007bff;
-    font-weight: bold;
+    color: #1a73e8;
+    font-weight: 500;
 }
 
 a:hover {
     text-decoration: underline;
-    color: #0056b3;
+    color: #174ea6; /* 少し濃いブルー */
 }
 
 /* Responsive Design for Smartphones */
@@ -121,28 +126,26 @@ a:hover {
     }
 
     .calendar .header {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
         padding: 5px 0;
     }
 
     .calendar .week {
-        flex-direction: column;
+        flex-wrap: nowrap; /* 横方向を維持 */
     }
 
     .calendar .day-cell {
         min-height: 80px;
-        padding: 8px;
-    }
-
-    .calendar .day-cell .date {
-        font-size: 0.9rem;
-    }
-
-    .calendar .day-cell .sales {
+        padding: 6px;
         font-size: 0.8rem;
     }
 
-    .calendar .day-cell:hover {
-        transform: none;
+    .calendar .day-cell .date {
+        font-size: 0.85rem;
+    }
+
+    .calendar .day-cell .sales,
+    .calendar .day-cell .closing-time {
+        font-size: 0.75rem;
     }
 }
