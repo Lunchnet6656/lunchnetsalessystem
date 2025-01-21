@@ -68,8 +68,6 @@
     </div>
     <button type="submit" id="display-data-btn" name="action" value="display" class="btn btn-primary w-100 py-3">データを表示</button>
 
-
-
         {% if item_data %}
         {% load humanize %}
             <h2 class="bg-dark text-white mt-4">お弁当一覧</h2>
@@ -124,8 +122,6 @@
                       </tr>
                       {% endif %}
                     {% endfor %}
-
-
                 </tbody>
                 <tfoot>
                   <tr class="total-row">
@@ -188,7 +184,6 @@
               </tbody>
             </table>
             {% else %}
-
             {% endif %}
           </div>
           {% if item_data %}
@@ -339,7 +334,7 @@
                             <label for="service_name" class="form-label">サービス名:</label>
                             <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
                                 <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected> {{ service.service_name }} {% if service.service_name != 'なし' %}　{{ service.service_price }}円　{% endif %}</option>
+                                <option value="{{ service.service_price }}" selected> {{ service.service_name }}{% if service.service_name != 'なし' %}{{ service.service_price }}円{% endif %}</option>
                             </select>
                         </div>
                         <!-- 100円引き -->

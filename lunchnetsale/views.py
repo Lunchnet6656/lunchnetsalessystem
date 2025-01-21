@@ -1667,8 +1667,13 @@ def performance_by_location_calender_view(request, location_id, search_year, sea
     # 対象の販売場所を取得
     location = get_object_or_404(SalesLocation, id=location_id)
 
+    # 年と月の選択を処理
+    if request.method == "GET":
+        search_year = request.GET.get('year', search_year)
+        search_month = request.GET.get('month', search_month)
+
     # 対象月の最初と最後の日付を取得
-    start_date = date(search_year, search_month, 1)
+    start_date = date(int(search_year), int(search_month), 1)
     end_date = start_date + relativedelta(months=1) - timedelta(days=1)
 
     # 日曜日を最初の曜日として設定
@@ -1678,7 +1683,7 @@ def performance_by_location_calender_view(request, location_id, search_year, sea
     days_in_month = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
 
     # カレンダーの生成
-    month_days = calendar.monthcalendar(search_year, search_month)
+    month_days = calendar.monthcalendar(int(search_year), int(search_month))
 
     # 対象月の日ごとの販売データを取得
     reports = DailyReport.objects.filter(location=location, date__range=(start_date, end_date))

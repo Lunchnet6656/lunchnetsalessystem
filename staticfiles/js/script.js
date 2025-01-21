@@ -271,6 +271,7 @@ function updateDiscount() {
         console.log(`サービス名: ${serviceNameValue}`); // サービス名の表示
         console.log(`サービス価格: ${servicePrice}`); // サービス価格の表示
 
+
         // 値が "なし" の場合
         if (serviceNameValue === 'なし') {
             skipProcessing_a = true;
@@ -287,7 +288,6 @@ function updateDiscount() {
             skipProcessing_b = true; // スキップ
         }
     }
-
 
     var serviceTotal = 0; //
 

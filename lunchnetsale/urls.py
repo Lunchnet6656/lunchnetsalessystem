@@ -40,7 +40,6 @@ urlpatterns = [
     path('daily_report_list/', views.daily_report_list, name='daily_report_list'),
     path('daily_report_list/<str:date>/', views.daily_report_detail, name='daily_report_detail'),  # 日付をキーにした詳細ページ
     path('daily_report_list/<int:pk>/edit/', views.daily_report_edit, name='daily_report_edit'),
-    path('daily_report_list/<int:pk>/edit2/', views.daily_report_edit2, name='daily_report_edit2'),
     path('daily_report_list/<int:pk>/delete/', views.daily_report_delete, name='daily_report_delete'),
 
     path('daily_report_detail_rol/', views.daily_report_detail_rol, name='daily_report_detail_rol'), #一般用日計表送信確認

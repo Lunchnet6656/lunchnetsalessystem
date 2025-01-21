@@ -14,7 +14,21 @@
 <body>
     <div class="container mt-4">
         <h1>{{ location.name }}の販売実績 ({{ search_year }}年{{ search_month }}月)</h1>
-        
+        <!-- 年と月の選択フォーム -->
+        <form method="get" action="{% url 'performance_by_location' %}">
+            <select name="year">
+                {% for year in available_years %}
+                    <option value="{{ year }}" {% if year == search_year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+            <select name="month">
+                {% for month in available_months %}
+                    <option value="{{ month }}" {% if month == search_month %}selected{% endif %}>{{ month }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">更新</button>
+        </form>
+
         <div class="calendar">
             <!-- 曜日ヘッダー -->
             <div class="header">
