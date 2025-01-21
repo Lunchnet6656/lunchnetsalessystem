@@ -14,8 +14,9 @@
 <body>
     <div class="container mt-4">
         <h1>{{ location.name }}の販売実績 ({{ search_year }}年{{ search_month }}月)</h1>
+        
         <!-- 年と月の選択フォーム -->
-        <form method="get" action="{% url 'performance_by_location' %}">
+        <form method="get" action="{% url 'performance_by_location_calender' location.id search_year search_month %}">
             <select name="year">
                 {% for year in available_years %}
                     <option value="{{ year }}" {% if year == search_year %}selected{% endif %}>{{ year }}</option>
@@ -71,6 +72,7 @@
                 {% endfor %}
                 <a href="{% url 'performance_by_location' %}" class="btn btn-link">戻る</a>
             </div>
-            
+        </div>
+    </div>
 </body>
 {% endblock %}

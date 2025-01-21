@@ -1705,4 +1705,13 @@ def performance_by_location_calender_view(request, location_id, search_year, sea
         'month_days': month_days,  # カレンダーの日付を追加
     }
 
+    # 例: 年と月のリストを作成
+    available_years = range(2020, datetime.today().year + 1)  # 2020年から現在の年まで
+    available_months = range(1, 13)  # 1月から12月まで
+
+    context.update({
+        'available_years': available_years,  # 年のリストを追加
+        'available_months': available_months,  # 月のリストを追加
+    })
+
     return render(request, 'performance_by_location_calender.html', context)
