@@ -46,7 +46,7 @@
               <td>{{ report.cash|yen_format }}</td>
               <td>{{ report.sales_difference|yen_format }}</td>-->
               <td>
-                  <a href="{% url 'daily_report_edit' report.pk %}" class="btn btn-primary">明細</a>
+                  <a href="{% url 'daily_report_edit2' report.pk %}" class="btn btn-primary">明細</a>
                   <form action="{% url 'daily_report_delete' report.pk %}" method="post" style="display:inline;" onsubmit="return confirmDelete('{{ report.location }}');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">削除</button>

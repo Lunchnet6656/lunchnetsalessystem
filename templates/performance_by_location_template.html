@@ -167,7 +167,7 @@
         {% for entry in summary_data %}
             <tr>
                 <td>
-                  <a href="{% url 'location_performance' entry.location.id search_year search_month %}">
+                  <a href="{% url 'performance_by_location_calender' entry.location.id search_year search_month %}">
                     {{ entry.location }}
                   </a>
                 </td>

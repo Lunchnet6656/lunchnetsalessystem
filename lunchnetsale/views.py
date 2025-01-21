@@ -33,6 +33,7 @@ import json
 from django import forms
 from django.contrib.auth import update_session_auth_hash
 from django.db.models import OuterRef, Subquery
+import calendar as django_calendar  # Pythonの標準ライブラリからインポート
 
 def login_view(request):
     logger = logging.getLogger(__name__)
@@ -716,6 +717,99 @@ def daily_report_detail_rol(request):
     }
     return render(request, 'daily_report_detail_rol.html', context)
 
+@login_required
+def daily_report_edit2(request, pk):
+    report = get_object_or_404(DailyReport, pk=pk)
+    entries = report.entries.all()  # 関連するエントリを取得
+    locations = SalesLocation.objects.all()
+    weather_options = ["快晴", "晴れ", "くもり", "雨", "大雨", "雪"]
+    temp_options = ["猛暑", "暑い", "ちょうどいい", "涼しい", "寒い"]
+
+    # locationの中から、report.locationと一致するものを探す
+    for location in locations:
+        if location.name == report.location:
+            report.service_name = location.service_name
+            report.service_price = location.service_price
+            break  # 一致するlocationが見つかったらループを終了
+
+    if request.method == "POST":
+        # TimeFormのインスタンスを作成
+        time_form = TimeForm(request.POST)
+        form = DailyReportForm(request.POST, instance=report)
+        
+        if form.is_valid() and time_form.is_valid():
+            # 時間データを明示的に取得
+            report.departure_time = request.POST.get('departure_time')
+            report.arrival_time = request.POST.get('arrival_time')
+            report.opening_time = request.POST.get('opening_time')
+            report.sold_out_time = request.POST.get('sold_out_time')
+            report.closing_time = request.POST.get('closing_time')
+            
+            # 他のフィールドの保存
+            report = form.save(commit=False)
+            report.save()
+
+            # 日計表明細の処理
+            for index in range(1, len(entries) + 1):
+                product_name = request.POST.get(f'product_{index}')
+                quantity = request.POST.get(f'quantity_{index}')
+                sales_quantity = request.POST.get(f'sales_quantity_{index}')
+                remaining_number = request.POST.get(f'remaining_number_{index}')
+                total_sales = request.POST.get(f'total_sales_{index}')
+                sold_out = request.POST.get(f'sold_out_{index}') is not None
+                popular = request.POST.get(f'popular_{index}') is not None
+                unpopular = request.POST.get(f'unpopular_{index}') is not None
+
+                # 既存のエントリを更新
+                if index <= len(entries):
+                    entry = entries[index - 1]
+                    entry.product = product_name
+                    entry.quantity = int(quantity)  # 整数型に変換
+                    entry.sales_quantity = int(sales_quantity)  # 整数型に変換
+                    entry.remaining_number = int(remaining_number)  # 整数型に変換
+                    entry.total_sales = int(total_sales)  # 整数型に変換
+                    entry.sold_out = sold_out
+                    entry.popular = popular
+                    entry.unpopular = unpopular
+                    entry.save()
+                else:
+                    # 新しいエントリを作成
+                    DailyReportEntry.objects.create(
+                        report=report,
+                        product=product_name,
+                        quantity=int(quantity),  # 整数型に変換
+                        sales_quantity=int(sales_quantity),  # 整数型に変換
+                        remaining_number=int(remaining_number),  # 整数型に変換
+                        total_sales=int(total_sales),  # 整数型に変換
+                        sold_out=sold_out,
+                        popular=popular,
+                        unpopular=unpopular,
+                    )
+
+            messages.success(request, "更新されました")  # メッセージを追加
+            return redirect('daily_report_detail', date=report.date)  # 保存後にリダイレクト
+        else:
+            print(form.errors)  # エラーを表示
+            print(time_form.errors)  # TimeFormのエラーも表示
+
+    else:
+        form = DailyReportForm(instance=report)
+        time_form = TimeForm(initial={
+            'departure_time': report.departure_time,
+            'arrival_time': report.arrival_time,
+            'opening_time': report.opening_time,
+            'sold_out_time': report.sold_out_time,
+            'closing_time': report.closing_time,
+        })
+
+    return render(request, 'daily_report_edit2.html', {
+        'form': form,
+        'weather_options': weather_options,
+        'temp_options': temp_options,
+        'time_form': time_form,
+        'report': report,
+        'entries': entries
+    })
 # 編集ビュー
 @login_required
 def daily_report_edit(request, pk):
@@ -1567,3 +1661,43 @@ def menu_history_view(request):
             return render(request, 'menu_history_template.html', {'summary_data': [], 'menu_name': ''})
 
     return render(request, 'menu_history_template.html')
+
+@login_required
+def performance_by_location_calender_view(request, location_id, search_year, search_month):
+    # 対象の販売場所を取得
+    location = get_object_or_404(SalesLocation, id=location_id)
+
+    # 対象月の最初と最後の日付を取得
+    start_date = date(search_year, search_month, 1)
+    end_date = start_date + relativedelta(months=1) - timedelta(days=1)
+
+    # 日曜日を最初の曜日として設定
+    calendar.setfirstweekday(calendar.SUNDAY)
+
+    # 現在の月の全日付を取得
+    days_in_month = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+
+    # カレンダーの生成
+    month_days = calendar.monthcalendar(search_year, search_month)
+
+    # 対象月の日ごとの販売データを取得
+    reports = DailyReport.objects.filter(location=location, date__range=(start_date, end_date))
+
+    # 各日付に対する販売データを取得
+    performance_data = defaultdict(lambda: {'sales': 0, 'closing_time': None})
+    for report in reports:
+        day = report.date.day
+        performance_data[day]['sales'] += report.total_sales_quantity
+        if not performance_data[day]['closing_time'] or report.closing_time > performance_data[day]['closing_time']:
+            performance_data[day]['closing_time'] = report.closing_time
+
+    # コンテキストにデータを渡す
+    context = {
+        'location': location,
+        'search_year': search_year,
+        'search_month': search_month,
+        'performance_data': performance_data,  # 日付ごとの販売データと閉店時間を含む
+        'month_days': month_days,  # カレンダーの日付を追加
+    }
+
+    return render(request, 'performance_by_location_calender.html', context)

@@ -1,0 +1,148 @@
+/* styles_location_calender.css */
+.container {
+    max-width: 900px;
+    margin: auto;
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.calendar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.calendar .header {
+    display: flex;
+    justify-content: space-between;
+    background-color: #f1f1f1;
+    border-radius: 8px;
+    padding: 10px 0;
+    color: #555;
+    font-weight: bold;
+    text-align: center;
+}
+
+.calendar .header .day {
+    flex: 1;
+    text-align: center;
+}
+
+.calendar .body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.calendar .week {
+    display: flex;
+    justify-content: space-between;
+}
+
+.calendar .day-cell {
+    flex: 1;
+    min-height: 100px;
+    background-color: #fff;
+    border: 1px solid #dddddd;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 10px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.calendar .day-cell:hover {
+    background-color: #f0f8ff;
+    border-color: #87cefa;
+    cursor: pointer;
+    transform: scale(1.02);
+    transition: all 0.2s;
+}
+
+.calendar .day-cell .date {
+    font-weight: bold;
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.calendar .day-cell .sales {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.calendar .day-cell .empty-cell {
+    visibility: hidden;
+}
+
+.calendar .day-cell:nth-child(6),
+.calendar .day-cell:nth-child(7) {
+    background-color: #fafafa;
+    color: #777;
+}
+
+a {
+    display: inline-block;
+    margin-top: 20px;
+    text-decoration: none;
+    color: #007bff;
+    font-weight: bold;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #0056b3;
+}
+
+/* Responsive Design for Smartphones */
+@media (max-width: 768px) {
+    .container {
+        max-width: 100%;
+        padding: 10px;
+    }
+
+    h1 {
+        font-size: 1.2rem;
+    }
+
+    .calendar .header {
+        font-size: 0.9rem;
+        padding: 5px 0;
+    }
+
+    .calendar .week {
+        flex-direction: column;
+    }
+
+    .calendar .day-cell {
+        min-height: 80px;
+        padding: 8px;
+    }
+
+    .calendar .day-cell .date {
+        font-size: 0.9rem;
+    }
+
+    .calendar .day-cell .sales {
+        font-size: 0.8rem;
+    }
+
+    .calendar .day-cell:hover {
+        transform: none;
+    }
+}

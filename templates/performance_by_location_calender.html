@@ -1,0 +1,62 @@
+<!-- location_performance_template.html -->
+<!DOCTYPE html>
+<html lang="ja">
+{% extends 'base.html' %}
+
+{% block title %}{{ location.name }}の販売実績{% endblock %}
+
+{% block content %}
+{% load static %}
+{% load custom_filters %}
+<head>
+    <link href="{% static 'css/styles_location_calender.css' %}" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>{{ location.name }}の販売実績 ({{ search_year }}年{{ search_month }}月)</h1>
+        
+        <div class="calendar">
+            <!-- 曜日ヘッダー -->
+            <div class="header">
+                <div class="day">日</div>
+                <div class="day">月</div>
+                <div class="day">火</div>
+                <div class="day">水</div>
+                <div class="day">木</div>
+                <div class="day">金</div>
+                <div class="day">土</div>
+            </div>
+            <!-- カレンダー本体 -->
+            <div class="body">
+                {% for week in month_days %}
+                    <div class="week">
+                        {% for day in week %}
+                            {% if day != 0 %}
+                                <div class="day-cell">
+                                    <div class="date">{{ day }}</div>
+                                    {% with performance_data|get_item:day as sales_data %}
+                                        <div class="sales">
+                                            {% if sales_data.sales >= 1 %}
+                                                {{ sales_data.sales }} 食
+                                            {% else %}
+                                            {% endif %}
+                                        </div>
+                                        <div class="closing-time">
+                                            {% if sales_data.closing_time %}
+                                                閉店: {{ sales_data.closing_time|date:"H:i" }}
+                                            {% else %}
+                                            {% endif %}
+                                        </div>
+                                    {% endwith %}
+                                </div>
+                            {% else %}
+                                <div class="day-cell empty-cell">&nbsp;</div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                <a href="{% url 'performance_by_location' %}" class="btn btn-link">戻る</a>
+            </div>
+            
+</body>
+{% endblock %}

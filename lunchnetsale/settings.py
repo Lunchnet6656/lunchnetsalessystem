@@ -110,8 +110,8 @@ DATABASES = {
 LOGIN_URL = '/login/'  # 未ログインのユーザーがアクセスしようとしたときにリダイレクトされるログインページのURL名
 LOGOUT_REDIRECT_URL = '/login/'  # ログアウト後にリダイレクトされるURL名
 
-# セッションタイムアウト設定（例: 8時間）
-SESSION_COOKIE_AGE = 8 * 60 * 60  # 秒単位で指定（8時間 = 28800秒）
+# セッションタイムアウト設定（例: 1ヶ月）
+SESSION_COOKIE_AGE = 30 * 24 * 60 * 60  # 秒単位で指定（1ヶ月 = 2592000秒）
 
 # ブラウザを閉じたらセッションを終了する設定
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
