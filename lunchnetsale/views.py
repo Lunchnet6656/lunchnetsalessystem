@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm
 import pandas as pd
-from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser
+from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
 from django.utils.dateparse import parse_date
@@ -386,6 +386,7 @@ def daily_report_view(request):
     # 日付と販売場所の取得
     dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('target_date')
     locations = SalesLocation.objects.all()
+    others_item = OthersItem.objects.all() 
     weather_options = ["快晴", "晴れ", "くもり", "雨", "大雨", "雪"]
     temp_options = ["猛暑", "暑い", "ちょうどいい", "涼しい", "寒い"]
 
@@ -608,6 +609,7 @@ def daily_report_view(request):
                 'weather_options': weather_options,
                 'temp_options': temp_options,
                 'selected_temp': selected_temp,
+                'othersitem': others_item,
                 'service': service,
                 'comment': comment,
                 'food_count_setting': food_count_setting
@@ -709,7 +711,7 @@ def daily_report_detail_rol(request):
 
 
     # ログインユーザーのデータに絞り込む
-    reports_by_location = DailyReport.objects.filter(person_in_charge=current_user).order_by('location_no')
+    reports_by_location = DailyReport.objects.filter(person_in_charge=current_user).order_by('-date')
 
 
     context = {
@@ -1595,12 +1597,15 @@ def performance_by_location_calender_view(request, location_id, search_year, sea
     reports = DailyReport.objects.filter(location=location, date__range=(start_date, end_date))
 
     # 各日付に対する販売データを取得
-    performance_data = defaultdict(lambda: {'sales': 0, 'closing_time': None})
+    performance_data = defaultdict(lambda: {'sales': 0, 'total_quantity': 0, 'weather': None, 'closing_time': None})
     for report in reports:
         day = report.date.day
         performance_data[day]['sales'] += report.total_sales_quantity
+        performance_data[day]['total_quantity'] += report.total_quantity  # total_quantityを追加
         if not performance_data[day]['closing_time'] or report.closing_time > performance_data[day]['closing_time']:
             performance_data[day]['closing_time'] = report.closing_time
+        if performance_data[day]['weather'] is None:  # weatherを初期化
+            performance_data[day]['weather'] = report.weather
 
     # コンテキストにデータを渡す
     context = {

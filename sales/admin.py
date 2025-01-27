@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser
+from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem
 from django.contrib.auth.admin import UserAdmin
 
 class CustomUserAdmin(UserAdmin):
@@ -32,6 +32,10 @@ class DailyReportEntryAdmin(admin.ModelAdmin):
     list_filter = ('report', 'product', 'sold_out', 'popular', 'unpopular')
     search_fields = ('report__date', 'product__name', 'report__location__name')
 
+class OthersItemAdmin(admin.ModelAdmin):
+    list_display = ('no', 'name', 'price')
+    list_filter = ('no', 'name', 'price')
+
 # 管理画面にモデルを登録
 admin.site.register(ItemQuantity, ItemQuantityAdmin)
 admin.site.register(SalesLocation, SalesLocationAdmin)
@@ -39,3 +43,4 @@ admin.site.register(Product, ProductAdmin)
 admin.site.register(DailyReport, DailyReportAdmin)
 admin.site.register(DailyReportEntry, DailyReportEntryAdmin)
 admin.site.register(CustomUser)
+admin.site.register(OthersItem, OthersItemAdmin)

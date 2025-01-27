@@ -52,13 +52,19 @@
                                     {% with performance_data|get_item:day as sales_data %}
                                         <div class="sales">
                                             {% if sales_data.sales >= 1 %}
-                                                {{ sales_data.sales }} 食
+                                                {{ sales_data.sales }} / {{ sales_data.total_quantity}}
                                             {% else %}
                                             {% endif %}
                                         </div>
                                         <div class="closing-time">
                                             {% if sales_data.closing_time %}
-                                                閉店: {{ sales_data.closing_time|date:"H:i" }}
+                                                {{ sales_data.closing_time|date:"H:i" }}
+                                            {% else %}
+                                            {% endif %}
+                                        </div>
+                                        <div class="weather">
+                                            {% if sales_data.weather %}
+                                                {{ sales_data.weather }}
                                             {% else %}
                                             {% endif %}
                                         </div>

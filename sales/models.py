@@ -55,6 +55,15 @@ class ItemQuantity(models.Model):
 
     def __str__(self):
         return f"{self.target_date} - {self.sales_location} - {self.product} - {self.quantity}"
+    
+class OthersItem(models.Model):
+    no = models.IntegerField(default=0)
+    name =  models.CharField(max_length=255)
+    price =  models.DecimalField(max_digits=10, decimal_places=0, default=0)
+
+    def __str__(self):
+        return f"{self.no} - {self.name} - {self.price}"
+
 
 # 日計表のメインモデル
 class DailyReport(models.Model):
