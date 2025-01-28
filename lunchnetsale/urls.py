@@ -33,6 +33,7 @@ urlpatterns = [
     path('user/edit/<int:user_id>/', views.user_edit_view, name='user_edit'),
     path('user/delete/<int:user_id>/', views.user_delete_view, name='user_delete'),
 
+    path('others_item_list/', views.others_list_view, name='others_item_list'),
 
     path('daily_report/', views.daily_report_view, name='daily_report'), #日計表のURL
     path('submission_complete/', views.submission_complete_view, name='submission_complete'),  # 完了ページのURL

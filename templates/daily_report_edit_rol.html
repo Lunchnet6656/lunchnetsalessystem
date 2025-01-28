@@ -64,16 +64,16 @@
                       <input type="text" name="product_{{ forloop.counter }}" value="{{ entry.product }}">
                   </td>
                   <td>
-                      <input type="number" name="quantity_{{ forloop.counter }}" value="{{ entry.quantity }}">
+                      <input type="number" name="quantity_{{ forloop.counter }}" value="{{ entry.quantity }}" style="width: 60px;">
                   </td>
                   <td>
-                      <input type="number" name="sales_quantity_{{ forloop.counter }}" value="{{ entry.sales_quantity }}">
+                      <input type="number" name="sales_quantity_{{ forloop.counter }}" value="{{ entry.sales_quantity }}" style="width: 60px;">
                   </td>
                   <td>
-                      <input type="number" name="remaining_number_{{ forloop.counter }}" value="{{ entry.remaining_number }}">
+                      <input type="number" name="remaining_number_{{ forloop.counter }}" value="{{ entry.remaining_number }}" style="width: 60px;">
                   </td>
                   <td>
-                      <input type="number" name="total_sales_{{ forloop.counter }}" value="{{ entry.total_sales }}">
+                      <input type="number" name="total_sales_{{ forloop.counter }}" value="{{ entry.total_sales }}" style="width: 100px;">
                   </td>
                   <td>
                       <input type="checkbox" name="sold_out_{{ forloop.counter }}" {% if entry.sold_out %}checked{% endif %}>
@@ -93,13 +93,13 @@
             <tr class="total-row">
               <td colspan="1">合計:</td>
                 <td>
-                  <input type="number" name="total_quantity" value="{{ report.total_quantity }}">
+                  <input type="number" name="total_quantity" value="{{ report.total_quantity }}" style="width: 60px;">
                 </td>
                 <td>
-                  <input type="number" name="total_sales_quantity" value="{{ report.total_sales_quantity }}">
+                  <input type="number" name="total_sales_quantity" value="{{ report.total_sales_quantity }}" style="width: 60px;">
                 </td>
                 <td>
-                  <input type="number" name="total_remaining" value="{{ report.total_remaining }}">
+                  <input type="number" name="total_remaining" value="{{ report.total_remaining }}" style="width: 60px;">
                 </td>
             </tr>
           </tfoot>
@@ -123,16 +123,16 @@
                     <input type="text" name="product_{{ forloop.counter }}" value="{{ entry.product }}">
                 </td>
                 <td>
-                    <input type="number" name="quantity_{{ forloop.counter }}" value="{{ entry.quantity }}">
+                    <input type="number" name="quantity_{{ forloop.counter }}" value="{{ entry.quantity }}" style="width: 60px;">
                 </td>
                 <td>
-                    <input type="number" name="sales_quantity_{{ forloop.counter }}" value="{{ entry.sales_quantity }}">
+                    <input type="number" name="sales_quantity_{{ forloop.counter }}" value="{{ entry.sales_quantity }}" style="width: 60px;">
                 </td>
                 <td>
-                    <input type="number" name="remaining_number_{{ forloop.counter }}" value="{{ entry.remaining_number }}">
+                    <input type="number" name="remaining_number_{{ forloop.counter }}" value="{{ entry.remaining_number }}" style="width: 60px;">
                 </td>
                 <td>
-                    <input type="number" name="total_sales_{{ forloop.counter }}" value="{{ entry.total_sales }}">
+                    <input type="number" name="total_sales_{{ forloop.counter }}" value="{{ entry.total_sales }}" style="width: 1000px;">
                 </td>
                 <td>
                     <input type="checkbox" name="sold_out_{{ forloop.counter }}" {% if entry.sold_out %}checked{% endif %}>

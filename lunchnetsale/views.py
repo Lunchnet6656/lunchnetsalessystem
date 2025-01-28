@@ -384,7 +384,7 @@ def daily_report_view(request):
     print(f"Logged-in user's first name: {selected_person}")  # デバッグ用
 
     # 日付と販売場所の取得
-    dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('target_date')
+    dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('target_date')[:3]
     locations = SalesLocation.objects.all()
     others_item = OthersItem.objects.all() 
     weather_options = ["快晴", "晴れ", "くもり", "雨", "大雨", "雪"]
@@ -1001,6 +1001,40 @@ def location_list_view(request):
     locations = SalesLocation.objects.all().order_by('no')
     return render(request, 'location_list.html', {'locations': locations})
 
+@login_required
+def others_list_view(request):
+    if request.method == 'POST':
+    # 削除リクエストの場合
+        if 'delete' in request.POST:
+            selected_ids = request.POST.getlist('selected_ids')
+            OthersItem.objects.filter(id__in=selected_ids).delete()
+            messages.success(request, '選択した項目を削除しました。')
+            return HttpResponseRedirect(reverse('others_item_list'))
+
+        # 上書き保存のリクエスト
+        others_data = request.POST
+        for i in range(len(others_data)//3):  # 各locationごとのキー数が7つのため調整
+            no = others_data.get(f'others[{i}][no]')
+            name = others_data.get(f'others[{i}][name]')
+            price = others_data.get(f'others[{i}][price]')
+
+
+        # データを保存
+        OthersItem.objects.update_or_create(
+            no=no,
+            defaults={
+                'no': no,
+                'name': name,
+                'price': price,
+            }
+        )
+
+        messages.success(request, 'その他の項目を更新しました。')
+        return HttpResponseRedirect(reverse('others_item_list'))
+
+    # データを取得して表示
+    item = OthersItem.objects.all().order_by('no')
+    return render(request, 'others_item_list.html', {'item':item})
 
 
 
