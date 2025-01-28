@@ -384,7 +384,7 @@ def daily_report_view(request):
     print(f"Logged-in user's first name: {selected_person}")  # デバッグ用
 
     # 日付と販売場所の取得
-    dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('target_date')[:3]
+    dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('target_date')[-3:]
     locations = SalesLocation.objects.all()
     others_item = OthersItem.objects.all() 
     weather_options = ["快晴", "晴れ", "くもり", "雨", "大雨", "雪"]
