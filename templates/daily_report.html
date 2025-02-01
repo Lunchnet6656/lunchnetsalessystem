@@ -366,7 +366,10 @@
                       {% endif %}
                     <div class="mb-3">
                         <label for="total_discount" class="form-label">割引合計</label>
+                        <div class="input-group">
                         <input type="text" id="total_discount" name="total_discount" class="form-control" readonly>
+                        <span class="input-group-text">円</span>
+                        </div>
                     </div>
             </div>
             {% endif %}
@@ -376,25 +379,40 @@
                 <h2 class="bg-dark text-white mt-4">売上入力</h2>
                 <div class="mb-3">
                     <label for="total_revenue" class="form-label">総売上</label>
+                    <div class="input-group">
                     <input type="text" id="total_revenue" name="total_revenue" class="form-control" readonly>
+                    <span class="input-group-text">円</span>
+                    </div>
                 </div>
                 <div class="row">
                     <div class="col-12 col-md-4 mb-2">
                         <label for="paypay" class="form-label">PayPay</label>
+                        <div class="input-group">
                         <input type="number" id="paypay" name="paypay" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <span class="input-group-text">円</span>
+                        </div>
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="digital_payment" class="form-label">電子決済</label>
+                        <div class="input-group">
                         <input type="number" id="digital_payment" name="digital_payment" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <span class="input-group-text">円</span>
+                        </div>
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="cash" class="form-label">現金</label>
+                        <div class="input-group">
                         <input type="number" id="cash" name="cash" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <span class="input-group-text">円</span>
+                        </div>
                     </div>
                 </div>
                 <div class="mb-3">
                     <label for="sales_difference" class="form-label">差額</label>
+                    <div class="input-group">
                     <input type="text" id="sales_difference" name="sales_difference" class="form-control" readonly>
+                    <span class="input-group-text">円</span>
+                    </div>  
                 </div>
             </div>
             <!-- 売上セクションの次に追加 -->

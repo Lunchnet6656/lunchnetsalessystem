@@ -17,7 +17,7 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span>サマリー(おかずのみ)</span>
                     </div>
-                    <div class="card-body summary-section">
+                    <div class="card-body summary-section" style="margin-bottom: -40px; overflow: auto;"> <!-- 下側の余白を狭く設定 -->
                         <div class="summary-item">
                             <h5 class="card-title">総持参数</h5>
                             <p class="card-text summary-number">{{ total_quantity|intcomma }}</p>
@@ -34,6 +34,8 @@
                             <h5 class="card-title">廃棄率</h5>
                             <p class="card-text summary-number">{{ formatted_waste_rate }}</p>
                         </div>
+                    </div>
+                    <div class="card-body summary-section" style="padding: 0px; overflow: auto;"> <!-- paddingとマージンを狭く設定 -->
                         <div class="summary-item">
                             <h5 class="card-title">総売上</h5>
                             <p class="card-text summary-number">{{ total_revenue|yen_format }}</p>

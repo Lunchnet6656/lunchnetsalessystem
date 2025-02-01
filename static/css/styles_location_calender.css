@@ -101,7 +101,8 @@ h1 {
     color: #5f6368; /* 中間グレー */
 }
 
-a {
+/* 追加: 戻るボタン用のクラスを定義 */
+.back-button {
     display: inline-block;
     margin-top: 20px;
     text-decoration: none;
@@ -109,7 +110,7 @@ a {
     font-weight: 500;
 }
 
-a:hover {
+.back-button:hover {
     text-decoration: underline;
     color: #174ea6; /* 少し濃いブルー */
 }

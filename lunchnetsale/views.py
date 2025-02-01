@@ -388,7 +388,7 @@ def daily_report_view(request):
     locations = SalesLocation.objects.all()
     others_item = OthersItem.objects.all() 
     weather_options = ["快晴", "晴れ", "くもり", "雨", "大雨", "雪"]
-    temp_options = ["猛暑", "暑い", "ちょうどいい", "涼しい", "寒い"]
+    temp_options = ["猛暑", "暑い", "ちょうどいい", "涼しい", "寒い",'極寒']
 
     # 初期化
     selected_date = None
