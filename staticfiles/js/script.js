@@ -21,41 +21,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 const clickedButton = document.activeElement;
 
                 if (clickedButton.name === 'action' && clickedButton.value === 'send') {
-                    const locationInput = document.getElementById('location'); // 販売所の入力を取得
-                    const locationName = locationInput ? locationInput.value : '未選択'; // 現在の販売場所を取得
-
-                    // チェックボックスを含むダイアログを作成
-                    const confirmationDialog = document.createElement('div');
-                    confirmationDialog.innerHTML = `
-                        <p>販売場所は「${locationName}」であっていますか？</p>
-                        <label>
-                            <input type="checkbox" id="confirm-location" /> 確認しました
-                        </label>
-                        <br />
-                        <button id="confirm-button">OK</button>
-                        <button id="cancel-button">キャンセル</button>
-                    `;
-                    document.body.appendChild(confirmationDialog);
-
-                    // OKボタンのクリックイベント
-                    document.getElementById('confirm-button').onclick = function() {
-                        const checkbox = document.getElementById('confirm-location');
-                        if (!checkbox.checked) {
-                            alert('確認してください。');
-                        } else {
-                            confirmationDialog.remove(); // ダイアログを閉じる
-                            // 送信を実行
-                            document.querySelector('form').submit(); // フォームを送信
-                        }
-                    };
-
-                    // キャンセルボタンのクリックイベント
-                    document.getElementById('cancel-button').onclick = function() {
-                        confirmationDialog.remove(); // ダイアログを閉じる
-                        event.preventDefault(); // 送信をキャンセル
-                    };
-
-                    event.preventDefault(); // デフォルトの送信をキャンセル
+                    if (!confirm('販売場所はあっていますか？')) {
+                        event.preventDefault();
+                    }
                 }
             });
         }

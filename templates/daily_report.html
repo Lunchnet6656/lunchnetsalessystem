@@ -475,25 +475,36 @@
             <!-- 情報入力セクション -->
             <div id="additional-section">
                 <h2 class="bg-dark text-white mt-4">情報入力</h2>
-
                 <!-- コメント入力欄 -->
                 <div class="mb-3">
                     <label for="comment" class="form-label">コメント(来客状況やお客様からの要望など売場の情報)</label>
                     <textarea id="comment" name="comment" class="form-control" rows="3" placeholder="コメントを入力してください"></textarea>
                 </div>
-
                 <!-- 食数設定入力欄 -->
                 <div class="mb-3">
                     <label for="food_count_setting" class="form-label">明日の食数設定(具体的な数字を提示！)</label>
                     <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="食数を設定してください"></textarea>
                 </div>
+            </div>
+            <div id="check-section">
+                <h2 class="bg-dark text-white mt-4">チェック事項</h2>               
+                <p style="color: black; text-decoration: underline; font-size: larger;">① 販売場所は「<span id="selected-location" style="color: red;">{{ selected_location }}</span>」で合っていますか？</p>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="location_check" name="location_check" style="transform: scale(1.5); margin-left: 5px;">
+                    <label class="form-check-label" for="location_check" style="font-size: larger; margin-left: 10px;">確認しました。</label>
+                </div>
+                <label class="form-label" style="color: black; text-decoration: underline; font-size: larger;">
+                    ② <span style="color: red;">閉店時間</span>
+                    <span id="closing-time-message" style="color: black;"></span>
+                </label>
+                <script>
 
-                <label class="form-label" style="color: red; text-decoration: underline; font-size: larger;">※閉店時間を入力したら送信できます。</label>
+                </script>
+            </div>
                 <!-- 送信ボタン -->
                 <div class="mb-3">
                     <button type="submit" name="action" value="send" class="btn btn-success w-100 py-3" id="submit-button" style="display: none;">送信</button>
                 </div>
-            </div>
             {% endif %}
 
     </form>
@@ -505,7 +516,15 @@
     {% load static %}
     <script src="{% static 'js/script.js' %}"></script>
     <script>
+        function updateClosingTimeMessage() {
+            const closingTime = document.getElementById('closing_time').value;
+            const messageElement = document.getElementById('closing-time-message');
+            messageElement.textContent = closingTime ? 'は入力されています。' : 'を入力してください。';
+        }
+        document.getElementById('closing_time').addEventListener('input', updateClosingTimeMessage);
+        document.addEventListener('DOMContentLoaded', updateClosingTimeMessage);
 
+        
         // 各ドロップダウン内のアイテムを選択したときに対応するボタンのテキストを変更し、隠しフィールドに値をセット
         document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
             dropdown.querySelectorAll('.dropdown-item').forEach(item => {
@@ -528,13 +547,14 @@
         // 閉店時間が入力されている場合に送信ボタンを表示
         function toggleSubmitButton() {
             const closingTime = document.getElementById('closing_time').value;
+            const locationCheck = document.getElementById('location_check').checked; // location-checkの状態を取得
             const submitButton = document.getElementById('submit-button');
-            submitButton.style.display = closingTime ? 'block' : 'none';
+            submitButton.style.display = closingTime && locationCheck ? 'block' : 'none'; // 両方の条件を確認
         }
     
         // ページ読み込み時とinput変更時に実行
         document.addEventListener('DOMContentLoaded', toggleSubmitButton);
         document.getElementById('closing_time').addEventListener('input', toggleSubmitButton);
-        
+        document.getElementById('location_check').addEventListener('change', toggleSubmitButton); // チェックボックスの変更時にも実行
     </script>
     {% endblock %}
