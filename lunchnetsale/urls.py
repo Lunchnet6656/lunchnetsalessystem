@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path
 from . import views
 from django.contrib.auth import views as auth_views
-from .views import locked_out_view
+from .views import locked_out_view,my_page,submit_shift,edit_shift
 
 urlpatterns = [
     path('secure-admin/', admin.site.urls),
@@ -28,6 +28,13 @@ urlpatterns = [
     path('upload/', views.upload_view, name='upload'),
     path('register/', views.register_user, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
+
+    path('mypage/', my_page, name='mypage'),
+    path('submit-shift/', submit_shift, name='submit_shift'),
+    path('edit_shift/', edit_shift, name='edit_shift'),
+    path('shift_settings/', views.shift_settings, name='shift_settings'),
+    path('shift_request_list/', views.shift_request_list, name='shift_request_list'),
+    path('export_shift_request', views.export_shift_request, name='export_shift_request'),
 
     path('users/', views.user_list_view, name='user_list'),
     path('user/edit/<int:user_id>/', views.user_edit_view, name='user_edit'),
@@ -60,6 +67,7 @@ urlpatterns = [
     path('performance_data/<int:year>/<int:month>/<int:day>/', views.menu_sales_performance_view, name='menu_sales_performance'),
 
     path('performance_by_location/', views.performance_by_location_view, name='performance_by_location'),
+    path('performance_by_location_rol/', views.performance_by_location_view_rol, name='performance_by_location_rol'),
     path('download_csv/', views.download_csv, name='download_csv'),
     path('download_csv_allreport/', views.download_csv_allreport, name='download_csv_allreport'),
     path('location/<int:location_id>/performance/<int:search_year>/<int:search_month>/', views.performance_by_location_calender_view, name='performance_by_location_calender'),

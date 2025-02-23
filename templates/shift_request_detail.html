@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}シフト送信詳細{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+<style>
+    .holiday td {
+        background-color: red !important;
+        color: white;
+    }
+    .weekend td {
+        background-color: lightgray !important;
+    }
+</style>
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1">シフト送信詳細</h1>
+    <hr class="my-4">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>日付</th>
+                <th>ステータス</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for shift in shifts %}
+                <tr id="row-{{ shift.date }}" class="date-row">
+                    <td>{{ shift.date|japanese_date }}</td>
+                    <td class="leave-checkbox">
+                        {% if shift.is_off %}
+                        <span>お休み希望</span>
+                        {% else %}
+                        <span>出勤</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="2">提出中のシフトはありません。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</div>
+
+        <!--
+        <div class="bottom-nav">
+            <div class="nav-item">
+                <div>🏠</div>
+                <div>ホーム</div>
+            </div>
+            <div class="nav-item">
+                <div>📅</div>
+                <div>予約</div>
+            </div>
+            <div class="nav-item active">
+                <div class="member-card">QR</div>
+            </div>
+            <div class="nav-item">
+                <div>📋</div>
+                <div>予定管理</div>
+            </div>
+            <div class="nav-item">
+                <div>👤</div>
+                <div>マイページ</div>
+            </div>
+        </div>
+        -->
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const holidays = {{ holidays_json|safe }};
+        console.log("holidays:", holidays);
+        
+        document.querySelectorAll(".date-row").forEach(row => {
+            let dateStr = row.id.replace("row-", "");
+            const date = new Date(dateStr);
+            const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+            let checklabel = row.querySelector(".leave-checkbox");
+            let cells = row.querySelectorAll("td"); // 行のすべてのセルを取得
+            console.log(`デバッグ曜日:${dayOfWeek}`);
+
+
+            // dateStrを"yyyy-mm-dd"形式に変換
+            const formattedDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            console.log(`デバッグ変換${formattedDateStr}`);
+            if (holidays.includes(formattedDateStr)) {
+                row.classList.add("holiday");
+                cells.forEach(cell => cell.style.backgroundColor = "red"); // 全セルの背景色を変更
+                const statusSpan = row.querySelector(".leave-checkbox span");
+                if (statusSpan) {
+                    statusSpan.textContent = '休日';
+                }
+                console.log(`✅ 休日(${formattedDateStr})に "holiday" クラス追加`);
+            }
+            if (dayOfWeek === "土" || dayOfWeek === "日") {
+                if (row.classList.contains("holiday")) {
+                    row.classList.remove("holiday");
+                }
+                row.classList.add("weekend");
+                cells.forEach(cell => cell.style.backgroundColor = "lightgray"); // 全セルの背景色を変更
+                console.log(`✅ 週末(${dateStr})に "weekend" クラス追加`);
+            }
+    
+            console.log("現在のクラス:", row.className);
+        });
+    });
+</script>
+{% endblock %}

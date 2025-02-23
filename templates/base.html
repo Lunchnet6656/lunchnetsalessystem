@@ -65,6 +65,9 @@
                         <a href="{% url 'register' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-user-plus"></i> 新規ユーザー登録
                         </a>
+                        <a href="{% url 'mypage' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user"></i> マイページ
+                        </a>
 
                     </li>
                     <!-- データセクション -->
@@ -85,6 +88,22 @@
                         <a href="{% url 'others_item_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> その他の項目設定
                         </a>
+                        <a class="list-group-item list-group-item-action" id="shift-toggle">
+                            <i class="fas fa-edit"></i> シフト関係
+                            <i class="fas fa-chevron-down float-end"></i>
+                        </a>
+                            <ul id="shift-submenu" style="display: none;">
+                                <li>
+                                    <a href="{% url 'shift_settings' %}" class="list-group-item-action" style="font-size: 13px;">
+                                        <i class="fas fa-calendar"></i> シフトカレンダー設定
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="{% url 'shift_request_list' %}" class="list-group-item-action" style="font-size: 13px;">
+                                        <i class="fas fa-list"></i> シフト送信リスト
+                                    </a>
+                                </li>
+                            </ul>
                     </li>
                     <li class="list-group-item">
                         <h6 class="text-uppercase">実績管理</h6>
@@ -112,7 +131,7 @@
                         <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> 日計表 送信結果
                         </a>
-                        <a href="{% url 'performance_by_location' %}" class="list-group-item list-group-item-action">
+                        <a href="{% url 'performance_by_location_rol' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> 販売場所別実績データ
                         </a>
                     </li>
@@ -135,9 +154,15 @@
                   {% if messages %}
                       <div class="alert-messages">
                           {% for message in messages %}
-                              <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}">
-                                  {{ message }}
-                              </div>
+                              {% if message.tags == 'error' %}
+                                  <div class="alert alert-danger">
+                                      {{ message }}
+                                  </div>
+                              {% else %}
+                                  <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}">
+                                      {{ message }}
+                                  </div>
+                              {% endif %}
                           {% endfor %}
                       </div>
                   {% endif %}
@@ -147,7 +172,7 @@
           </div>
         </div>
     </div>
-
+    
     <script>
         document.getElementById("sidebarCollapse").onclick = function() {
             const sidebar = document.querySelector(".sidebar");
@@ -169,6 +194,21 @@
                 event.preventDefault();
             }
         }
+
+        // シフトメニューの展開/折りたたみ機能
+        document.getElementById('shift-toggle').addEventListener('click', function(e) {
+            e.preventDefault();
+            const submenu = document.getElementById('shift-submenu');
+            const chevron = this.querySelector('.fa-chevron-down');
+            
+            if (submenu.style.display === 'none') {
+                submenu.style.display = 'block';
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                submenu.style.display = 'none';
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        });
 
     </script>
 

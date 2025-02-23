@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% load custom_filters %}
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1">シフト編集</h1>
+    <hr class="my-4">
+
+    <form method="POST">
+        {% csrf_token %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>日付</th>
+                    <th>お休み希望</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for shift in shifts %}
+                <tr id="row-{{ shift.date }}" class="date-row">
+                    <td><label for="shift_{{ shift.id }}">{{ shift.date|japanese_date }}</label>
+                    <td>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="shift_{{ shift.id }}" id="shift_{{ shift.id }}"
+                            {% if shift.is_off %}checked{% endif %} class="leave-checkbox">
+                                {% if shift.is_off %}
+                                    <span>お休み希望</span>
+                                    {% else %}
+                                    <span>出勤</span>
+                                    {% endif %}
+                        </label>
+                    </td>
+                </tr>
+            {% endfor %}
+            <tbody>
+        </table>
+        {% for shift in shifts %}
+        {% if forloop.first %}
+        <div class="comment-section mb-3">
+            <h2>伝言事項</h2>
+            <textarea name="comment" rows="4" cols="50" placeholder="伝言があれば入力してください" class="form-control">{{ shifts.0.comment }}</textarea>
+        </div>
+        {% endif %}
+        {% endfor %}
+        <button type="submit" class="btn btn-success">変更を保存</button>
+    </form>
+</div>
+
+    <style>
+        .table {
+            width: 100%;
+            border-collapse: collapse; /* セル間の境界線を一つにまとめる */
+            table-layout: fixed; /* テーブルサイズを固定 */
+        }
+    
+        .table th, .table td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd; /* 縦横のラインを表示 */
+            width: 150px; /* セルの幅を固定 */
+            word-wrap: break-word; /* 長いテキストがセルを超えないようにする */
+        }
+    
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+        }
+    
+        .leave-checkbox {
+            margin-right: 10px; /* チェックボックスとテキストの間隔を調整 */
+        }
+    
+        .status-label {
+            font-size: 16px; /* フォントサイズを調整 */
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .holiday td {
+            background-color: red !important;
+            color: white;
+        }
+        .weekend td {
+            background-color: lightgray !important;
+        }
+    </style>
+    
+    <!-- チェックボックスに対するJSによる即時ラベル変更 -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const holidays = {{ holidays_json|safe }};
+            console.log("holidays:", holidays);
+            
+            document.querySelectorAll(".date-row").forEach(row => {
+                let dateStr = row.id.replace("row-", "");
+                const date = new Date(dateStr);
+                const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+                let checkbox = row.querySelector(".leave-checkbox");
+                let cells = row.querySelectorAll("td"); // 行のすべてのセルを取得
+                console.log(`デバッグ曜日:${dayOfWeek}`);
+
+
+                // dateStrを"yyyy-mm-dd"形式に変換
+                const formattedDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                console.log(`デバッグ変換${formattedDateStr}`);
+                if (holidays.includes(formattedDateStr)) {
+                    row.classList.add("holiday");
+                    cells.forEach(cell => cell.style.backgroundColor = "red"); // 全セルの背景色を変更
+                    checkbox.checked = true;  // チェックを入れる
+                    checkbox.disabled = true;
+                    checkbox.nextElementSibling.textContent = '休日'; // ラベルを「休日」に変更
+                    console.log(`✅ 休日(${formattedDateStr})に "holiday" クラス追加`);
+                }
+                if (dayOfWeek === "土" || dayOfWeek === "日") {
+                    if (row.classList.contains("holiday")) {
+                        row.classList.remove("holiday");
+                    }
+                    row.classList.add("weekend");
+                    cells.forEach(cell => cell.style.backgroundColor = "lightgray"); // 全セルの背景色を変更
+                    checkbox.disabled = true;
+                    console.log(`✅ 週末(${dateStr})に "weekend" クラス追加`);
+                }
+        
+                console.log("現在のクラス:", row.className);
+            });
+        });
+
+        const leaveCheckboxes = document.querySelectorAll('.leave-checkbox');
+        
+        leaveCheckboxes.forEach(checkbox => {
+            const statusLabel = checkbox.nextElementSibling;  // <span class="status-label">を取得
+    
+            // 初期状態を設定
+            statusLabel.textContent = checkbox.checked ? 'お休み希望' : '出勤';
+    
+            // チェックボックスが変更されたときにラベルも即時反映
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    statusLabel.textContent = 'お休み希望'; // チェックされていれば「お休み希望」
+                } else {
+                    statusLabel.textContent = '出勤'; // チェックが外れれば「出勤」
+                }
+            });
+        });
+    </script>
+    
+{% endblock %}

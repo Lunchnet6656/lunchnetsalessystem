@@ -30,7 +30,7 @@ CSRF_COOKIE_SECURE = True  # HTTPS を使う場合は True
 SECRET_KEY = 'django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = False    
 
 
 #ALLOWED_HOSTS = ['lunchnetsalessystem-c7bbb644044e.herokuapp.com', 'localhost']
@@ -110,8 +110,8 @@ DATABASES = {
 LOGIN_URL = '/login/'  # 未ログインのユーザーがアクセスしようとしたときにリダイレクトされるログインページのURL名
 LOGOUT_REDIRECT_URL = '/login/'  # ログアウト後にリダイレクトされるURL名
 
-# セッションタイムアウト設定（例: 1ヶ月）
-SESSION_COOKIE_AGE = 30 * 24 * 60 * 60  # 秒単位で指定（1ヶ月 = 2592000秒）
+# セッションタイムアウト設定（例: 24時間）
+SESSION_COOKIE_AGE = 24 * 60 * 60  # 秒単位で指定（24時間 = 86400秒）
 
 # ブラウザを閉じたらセッションを終了する設定
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False

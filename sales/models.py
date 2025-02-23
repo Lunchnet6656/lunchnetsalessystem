@@ -1,6 +1,9 @@
 # sales/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import User
+from django.utils.timezone import now
+
 
 class CustomUser(AbstractUser):
     full_name = models.CharField(max_length=100, blank=True, null=True)  # 氏名のフィールド
@@ -133,3 +136,32 @@ class DailyReportEntry(models.Model):
 
     def __str__(self):
         return f"{self.report.date}"
+
+class Holiday(models.Model):
+    date = models.DateField(unique=True)
+    description = models.CharField(max_length=100, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.date} ({self.description})"
+
+class ShiftRequest(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)  # ユーザー情報
+    last_name = models.CharField(max_length=50, blank=True)  # 姓
+    first_name = models.CharField(max_length=50, blank=True)  # 名
+    date = models.DateField()  # シフト希望日
+    is_off = models.BooleanField(default=False)  # チェックボックス：Trueならお休み希望
+    submitted_at = models.DateTimeField(auto_now_add=True)  # 送信日時
+    comment = models.TextField(blank=True)  # 伝言事項フィールド（追加）
+
+    def save(self, *args, **kwargs):
+        """ ユーザーの名前を保存時に自動でセット """
+        if self.user:
+            self.last_name = self.user.last_name
+            self.first_name = self.user.first_name
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.last_name} {self.first_name} - {self.date} ({'休み' if self.is_off else '出勤'})"
+    
+    class Meta:
+        unique_together = ('user', 'date')  # 同じユーザーが同じ日付のシフトを複数回送信できない

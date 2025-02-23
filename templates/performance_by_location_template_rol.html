@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}販売場所別実績データ{% endblock %}
+
+{% block content %}
+{% load humanize %}
+{% load custom_filters %}
+<!-- performance_by_location_template.html -->
+<style>
+    /* テーブル全体をスクロール可能にする */
+    .table-responsive {
+        max-height: 600px; /* テーブルの高さを指定（スクロール領域を制限） */
+        overflow-y: auto;  /* 垂直スクロールを有効にする */
+        overflow-x: auto; /* 横スクロールを無効にする */
+        display: block;
+        width: 100%;
+    }
+
+    /* テーブルヘッダーを固定 */
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 100; /* ヘッダーをテーブルボディの上に表示するためにz-indexを高く設定 */
+    }
+</style>
+
+<div class="container mt-4">
+    <h1 class="mb-1">販売場所別実績データ</h1>
+    <hr class="my-4">
+    <div class="card text-bg-light mb-3" style="max-width: 40rem;">
+      <div class="card-header">検索条件指定</div>
+      <div class="card-body">
+        <form method="get" action="{% url 'performance_by_location_rol' %}" class="mb-2">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="search_year" class="form-label">年:</label>
+                    <input type="number" id="search_year" name="search_year" value="{{ search_year }}" min="2000" max="2100" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label for="search_month" class="form-label">月:</label>
+                    <input type="number" id="search_month" name="search_month" value="{{ search_month }}" min="1" max="12" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label></label>
+                    <button type="submit" class="btn btn-primary w-100">検索</button>
+                </div>
+            </div>
+        </form>
+      </div>
+      </div>
+
+
+
+
+    <!-- 結果表示テーブル -->
+    <div class="table-responsive mb-5">
+    <table class="table table-sm table-bordered">
+      <thead class="table-active">
+          <tr>
+              <th>販売場所</th>
+              <th>今月平均</th>
+              <th>前月比</th>
+          </tr>
+      </thead>
+      <tbody>
+        {% for entry in summary_data %}
+            <tr>
+                <td>
+                  <a href="{% url 'performance_by_location_calender' entry.location.id search_year search_month %}">
+                    {{ entry.location }}
+                  </a>
+                </td>
+                <td>{{ entry.average_sales|intcomma }}</td>
+                <td>
+                    {% if entry.comparison_to_last_month is not None %}
+                        {% if entry.comparison_to_last_month == 0 %}
+                            ±0
+                        {% elif entry.comparison_to_last_month > 0 %}
+                            ＋{{ entry.comparison_to_last_month_abs|intcomma }}
+                        {% else %}
+                            ▲{{ entry.comparison_to_last_month_abs|intcomma }}
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+
+
+            </tr>
+        {% empty %}
+
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+</div>
+<script>
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.form-check-input[name="sales_locations"]');
+
+      if (this.checked) {
+        // 「全ての販売場所」が選択された場合、他のチェックボックスを無効化
+        checkboxes.forEach(checkbox => checkbox.checked = false);
+        checkboxes.forEach(checkbox => checkbox.disabled = true);
+      } else {
+        // 「全ての販売場所」が選択解除された場合、他のチェックボックスを有効化
+        checkboxes.forEach(checkbox => checkbox.disabled = false);
+      }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}シフト送信リスト{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1">シフト送信リスト</h1>
+    <hr class="my-4">
+    <form method="POST">
+        {% csrf_token %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>名前</th>
+                    <th>伝言事項</th>
+                    <th>送信日時</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for shift in shifts %}
+                <tr>
+                    <td>{{ shift.last_name }} {{ shift.first_name }}</td>
+                    <td>{{ shift.comment|default:"-" }}</td>
+                    <td>{{ shift.submitted_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        <a href="{% url 'dashboard'  %}" class="btn btn-primary">詳細</a>
+                    <td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="{% url 'export_shift_request' %}" class="btn btn-success">CSVダウンロード</a>
+    </form>
+</div>
+{% endblock %}

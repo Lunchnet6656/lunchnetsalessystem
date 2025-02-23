@@ -102,14 +102,15 @@
                                        data-quantity="{{ item.quantity }}"
                                        data-price="{{ item.price }}"
                                        oninput="updateRemainingAndSales(this)">
-                             <td>
+                            </td>
+                            <td>
                                <span id="remaining_display_{{ item.menu_no }}">{{ item.quantity }}</span>
                                <input type="hidden" id="remaining_{{ item.menu_no }}" name="remaining_{{ item.menu_no }}" value="{{ item.quantity }}">
-                             </td>
-                             <td>
+                            </td>
+                            <td>
                                <span id="total_sales_display_{{ item.menu_no }}">0</span>
                                <input type="hidden" id="total_sales_{{ item.menu_no }}" name="total_sales_{{ item.menu_no }}" value="0">
-                           </td>
+                            </td>
                             <td>
                                 <input type="checkbox" id="sold_out_{{ item.menu_no }}" name="sold_out_{{ item.menu_no }}" onchange="toggleSoldOut(this, '{{ item.menu_no }}')">
                             </td>
@@ -488,7 +489,7 @@
             </div>
             <div id="check-section">
                 <h2 class="bg-dark text-white mt-4">チェック事項</h2>               
-                <p style="color: black; text-decoration: underline; font-size: larger;">① 販売場所は「<span id="selected-location" style="color: red;">{{ selected_location }}</span>」で合っていますか？</p>
+                <p style="color: black; text-decoration: underline; font-size: larger;">① 販売場所は「<span id="selected-location" style="color: red;">{{ selected_location }}</span>」で間違いありませんか？</p>
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="location_check" name="location_check" style="transform: scale(1.5); margin-left: 5px;">
                     <label class="form-check-label" for="location_check" style="font-size: larger; margin-left: 10px;">確認しました。</label>

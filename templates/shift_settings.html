@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1">シフトカレンダー設定（{{ current_month|date:"Y年m月" }}）</h1>
+    <hr class="my-4">
+
+
+    <!-- 前後の月に移動するボタン -->
+    <div class="d-flex justify-content-between mb-3">
+        <a href="?year={{ prev_month.0 }}&month={{ prev_month.1 }}" class="btn btn-outline-primary">前の月</a>
+        <a href="?year={{ next_month.0 }}&month={{ next_month.1 }}" class="btn btn-outline-primary">次の月</a>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>日付</th>
+                    <th>曜日</th>
+                    <th>休日設定</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in calendar_data %}
+                    <tr {% if day.is_weekend or day.is_holiday %} class="table-danger" {% endif %}>
+                        <td>{{ day.date|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if day.date|date:"w" == "0" %}日
+                            {% elif day.date|date:"w" == "1" %}月
+                            {% elif day.date|date:"w" == "2" %}火
+                            {% elif day.date|date:"w" == "3" %}水
+                            {% elif day.date|date:"w" == "4" %}木
+                            {% elif day.date|date:"w" == "5" %}金
+                            {% elif day.date|date:"w" == "6" %}土
+                            {% endif %}
+                        </td>
+                        <td>
+                            <input type="checkbox" name="holiday_dates" value="{{ day.date|date:'Y-m-d' }}" 
+                                {% if day.is_weekend or day.is_holiday %} checked {% endif %}>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <button type="submit" class="btn btn-primary mb-5">変更を保存</button>
+    </form>
+</div>
+{% endblock %}

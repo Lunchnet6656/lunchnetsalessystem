@@ -8,8 +8,13 @@ register = template.Library()
 
 @register.filter
 def japanese_date(value):
+
     if not value:
         return value
+    # valueが文字列の場合、日付オブジェクトに変換
+    if isinstance(value, str):
+        from datetime import datetime
+        value = datetime.strptime(value, '%Y-%m-%d').date()
 
     day_of_week = {
         0: '月',
@@ -23,6 +28,12 @@ def japanese_date(value):
     formatted_date = format(value, 'Y/m/d')
     weekday = day_of_week[value.weekday()]
     return f"{formatted_date} ({weekday})"
+
+@register.filter
+def japanese_weekday(value):
+    """ 日付から日本語の曜日1文字を返す """
+    weekday_map = ['月', '火', '水', '木', '金', '土', '日']
+    return weekday_map[value.weekday()] if hasattr(value, 'weekday') else ''
 
 @register.filter
 def yen_format(value):

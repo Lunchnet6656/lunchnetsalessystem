@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}マイページ{% endblock %}
+
+{% block content %}
+{% load custom_filters %}
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+        background-color: #f5f5f5;
+    }
+
+    .header {
+        background: white;
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .logo {
+        color: #00a651;
+        font-size: 24px;
+        font-weight: bold;
+    }
+
+    .profile-section {
+        display: flex;
+        align-items: center;
+        background: white;
+        padding: 20px;
+        margin-bottom: 15px;
+    }
+
+    .profile-icon {
+        width: 60px;
+        height: 60px;
+        background: #00a651;
+        border-radius: 50%;
+        margin-right: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        color: white;
+    }
+
+    .profile-name {
+        font-size: 20px;
+        text-align: center;
+        margin-left: 20px;
+    }
+
+    .profile-email {
+        color: #666;
+        text-decoration: underline;
+        margin-bottom: 20px;
+        display: block;
+    }
+
+    .membership-info {
+        background: white;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .warning-section {
+        background: #fff5f5;
+        border: 1px solid #ff4444;
+        padding: 15px;
+        margin: 15px;
+        border-radius: 5px;
+    }
+
+    .warning-title {
+        color: #ff4444;
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+
+    .warning-text {
+        color: #ff4444;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .upload-button {
+        background: #333;
+        color: white;
+        padding: 15px;
+        text-align: center;
+        margin: 15px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+        padding: 15px;
+    }
+
+    .menu-item {
+        background: white;
+        padding: 20px;
+        text-align: center;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s, background-color 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .menu-item:hover {
+        transform: scale(1.05);
+    }
+
+    .menu-item:active {
+        transform: scale(0.95);
+        background-color: #d0d0d0;
+    }
+
+    .menu-icon {
+        font-size: 40px;
+        margin-bottom: 15px;
+        color: #00a651;
+    }
+
+    .bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        display: flex;
+        justify-content: space-around;
+        padding: 10px;
+        border-top: 1px solid #eee;
+    }
+
+    .nav-item {
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+    }
+
+    .nav-item.active {
+        color: #00a651;
+    }
+
+    .member-card {
+        background: #00a651;
+        font-size: 15px;
+        color: white;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: -30px auto 0;
+    }
+
+    .holiday td {
+        background-color: red !important;
+        color: white;
+    }
+    .weekend td {
+        background-color: lightgray !important;
+    }
+</style>
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1">マイページ</h1>
+    <hr class="my-4">
+        <div class="profile-section">
+            <div class="profile-icon fa fa-user"></div>
+            <h1 class="profile-name">{{ user.last_name }} {{ user.first_name }}</h1>
+        </div>
+        <div class="menu-grid">
+            <a href="{% url 'submit_shift' %}" class="menu-item" style="text-decoration: none; color: inherit;">
+                <div class="menu-icon fa fa-coffee"></div>
+                <div>お休み希望提出</div>
+            </a>
+            <a href="*" class="menu-item" style="text-decoration: none; color: inherit;">
+                <div class="menu-icon fa fa-calendar-check"></div>
+                <div>シフト表</div>
+            </a>
+            <a href="*" class="menu-item" style="text-decoration: none; color: inherit;">
+                <div class="menu-icon fa fa-calendar"></div>
+                <div>マイカレンダー</div>
+            </a>
+            <a href="{% url 'daily_report' %}" class="menu-item" style="text-decoration: none; color: inherit;">
+                <div class="menu-icon fa fa-file-alt"></div>
+                <div>日計表入力</div>
+            </a>
+        </div>
+<div class="container mt-4 mb-5">
+    <h3>提出中のシフト</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>日付</th>
+                <th>ステータス</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for shift in shifts %}
+                <tr id="row-{{ shift.date }}" class="date-row">
+                    <td>{{ shift.date|japanese_date }}</td>
+                    <td class="leave-checkbox">
+                        {% if shift.is_off %}
+                        <span>お休み希望</span>
+                        {% else %}
+                        <span>出勤</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="2">提出中のシフトはありません。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if shifts %}
+        <a href="{% url 'edit_shift' %}" class="btn btn-primary mb-5">シフト編集</a>
+    {% endif %}
+
+</div>
+
+        <!--
+        <div class="bottom-nav">
+            <div class="nav-item">
+                <div>🏠</div>
+                <div>ホーム</div>
+            </div>
+            <div class="nav-item">
+                <div>📅</div>
+                <div>予約</div>
+            </div>
+            <div class="nav-item active">
+                <div class="member-card">QR</div>
+            </div>
+            <div class="nav-item">
+                <div>📋</div>
+                <div>予定管理</div>
+            </div>
+            <div class="nav-item">
+                <div>👤</div>
+                <div>マイページ</div>
+            </div>
+        </div>
+        -->
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const holidays = {{ holidays_json|safe }};
+        console.log("holidays:", holidays);
+        
+        document.querySelectorAll(".date-row").forEach(row => {
+            let dateStr = row.id.replace("row-", "");
+            const date = new Date(dateStr);
+            const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+            let checklabel = row.querySelector(".leave-checkbox");
+            let cells = row.querySelectorAll("td"); // 行のすべてのセルを取得
+            console.log(`デバッグ曜日:${dayOfWeek}`);
+
+
+            // dateStrを"yyyy-mm-dd"形式に変換
+            const formattedDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            console.log(`デバッグ変換${formattedDateStr}`);
+            if (holidays.includes(formattedDateStr)) {
+                row.classList.add("holiday");
+                cells.forEach(cell => cell.style.backgroundColor = "red"); // 全セルの背景色を変更
+                const statusSpan = row.querySelector(".leave-checkbox span");
+                if (statusSpan) {
+                    statusSpan.textContent = '休日';
+                }
+                console.log(`✅ 休日(${formattedDateStr})に "holiday" クラス追加`);
+            }
+            if (dayOfWeek === "土" || dayOfWeek === "日") {
+                if (row.classList.contains("holiday")) {
+                    row.classList.remove("holiday");
+                }
+                row.classList.add("weekend");
+                cells.forEach(cell => cell.style.backgroundColor = "lightgray"); // 全セルの背景色を変更
+                console.log(`✅ 週末(${dateStr})に "weekend" クラス追加`);
+            }
+    
+            console.log("現在のクラス:", row.className);
+        });
+    });
+</script>
+{% endblock %}

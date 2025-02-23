@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem
+from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday
 from django.contrib.auth.admin import UserAdmin
 
 class CustomUserAdmin(UserAdmin):
@@ -36,6 +36,15 @@ class OthersItemAdmin(admin.ModelAdmin):
     list_display = ('no', 'name', 'price')
     list_filter = ('no', 'name', 'price')
 
+class ShiftRequestAdmin(admin.ModelAdmin):
+    list_display = ('user', 'last_name', 'first_name', 'is_off','date')
+    list_filter = ('user', 'last_name', 'first_name', 'is_off','date')
+
+class HolidayAdmin(admin.ModelAdmin):
+    list_display = ('date', 'description')
+
+
+
 # 管理画面にモデルを登録
 admin.site.register(ItemQuantity, ItemQuantityAdmin)
 admin.site.register(SalesLocation, SalesLocationAdmin)
@@ -44,3 +53,5 @@ admin.site.register(DailyReport, DailyReportAdmin)
 admin.site.register(DailyReportEntry, DailyReportEntryAdmin)
 admin.site.register(CustomUser)
 admin.site.register(OthersItem, OthersItemAdmin)
+admin.site.register(ShiftRequest, ShiftRequestAdmin)
+admin.site.register(Holiday, HolidayAdmin)

@@ -5,9 +5,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
-from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm
+from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm,ShiftRequestForm
 import pandas as pd
-from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem
+from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem,ShiftRequest,ShiftRequest,Holiday
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
 from django.utils.dateparse import parse_date
@@ -34,6 +34,227 @@ from django import forms
 from django.contrib.auth import update_session_auth_hash
 from django.db.models import OuterRef, Subquery
 import calendar as django_calendar  # Pythonの標準ライブラリからインポート
+import qrcode
+from io import BytesIO
+import base64
+from .forms import ShiftSubmissionForm
+from datetime import date as dt_date
+from django.contrib.admin.views.decorators import staff_member_required
+from django.utils.timezone import now
+
+@login_required
+def my_page(request):
+    user = request.user  # 現在ログインしているユーザーを取得
+    submitted_shifts = ShiftRequest.objects.filter(user=user).order_by('date')  # 提出済みシフトを取得
+        # 会社の休日を取得
+    holidays = Holiday.objects.values_list('date', flat=True)
+    holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+
+    # 変更不可日を判定（5日と20日）
+    today = dt_date.today()
+    can_edit_shifts = today.day <= 5 or today.day <= 20
+
+    # 勤怠用QRコードの生成
+    qr = qrcode.make(request.user.username)
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    qr_code = base64.b64encode(buffer.getvalue()).decode()
+
+    return render(request, 'mypage.html', {
+        'shifts': submitted_shifts,
+        'can_edit_shifts': can_edit_shifts,  # 変更可能かどうかをテンプレートに渡す
+        'qr_code': qr_code,
+        'holidays_json':holidays_json,
+    })
+
+@login_required
+def submit_shift(request):
+    user = request.user
+    today = dt_date.today()
+
+    # 会社の休日を取得
+    holidays = Holiday.objects.values_list('date', flat=True)
+    holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+
+    if request.method == "POST":
+        holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+        form = ShiftSubmissionForm(request.POST)
+        form.initial['user'] = user  # バリデーション用にユーザー情報をセット
+
+        if form.is_valid():
+            shift_requests = []
+
+            for date, is_off in form.cleaned_data.items():
+                if date.startswith("status_"):  # status_YYYY-MM-DD のデータを処理
+                    shift_date = dt_date.fromisoformat(date.replace("status_", ""))
+
+                    shift_requests.append(
+                        ShiftRequest(
+                            user=user,
+                            first_name=user.first_name,
+                            last_name=user.last_name,
+                            date=shift_date,
+                            is_off=is_off,
+                            comment=request.POST.get('message', ''),
+                        )
+                    )
+
+                    # 既存データのチェック
+                    if ShiftRequest.objects.filter(user=user, date=shift_date).exists():
+                        messages.error(request, f"{shift_date} からのシフトは既に送信されています。\nマイページのシフト編集から変更してください。")
+                        return redirect('submit_shift')
+
+            if shift_requests: 
+                ShiftRequest.objects.bulk_create(shift_requests)  # まとめて保存
+                messages.success(request, "シフト希望が送信されました")
+                return redirect("mypage")
+            else:
+                messages.error(request, "エラーがあります。")
+    
+    else:
+        form = ShiftSubmissionForm()
+
+    return render(request, 'submit_shift.html', {
+        'form': form,
+        'today': today,
+        'holidays_json': holidays_json,  # JavaScript に休日データを渡す
+    })
+
+@login_required
+def edit_shift(request):
+    today = dt_date.today()
+    # 編集可能かどうかを判定
+    can_edit_shifts = today.day <= 5 or (today.day > 5 and today.day <= 20)
+
+    # 会社の休日を取得
+    holidays = Holiday.objects.values_list('date', flat=True)
+    holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+
+    if request.method == 'POST':
+        if not can_edit_shifts:
+            messages.error(request, "シフトの締切日を過ぎているため、編集できません。")
+            return redirect('mypage')
+        
+        holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+
+        # ユーザーの全シフトを取得
+        shifts = ShiftRequest.objects.filter(user=request.user)
+        # コメントをPOSTデータから取得
+        comment = request.POST.get('comment')  # 同じコメントを全シフトに適用
+        for shift in shifts:
+            # POSTデータから対応するシフトに関連する情報を取得
+            shift_status = request.POST.get(f'shift_{shift.id}')  # チェックボックスの値を取得
+
+            # 'shift_status' が 'on' の場合は休み希望、そうでなければ出勤に設定
+            if shift_status == 'on':
+                shift.is_off = True
+            else:
+                shift.is_off = False
+
+            # コメントを更新
+            shift.comment = comment  # すべてのシフトに同じコメントを設定
+
+            # 変更を保存
+            shift.save()
+        messages.success(request, "シフト希望が編集されました")
+        return redirect('mypage')  # 編集後、マイページにリダイレクト
+
+    # GETリクエストのときは、ユーザーのシフトを表示
+    shifts = ShiftRequest.objects.filter(user=request.user)  # ユーザーのシフトを取得
+    return render(request, 'edit_shift.html', {
+        'shifts': shifts,
+        'holidays_json': holidays_json,  # JavaScript に休日データを渡す
+    })
+
+@staff_member_required
+def shift_settings(request):
+    today = now().date()
+    
+    # URLのパラメータから年月を取得（デフォルトは今月）
+    year = request.GET.get("year", today.year)
+    month = request.GET.get("month", today.month)
+    
+    try:
+        year = int(year)
+        month = int(month)
+    except ValueError:
+        year = today.year
+        month = today.month
+
+    # 表示する月の開始・終了日
+    start_date = datetime(year, month, 1).date()
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        end_date = datetime(year, month + 1, 1).date() - timedelta(days=1)
+
+    # 既存の休日を取得
+    existing_holidays = {holiday.date for holiday in Holiday.objects.filter(date__range=[start_date, end_date])}
+
+    # カレンダー用データを作成
+    calendar_data = []
+    current_date = start_date
+    while current_date <= end_date:
+        calendar_data.append({
+            'date': current_date,
+            'is_weekend': current_date.weekday() in [5, 6],  # 土日
+            'is_holiday': current_date in existing_holidays  # 既存の休日
+        })
+        current_date += timedelta(days=1)
+
+    # 前後の月
+    prev_month = (year, month - 1) if month > 1 else (year - 1, 12)
+    next_month = (year, month + 1) if month < 12 else (year + 1, 1)
+
+    if request.method == "POST":
+        # 選択された休日データを取得
+        selected_dates = request.POST.getlist("holiday_dates")
+        new_holidays = set(datetime.strptime(x, "%Y-%m-%d").date() for x in selected_dates)
+
+        # 現在の休日を更新
+        Holiday.objects.filter(date__range=[start_date, end_date]).exclude(date__in=new_holidays).delete()
+        for date in new_holidays:
+            Holiday.objects.get_or_create(date=date)
+
+        messages.success(request, "カレンダーの設定を変更しました。")
+        return redirect(request.path + f"?year={year}&month={month}")
+
+    return render(request, "shift_settings.html", {
+        "calendar_data": calendar_data,
+        "current_month": start_date,
+        "prev_month": prev_month,
+        "next_month": next_month,
+    })
+
+
+@staff_member_required
+def shift_request_list(request):
+    # ユーザーごとに最新のShiftRequestを取得
+    latest_shifts = ShiftRequest.objects.values('user').annotate(latest_submission=Max('submitted_at'))
+    # 最新のShiftRequestの詳細情報を取得
+    shifts = ShiftRequest.objects.filter(submitted_at__in=[entry['latest_submission'] for entry in latest_shifts])
+
+
+
+    return render(request, 'shift_request_list.html', {'shifts': shifts})
+
+
+@staff_member_required
+def export_shift_request(request):
+    shifts = ShiftRequest.objects.all()  # すべてのShiftRequestを取得
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="shift_requests.csv"'
+    writer = csv.writer(response)
+    
+    # CSVヘッダー
+    writer.writerow(['名前', '日付', '出勤状態', '伝言'])
+
+    # CSVデータ
+    for shift in shifts:
+        writer.writerow([f"{shift.last_name} {shift.first_name}", shift.date, '休み' if shift.is_off else '出勤', shift.comment])
+
+    return response
+
 
 def login_view(request):
     logger = logging.getLogger(__name__)
@@ -631,7 +852,6 @@ def daily_report_view(request):
         'service': service,
         'selected_person': selected_person,  # first_nameを渡す
     })
-
 
 @login_required
 def submission_complete_view(request):
@@ -1388,6 +1608,103 @@ def performance_by_location_view(request):
 
     return render(request, 'performance_by_location_template.html', context)
 
+@login_required
+def performance_by_location_view_rol(request):
+    # 現在の年と月を初期値として取得する
+    current_year = date.today().year
+    current_month = date.today().month
+    # 検索された年と月を取得（指定がない場合は現在の年と月を使用）
+    search_year = int(request.GET.get('search_year', current_year))
+    search_month = int(request.GET.get('search_month', current_month))
+
+    # 販売場所の選択リストを取得
+    selected_locations = request.GET.getlist('sales_locations')  # リスト形式で取得
+
+    # 現在の月の全日付を取得
+    start_date = date(search_year, search_month, 1)
+    end_date = start_date + relativedelta(months=1) - timedelta(days=1)
+    days_in_month = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+
+    # 日本語の曜日リスト（インデックス: 0=月曜日, 1=火曜日...6=日曜日）
+    JAPANESE_WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
+
+    # 各日付に対応する日本語の曜日を取得
+    days_with_weekdays = [
+        (day, JAPANESE_WEEKDAYS[day.weekday()]) for day in days_in_month
+    ]
+
+    # 対象月のデータを取得
+    reports = DailyReport.objects.filter(date__range=(start_date, end_date))
+
+    # 選択された販売場所に基づいてフィルタリング
+# 「全ての販売場所」もしくは未選択なら全ての販売場所を表示
+    if 'all' in selected_locations or not selected_locations:
+        locations = SalesLocation.objects.all()
+    else:
+        # 選択された販売場所だけを表示
+        locations = SalesLocation.objects.filter(id__in=selected_locations)
+
+
+    # 販売場所ごとの日別販売数データを集計
+    summary_data = []
+    for location in locations:
+        day_reports = reports.filter(location=location)
+
+        # 日ごとの合計販売数をリスト化
+        sales_per_day = []
+        for day in range(1, end_date.day + 1):
+            day_date = date(int(search_year), int(search_month), day)
+            total_sales = day_reports.filter(date=day_date).aggregate(total_sales=Sum('total_sales_quantity'))['total_sales'] or 0
+            sales_per_day.append(total_sales)
+
+        # 0を除外して平均値を計算、整数に丸める
+        valid_sales = [sale for sale in sales_per_day if sale > 0]  # 1以上のデータのみを含む
+        if valid_sales:
+            average_sales = sum(valid_sales) // len(valid_sales)  # 整数で計算
+        else:
+            average_sales = 0
+
+        # 前月のデータを取得し、前月の平均値を計算（こちらも0を除外）
+        previous_month_start = start_date - relativedelta(months=1)
+        previous_month_end = previous_month_start + relativedelta(months=1) - timedelta(days=1)
+        previous_month_reports = DailyReport.objects.filter(location=location, date__range=(previous_month_start, previous_month_end))
+
+        previous_month_sales = previous_month_reports.values_list('total_sales_quantity', flat=True)
+        previous_month_sales = [sale for sale in previous_month_sales if sale > 0]  # 0を除外
+
+        if previous_month_sales:
+            previous_month_average = sum(previous_month_sales) // len(previous_month_sales)  # 整数で計算
+        else:
+            previous_month_average = 0
+
+        # 前月比を整数で計算
+        if previous_month_average > 0:
+            comparison_to_last_month = average_sales - previous_month_average
+            comparison_to_last_month_abs = abs(comparison_to_last_month)  # 絶対値を計算
+        else:
+            comparison_to_last_month = None
+            comparison_to_last_month_abs = None
+
+        # データをリストに追加
+        summary_data.append({
+            'location': location,
+            'sales': sales_per_day,
+            'average_sales': average_sales,
+            'comparison_to_last_month': comparison_to_last_month,
+            'comparison_to_last_month_abs': comparison_to_last_month_abs,  # 絶対値も追加
+        })
+
+    context = {
+        'summary_data': summary_data,
+        'days_in_month': days_with_weekdays,
+        'search_year': search_year,  # テンプレートに渡す
+        'search_month': search_month,  # テンプレートに渡す
+        'locations': SalesLocation.objects.all(),  # 販売場所の全リストを渡す
+        'selected_locations': selected_locations,  # 選択された販売場所を渡す
+    }
+
+    return render(request, 'performance_by_location_template_rol.html', context)
+
 # CSVダウンロード機能
 @login_required
 def download_csv(request):
@@ -1480,7 +1797,8 @@ def download_csv_allreport(request):
               'その他1単価','その他1販売数','その他2項目','その他2単価','その他2販売数','その他売上合計','総売上','ご飯なし','ご飯追加',
               'クーポン600','クーポン700','割引・返金50円','割引・返金100円','サービス単価','不明','サービス600','サービス700',
               '不明','割引合計','PayPay','電子決済','現金','差額','出発時間','到着時間','開店時間','完売時間','閉店時間',
-              'ガソリン代','高速代','駐車場代','パート代','その他経費','コメント','明日の食数設定','更新日時']
+              'ガソリン代','高速代','駐車場代','パート代','その他経費','コメント','明日の食数設定','更新日時',
+              '商品名', '商品NO', '持参数', '販売数', '残数', '売上', '完売', '人気', '不人気']  # ヘッダーにエントリのフィールドを追加
 
     # 文字列をShift-JISでエンコード
     encoded_header = [h.encode('shift-jis', 'ignore').decode('shift-jis') for h in header]
@@ -1499,14 +1817,26 @@ def download_csv_allreport(request):
 
     # レコードを書き込み（文字列をShift-JISでエンコード）
     for report in reports:
-        row = []
-        for field in fields:
-            value = getattr(report, field)
-            if isinstance(value, str):
-                # 文字列の場合はShift-JISでエンコード
-                value = value.encode('shift-jis', 'ignore').decode('shift-jis')
-            row.append(value)
-        writer.writerow(row)
+        # DailyReport のデータを行に追加
+        row = [report.date, report.location, report.location_no, report.person_in_charge, report.weather,
+               report.temp, report.total_quantity, report.total_sales_quantity, report.total_remaining,
+               report.others_sales_1, report.others_price1, report.others_sales_quantity1,
+               report.others_sales_2, report.others_price2, report.others_sales_quantity2,
+               report.total_others_sales, report.total_revenue, report.no_rice_quantity,
+               report.extra_rice_quantity, report.coupon_type_600, report.coupon_type_700,
+               report.discount_50, report.discount_100, report.service_name, report.service_price,
+               report.service_type_600, report.service_type_700, report.service_type_100,
+               report.total_discount, report.paypay, report.digital_payment, report.cash,
+               report.sales_difference, report.departure_time, report.arrival_time,
+               report.opening_time, report.sold_out_time, report.closing_time,
+               report.gasolin, report.highway, report.parking, report.part, report.others,
+               report.comments, report.food_count_setting, report.updated_at]
+
+        # DailyReportEntry のデータを取得して行に追加
+        for entry in report.entries.all():
+            entry_row = row + [entry.product, entry.product_no, entry.quantity, entry.sales_quantity,
+                               entry.remaining_number, entry.total_sales, entry.sold_out, entry.popular, entry.unpopular]
+            writer.writerow(entry_row)
 
     return response
 
