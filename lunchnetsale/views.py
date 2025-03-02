@@ -238,6 +238,24 @@ def shift_request_list(request):
 
     return render(request, 'shift_request_list.html', {'shifts': shifts})
 
+@staff_member_required
+def shift_request_detail(request, pk):
+    shift_request = get_object_or_404(ShiftRequest, pk=pk)
+    # 会社の休日を取得
+    holidays = Holiday.objects.values_list('date', flat=True)
+    holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+
+    # シフトリクエストの詳細情報を取得
+    user = shift_request.user
+    shifts = ShiftRequest.objects.filter(user=user).order_by('date')
+
+    return render(request, 'shift_request_detail.html', {
+        'shift_request': shift_request,
+        'shifts': shifts,
+        'holidays_json': holidays_json,  # JavaScript に休日データを渡す
+    })
+
+
 
 @staff_member_required
 def export_shift_request(request):
@@ -955,7 +973,14 @@ def daily_report_edit(request, pk):
     if request.method == "POST":
         # TimeFormのインスタンスを作成
         time_form = TimeForm(request.POST)
-        form = DailyReportForm(request.POST, instance=report)
+
+        post_data = request.POST.copy()
+        if not post_data.get('service_name'):
+            post_data['service_name'] = 'なし'
+        if not post_data.get('service_price'):
+            post_data['service_price'] = '0'
+
+        form = DailyReportForm(post_data, instance=report)
         
         if form.is_valid() and time_form.is_valid():
             # 時間データを明示的に取得
@@ -1032,6 +1057,7 @@ def daily_report_edit(request, pk):
 # 編集ビュー
 @login_required
 def daily_report_edit_rol(request, pk):
+    print("=== daily_report_edit_rol 開始 ===")
     report = get_object_or_404(DailyReport, pk=pk)
     entries = report.entries.all()  # 関連するエントリを取得
     locations = SalesLocation.objects.all()
@@ -1044,66 +1070,80 @@ def daily_report_edit_rol(request, pk):
             break  # 一致するlocationが見つかったらループを終了
 
     if request.method == "POST":
-        # TimeFormのインスタンスを作成
+        print("=== POST処理開始 ===")
         time_form = TimeForm(request.POST)
-        form = DailyReportForm(request.POST, instance=report)
+
+        post_data = request.POST.copy()
+        if not post_data.get('service_name'):
+            post_data['service_name'] = 'なし'
+        if not post_data.get('service_price'):
+            post_data['service_price'] = '0'
+
+        form = DailyReportForm(post_data, instance=report)
+        
+        print("POSTデータ:", request.POST)
         
         if form.is_valid() and time_form.is_valid():
-            # 時間データを明示的に取得
-            report.departure_time = request.POST.get('departure_time')
-            report.arrival_time = request.POST.get('arrival_time')
-            report.opening_time = request.POST.get('opening_time')
-            report.sold_out_time = request.POST.get('sold_out_time')
-            report.closing_time = request.POST.get('closing_time')
-            
-            # 他のフィールドの保存
-            report = form.save(commit=False)
-            report.save()
+            print("フォームのバリデーション成功")
+            try:
+                # 時間データを明示的に取得
+                report.departure_time = request.POST.get('departure_time')
+                report.arrival_time = request.POST.get('arrival_time')
+                report.opening_time = request.POST.get('opening_time')
+                report.sold_out_time = request.POST.get('sold_out_time')
+                report.closing_time = request.POST.get('closing_time')
+                
+                print("時間データ設定完了")
+                
+                # フォームから直接保存
+                report = form.save()
+                print("レポート保存完了")
 
-            # 日計表明細の処理
-            for index in range(1, len(entries) + 1):
-                product_name = request.POST.get(f'product_{index}')
-                quantity = request.POST.get(f'quantity_{index}')
-                sales_quantity = request.POST.get(f'sales_quantity_{index}')
-                remaining_number = request.POST.get(f'remaining_number_{index}')
-                total_sales = request.POST.get(f'total_sales_{index}')
-                sold_out = request.POST.get(f'sold_out_{index}') is not None
-                popular = request.POST.get(f'popular_{index}') is not None
-                unpopular = request.POST.get(f'unpopular_{index}') is not None
+                # 日計表明細の処理
+                print("=== エントリー処理開始 ===")
+                for index in range(1, len(entries) + 1):
+                    print(f"エントリー {index} 処理中")
+                    product_name = request.POST.get(f'product_{index}')
+                    quantity = request.POST.get(f'quantity_{index}')
+                    sales_quantity = request.POST.get(f'sales_quantity_{index}')
+                    remaining_number = request.POST.get(f'remaining_number_{index}')
+                    total_sales = request.POST.get(f'total_sales_{index}')
+                    sold_out = request.POST.get(f'sold_out_{index}') is not None
+                    popular = request.POST.get(f'popular_{index}') is not None
+                    unpopular = request.POST.get(f'unpopular_{index}') is not None
 
-                # 既存のエントリを更新
-                if index <= len(entries):
-                    entry = entries[index - 1]
-                    entry.product = product_name
-                    entry.quantity = int(quantity)  # 整数型に変換
-                    entry.sales_quantity = int(sales_quantity)  # 整数型に変換
-                    entry.remaining_number = int(remaining_number)  # 整数型に変換
-                    entry.total_sales = int(total_sales)  # 整数型に変換
-                    entry.sold_out = sold_out
-                    entry.popular = popular
-                    entry.unpopular = unpopular
-                    entry.save()
-                else:
-                    # 新しいエントリを作成
-                    DailyReportEntry.objects.create(
-                        report=report,
-                        product=product_name,
-                        quantity=int(quantity),  # 整数型に変換
-                        sales_quantity=int(sales_quantity),  # 整数型に変換
-                        remaining_number=int(remaining_number),  # 整数型に変換
-                        total_sales=int(total_sales),  # 整数型に変換
-                        sold_out=sold_out,
-                        popular=popular,
-                        unpopular=unpopular,
-                    )
+                    print(f"エントリーデータ: product={product_name}, quantity={quantity}, sales={sales_quantity}")
 
-            messages.success(request, "更新されました")  # メッセージを追加
-            return redirect('daily_report_detail_rol')  # 保存後にリダイレクト
+                    if index <= len(entries):
+                        try:
+                            entry = entries[index - 1]
+                            entry.product = product_name
+                            entry.quantity = int(quantity) if quantity else 0
+                            entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
+                            entry.remaining_number = int(remaining_number) if remaining_number else 0
+                            entry.total_sales = int(total_sales) if total_sales else 0
+                            entry.sold_out = sold_out
+                            entry.popular = popular
+                            entry.unpopular = unpopular
+                            entry.save()
+                            print(f"エントリー {index} 保存成功")
+                        except Exception as e:
+                            print(f"エントリー {index} 保存エラー: {str(e)}")
+                            raise
+
+                print("=== 全処理完了 ===")
+                messages.success(request, "更新されました")
+                return redirect('daily_report_detail_rol')
+            except Exception as e:
+                print(f"エラー発生: {str(e)}")
+                messages.error(request, f"更新中にエラーが発生しました: {str(e)}")
         else:
-            print(form.errors)  # エラーを表示
-            print(time_form.errors)  # TimeFormのエラーも表示
+            print("フォームバリデーションエラー:")
+            print("Form errors:", form.errors)
+            print("Time form errors:", time_form.errors)
 
     else:
+        print("=== GET処理開始 ===")
         form = DailyReportForm(instance=report)
         time_form = TimeForm(initial={
             'departure_time': report.departure_time,
@@ -1113,12 +1153,14 @@ def daily_report_edit_rol(request, pk):
             'closing_time': report.closing_time,
         })
 
-    return render(request, 'daily_report_edit_rol.html', {
+    context = {
         'form': form,
         'time_form': time_form,
         'report': report,
-        'entries': entries
-    })
+        'entries': entries,
+    }
+    print("=== レンダリング開始 ===")
+    return render(request, 'daily_report_edit_rol.html', context)
 
 # 削除ビュー
 @login_required

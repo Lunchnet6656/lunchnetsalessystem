@@ -24,7 +24,7 @@
                     <td>{{ shift.comment|default:"-" }}</td>
                     <td>{{ shift.submitted_at|date:"Y-m-d H:i" }}</td>
                     <td>
-                        <a href="{% url 'dashboard'  %}" class="btn btn-primary">詳細</a>
+                        <a href="{% url 'shift_request_detail' shift.pk  %}" class="btn btn-primary">詳細</a>
                     <td>
                 </tr>
                 {% endfor %}

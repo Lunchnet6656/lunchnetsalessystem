@@ -5,16 +5,40 @@
 {% block content %}
 {% load custom_filters %}
 <style>
-    .holiday td {
-        background-color: red !important;
-        color: white;
-    }
-    .weekend td {
-        background-color: lightgray !important;
-    }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        .table th, .table td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+            width: 150px;
+            word-wrap: break-word;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+        }
+        .leave-checkbox {
+            margin-right: 10px;
+        }
+        .status-label {
+            font-size: 16px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .holiday td {
+            background-color: red !important;
+            color: white;
+        }
+        .weekend td {
+            background-color: lightgray !important;
+        }
 </style>
 <div class="container mt-4 mb-5">
-    <h1 class="mb-1">シフト送信詳細</h1>
+    <h1 class="mb-1">【{{ user.last_name }} {{ user.first_name }}】シフト送信詳細</h1>
     <hr class="my-4">
     <table class="table">
         <thead>
@@ -40,6 +64,15 @@
             {% endfor %}
         </tbody>
     </table>
+    {% for shift in shifts %}
+    {% if forloop.first %}
+    <div class="comment-section mb-3">
+        <h2>伝言事項</h2>
+        <textarea name="comment" rows="4" cols="50" placeholder="伝言があれば入力してください" class="form-control">{{ shifts.0.comment }}</textarea>
+    </div>
+    {% endif %}
+    {% endfor %}
+    <a href="{% url 'shift_request_list' %}" class="btn btn-primary">戻る</a>
 
 </div>
 

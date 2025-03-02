@@ -143,8 +143,6 @@ function calculateTotals() {
         totalRemaining += remaining;
     });
 
-
-
     document.getElementById('total_quantity').innerText = numberWithCommas(totalQuantity);
     document.getElementById('total_sales_quantity').innerText = numberWithCommas(totalSalesQuantity);
     document.getElementById('total_remaining').innerText = numberWithCommas(totalRemaining);

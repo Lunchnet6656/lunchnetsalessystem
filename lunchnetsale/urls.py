@@ -34,6 +34,7 @@ urlpatterns = [
     path('edit_shift/', edit_shift, name='edit_shift'),
     path('shift_settings/', views.shift_settings, name='shift_settings'),
     path('shift_request_list/', views.shift_request_list, name='shift_request_list'),
+    path('shift_request_list/<int:pk>/', views.shift_request_detail, name='shift_request_detail'),
     path('export_shift_request', views.export_shift_request, name='export_shift_request'),
 
     path('users/', views.user_list_view, name='user_list'),
