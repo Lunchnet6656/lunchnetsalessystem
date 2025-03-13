@@ -77,6 +77,9 @@ class DailyReport(models.Model):
     weather = models.CharField(max_length=50, blank=True)  # 天気
     temp = models.CharField(max_length=50, blank=True)  # 体感気温
     total_quantity = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 持参数合計
+    sales_price_quantity_1 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # 単価別販売数1
+    sales_price_quantity_2 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # 単価別販売数2
+    sales_price_quantity_3 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # 単価別販売数3
     total_sales_quantity = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 販売数合計
     total_remaining = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 残数合計
     others_sales_1 = models.CharField(max_length=100, default="", blank=True)

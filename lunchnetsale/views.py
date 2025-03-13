@@ -41,6 +41,7 @@ from .forms import ShiftSubmissionForm
 from datetime import date as dt_date
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.timezone import now
+import urllib.parse
 
 @login_required
 def my_page(request):
@@ -656,6 +657,9 @@ def daily_report_view(request):
         total_remaining = request.POST.get('total_remaining',0)
         total_sales = parse_value(request.POST.get('total_sales', 0))
         total_revenue = parse_value(request.POST.get('total_revenue', 0))
+        sales_price_quantity_1 = request.POST.get('sales_price_quantity_1',0)
+        sales_price_quantity_2 = request.POST.get('sales_price_quantity_2',0)
+        sales_price_quantity_3 = request.POST.get('sales_price_quantity_3',0)
 
         # その他の売上関連のデータ
         others_sales_1 = request.POST.get('selected_item_1', 0)
@@ -722,7 +726,7 @@ def daily_report_view(request):
             itemquantity__target_date=selected_date  # target_dateを条件に追加
         )
         print(f"デバッグ : {item_quantities} ")
-
+        
         # 商品情報を辞書にまとめる
         product_data = {
             product.no: product for product in products
@@ -730,6 +734,7 @@ def daily_report_view(request):
 
         # 各商品の持参数を計算
         item_data = []
+        unique_prices = set()  # ユニークな価格を格納するセット
         for item in item_quantities:
             product = product_data.get(item.product.no)
             if product:
@@ -743,6 +748,8 @@ def daily_report_view(request):
                 else:
                     price = 0  # デフォルト値として0などを設定
 
+                unique_prices.add(price)  # ユニークな価格を追加
+
                 item_data.append({
                     'menu_no': product.no,
                     'menu_name': product.name,
@@ -751,6 +758,8 @@ def daily_report_view(request):
                     'remaining': item.quantity,
                     'total_sales': 0
                 })
+        # unique_pricesをリストに変換し、降順にソート
+        unique_prices = sorted(list(unique_prices), reverse=True)
 
         # menu_noでソート
         item_data = sorted(item_data, key=lambda x: x['menu_no'])
@@ -780,6 +789,9 @@ def daily_report_view(request):
                     'weather': ','.join(selected_weather),
                     'temp': ','.join(selected_temp),
                     'total_quantity': total_quantity,
+                    'sales_price_quantity_1': sales_price_quantity_1,
+                    'sales_price_quantity_2': sales_price_quantity_2,
+                    'sales_price_quantity_3': sales_price_quantity_3, 
                     'total_sales_quantity': total_sales_quantity,
                     'total_remaining': total_remaining,
                     'total_revenue': total_revenue,
@@ -851,15 +863,13 @@ def daily_report_view(request):
                 'othersitem': others_item,
                 'service': service,
                 'comment': comment,
-                'food_count_setting': food_count_setting
+                'food_count_setting': food_count_setting,
+                'unique_prices': unique_prices
             }
             # 保存処理やバリデーションなどの処理をここに記述
             return render(request, 'daily_report.html', context)
 
         return redirect('submission_complete') # 完了ページにリダイレクト
-
-    # GETリクエストの場合
-    #return render(request, 'daily_report.html')
 
     return render(request, 'daily_report.html', {
         'dates': dates,
@@ -868,7 +878,7 @@ def daily_report_view(request):
         'temp_options': temp_options,
         'item_data': item_data,
         'service': service,
-        'selected_person': selected_person,  # first_nameを渡す
+        'selected_person': selected_person  # first_nameを渡す
     })
 
 @login_required
@@ -896,7 +906,7 @@ def daily_report_list(request):
             count=Count('id'),  # 各グループの件数
             latest_update=Max('updated_at')  # 最新の更新日時
         )
-        .order_by('date')
+        .order_by('-date')
     )
 
     # 送信されたデータを取得
@@ -1777,7 +1787,9 @@ def download_csv(request):
 
     # レスポンスをCSV形式で作成（Shift-JISエンコーディングを指定）
     response = HttpResponse(content_type='text/csv; charset=shift-jis')
-    response['Content-Disposition'] = 'attachment; filename="販売実績集計データ.csv"'
+    filename = "販売実績集計データ.csv"
+    filename_encoded = urllib.parse.quote(filename)
+    response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{filename_encoded}'
 
     # Shift-JIS用のCSVライターを作成
     writer = csv.writer(response)
@@ -1826,7 +1838,9 @@ def download_csv(request):
 def download_csv_allreport(request):
     # HTTPレスポンスにCSVのヘッダーを設定（文字コードをShift-JISに指定）
     response = HttpResponse(content_type='text/csv; charset=shift-jis')
-    response['Content-Disposition'] = 'attachment; filename="daily_reports.csv"'
+    filename = "日計表送信データ.csv"
+    filename_encoded = urllib.parse.quote(filename)
+    response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{filename_encoded}'
 
     # Shift-JIS用のCSVライターを作成
     writer = csv.writer(response)
@@ -1835,12 +1849,26 @@ def download_csv_allreport(request):
     fields = [field.name for field in DailyReport._meta.get_fields()]
 
     # CSVヘッダーを書き込み（Shift-JISでエンコード）
-    header = ['レポート', 'NO','日付','販売場所','販売場所NO','担当者','天気','気温','持参数','販売数','残数','その他1項目',
-              'その他1単価','その他1販売数','その他2項目','その他2単価','その他2販売数','その他売上合計','総売上','ご飯なし','ご飯追加',
-              'クーポン600','クーポン700','割引・返金50円','割引・返金100円','サービス単価','不明','サービス600','サービス700',
-              '不明','割引合計','PayPay','電子決済','現金','差額','出発時間','到着時間','開店時間','完売時間','閉店時間',
-              'ガソリン代','高速代','駐車場代','パート代','その他経費','コメント','明日の食数設定','更新日時',
-              '商品名', '商品NO', '持参数', '販売数', '残数', '売上', '完売', '人気', '不人気']  # ヘッダーにエントリのフィールドを追加
+    header = ['レポートID', '販売場所NO', '日付', '販売場所', '担当者', '天気', '気温', '総持参数', 
+              '単価別販売数1', '単価別販売数2', '単価別販売数3', '総販売数', '総残数', 
+              'その他1項目', 'その他1単価', 'その他1販売数', 'その他2項目', 'その他2単価', 'その他2販売数', 
+              'その他売上合計', '総売上', 'ご飯なし', 'ご飯追加', 'クーポン600', 'クーポン700', 
+              '割引・返金50円', '割引・返金100円', 'サービス名', 'サービス単価', 'サービス600', 
+              'サービス700', 'サービス100', '割引合計', 'PayPay', '電子決済', '現金', '差額', 
+              '出発時間', '到着時間', '開店時間', '完売時間', '閉店時間', 'ガソリン代', '高速代', 
+              '駐車場代', 'パート代', 'その他経費', 'コメント', '明日の食数設定', '確認済み', '更新日時',
+              '商品名1', '商品NO1', '持参数1', '販売数1', '残数1', '売上1', '完売1', '人気1', '不人気1',
+              '商品名2', '商品NO2', '持参数2', '販売数2', '残数2', '売上2', '完売2', '人気2', '不人気2',
+              '商品名3', '商品NO3', '持参数3', '販売数3', '残数3', '売上3', '完売3', '人気3', '不人気3',
+              '商品名4', '商品NO4', '持参数4', '販売数4', '残数4', '売上4', '完売4', '人気4', '不人気4',
+              '商品名5', '商品NO5', '持参数5', '販売数5', '残数5', '売上5', '完売5', '人気5', '不人気5',
+              '商品名6', '商品NO6', '持参数6', '販売数6', '残数6', '売上6', '完売6', '人気6', '不人気6',
+              '商品名7', '商品NO7', '持参数7', '販売数7', '残数7', '売上7', '完売7', '人気7', '不人気7',
+              '商品名8', '商品NO8', '持参数8', '販売数8', '残数8', '売上8', '完売8', '人気8', '不人気8',
+              '商品名9', '商品NO9', '持参数9', '販売数9', '残数9', '売上9', '完売9', '人気9', '不人気9',
+              '商品名10', '商品NO10', '持参数10', '販売数10', '残数10', '売上10', '完売10', '人気10', '不人気10',
+              '商品名11', '商品NO11', '持参数11', '販売数11', '残数11', '売上11', '完売11',
+              ]# ヘッダーにエントリのフィールドを追加
 
     # 文字列をShift-JISでエンコード
     encoded_header = [h.encode('shift-jis', 'ignore').decode('shift-jis') for h in header]
@@ -1860,25 +1888,71 @@ def download_csv_allreport(request):
     # レコードを書き込み（文字列をShift-JISでエンコード）
     for report in reports:
         # DailyReport のデータを行に追加
-        row = [report.date, report.location, report.location_no, report.person_in_charge, report.weather,
-               report.temp, report.total_quantity, report.total_sales_quantity, report.total_remaining,
-               report.others_sales_1, report.others_price1, report.others_sales_quantity1,
-               report.others_sales_2, report.others_price2, report.others_sales_quantity2,
-               report.total_others_sales, report.total_revenue, report.no_rice_quantity,
-               report.extra_rice_quantity, report.coupon_type_600, report.coupon_type_700,
-               report.discount_50, report.discount_100, report.service_name, report.service_price,
-               report.service_type_600, report.service_type_700, report.service_type_100,
-               report.total_discount, report.paypay, report.digital_payment, report.cash,
-               report.sales_difference, report.departure_time, report.arrival_time,
-               report.opening_time, report.sold_out_time, report.closing_time,
-               report.gasolin, report.highway, report.parking, report.part, report.others,
-               report.comments, report.food_count_setting, report.updated_at]
+        row = [
+            report.id,  # レポートID
+            report.location_no,  # 販売場所NO
+            report.date,  # 日付
+            report.location,  # 販売場所
+            report.person_in_charge,  # 担当者
+            report.weather,  # 天気
+            report.temp,  # 気温
+            report.total_quantity,  # 持参数合計
+            report.sales_price_quantity_1,  # 単価別販売数1
+            report.sales_price_quantity_2,  # 単価別販売数2
+            report.sales_price_quantity_3,  # 単価別販売数3
+            report.total_sales_quantity,  # 販売数合計
+            report.total_remaining,  # 残数合計
+            report.others_sales_1,  # その他1項目
+            report.others_price1,  # その他1単価
+            report.others_sales_quantity1,  # その他1販売数
+            report.others_sales_2,  # その他2項目
+            report.others_price2,  # その他2単価
+            report.others_sales_quantity2,  # その他2販売数
+            report.total_others_sales,  # その他売上合計
+            report.total_revenue,  # 総売上
+            report.no_rice_quantity,  # ご飯なし
+            report.extra_rice_quantity,  # ご飯追加
+            report.coupon_type_600,  # クーポン600
+            report.coupon_type_700,  # クーポン700
+            report.discount_50,  # 割引・返金50
+            report.discount_100,  # 割引・返金100
+            report.service_name,  # サービス名
+            report.service_price,  # サービス価格
+            report.service_type_600,  # サービス600
+            report.service_type_700,  # サービス700
+            report.service_type_100,  # サービス100
+            report.total_discount,  # 割引合計
+            report.paypay,  # PayPay
+            report.digital_payment,  # 電子決済
+            report.cash,  # 現金
+            report.sales_difference,  # 差額
+            report.departure_time,  # 出発時間
+            report.arrival_time,  # 到着時間
+            report.opening_time,  # 開店時間
+            report.sold_out_time,  # 完売時間
+            report.closing_time,  # 閉店時間
+            report.gasolin,  # ガソリン代
+            report.highway,  # 高速代
+            report.parking,  # 駐車場代
+            report.part,  # パート代
+            report.others,  # その他経費
+            report.comments,  # コメント
+            report.food_count_setting,  # 明日の食数設定
+            report.confirmed,  # 確認済みフラグ
+            report.updated_at  # 更新日時
+        ]
 
         # DailyReportEntry のデータを取得して行に追加
-        for entry in report.entries.all():
-            entry_row = row + [entry.product, entry.product_no, entry.quantity, entry.sales_quantity,
-                               entry.remaining_number, entry.total_sales, entry.sold_out, entry.popular, entry.unpopular]
-            writer.writerow(entry_row)
+        entries = report.entries.all()
+        entry_data = []
+        for entry in entries:
+            entry_data.extend([
+                entry.product_no, entry.product, entry.quantity, entry.sales_quantity,
+                entry.remaining_number, entry.total_sales, entry.sold_out, entry.popular, entry.unpopular
+            ])
+        
+        # 1行にまとめて書き込む
+        writer.writerow(row + entry_data)
 
     return response
 

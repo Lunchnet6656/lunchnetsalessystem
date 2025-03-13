@@ -184,6 +184,29 @@
                   {% endfor %}
               </tbody>
             </table>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>単価</th>
+                        <th>販売数</th>
+                        <th>合計金額</th>
+                    </tr>
+                </thead>
+                <!-- 単価別集計行を追加 -->
+                <div class="price-summary">
+                    <tbody>
+                        {% for price in unique_prices %}
+                        <tr>
+                            <td colspan="1">{{ price }}円商品</td>
+                            <td colspan="1" id="price_{{ price }}_sales_quantity">0</td>
+                            <input type="hidden" name="sales_price_quantity_{{ forloop.counter }}" value="price_{{ price }}_sales">
+                            <td colspan="1" id="price_{{ price }}_sales">0</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                <div>
+                </table>
+            </table>
             {% else %}
             {% endif %}
           </div>
@@ -401,7 +424,7 @@
                         </div>
                     </div>
                     <div class="col-12 col-md-4 mb-2">
-                        <label for="cash" class="form-label">現金</label>
+                        <label for="cash" class="form-label" style="color: red; font-weight: bold;">現金(入力忘れないで！)</label>
                         <div class="input-group">
                         <input type="number" id="cash" name="cash" class="form-control" min="0" value="0" onchange="updateRevenue()">
                         <span class="input-group-text">円</span>

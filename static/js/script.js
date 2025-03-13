@@ -121,6 +121,8 @@ function calculateTotals() {
     var totalRemaining = 0;
     var totalSales = 0;
 
+    // 単価別の集計用変数
+    var salesByPrice = {};
 
     document.querySelectorAll('[name^="sales_quantity_"]').forEach(function(input) {
         var menuNo = parseInt(input.name.split('_')[2], 10);  // メニュー番号を取得
@@ -129,6 +131,20 @@ function calculateTotals() {
         var price = Math.round(parseFloat(input.dataset.price));
         var remaining = quantity - salesQuantity;
         var totalSalesForItem = salesQuantity * price;
+
+        console.log(`商品${menuNo}: 単価=${price}円, 販売数=${salesQuantity}`);
+
+        // 単価別の販売数を集計
+        if (price > 0) {
+            if (!salesByPrice[price]) {
+                salesByPrice[price] = {
+                    quantity: 0,
+                    sales: 0
+                };
+            }
+            salesByPrice[price].quantity += salesQuantity;
+            salesByPrice[price].sales += totalSalesForItem;
+        }
 
         // totalSales は menu_no == 11 も含める
         totalSales += totalSalesForItem;

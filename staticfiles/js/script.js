@@ -121,6 +121,8 @@ function calculateTotals() {
     var totalRemaining = 0;
     var totalSales = 0;
 
+    // 単価別の集計用変数
+    var salesByPrice = {};
 
     document.querySelectorAll('[name^="sales_quantity_"]').forEach(function(input) {
         var menuNo = parseInt(input.name.split('_')[2], 10);  // メニュー番号を取得
@@ -129,6 +131,20 @@ function calculateTotals() {
         var price = Math.round(parseFloat(input.dataset.price));
         var remaining = quantity - salesQuantity;
         var totalSalesForItem = salesQuantity * price;
+
+        console.log(`商品${menuNo}: 単価=${price}円, 販売数=${salesQuantity}`);
+
+        // 単価別の販売数を集計
+        if (price > 0) {
+            if (!salesByPrice[price]) {
+                salesByPrice[price] = {
+                    quantity: 0,
+                    sales: 0
+                };
+            }
+            salesByPrice[price].quantity += salesQuantity;
+            salesByPrice[price].sales += totalSalesForItem;
+        }
 
         // totalSales は menu_no == 11 も含める
         totalSales += totalSalesForItem;
@@ -143,6 +159,8 @@ function calculateTotals() {
         totalRemaining += remaining;
     });
 
+    console.log("単価別集計結果:", salesByPrice);
+
     document.getElementById('total_quantity').innerText = numberWithCommas(totalQuantity);
     document.getElementById('total_sales_quantity').innerText = numberWithCommas(totalSalesQuantity);
     document.getElementById('total_remaining').innerText = numberWithCommas(totalRemaining);
@@ -152,6 +170,21 @@ function calculateTotals() {
     document.querySelector('input[name="total_sales_quantity"]').value = totalSalesQuantity;
     document.querySelector('input[name="total_remaining"]').value = totalRemaining;
 
+    // 単価別の集計結果を表示（単価の降順で処理）
+    Object.entries(salesByPrice)
+        .sort(([priceA], [priceB]) => parseInt(priceB) - parseInt(priceA))
+        .forEach(([price, data], index) => {
+            const priceDisplay = document.getElementById(`price_${price}_sales_quantity`);
+            const priceDisplay2 = document.getElementById(`price_${price}_sales`);
+            if (priceDisplay) {
+                priceDisplay.textContent = `${numberWithCommas(data.quantity)}`;
+                priceDisplay2.textContent = `${numberWithCommas(data.sales)}`;
+                console.log(`${price}円の表示を更新: ${data.quantity}個, ${data.sales}円`);
+                // valueも書き換え
+                document.querySelector(`input[name="sales_price_quantity_${index + 1}"]`).value = data.quantity;
+            }
+        });
+    
     // 割引計算の更新
     updateDiscount();
 }

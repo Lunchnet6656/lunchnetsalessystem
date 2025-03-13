@@ -33,7 +33,7 @@ class DailyReportForm(forms.ModelForm):
     class Meta:
         model = DailyReport
         fields = ['date', 'location', 'location_no', 'person_in_charge', 'weather', 'temp',
-                'total_quantity', 'total_sales_quantity', 'total_remaining', 
+                'total_quantity', 'sales_price_quantity_1','sales_price_quantity_2','sales_price_quantity_3','total_sales_quantity', 'total_remaining', 
                 'others_sales_1', 'others_price1', 'others_sales_quantity1', 'others_sales_2', 'others_price2', 'others_sales_quantity2', 'total_others_sales', 
                 'total_revenue', 'no_rice_quantity', 'extra_rice_quantity', 'coupon_type_600', 'coupon_type_700', 'discount_50', 'discount_100', 'service_name', 'service_price', 'service_type_600', 'service_type_700', 'service_type_100', 'total_discount', 
                 'paypay', 'digital_payment', 'cash', 'sales_difference', 
