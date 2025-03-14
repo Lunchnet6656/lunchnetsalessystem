@@ -103,8 +103,8 @@
                 </td>
             </tr>
           </tfoot>
-      </table>
-      <table class="table table-striped table-sm">
+    </table>
+    <table class="table table-striped table-sm">
         <thead>
             <tr>
                 <th>商品名</th>
@@ -142,6 +142,9 @@
             {% endfor %}
         </tbody>
     </table>
+    <input type="hidden" name="sales_price_quantity_1" value="{{ report.sales_price_quantity_1 }}">
+    <input type="hidden" name="sales_price_quantity_2" value="{{ report.sales_price_quantity_2 }}">
+    <input type="hidden" name="sales_price_quantity_3" value="{{ report.sales_price_quantity_3 }}">
     </div>
         <h2 class="bg-dark text-white mt-4">その他売上情報</h2>
         <div class="row mb-3">

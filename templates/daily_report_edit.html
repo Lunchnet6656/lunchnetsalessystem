@@ -143,6 +143,28 @@
             {% endfor %}
         </tbody>
     </table>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>単価別販売数1</th>
+                <th>単価別販売数2</th>
+                <th>単価別販売数3</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <input type="number" name="sales_price_quantity_1" value="{{ report.sales_price_quantity_1 }}">
+                </td>
+                <td>
+                    <input type="number" name="sales_price_quantity_2" value="{{ report.sales_price_quantity_2 }}">
+                </td>
+                <td>
+                    <input type="number" name="sales_price_quantity_3" value="{{ report.sales_price_quantity_3 }}">
+                </td>
+            </tr>
+        </tbody>
+    </table>
     </div>
         <h2 class="bg-dark text-white mt-4">その他売上情報</h2>
         <div class="row mb-3">
