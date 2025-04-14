@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const clickedButton = document.activeElement;
 
                 if (clickedButton.name === 'action' && clickedButton.value === 'send') {
-                    if (!confirm('販売場所はあっていますか？')) {
+                    if (!confirm('販売場所は間違いありませんか？')) {
                         event.preventDefault();
                     }
                 }
