@@ -1836,13 +1836,13 @@ def download_csv(request):
 # CSVダウンロード機能(allreport)
 @login_required
 def download_csv_allreport(request):
-    # HTTPレスポンスにCSVのヘッダーを設定（文字コードをShift-JISに指定）
-    response = HttpResponse(content_type='text/csv; charset=shift-jis')
+    # HTTPレスポンスにCSVのヘッダーを設定（文字コードをUTF-8に変更）
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
     filename = "日計表送信データ.csv"
     filename_encoded = urllib.parse.quote(filename)
     response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{filename_encoded}'
 
-    # Shift-JIS用のCSVライターを作成
+    # UTF-8用のCSVライターを作成
     writer = csv.writer(response)
 
     # モデルの全フィールドを取得
@@ -1870,9 +1870,8 @@ def download_csv_allreport(request):
               '商品名11', '商品NO11', '持参数11', '販売数11', '残数11', '売上11', '完売11',
               ]# ヘッダーにエントリのフィールドを追加
 
-    # 文字列をShift-JISでエンコード
-    encoded_header = [h.encode('shift-jis', 'ignore').decode('shift-jis') for h in header]
-    writer.writerow(encoded_header)
+    # ヘッダーを書き込む
+    writer.writerow(header)
 
     # 日付範囲で絞り込み
     search_date_start = request.GET.get('search_date_start')
