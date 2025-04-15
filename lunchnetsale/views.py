@@ -1838,6 +1838,7 @@ def download_csv(request):
 def download_csv_allreport(request):
     # HTTPレスポンスにCSVのヘッダーを設定（文字コードをUTF-8に変更）
     response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response.write('\ufeff')  # ← この1行でUTF-8のBOMを付加
     filename = "日計表送信データ.csv"
     filename_encoded = urllib.parse.quote(filename)
     response['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{filename_encoded}'
