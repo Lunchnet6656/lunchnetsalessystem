@@ -1,4 +1,3 @@
-
 .alert-messages {
     margin-left: 50px; /* サイドバーの幅に合わせてメッセージをずらす */
 }
@@ -34,6 +33,7 @@ h1.mb-4::after {
     background-color: #343a40;
     padding-top: 60px ;
     z-index: 998; /* 他の要素の上に表示 */
+    overflow-y: auto; /* スクロール可能にする */
 }
 
 .sidebar ul {
@@ -107,21 +107,99 @@ h1.mb-4::after {
 
 /* タブレット向けスタイル */
 @media (max-width: 1024px) {
-    .sidebar {
-        width: 200px; /* サイドバーの幅を調整 */
+    .container {
+        width: 100%; /* デバイスの横幅に合わせる */
+        max-width: 100%; /* 横幅を制限しない */
+        margin: 0 auto; /* 水平中央揃え */
     }
 
-    .container-fluid {
-        margin-left: 200px; /* サイドバーの幅分の余白を設定 */
+    .sidebar {
+        width: 190px; /* サイドバーの幅を調整 */
     }
 
     .custom-table {
-        width: 90%; /* 幅を広げてタブレットでも見やすく */
+        width: 100%; /* テーブルの幅をデバイスに合わせる */
+    }
+
+    .custom-table td, .custom-table th {
+        font-size: 14px; /* テーブル内の文字サイズを調整 */
+    }
+
+    .btn, .btn-sm, .btn-danger {
+        font-size: 14px; /* ボタンの文字サイズを調整 */
+        padding: 8px 16px; /* ボタンの余白を調整 */
     }
 
     /* アイテムの余白を調整 */
     .sidebar ul li a {
         padding: 12px; /* アイテムの内側の余白を調整 */
+        font-size: 12px; /* 文字サイズを小さく */
+        white-space: nowrap; /* 折り返さないように設定 */
+    }
+
+        /* メインコンテンツ */
+    .container-fluid {
+        margin-left: 20px; /* サイドバーの幅分の余白を設定 */
+        padding-top: 70px; /* ナビバーの高さ分、上部に余白を設定 */
+    }
+
+    .container-fluid.expanded {
+        margin-left: 190px;
+        margin-right: 20px;
+    }
+
+    .navbar {
+        height: 60px; /* ナビバーの高さを指定 */
+        flex-wrap: nowrap; /* アイテムを折り返さないように */
+    }
+
+    .navbar-brand {
+        font-size: 16px;
+        margin-right: auto; /* 左寄せ */
+    }
+
+    .navbar-nav {
+        display: flex; /* 横並びに */
+        justify-content: flex-end; /* 右寄せ */
+        flex-wrap: nowrap; /* 折り返しを防ぐ */
+        align-items: center; /* 垂直方向に中央揃え */
+        padding-left: 0; /* 左側の余白を排除 */
+        margin-bottom: 0;
+    }
+
+    .navbar-nav .nav-item {
+        display: flex; /* flexboxを使ってアイテムを並べる */
+        align-items: center; /* アイテムを垂直中央揃え */
+    }
+
+    .navbar-text {
+        font-size: 16px;
+        white-space: nowrap;
+        margin-right: 20px; /* 氏名とログアウトボタンの間に余白を追加 */
+    }
+
+    .btn-danger {
+        font-size: 14px; /* ボタン文字のサイズを調整 */
+        padding: 6px 12px; /* ボタンの余白を調整 */
+        white-space: nowrap; /* ボタンが改行されないように */
+    }
+
+    .btn-sm {
+        font-size: 14px;
+        padding: 6px 12px; /* ボタンの余白を調整 */
+        white-space: nowrap; /* ボタンが改行されないように */
+    }
+
+    h1.mb-4 {
+        font-size: 28px; /* 見出しサイズを調整 */
+    }
+
+    h1.mb-4::after {
+        height: 3px; /* 線の太さを調整 */
+    }
+
+    h5.card-title {
+        font-size: 18px;
     }
 }
 

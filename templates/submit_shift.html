@@ -91,19 +91,19 @@
             let dateStr = row.id.replace("row-", "");
             let dayOfWeek = row.querySelector("td").textContent.slice(-2, -1);
             let checkbox = row.querySelector(".leave-checkbox");
-            let cells = row.querySelectorAll("td"); // 行のすべてのセルを取得
-            console.log(`デバッグ${dayOfWeek}`);
+            let cells = row.querySelectorAll("td");
+            console.log(`デバッグ: ${dayOfWeek}, チェックボックスの初期状態: ${checkbox.checked}, 値: ${checkbox.value}`);
 
-            // dateStrを"yyyy-mm-dd"形式に変換
             const formattedDateStr = dateStr.replace(/\//g, "-");
             if (holidays.includes(formattedDateStr)) {
                 row.classList.add("holiday");
-                cells.forEach(cell => cell.style.backgroundColor = "red"); // 全セルの背景色を変更
-                checkbox.checked = true;  // チェックを入れる
-                checkbox.value = "on";  // 追加：valueを"on"に設定
-                checkbox.disabled = true;
-                checkbox.nextElementSibling.textContent = '休日'; // ラベルを「休日」に変更
+                cells.forEach(cell => cell.style.backgroundColor = "red");
+                checkbox.checked = true;
+                checkbox.value = "on";
+                // checkbox.disabled = true;
+                checkbox.nextElementSibling.textContent = '休日';
                 console.log(`✅ 休日(${formattedDateStr})に "holiday" クラス追加`);
+                console.log(`デバッグ: チェックボックスの状態: ${checkbox.checked}, 値: ${checkbox.value}`);
             }
             if (dayOfWeek === "土" || dayOfWeek === "日") {
                 if (row.classList.contains("holiday")) {
@@ -111,8 +111,9 @@
                 }
                 row.classList.add("weekend");
                 cells.forEach(cell => cell.style.backgroundColor = "lightgray"); // 全セルの背景色を変更
-                checkbox.disabled = true;
+                // checkbox.disabled = true;
                 console.log(`✅ 週末(${dateStr})に "weekend" クラス追加`);
+                console.log(`デバッグ: チェックボックスの状態: ${checkbox.checked}, 値: ${checkbox.value}`);
             }
     
             console.log("現在のクラス:", row.className);

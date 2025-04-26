@@ -78,7 +78,7 @@ def submit_shift(request):
     holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
 
     if request.method == "POST":
-        holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
+        print("POSTデータ:", request.POST)  # デバッグ用にPOSTデータを出力
         form = ShiftSubmissionForm(request.POST)
         form.initial['user'] = user  # バリデーション用にユーザー情報をセット
 
@@ -86,7 +86,8 @@ def submit_shift(request):
             shift_requests = []
 
             for date, is_off in form.cleaned_data.items():
-                if date.startswith("status_"):  # status_YYYY-MM-DD のデータを処理
+                print(f"デバッグ: {date} の is_off: {is_off}")  # 各日付のis_offの状態を出力
+                if date.startswith("status_"):
                     shift_date = dt_date.fromisoformat(date.replace("status_", ""))
 
                     shift_requests.append(
