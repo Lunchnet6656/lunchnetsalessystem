@@ -317,7 +317,7 @@
                         <label class="form-label">クーポン</label>
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
-                                <label for="coupon_type_600">600円</label>
+                                <label for="coupon_type_600">650円</label>
                                 <input type="number" id="coupon_type_600" name="coupon_type_600" class="form-control" min="0" value="0" onchange="updateDiscount()">
                             </div>
                         </div>
@@ -349,17 +349,17 @@
 
 
                       {% if service.service_name == 'なし' %}
-                      {% elif service.service_name == 'サジェスト' %}
+                      {% elif service.service_style == '割引' %}
                         <div class="col-12 col-md-4 mb-2">
                             <label for="service_name" class="form-label">サービス名:</label>
                             <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
                                 <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected> {{ service.service_name }}{% if service.service_name != 'なし' %}{{ service.service_price }}円{% endif %}</option>
+                                <option value="{{ service.service_price }}" selected> {{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円　{% endif %}<input type="hidden" id="service_style" value="{{ service.service_style }}"></input></option>
                             </select>
                         </div>
                         <!-- 100円引き -->
                         <div class="col-12 col-md-4 mb-2 discount-item">
-                            <label for="service_type_100" class="form-label">サジェスト販売数</label>
+                            <label for="service_type_100" class="form-label">サービス販売数</label>
                             <input type="number" id="service_type_100" name="service_type_100" class="form-control" min="0" value="0" onchange="updateDiscount()">
                         </div>
                         <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
@@ -368,14 +368,14 @@
                             <label for="service_name" class="form-label">サービス名:</label>
                             <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
                                 <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected> {{ service.service_name }} {% if service.service_name != 'なし' %}　{{ service.service_price }}円　{% endif %}</option>
+                                <option value="{{ service.service_price }}" selected> {{ service.service_name }} {% if service.service_name != 'なし' %}　{{ service.service_price }}円　{% endif %}<input type="hidden" id="service_style" value="{{ service.service_style }}"></input></option>
                             </select>
                         </div>
                         <!-- サービスの割引（600円と700円の個数入力）-->
                         <label class="form-label">サービス販売個数</label>
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
-                                <label for="service_type_600">600円</label>
+                                <label for="service_type_600">650円</label>
                                 <input type="number" id="service_type_600" name="service_type_600" class="form-control" min="0" value="0" onchange="updateDiscount()">
                             </div>
                         </div>

@@ -159,7 +159,7 @@ function calculateTotals() {
         totalRemaining += remaining;
     });
 
-
+    console.log("単価別集計結果:", salesByPrice);
 
     document.getElementById('total_quantity').innerText = numberWithCommas(totalQuantity);
     document.getElementById('total_sales_quantity').innerText = numberWithCommas(totalSalesQuantity);
@@ -170,6 +170,21 @@ function calculateTotals() {
     document.querySelector('input[name="total_sales_quantity"]').value = totalSalesQuantity;
     document.querySelector('input[name="total_remaining"]').value = totalRemaining;
 
+    // 単価別の集計結果を表示（単価の降順で処理）
+    Object.entries(salesByPrice)
+        .sort(([priceA], [priceB]) => parseInt(priceB) - parseInt(priceA))
+        .forEach(([price, data], index) => {
+            const priceDisplay = document.getElementById(`price_${price}_sales_quantity`);
+            const priceDisplay2 = document.getElementById(`price_${price}_sales`);
+            if (priceDisplay) {
+                priceDisplay.textContent = `${numberWithCommas(data.quantity)}`;
+                priceDisplay2.textContent = `${numberWithCommas(data.sales)}`;
+                console.log(`${price}円の表示を更新: ${data.quantity}個, ${data.sales}円`);
+                // valueも書き換え
+                document.querySelector(`input[name="sales_price_quantity_${index + 1}"]`).value = data.quantity;
+            }
+        });
+    
     // 割引計算の更新
     updateDiscount();
 }
@@ -259,7 +274,7 @@ function updateDiscount() {
 
     var noRiceTotal = noRiceQuantity * noRiceUnitPrice;
     var extraRiceTotal = extraRiceQuantity * extraRiceUnitPrice;
-    var couponTotal = (-600 * couponQuantity600) + (-700 * couponQuantity700);
+    var couponTotal = (-650 * couponQuantity600) + (-700 * couponQuantity700);
     var discount50Total = discount50 * discountPrice50;
     var discount100Total = discount100 * discountPrice100;
 
@@ -275,17 +290,20 @@ function updateDiscount() {
         var selectedOption = serviceNameElement.options[serviceNameElement.selectedIndex];
         var serviceNameValue = selectedOption.text.trim(); // 選択されたオプションのテキスト部分を取得
         var servicePrice = parseInt(selectedOption.value, 10) || 0; // 選択されたオプションの値を取得
+        var serviceStyleElement = document.getElementById('service_style').value;
 
         console.log(`サービス名: ${serviceNameValue}`); // サービス名の表示
         console.log(`サービス価格: ${servicePrice}`); // サービス価格の表示
+        console.log(`サービススタイル: ${serviceStyleElement}`); // サービス価格の表示
+
 
         // 値が "なし" の場合
-        if (serviceNameValue === 'なし') {
+        if (serviceStyleElement === 'なし') {
             skipProcessing_a = true;
             skipProcessing_b = true;
         }
         // 値が "サジェスト" の場合
-        else if (serviceNameValue === 'サジェスト 　-100円') {
+        else if (serviceStyleElement === '割引') {
             skipProcessing_a = true;
             skipProcessing_b = false; // 実行
         }
@@ -296,7 +314,6 @@ function updateDiscount() {
         }
     }
 
-
     var serviceTotal = 0; //
 
     if (!skipProcessing_a) {
@@ -304,13 +321,13 @@ function updateDiscount() {
       var serviceType600 = parseInt(document.getElementById('service_type_600').value, 10) || 0;
       var serviceType700 = parseInt(document.getElementById('service_type_700').value, 10) || 0;
         if (serviceType600 > 0 || serviceType700 > 0) {
-            serviceTotal += ((-600 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700);
+            serviceTotal += ((-650 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700);
         }
     }
 
     if (!skipProcessing_b) {
       var service100 = parseInt(document.getElementById('service_type_100').value, 10) || 0;
-      serviceTotal += service100 * -100;
+      serviceTotal += service100 * servicePrice;
     }
 
     console.log(`サービス: ${service100}`);

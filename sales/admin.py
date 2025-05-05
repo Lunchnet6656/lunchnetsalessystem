@@ -9,7 +9,7 @@ class CustomUserAdmin(UserAdmin):
     )
 
 class SalesLocationAdmin(admin.ModelAdmin):
-    list_display = ('no', 'name', 'type', 'price_type', 'service_name', 'service_price', 'direct_return')
+    list_display = ('no', 'name', 'type', 'price_type', 'service_name', 'service_price', 'service_style', 'direct_return')
     search_fields = ('no','name', 'direct_return')
 
 

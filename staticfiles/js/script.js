@@ -274,7 +274,7 @@ function updateDiscount() {
 
     var noRiceTotal = noRiceQuantity * noRiceUnitPrice;
     var extraRiceTotal = extraRiceQuantity * extraRiceUnitPrice;
-    var couponTotal = (-600 * couponQuantity600) + (-700 * couponQuantity700);
+    var couponTotal = (-650 * couponQuantity600) + (-700 * couponQuantity700);
     var discount50Total = discount50 * discountPrice50;
     var discount100Total = discount100 * discountPrice100;
 
@@ -290,18 +290,20 @@ function updateDiscount() {
         var selectedOption = serviceNameElement.options[serviceNameElement.selectedIndex];
         var serviceNameValue = selectedOption.text.trim(); // 選択されたオプションのテキスト部分を取得
         var servicePrice = parseInt(selectedOption.value, 10) || 0; // 選択されたオプションの値を取得
+        var serviceStyleElement = document.getElementById('service_style').value;
 
         console.log(`サービス名: ${serviceNameValue}`); // サービス名の表示
         console.log(`サービス価格: ${servicePrice}`); // サービス価格の表示
+        console.log(`サービススタイル: ${serviceStyleElement}`); // サービス価格の表示
 
 
         // 値が "なし" の場合
-        if (serviceNameValue === 'なし') {
+        if (serviceStyleElement === 'なし') {
             skipProcessing_a = true;
             skipProcessing_b = true;
         }
         // 値が "サジェスト" の場合
-        else if (serviceNameValue === 'サジェスト-100円') {
+        else if (serviceStyleElement === '割引') {
             skipProcessing_a = true;
             skipProcessing_b = false; // 実行
         }
@@ -319,13 +321,13 @@ function updateDiscount() {
       var serviceType600 = parseInt(document.getElementById('service_type_600').value, 10) || 0;
       var serviceType700 = parseInt(document.getElementById('service_type_700').value, 10) || 0;
         if (serviceType600 > 0 || serviceType700 > 0) {
-            serviceTotal += ((-600 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700);
+            serviceTotal += ((-650 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700);
         }
     }
 
     if (!skipProcessing_b) {
       var service100 = parseInt(document.getElementById('service_type_100').value, 10) || 0;
-      serviceTotal += service100 * -100;
+      serviceTotal += service100 * servicePrice;
     }
 
     console.log(`サービス: ${service100}`);

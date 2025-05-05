@@ -1245,27 +1245,33 @@ def location_list_view(request):
 
         # 上書き保存のリクエスト
         location_data = request.POST
-        for i in range(len(location_data)//7):  # 各locationごとのキー数が7つのため調整
+        for i in range(len(location_data)//8):  # 各locationごとのキー数が7つのため調整
             no = location_data.get(f'location[{i}][no]')
             name = location_data.get(f'location[{i}][name]')
             loc_type = location_data.get(f'location[{i}][type]')
             price_type = location_data.get(f'location[{i}][price_type]')
             service_name = location_data.get(f'location[{i}][service_name]')
             service_price = location_data.get(f'location[{i}][service_price]')
+            service_style = location_data.get(f'location[{i}][service_style]')
             direct_return = location_data.get(f'location[{i}][direct_return]')
 
             # データを保存
-            SalesLocation.objects.update_or_create(
-                no=no,
-                defaults={
-                    'name': name,
-                    'type': loc_type,
-                    'price_type': price_type,
-                    'service_name': service_name,
-                    'service_price': service_price,
-                    'direct_return': direct_return
-                }
-            )
+            try:
+                SalesLocation.objects.update_or_create(
+                    no=no,
+                    defaults={
+                        'name': name,
+                        'type': loc_type,
+                        'price_type': price_type,
+                        'service_name': service_name,
+                        'service_price': service_price,
+                        'service_style': service_style,
+                        'direct_return': direct_return
+                    }
+                )
+            except Exception as e:
+                messages.error(request, f'エラーが発生しました: {str(e)}')
+                return HttpResponseRedirect(reverse('location_list'))
 
         messages.success(request, '販売場所データを更新しました。')
         return HttpResponseRedirect(reverse('location_list'))

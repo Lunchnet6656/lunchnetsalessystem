@@ -58,6 +58,7 @@
                     <th>価格タイプ</th>
                     <th>サービス名</th>
                     <th>サービス価格</th>
+                    <th>サービススタイル</th>
                     <th>直行直帰</th>
                 </tr>
             </thead>
@@ -75,6 +76,13 @@
                     <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][price_type]" value="{{ location.price_type }}" style="width: 150px;"></td>
                     <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][service_name]" value="{{ location.service_name }}" style="width: 150px;"></td>
                     <td><input type="number" class="location-input" name="location[{{ forloop.counter0 }}][service_price]" value="{{ location.service_price }}" style="width: 150px;"></td>
+                    <td>
+                        <select class="location-input" name="location[{{ forloop.counter0 }}][service_style]" style="width: 150px;">
+                            <option value="割引" {% if location.service_style == '割引' %}selected{% endif %}>割引</option>
+                            <option value="固定" {% if location.service_style == '固定' %}selected{% endif %}>固定</option>
+                            <option value="なし" {% if location.service_style == 'なし' %}selected{% endif %}>なし</option>
+                        </select>
+                    </td>
                     <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][direct_return]" value="{{ location.direct_return }}" style="width: 150px;"></td>
                 </tr>
                 {% empty %}
@@ -116,17 +124,23 @@
             let newRow = document.createElement('tr');
             newRow.innerHTML = `
                 <td class="drag-handle">
-                  <span class="drag-icon"></span>
-                  <input type="checkbox" name="selected_ids" value="">
+                  <i class="material-icons">menu</i>
                 </td>
                 <td><input type="checkbox" name="selected_ids" value=""></td> <!-- チェックボックスの列 -->
-                <td><input type="text" name="location[${rowCount}][no]" value=""></td>
-                <td><input type="text" name="location[${rowCount}][name]" value=""></td>
-                <td><input type="text" name="location[${rowCount}][type]" value=""></td>
-                <td><input type="text" name="location[${rowCount}][price_type]" value=""></td>
-                <td><input type="text" name="location[${rowCount}][service_name]" value=""></td>
-                <td><input type="number" name="location[${rowCount}][service_price]" value=""></td>
-                <td><input type="text" name="location[${rowCount}][direct_return]" value=""></td>
+                <td><input type="text" class="location-input" name="location[${rowCount}][no]" value="" style="width: 150px;"></td>
+                <td><input type="text" class="location-input" name="location[${rowCount}][name]" value="" style="width: 150px;"></td>
+                <td><input type="text" class="location-input" name="location[${rowCount}][type]" value="" style="width: 150px;"></td>
+                <td><input type="text" class="location-input" name="location[${rowCount}][price_type]" value="" style="width: 150px;"></td>
+                <td><input type="text" class="location-input" name="location[${rowCount}][service_name]" value="" style="width: 150px;"></td>
+                <td><input type="number" class="location-input" name="location[${rowCount}][service_price]" value="0" style="width: 150px;"></td>
+                <td>
+                    <select class="location-input" name="location[${rowCount}][service_style]" style="width: 150px;">
+                        <option value="割引">割引</option>
+                        <option value="固定">固定</option>
+                        <option value="なし" selected>なし</option>
+                    </select>
+                </td>
+                <td><input type="text" class="location-input" name="location[${rowCount}][direct_return]" value="" style="width: 150px;"></td>
             `;
             tableBody.appendChild(newRow);
         });
