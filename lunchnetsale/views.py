@@ -979,6 +979,7 @@ def daily_report_edit(request, pk):
         if location.name == report.location:
             report.service_name = location.service_name
             report.service_price = location.service_price
+            report.service_style = location.service_style
             break  # 一致するlocationが見つかったらループを終了
 
     if request.method == "POST":
@@ -1078,6 +1079,7 @@ def daily_report_edit_rol(request, pk):
         if location.name == report.location:
             report.service_name = location.service_name
             report.service_price = location.service_price
+            report.service_style = location.service_style
             break  # 一致するlocationが見つかったらループを終了
 
     if request.method == "POST":
