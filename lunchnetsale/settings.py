@@ -10,32 +10,48 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
-from pathlib import Path
-
 import os
-
+from pathlib import Path
 from datetime import timedelta
 import dj_database_url
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-CSRF_COOKIE_SECURE = True  # HTTPS を使う場合は True
+# ▼ ユーティリティ：カンマ区切り環境変数を配列へ
+def csv_env(name: str, default: str = ""):
+    return [s.strip() for s in os.environ.get(name, default).split(",") if s.strip()]
 
+# --- 本番フラグ ---
+DEBUG = False  # 本番は False
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
+# --- SECRET_KEY ---
+# 可能なら環境変数へ。未設定なら既存値を最後のフォールバックに。
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!"
+)
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!'
+# --- Host/CSRF 設定 ---
+# 既定値はローカルのみ。herokuapp.com は入れない（誤アクセス遮断のため）
+ALLOWED_HOSTS = csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
+CSRF_TRUSTED_ORIGINS = csv_env("CSRF_TRUSTED_ORIGINS")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False    
+# --- Heroku で HTTPS を正しく認識させる（超重要） ---
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True  # 望ましい（リダイレクトURLの整合に効く場合あり）
 
+# --- HTTP→HTTPS を強制 ---
+SECURE_SSL_REDIRECT = True
 
-#ALLOWED_HOSTS = ['lunchnetsalessystem-c7bbb644044e.herokuapp.com', 'localhost']
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'lunchnetsalessystem-c7bbb644044e.herokuapp.com,localhost,127.0.0.1').split(',')
+# --- HSTS（Safe Browsing 的にも“安全性の証拠”になる）---
+# apex(ルート)はお名前.comのURL転送のため、まずは preload なしで導入が無難
+SECURE_HSTS_SECONDS = 31536000  # 1年
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # apex事情により最初は False 推奨
+# SECURE_HSTS_PRELOAD = True  # apex を完全HTTPS運用できるようになってから有効化
 
+# --- Cookie を HTTPS 限定に ---
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 # Application definition
 
