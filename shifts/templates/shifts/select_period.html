@@ -1,0 +1,71 @@
+{% extends "shifts/base.html" %}
+{% block title %}期間選択{% endblock %}
+{% block nav_submit %}bg-gray-600{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">シフト希望提出 - 期間選択</h1>
+
+{% if new_period_banner %}
+<div class="bg-blue-100 border border-blue-300 text-blue-900 p-3 rounded mb-4">
+    <strong>新しい募集期間が始まりました！</strong>
+    締切: {{ new_period_banner.submission_close_at|date:"n/j H:i" }}
+</div>
+{% endif %}
+
+{% if not period_data %}
+    <p class="text-gray-500">現在提出可能な募集期間はありません。</p>
+{% else %}
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {% for item in period_data %}
+        <div class="bg-white rounded shadow p-4 border-l-4
+            {% if item.submit_status == 'not_submitted' %}border-gray-300
+            {% elif item.submit_status == 'returned' %}border-red-400
+            {% elif item.submit_status == 'approved' %}border-green-400
+            {% else %}border-blue-400{% endif %}">
+
+            <div class="flex items-center justify-between mb-2">
+                {% if item.is_closed %}
+                <span class="text-xs px-2 py-1 rounded bg-red-100 text-red-700">
+                    応募締切
+                </span>
+                {% else %}
+                <span class="text-xs px-2 py-1 rounded
+                    {% if item.period.status == 'OPEN' %}bg-green-100 text-green-700
+                    {% elif item.period.status == 'REVIEW' %}bg-yellow-100 text-yellow-700
+                    {% else %}bg-blue-100 text-blue-700{% endif %}">
+                    {{ item.period.get_status_display }}
+                </span>
+                {% endif %}
+                <span class="text-xs px-2 py-1 rounded
+                    {% if item.submit_status == 'not_submitted' %}bg-gray-100 text-gray-600
+                    {% elif item.submit_status == 'returned' %}bg-red-100 text-red-700
+                    {% elif item.submit_status == 'approved' %}bg-green-100 text-green-700
+                    {% else %}bg-blue-100 text-blue-700{% endif %}">
+                    {{ item.submit_label }}
+                </span>
+            </div>
+
+            <h3 class="font-semibold text-lg mb-1">
+                {{ item.period.start_date|date:"Y年n月j日" }} 〜 {{ item.period.end_date|date:"Y年n月j日" }}
+            </h3>
+            <p class="text-xs text-gray-500 mb-3">
+                提出期限: {{ item.period.submission_close_at|date:"n/j H:i" }}
+            </p>
+
+            <a href="{% url 'shifts:submit_availability_for_period' item.period.pk %}"
+               class="block text-center text-sm px-4 py-2 rounded text-white
+                {% if item.is_closed %}bg-gray-400 hover:bg-gray-500
+                {% elif item.submit_status == 'returned' %}bg-red-600 hover:bg-red-700
+                {% elif item.submit_status == 'not_submitted' %}bg-indigo-600 hover:bg-indigo-700
+                {% else %}bg-gray-500 hover:bg-gray-600{% endif %}">
+                {% if item.is_closed %}応募締切（確認のみ）
+                {% elif item.submit_status == 'returned' %}再提出する
+                {% elif item.submit_status == 'not_submitted' %}提出する
+                {% elif item.submit_status == 'approved' %}確認
+                {% else %}確認・再提出{% endif %}
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "shifts/base.html" %}
+{% block title %}通知・LINE設定{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <h1 class="text-2xl font-bold mb-6">通知・LINE設定</h1>
+
+    <!-- LINE連携 -->
+    <div class="bg-white rounded shadow p-5 mb-6">
+        <h2 class="text-lg font-semibold mb-3">LINE連携</h2>
+        {% if profile.line_user_id %}
+        <p class="text-sm text-green-700 mb-3">LINE連携済み</p>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="unlink_line">
+            <button type="submit"
+                    onclick="return confirm('LINE連携を解除しますか？')"
+                    class="text-sm bg-red-100 text-red-700 hover:bg-red-200 px-4 py-2 rounded">
+                LINE連携を解除する
+            </button>
+        </form>
+        {% else %}
+        <p class="text-sm text-gray-600 mb-3">
+            LINE Botと連携すると、シフト募集開始や締切リマインドをLINEで受け取れます。
+        </p>
+        <ol class="text-sm text-gray-700 list-decimal list-inside space-y-1 mb-4">
+            <li>下の「連携コードを発行」ボタンを押す</li>
+            <li>表示された「LINEアプリで連携する」ボタンを押す</li>
+            <li>LINEが開いたら送信ボタンを押すだけで連携完了</li>
+        </ol>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="generate_line_code">
+            <button type="submit"
+                    class="text-sm bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded">
+                連携コードを発行
+            </button>
+        </form>
+        {% if line_link_code %}
+        <div class="bg-green-50 border border-green-200 rounded p-4 mt-4">
+            <p class="text-sm text-gray-700 mb-2">連携コードが発行されました：</p>
+            <p class="font-mono text-2xl font-bold tracking-widest text-center mb-4">{{ line_link_code }}</p>
+            {% if line_url %}
+            <a href="{{ line_url }}" target="_blank" rel="noopener"
+               class="block text-center bg-green-600 text-white px-4 py-3 rounded text-sm font-semibold hover:bg-green-700">
+                LINEアプリで連携する →
+            </a>
+            <p class="text-xs text-gray-500 mt-2 text-center">ボタンを押すとLINEが開き、コードが自動入力されます。送信するだけで連携完了です。</p>
+            {% else %}
+            <p class="text-sm text-gray-600">LINE Botを友だち追加して、上のコードを送信してください。</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- 通知設定 -->
+    <div class="bg-white rounded shadow p-5">
+        <h2 class="text-lg font-semibold mb-3">通知設定</h2>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_notification">
+            <div class="space-y-4">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="notify_via_line"
+                           {% if profile.notify_via_line %}checked{% endif %}
+                           class="w-4 h-4">
+                    <span>LINEで通知を受け取る（LINE連携済みの場合に有効）</span>
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="notify_via_email"
+                           {% if profile.notify_via_email %}checked{% endif %}
+                           class="w-4 h-4">
+                    <span>メールで通知を受け取る</span>
+                </label>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">通知先メールアドレス</label>
+                    <input type="email" name="notification_email"
+                           value="{{ profile.notification_email }}"
+                           placeholder="example@gmail.com"
+                           class="border rounded px-3 py-2 text-sm w-full">
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="submit"
+                        class="bg-blue-600 text-white px-5 py-2 rounded text-sm hover:bg-blue-700">
+                    保存する
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

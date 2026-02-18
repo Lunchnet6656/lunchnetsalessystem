@@ -1,0 +1,96 @@
+{% extends "shifts/base.html" %}
+{% block title %}会社カレンダー管理{% endblock %}
+{% block nav_holidays %}bg-gray-600{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">会社カレンダー管理</h1>
+
+<!-- 追加フォーム -->
+<div class="bg-white rounded shadow p-4 mb-6">
+    <h2 class="text-lg font-semibold mb-3">休日を追加</h2>
+    <form method="post" id="holiday-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <div class="flex gap-4 mb-3">
+            <label class="inline-flex items-center">
+                <input type="radio" name="add_type" value="single" checked class="add-type-radio">
+                <span class="ml-1 text-sm">単日</span>
+            </label>
+            <label class="inline-flex items-center">
+                <input type="radio" name="add_type" value="range" class="add-type-radio">
+                <span class="ml-1 text-sm">連日</span>
+            </label>
+        </div>
+        <div class="flex flex-wrap gap-3 items-end">
+            <div id="single-date-field">
+                <label class="block text-sm text-gray-600">日付</label>
+                <input type="date" name="date" class="border rounded px-3 py-2 text-sm">
+            </div>
+            <div id="range-date-fields" class="hidden flex gap-3">
+                <div>
+                    <label class="block text-sm text-gray-600">開始日</label>
+                    <input type="date" name="start_date" class="border rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600">終了日</label>
+                    <input type="date" name="end_date" class="border rounded px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600">名称</label>
+                <input type="text" name="name" placeholder="例: 社内行事" class="border rounded px-3 py-2 text-sm">
+            </div>
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">追加</button>
+        </div>
+    </form>
+</div>
+
+<!-- 一覧 -->
+<div class="bg-white rounded shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="bg-gray-100 text-left">
+                <th class="px-4 py-2">日付</th>
+                <th class="px-4 py-2">名称</th>
+                <th class="px-4 py-2">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for h in holidays %}
+            <tr class="border-b border-gray-100">
+                <td class="px-4 py-2">{{ h.date|date:"Y年n月j日" }}</td>
+                <td class="px-4 py-2">{{ h.name }}</td>
+                <td class="px-4 py-2">
+                    <form method="post" class="inline" onsubmit="return confirm('削除しますか？')">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="holiday_id" value="{{ h.id }}">
+                        <button type="submit" class="text-red-600 hover:underline text-sm">削除</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="px-4 py-4 text-gray-400 text-center">登録された会社休日はありません。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.add-type-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var singleField = document.getElementById('single-date-field');
+        var rangeFields = document.getElementById('range-date-fields');
+        if (this.value === 'range') {
+            singleField.classList.add('hidden');
+            rangeFields.classList.remove('hidden');
+        } else {
+            singleField.classList.remove('hidden');
+            rangeFields.classList.add('hidden');
+        }
+    });
+});
+</script>
+{% endblock %}

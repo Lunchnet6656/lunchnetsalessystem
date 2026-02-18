@@ -1,0 +1,183 @@
+{% extends "shifts/base.html" %}
+{% block title %}提出状況確認{% endblock %}
+{% block nav_dashboard %}bg-gray-600{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">提出状況確認</h1>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'shifts:admin_export_submissions_csv' period.id %}"
+           class="text-sm bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 rounded">
+          CSVダウンロード
+        </a>
+        <a href="{% url 'shifts:admin_dashboard' %}" class="text-sm text-blue-600 hover:underline">&larr; ダッシュボードへ</a>
+    </div>
+</div>
+
+<div class="bg-white rounded shadow p-4 mb-4">
+    <p class="text-sm text-gray-600">
+        対象期間: <strong>{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</strong>
+        <span class="ml-2 text-xs px-2 py-1 rounded
+            {% if period.status == 'OPEN' %}bg-green-100 text-green-700
+            {% elif period.status == 'REVIEW' %}bg-yellow-100 text-yellow-700
+            {% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ period.get_status_display }}
+        </span>
+    </p>
+</div>
+
+{% if submission_data %}
+<form method="post" id="approve-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="approve">
+
+    <div class="mb-3 flex gap-2">
+        <button type="button" id="select-all-btn" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">全選択</button>
+        <button type="button" id="deselect-all-btn" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">全解除</button>
+        <button type="submit" class="text-xs bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded">選択した提出を承認</button>
+    </div>
+
+    <div class="bg-white rounded shadow overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-100 text-left">
+                    <th class="px-4 py-2 w-8"><input type="checkbox" id="check-all"></th>
+                    <th class="px-4 py-2">ユーザー</th>
+                    <th class="px-4 py-2">ステータス</th>
+                    <th class="px-4 py-2">提出日時</th>
+                    <th class="px-4 py-2">出勤</th>
+                    <th class="px-4 py-2">休み</th>
+                    <th class="px-4 py-2">備考</th>
+                    <th class="px-4 py-2">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in submission_data %}
+                <tr class="border-b border-gray-100">
+                    <td class="px-4 py-2">
+                        {% if item.submission.status == 'SUBMITTED' %}
+                        <input type="checkbox" name="submission_ids" value="{{ item.submission.id }}" class="sub-check">
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2">
+                        <a href="javascript:void(0)" onclick="document.getElementById('detail-{{ item.submission.id }}').classList.toggle('hidden')" class="cursor-pointer text-blue-600 hover:underline">{{ item.submission.user.last_name }} {{ item.submission.user.first_name }}</a>
+                    </td>
+                    <td class="px-4 py-2">
+                        <span class="text-xs px-2 py-1 rounded
+                            {% if item.submission.status == 'APPROVED' %}bg-blue-100 text-blue-700
+                            {% elif item.submission.status == 'SUBMITTED' %}bg-green-100 text-green-700
+                            {% elif item.submission.status == 'RETURNED' %}bg-red-100 text-red-700
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ item.submission.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-2 text-xs text-gray-500">
+                        {% if item.submission.submitted_at %}{{ item.submission.submitted_at|date:"n/j H:i" }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-4 py-2">{{ item.work_count }}日</td>
+                    <td class="px-4 py-2">{{ item.off_count }}日</td>
+                    <td class="px-4 py-2 text-xs text-gray-500 max-w-xs truncate">{{ item.submission.remarks }}</td>
+                    <td class="px-4 py-2">
+                        {% if item.submission.status == 'SUBMITTED' %}
+                        <button type="button" class="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-1 rounded reject-btn"
+                                data-id="{{ item.submission.id }}"
+                                data-name="{{ item.submission.user.last_name }} {{ item.submission.user.first_name }}">
+                            却下
+                        </button>
+                        {% elif item.submission.status == 'RETURNED' %}
+                        <span class="text-xs text-gray-400">差戻済</span>
+                        {% elif item.submission.status == 'APPROVED' %}
+                        <span class="text-xs text-gray-400">承認済</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr class="hidden" id="detail-{{ item.submission.id }}">
+                    <td colspan="8" class="px-4 py-2 bg-gray-50">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-left text-gray-500">
+                                    <th class="px-2 py-1">日付</th>
+                                    <th class="px-2 py-1">曜日</th>
+                                    <th class="px-2 py-1">出勤/休み</th>
+                                    <th class="px-2 py-1">休みカテゴリ</th>
+                                    <th class="px-2 py-1">コメント</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day in item.days %}
+                                <tr class="{% if day.availability == 'OFF' %}bg-red-50{% endif %}">
+                                    <td class="px-2 py-1">{{ day.date|date:"n/j" }}</td>
+                                    <td class="px-2 py-1">{{ day.weekday_name }}</td>
+                                    <td class="px-2 py-1">{{ day.get_availability_display }}</td>
+                                    <td class="px-2 py-1">{% if day.absence_category %}{{ day.get_absence_category_display }}{% else %}-{% endif %}</td>
+                                    <td class="px-2 py-1">{% if day.comment %}{{ day.comment }}{% else %}-{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+
+<!-- 却下モーダル -->
+<div id="reject-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-bold mb-2">提出を却下</h3>
+        <p class="text-sm text-gray-600 mb-3"><span id="reject-user-name"></span> さんの提出を差戻します。</p>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reject">
+            <input type="hidden" name="submission_id" id="reject-sub-id">
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">管理者メモ</label>
+                <textarea name="admin_note" rows="3" class="w-full border rounded px-3 py-2 text-sm"
+                          placeholder="差戻理由を入力してください"></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="reject-cancel" class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">キャンセル</button>
+                <button type="submit" class="text-sm bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded">却下する</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<p class="text-gray-500">この期間の提出はありません。</p>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 全選択/全解除
+document.getElementById('select-all-btn').addEventListener('click', function() {
+    document.querySelectorAll('.sub-check').forEach(function(cb) { cb.checked = true; });
+});
+document.getElementById('deselect-all-btn').addEventListener('click', function() {
+    document.querySelectorAll('.sub-check').forEach(function(cb) { cb.checked = false; });
+});
+document.getElementById('check-all').addEventListener('change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('.sub-check').forEach(function(cb) { cb.checked = checked; });
+});
+
+// 却下モーダル
+var modal = document.getElementById('reject-modal');
+document.querySelectorAll('.reject-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.getElementById('reject-sub-id').value = this.dataset.id;
+        document.getElementById('reject-user-name').textContent = this.dataset.name;
+        modal.classList.remove('hidden');
+    });
+});
+document.getElementById('reject-cancel').addEventListener('click', function() {
+    modal.classList.add('hidden');
+});
+modal.addEventListener('click', function(e) {
+    if (e.target === modal) modal.classList.add('hidden');
+});
+</script>
+{% endblock %}

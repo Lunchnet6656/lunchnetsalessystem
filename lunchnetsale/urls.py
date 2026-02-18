@@ -15,13 +15,14 @@ Including another URLconf
 """
 # lunchnetsale/urls.py
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from . import views
 from django.contrib.auth import views as auth_views
 from .views import locked_out_view,my_page,submit_shift,edit_shift
 
 urlpatterns = [
     path('secure-admin/', admin.site.urls),
+    path('shifts/', include('shifts.urls')),
     path('login/', views.login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),

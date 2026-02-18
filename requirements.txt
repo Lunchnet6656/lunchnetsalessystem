@@ -16,4 +16,7 @@ sqlparse==0.5.1
 typing_extensions==4.12.2
 tzdata==2024.1
 whitenoise==6.8.2
+python-dotenv==1.0.1
 qrcode[pil]
+jpholiday
+line-bot-sdk==3.14.0

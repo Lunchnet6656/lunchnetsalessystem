@@ -1,0 +1,54 @@
+{% extends "shifts/base.html" %}
+{% block title %}しきい値設定{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">しきい値設定</h1>
+
+<div class="bg-white rounded shadow p-6 max-w-lg">
+    <p class="text-sm text-gray-500 mb-4">
+        ダッシュボードのヒートマップ表示に使用する、休み希望数のしきい値を設定します。
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <span class="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span>
+                    OK上限（この数以下は緑）
+                </label>
+                <input type="number" name="ok_threshold" value="{{ settings.ok_threshold }}" min="0"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <span class="inline-block w-3 h-3 rounded-full bg-yellow-500 mr-1"></span>
+                    注意上限（この数以下は黄）
+                </label>
+                <input type="number" name="warning_threshold" value="{{ settings.warning_threshold }}" min="0"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <span class="inline-block w-3 h-3 rounded-full bg-red-500 mr-1"></span>
+                    危険上限（この数を超えると赤）
+                </label>
+                <input type="number" name="danger_threshold" value="{{ settings.danger_threshold }}" min="0"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
+                保存
+            </button>
+            <a href="{% url 'shifts:admin_dashboard' %}" class="ml-3 text-sm text-gray-500 hover:text-gray-700">
+                ダッシュボードへ戻る
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -88,22 +88,6 @@
                         <a href="{% url 'others_item_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> その他の項目設定
                         </a>
-                        <a class="list-group-item list-group-item-action" id="shift-toggle">
-                            <i class="fas fa-edit"></i> シフト関係
-                            <i class="fas fa-chevron-down float-end"></i>
-                        </a>
-                            <ul id="shift-submenu" style="display: none;">
-                                <li>
-                                    <a href="{% url 'shift_settings' %}" class="list-group-item-action" style="font-size: 13px;">
-                                        <i class="fas fa-calendar"></i> シフトカレンダー設定
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="{% url 'shift_request_list' %}" class="list-group-item-action" style="font-size: 13px;">
-                                        <i class="fas fa-list"></i> シフト送信リスト
-                                    </a>
-                                </li>
-                            </ul>
                     </li>
                     <li class="list-group-item">
                         <h6 class="text-uppercase">実績管理</h6>
@@ -118,6 +102,13 @@
                         </a>
                         <a href="{% url 'menu_history' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> メニュー別販売履歴
+                        </a>
+                    </li>
+                    <!-- シフトセクション -->
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">シフトリンク</h6>
+                        <a href="{% url 'shifts:submit_availability' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-file-alt"></i> シフトアプリ
                         </a>
                     </li>
                     {% else %} <!-- 一般 -->
@@ -143,6 +134,13 @@
                             <i class="fas fa-file-alt"></i> 日計表入力フォーム
                         </a>
                     </li>
+                    <!-- シフトセクション 
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">シフトリンク</h6>
+                        <a href="{% url 'shifts:submit_availability' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-file-alt"></i> シフトアプリ
+                        </a>
+                    </li> -->
                 </ul>
               </div>
           </div>
@@ -196,19 +194,24 @@
         }
 
         // シフトメニューの展開/折りたたみ機能
-        document.getElementById('shift-toggle').addEventListener('click', function(e) {
-            e.preventDefault();
-            const submenu = document.getElementById('shift-submenu');
-            const chevron = this.querySelector('.fa-chevron-down');
-            
-            if (submenu.style.display === 'none') {
-                submenu.style.display = 'block';
-                chevron.style.transform = 'rotate(180deg)';
-            } else {
-                submenu.style.display = 'none';
-                chevron.style.transform = 'rotate(0deg)';
-            }
-        });
+        function setupToggle(toggleId, submenuId) {
+            var toggle = document.getElementById(toggleId);
+            if (!toggle) return;
+            toggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                var submenu = document.getElementById(submenuId);
+                var chevron = this.querySelector('.fa-chevron-down');
+                if (submenu.style.display === 'none') {
+                    submenu.style.display = 'block';
+                    chevron.style.transform = 'rotate(180deg)';
+                } else {
+                    submenu.style.display = 'none';
+                    chevron.style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+        setupToggle('shift-toggle', 'shift-submenu');
+        setupToggle('shift-hope-toggle', 'shift-hope-submenu');
 
     </script>
 

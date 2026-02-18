@@ -1,0 +1,73 @@
+{% extends "shifts/base.html" %}
+
+{% block title %}販売場所設定{% endblock %}
+{% block nav_location_settings %}bg-gray-600{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">販売場所設定</h1>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="overflow-x-auto bg-white rounded-lg shadow">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="px-4 py-3 text-left font-semibold">No</th>
+                    <th class="px-4 py-3 text-left font-semibold">販売場所名</th>
+                    <th class="px-4 py-3 text-center font-semibold">優先度</th>
+                    <th class="px-4 py-3 text-center font-semibold">運転必須</th>
+                    <th class="px-4 py-3 text-center font-semibold">シフト対象外</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loc in locations %}
+                <tr class="border-t {% if loc.excluded_from_shift %}opacity-50 bg-gray-50{% else %}hover:bg-gray-50{% endif %}"
+                    id="row_{{ loc.id }}">
+                    <td class="px-4 py-2 text-gray-600">{{ loc.no }}</td>
+                    <td class="px-4 py-2 font-medium">{{ loc.name }}</td>
+                    <td class="px-4 py-2 text-center">
+                        <select name="priority_{{ loc.id }}"
+                                class="border rounded px-2 py-1 text-sm">
+                            <option value="S" {% if loc.priority == "S" %}selected{% endif %}>S</option>
+                            <option value="A" {% if loc.priority == "A" %}selected{% endif %}>A</option>
+                            <option value="B" {% if loc.priority == "B" %}selected{% endif %}>B</option>
+                        </select>
+                    </td>
+                    <td class="px-4 py-2 text-center">
+                        <input type="checkbox" name="requires_drive_{{ loc.id }}"
+                               {% if loc.requires_drive %}checked{% endif %}
+                               class="h-4 w-4">
+                    </td>
+                    <td class="px-4 py-2 text-center">
+                        <input type="checkbox" name="excluded_from_shift_{{ loc.id }}"
+                               {% if loc.excluded_from_shift %}checked{% endif %}
+                               class="h-4 w-4"
+                               onchange="toggleRow(this, '{{ loc.id }}')">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4">
+        <button type="submit"
+                class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold">
+            すべて保存
+        </button>
+    </div>
+</form>
+
+<script>
+function toggleRow(checkbox, locId) {
+    const row = document.getElementById('row_' + locId);
+    if (checkbox.checked) {
+        row.classList.add('opacity-50', 'bg-gray-50');
+        row.classList.remove('hover:bg-gray-50');
+    } else {
+        row.classList.remove('opacity-50', 'bg-gray-50');
+        row.classList.add('hover:bg-gray-50');
+    }
+}
+</script>
+{% endblock %}

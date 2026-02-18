@@ -1,0 +1,50 @@
+{% extends "shifts/base.html" %}
+{% block title %}確定シフト{% endblock %}
+{% block nav_schedule %}bg-gray-600{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">確定シフト</h1>
+
+{% if not period %}
+    <p class="text-gray-500">公開済みのシフトはありません。</p>
+{% else %}
+    <div class="bg-white rounded shadow p-4 mb-4">
+        <p class="text-sm text-gray-600">期間: <strong>{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</strong></p>
+    </div>
+
+    {% if assignments %}
+    <div class="bg-white rounded shadow overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-100 text-left">
+                    <th class="px-4 py-2">日付</th>
+                    <th class="px-4 py-2">売り場</th>
+                    <th class="px-4 py-2">担当者</th>
+                    <th class="px-4 py-2">ステータス</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr class="border-b border-gray-100 {% if a.user == current_user %}bg-blue-50{% endif %}">
+                    <td class="px-4 py-2">{{ a.date|date:"n/j" }}</td>
+                    <td class="px-4 py-2">{{ a.sales_location.name }}</td>
+                    <td class="px-4 py-2 {% if a.user == current_user %}font-bold text-blue-700{% endif %}">
+                        {{ a.user.last_name }} {{ a.user.first_name }}
+                    </td>
+                    <td class="px-4 py-2">
+                        <span class="text-xs px-2 py-1 rounded
+                            {% if a.status == 'CONFIRMED' %}bg-green-100 text-green-700
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ a.get_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p class="text-gray-500">まだ割当がありません。</p>
+    {% endif %}
+{% endif %}
+{% endblock %}

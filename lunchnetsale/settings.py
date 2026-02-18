@@ -14,6 +14,9 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,37 +24,37 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 def csv_env(name: str, default: str = ""):
     return [s.strip() for s in os.environ.get(name, default).split(",") if s.strip()]
 
+# --- 環境判定 ---
+DJANGO_ENV = os.environ.get('DJANGO_ENV', 'development')
+IS_PRODUCTION = DJANGO_ENV == 'production'
+
 # --- 本番フラグ ---
-DEBUG = False  # 本番は False
+DEBUG = not IS_PRODUCTION if os.environ.get('DEBUG') is None else os.environ.get('DEBUG') == 'True'
 
 # --- SECRET_KEY ---
-# 可能なら環境変数へ。未設定なら既存値を最後のフォールバックに。
 SECRET_KEY = os.environ.get(
     "SECRET_KEY",
     "django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!"
 )
 
 # --- Host/CSRF 設定 ---
-# 既定値はローカルのみ。herokuapp.com は入れない（誤アクセス遮断のため）
 ALLOWED_HOSTS = csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = csv_env("CSRF_TRUSTED_ORIGINS")
 
 # --- Heroku で HTTPS を正しく認識させる（超重要） ---
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-USE_X_FORWARDED_HOST = True  # 望ましい（リダイレクトURLの整合に効く場合あり）
+USE_X_FORWARDED_HOST = True
 
-# --- HTTP→HTTPS を強制 ---
-SECURE_SSL_REDIRECT = True
+# --- HTTP→HTTPS を強制（開発時は無効） ---
+SECURE_SSL_REDIRECT = IS_PRODUCTION
 
-# --- HSTS（Safe Browsing 的にも“安全性の証拠”になる）---
-# apex(ルート)はお名前.comのURL転送のため、まずは preload なしで導入が無難
-SECURE_HSTS_SECONDS = 31536000  # 1年
-SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # apex事情により最初は False 推奨
-# SECURE_HSTS_PRELOAD = True  # apex を完全HTTPS運用できるようになってから有効化
+# --- HSTS（本番のみ） ---
+SECURE_HSTS_SECONDS = 31536000 if IS_PRODUCTION else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 
-# --- Cookie を HTTPS 限定に ---
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# --- Cookie を HTTPS 限定に（本番のみ） ---
+SESSION_COOKIE_SECURE = IS_PRODUCTION
+CSRF_COOKIE_SECURE = IS_PRODUCTION
 
 # Application definition
 
@@ -63,15 +66,16 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'sales',
+    'shifts',
     'lunchnetsale',
     'django.contrib.humanize',
     'axes',
-    'whitenoise.runserver_nostatic',  # whitenoiseを追加
+    'whitenoise.runserver_nostatic',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # これが正しい順番
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -81,13 +85,15 @@ MIDDLEWARE = [
     'axes.middleware.AxesMiddleware',
 ]
 
-AXES_FAILURE_LIMIT = 5  # 最大5回の失敗を許可
-AXES_COOLOFF_TIME = timedelta(hours=1)  # 1時間後に再試行可能
-AXES_LOCK_OUT_AT_FAILURE = True  # 試行失敗後にアカウントをロック
-AXES_RESET_ON_SUCCESS = True  # 成功ログインでカウントをリセット
-AXES_LOCK_OUT_URL = '/locked_out/'  # カスタムのロックアウトページのURL
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(hours=1)
+AXES_LOCK_OUT_AT_FAILURE = True
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCK_OUT_URL = '/locked_out/'
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# 静的ファイル: 本番のみWhiteNoise圧縮、開発時はDjangoデフォルト
+if IS_PRODUCTION:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ROOT_URLCONF = 'lunchnetsale.urls'
 
@@ -113,26 +119,21 @@ WSGI_APPLICATION = 'lunchnetsale.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
 
-# デフォルトではSQLiteを使用し、環境変数が設定されていればそれを利用
 DATABASES = {
     'default': dj_database_url.config(
         default=f'sqlite:///{os.path.join(os.path.dirname(__file__), "db.sqlite3")}',
         conn_max_age=600,
-        ssl_require=os.getenv('DJANGO_ENV') == 'production'  # 本番環境でのみSSLを強制
+        ssl_require=IS_PRODUCTION
     )
 }
 
 
-LOGIN_URL = '/login/'  # 未ログインのユーザーがアクセスしようとしたときにリダイレクトされるログインページのURL名
-LOGOUT_REDIRECT_URL = '/login/'  # ログアウト後にリダイレクトされるURL名
+LOGIN_URL = '/login/'
+LOGOUT_REDIRECT_URL = '/login/'
 
-# セッションタイムアウト設定（例: 24時間）
-SESSION_COOKIE_AGE = 24 * 60 * 60  # 秒単位で指定（24時間 = 86400秒）
-
-# ブラウザを閉じたらセッションを終了する設定
+# セッションタイムアウト設定（24時間）
+SESSION_COOKIE_AGE = 24 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-
-# セッションがアクティブな間でも、非アクティブ時間でセッションを終了する設定
 SESSION_SAVE_EVERY_REQUEST = False
 
 
@@ -156,7 +157,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'axes.backends.AxesStandaloneBackend',  # django-axes の新しいバックエンド
+    'axes.backends.AxesStandaloneBackend',
 ]
 
 
@@ -176,16 +177,29 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
-# lunchnetsale/settings.py
-
 STATIC_URL = '/static/'
-# settings.py に追加
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-
 
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- メール送信設定 (Gmail App Password) ---
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# --- LINE Bot 設定 ---
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET', '')
+LINE_BOT_BASIC_ID = os.environ.get('LINE_BOT_BASIC_ID', '')  # 例: @abc12345

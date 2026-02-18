@@ -1,0 +1,73 @@
+{% extends "shifts/base.html" %}
+{% block title %}日別割当 {{ date|date:"n/j" }}{% endblock %}
+{% block nav_dashboard %}bg-gray-600{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">
+        日別割当: {{ date|date:"Y年n月j日" }}({{ weekday }})
+    </h1>
+    <a href="{% url 'shifts:admin_dashboard' %}" class="text-sm text-blue-600 hover:underline">&larr; ダッシュボードへ</a>
+</div>
+
+{% if is_holiday %}
+    <div class="bg-gray-100 rounded shadow p-6 text-center">
+        <p class="text-lg text-gray-500">{{ holiday_name }} - 割当不要</p>
+    </div>
+{% else %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="bg-white rounded shadow overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-100 text-left">
+                        <th class="px-4 py-2">優先度</th>
+                        <th class="px-4 py-2">売り場</th>
+                        <th class="px-4 py-2">運転</th>
+                        <th class="px-4 py-2">担当者</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in location_data %}
+                    <tr class="border-b border-gray-100 {% if item.location.requires_drive %}bg-orange-50{% endif %}">
+                        <td class="px-4 py-2">
+                            <span class="text-xs font-bold px-2 py-1 rounded
+                                {% if item.location.priority == 'S' %}bg-red-100 text-red-700
+                                {% elif item.location.priority == 'A' %}bg-blue-100 text-blue-700
+                                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                                {{ item.location.priority }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2">{{ item.location.name }}</td>
+                        <td class="px-4 py-2">
+                            {% if item.location.requires_drive %}
+                                <span class="text-xs text-orange-600 font-bold">必須</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2">
+                            <select name="loc_{{ item.location.id }}" class="border rounded px-2 py-1 text-sm w-full max-w-xs">
+                                <option value="">-- 未割当 --</option>
+                                {% for u in item.candidates %}
+                                    <option value="{{ u.id }}" {% if item.assigned_user_id == u.id %}selected{% endif %}>
+                                        {{ u.last_name }} {{ u.first_name }}
+                                        {% if u.profile.can_drive %}(運転可){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4 flex justify-center">
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-bold">
+                割当を保存
+            </button>
+        </div>
+    </form>
+{% endif %}
+{% endblock %}

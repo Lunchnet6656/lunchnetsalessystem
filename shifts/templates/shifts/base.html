@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}シフト管理{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- ナビバー -->
+    <nav class="bg-gray-800 text-white">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <a href="{% url 'dashboard' %}" class="text-sm text-gray-300 hover:text-white">
+                    &larr; ダッシュボードへ戻る
+                </a>
+                <span class="text-lg font-bold">シフト管理</span>
+            </div>
+            <div class="flex items-center space-x-3 text-sm">
+                {% if user.is_authenticated %}
+                    <span class="text-gray-300">{{ user.last_name }} {{ user.first_name }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <!-- サブナビ -->
+        <div class="bg-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-2 text-sm">
+                <a href="{% url 'shifts:select_period' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_submit %}{% endblock %}">希望提出</a>
+                <a href="{% url 'shifts:my_submissions' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_mine %}{% endblock %}">提出状況</a>
+                <a href="{% url 'shifts:view_schedule' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_schedule %}{% endblock %}">確定シフト</a>
+                <a href="{% url 'shifts:shift_rules' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_rules %}{% endblock %}">ルール</a>
+                <a href="{% url 'shifts:user_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_user_settings %}{% endblock %}">通知設定</a>
+                {% if user.is_staff %}
+                    <span class="text-gray-500">|</span>
+                    <a href="{% url 'shifts:admin_dashboard' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_dashboard %}{% endblock %}">管理ダッシュボード</a>
+                    <a href="{% url 'shifts:admin_periods' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_periods %}{% endblock %}">募集期間</a>
+                    <a href="{% url 'shifts:admin_company_holidays' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_holidays %}{% endblock %}">会社カレンダー</a>
+                    <a href="{% url 'shifts:admin_user_profiles' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_profiles %}{% endblock %}">スタッフ設定</a>
+                    <a href="{% url 'shifts:admin_shift_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_settings %}{% endblock %}">しきい値設定</a>
+                    <a href="{% url 'shifts:admin_location_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_location_settings %}{% endblock %}">販売場所設定</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- メッセージ -->
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 mt-4">
+        {% for message in messages %}
+        <div class="mb-2 p-3 rounded text-sm
+            {% if message.tags == 'error' %}bg-red-100 text-red-700 border border-red-300
+            {% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-700 border border-yellow-300
+            {% elif message.tags == 'success' %}bg-green-100 text-green-700 border border-green-300
+            {% else %}bg-blue-100 text-blue-700 border border-blue-300{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- コンテンツ -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

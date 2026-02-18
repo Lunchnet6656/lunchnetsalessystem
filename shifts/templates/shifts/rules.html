@@ -1,0 +1,165 @@
+{% extends "shifts/base.html" %}
+
+{% block title %}シフト提出・お休みルール{% endblock %}
+{% block nav_rules %}bg-gray-600{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- ページタイトル -->
+    <h1 class="text-2xl font-bold text-gray-800">シフト提出・お休みに関するルール</h1>
+    <p class="text-sm text-gray-500">ランチネット販売員向け</p>
+
+    <!-- 目的 -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">目的</h2>
+        <p class="text-gray-700 leading-relaxed">
+            各売り場の営業を安定して継続するため、<br>
+            出勤・お休みの申請方法および調整方法を明確にします。<br>
+            全員で協力しながら運用します。
+        </p>
+    </div>
+
+    <!-- シフト提出について -->
+    <div class="bg-white rounded-lg shadow p-6 space-y-5">
+        <h2 class="text-lg font-bold text-gray-800">シフト提出について</h2>
+
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-2">シフトは2週間単位で作成します</h3>
+            <ul class="list-disc list-inside text-gray-700 space-y-1">
+                <li>前半：1日〜15日</li>
+                <li>後半：16日〜月末</li>
+            </ul>
+        </div>
+
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-2">募集期間</h3>
+            <p class="text-gray-700">
+                募集は最大で1ヶ月先まで行います。<br>
+            </p>
+        </div>
+
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-2">提出期限</h3>
+            <ul class="list-disc list-inside text-gray-700 space-y-1">
+                <li>募集期間内に提出してください</li>
+                <li>締切後の変更は原則できません</li>
+            </ul>
+        </div>
+
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-2">締切後の変更</h3>
+            <p class="text-gray-700">
+                やむを得ない事情の場合のみ、<br>
+                管理者が代理入力を行います。
+            </p>
+            <p class="mt-2 text-sm text-gray-500">※代理入力は記録されます</p>
+        </div>
+    </div>
+
+    <!-- ヒートマップ表示について -->
+    <div class="bg-white rounded-lg shadow p-6 space-y-4">
+        <h2 class="text-lg font-bold text-gray-800">
+            ヒートマップ表示について
+            <span class="ml-2 inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded">重要</span>
+        </h2>
+        <p class="text-gray-700">提出画面で、各日の状況が色で表示されます。</p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="flex items-start space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                <span class="inline-block w-10 h-10 rounded-full bg-green-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">OK</span>
+                <div>
+                    <p class="font-semibold text-green-800">OK</p>
+                    <p class="text-sm text-green-700">出勤・休みどちらでも可能</p>
+                </div>
+            </div>
+            <div class="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <span class="inline-block w-10 h-10 rounded-full bg-yellow-400 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">注意</span>
+                <div>
+                    <p class="font-semibold text-yellow-800">注意</p>
+                    <p class="text-sm text-yellow-700">休み希望が増えています</p>
+                </div>
+            </div>
+            <div class="flex items-start space-x-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                <span class="inline-block w-10 h-10 rounded-full bg-red-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm">危険</span>
+                <div>
+                    <p class="font-semibold text-red-800">危険</p>
+                    <p class="text-sm text-red-700">このままだと営業できない可能性があります</p>
+                </div>
+            </div>
+            <div class="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <span class="inline-block w-10 h-10 rounded-full bg-orange-500 flex-shrink-0 flex items-center justify-center text-white font-bold text-sm text-center leading-tight" style="font-size:0.6rem;">運転<br>不足</span>
+                <div>
+                    <p class="font-semibold text-orange-800">運転不足</p>
+                    <p class="text-sm text-orange-700">運転できる人が不足しています</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-2">
+            <p class="font-semibold text-amber-800 mb-1">お願い（重要）</p>
+            <p class="text-sm text-amber-800 leading-relaxed">
+                各売り場の営業継続を最優先とします。<br>
+                可能な方は、状況を確認しながら調整にご協力ください。<br>
+                ヒートマップが<span class="inline-block bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded">危険</span>の場合、日程調整をお願いする場合があります。
+            </p>
+        </div>
+    </div>
+
+    <!-- お休みの種類 -->
+    <div class="bg-white rounded-lg shadow p-6 space-y-4">
+        <h2 class="text-lg font-bold text-gray-800">お休みの種類</h2>
+        <p class="text-gray-700">休みを申請する場合、理由を選択します。</p>
+
+        <div class="space-y-3">
+            <div class="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold text-sm flex-shrink-0">1</span>
+                <div>
+                    <p class="font-semibold text-gray-800">通常休み</p>
+                    <p class="text-sm text-gray-600">私用・家庭の用事など</p>
+                </div>
+            </div>
+            <div class="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold text-sm flex-shrink-0">2</span>
+                <div>
+                    <p class="font-semibold text-gray-800">特例休み</p>
+                    <p class="text-sm text-gray-600">特別な事情がある場合</p>
+                </div>
+            </div>
+            <div class="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold text-sm flex-shrink-0">3</span>
+                <div>
+                    <p class="font-semibold text-gray-800">代理休み</p>
+                    <p class="text-sm text-gray-600">代わりに出勤できる方を自分で調整した場合</p>
+                </div>
+            </div>
+            <div class="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white font-bold text-sm flex-shrink-0">4</span>
+                <div>
+                    <p class="font-semibold text-gray-800">冠婚葬祭・療養入院など</p>
+                    <p class="text-sm text-gray-600">緊急性が高くやむを得ない場合</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 代理について -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-3">代理について</h2>
+        <p class="text-gray-700 leading-relaxed">
+            代理を立てた場合は休みとして認められます。<br>
+            代理者の調整は本人の責任でお願いします。
+        </p>
+    </div>
+
+    <!-- 最後に -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg shadow p-6">
+        <h2 class="text-lg font-bold text-blue-800 mb-3">最後に</h2>
+        <p class="text-blue-700 leading-relaxed">
+            ランチネットは皆さんの協力で成り立っています。<br>
+            無理のない範囲での提出をお願いします。
+        </p>
+    </div>
+
+</div>
+{% endblock %}

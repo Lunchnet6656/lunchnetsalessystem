@@ -1,0 +1,240 @@
+{% extends "shifts/base.html" %}
+{% block title %}シフト希望提出{% endblock %}
+{% block nav_submit %}bg-gray-600{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h1 class="text-2xl font-bold mb-4">シフト希望提出</h1>
+
+    {% if is_proxy %}
+    <div class="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 rounded mb-4">
+        <strong>代理提出モード:</strong> {{ target_user.last_name }} {{ target_user.first_name }} さんのシフトを代理入力中
+    </div>
+    {% endif %}
+
+    {% if is_closed %}
+    <div class="bg-red-100 border border-red-300 text-red-800 p-3 rounded mb-4">
+        <strong>応募は締め切られました。</strong> 提出済みの内容を確認できますが、変更はできません。
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded shadow p-4 mb-4">
+        <p class="text-sm text-gray-600">対象期間: <strong>{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</strong></p>
+        <p class="text-sm text-gray-600">提出締切: {{ period.submission_close_at|date:"Y年n月j日 H:i" }}</p>
+        <p class="text-sm text-gray-600 mt-1">勤務形態:
+            <strong>
+                {% if work_pattern == 'FULL' %}フルタイム
+                {% elif work_pattern == 'PART' %}パートタイム
+                {% elif work_pattern == 'HELPER' %}助っ人
+                {% endif %}
+            </strong>
+        </p>
+    </div>
+
+    <form method="post" id="availability-form">
+        {% csrf_token %}
+        <div class="space-y-2">
+            {% for info in date_info %}
+            <div class="rounded shadow p-3
+                {% if info.is_holiday %}bg-white opacity-60
+                {% elif info.heatmap_status == 'ok' %}bg-green-50 border-l-4 border-green-400
+                {% elif info.heatmap_status == 'warning' %}bg-yellow-50 border-l-4 border-yellow-400
+                {% elif info.heatmap_status == 'danger' %}bg-red-50 border-l-4 border-red-400
+                {% elif info.heatmap_status == 'driver_shortage' %}bg-orange-50 border-l-4 border-orange-400
+                {% else %}bg-white
+                {% endif %}"
+                 id="row-{{ info.date|date:'Y-m-d' }}">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 min-w-0">
+                        <span class="font-mono text-sm w-24">{{ info.date|date:"n/j" }}({{ info.weekday }})</span>
+                        {% if info.is_holiday %}
+                            <span class="text-xs text-red-500">{{ info.holiday_name }}</span>
+                        {% endif %}
+                        {% if info.is_fixed_weekday and not info.is_holiday %}
+                            <span class="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">固定</span>
+                        {% endif %}
+                        {% if not info.is_holiday %}
+                        <span class="text-xs ml-2 inline-flex items-center gap-1">
+                            <span class="inline-block w-2.5 h-2.5 rounded-full
+                                {% if info.heatmap_status == 'ok' %}bg-green-500
+                                {% elif info.heatmap_status == 'warning' %}bg-yellow-500
+                                {% elif info.heatmap_status == 'danger' %}bg-red-500
+                                {% elif info.heatmap_status == 'driver_shortage' %}bg-orange-500
+                                {% endif %}"></span>
+                            <span class="{% if info.heatmap_status == 'ok' %}text-green-600
+                                {% elif info.heatmap_status == 'warning' %}text-yellow-600
+                                {% elif info.heatmap_status == 'danger' %}text-red-600
+                                {% elif info.heatmap_status == 'driver_shortage' %}text-orange-600
+                                {% endif %}">
+                                {% if info.heatmap_status == 'driver_shortage' %}運転手不足
+                                {% else %}休{{ info.off_count }}名
+                                {% endif %}
+                            </span>
+                            {% if info.heatmap_status != 'driver_shortage' %}
+                            <span class="font-bold ml-1
+                                {% if info.heatmap_status == 'ok' %}text-green-600
+                                {% elif info.heatmap_status == 'warning' %}text-yellow-600
+                                {% elif info.heatmap_status == 'danger' %}text-red-600
+                                {% endif %}">{{ info.heatmap_label }}</span>
+                            {% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    {% if info.is_holiday %}
+                        <span class="text-sm text-gray-400">休日 (OFF固定)</span>
+                        <input type="hidden" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF">
+                    {% else %}
+                        <div class="flex items-center space-x-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="WORK"
+                                    {% if info.availability == 'WORK' %}checked{% endif %}
+                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}"
+                                    data-fixed="{{ info.is_fixed_weekday|yesno:'1,0' }}">
+                                <span class="ml-1 text-sm text-green-700">出勤</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF"
+                                    {% if info.availability == 'OFF' %}checked{% endif %}
+                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}"
+                                    data-fixed="{{ info.is_fixed_weekday|yesno:'1,0' }}">
+                                <span class="ml-1 text-sm text-red-600">休み</span>
+                            </label>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if not info.is_holiday %}
+                <div class="off-details mt-2 pl-4 space-y-1 {% if info.availability != 'OFF' %}hidden{% endif %}"
+                     id="off-{{ info.date|date:'Y-m-d' }}"
+                     data-requires-reason="{{ info.requires_reason|yesno:'1,0' }}">
+                    {% if work_pattern != 'HELPER' %}
+                    <div>
+                        <label class="text-xs text-gray-500">理由: {% if info.requires_reason %}<span class="text-red-500">*</span>{% endif %}</label>
+                        <select name="absence_{{ info.date|date:'Y-m-d' }}"
+                                class="text-sm border rounded px-2 py-1 absence-select"
+                                data-date="{{ info.date|date:'Y-m-d' }}">
+                            <option value="">選択してください</option>
+                            <option value="PERSONAL" {% if info.absence_category == 'PERSONAL' %}selected{% endif %}>私用</option>
+                            <option value="SICK" {% if info.absence_category == 'SICK' %}selected{% endif %}>特例休み</option>
+                            <option value="SUBSTITUTE" {% if info.absence_category == 'SUBSTITUTE' %}selected{% endif %}>代理休み</option>
+                            <option value="OTHER" {% if info.absence_category == 'OTHER' %}selected{% endif %}>冠婚葬祭・療養入院</option>
+                        </select>
+                        {% if info.is_fixed_weekday %}
+                        <span class="fixed-weekday-warning text-xs text-orange-600 ml-1 {% if info.availability != 'OFF' %}hidden{% endif %}"
+                              id="fixed-warn-{{ info.date|date:'Y-m-d' }}">※固定出勤日です</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="substitute-row {% if info.absence_category != 'SUBSTITUTE' %}hidden{% endif %}"
+                         id="sub-{{ info.date|date:'Y-m-d' }}">
+                        <label class="text-xs text-gray-500">代替者:</label>
+                        <select name="substitute_{{ info.date|date:'Y-m-d' }}" class="text-sm border rounded px-2 py-1">
+                            <option value="">選択してください</option>
+                            {% for u in all_users %}
+                                <option value="{{ u.id }}" {% if info.substitute_user_id == u.id %}selected{% endif %}>
+                                    {{ u.last_name }} {{ u.first_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500">コメント:</label>
+                        <input type="text" name="comment_{{ info.date|date:'Y-m-d' }}" value="{{ info.comment }}"
+                               class="text-sm border rounded px-2 py-1 w-full" placeholder="任意">
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="bg-white rounded shadow p-4 mt-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">備考</label>
+            <textarea name="remarks" rows="3" class="w-full border rounded px-3 py-2 text-sm"
+                      placeholder="全体的な連絡事項があればご記入ください">{{ submission.remarks }}</textarea>
+        </div>
+        <div class="mt-6 flex justify-center">
+            {% if is_closed %}
+            <span class="bg-gray-400 text-white px-8 py-3 rounded-lg text-lg font-bold cursor-not-allowed">
+                応募締切
+            </span>
+            {% elif submission.status == 'APPROVED' %}
+            <span class="bg-gray-400 text-white px-8 py-3 rounded-lg text-lg font-bold cursor-not-allowed">
+                承認済み
+            </span>
+            {% else %}
+            <button type="submit" class="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-bold hover:bg-blue-700">
+                提出する
+            </button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var workPattern = '{{ work_pattern }}';
+
+{% if submission.status == 'APPROVED' or is_closed %}
+(function() {
+    var form = document.getElementById('availability-form');
+    form.querySelectorAll('input, select, textarea, button').forEach(function(el) {
+        el.disabled = true;
+    });
+    form.addEventListener('submit', function(e) { e.preventDefault(); });
+})();
+{% endif %}
+
+document.querySelectorAll('.avail-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var date = this.dataset.date;
+        var offDiv = document.getElementById('off-' + date);
+        var fixedWarn = document.getElementById('fixed-warn-' + date);
+        if (this.value === 'OFF') {
+            offDiv.classList.remove('hidden');
+            if (fixedWarn) fixedWarn.classList.remove('hidden');
+        } else {
+            offDiv.classList.add('hidden');
+            if (fixedWarn) fixedWarn.classList.add('hidden');
+        }
+    });
+});
+
+document.querySelectorAll('.absence-select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+        var date = this.dataset.date;
+        var subDiv = document.getElementById('sub-' + date);
+        if (this.value === 'SUBSTITUTE') {
+            subDiv.classList.remove('hidden');
+        } else {
+            subDiv.classList.add('hidden');
+        }
+    });
+});
+
+// JS バリデーション: 理由必須の日のみチェック
+document.getElementById('availability-form').addEventListener('submit', function(e) {
+    var missing = [];
+    document.querySelectorAll('.avail-radio:checked').forEach(function(radio) {
+        if (radio.value !== 'OFF') return;
+        var date = radio.dataset.date;
+        var offDiv = document.getElementById('off-' + date);
+        if (!offDiv || offDiv.dataset.requiresReason !== '1') return;
+        var sel = document.querySelector('select[name="absence_' + date + '"]');
+        if (sel && !sel.value) {
+            var row = document.getElementById('row-' + date);
+            var label = row ? row.querySelector('.font-mono').textContent.trim() : date;
+            missing.push(label);
+        }
+    });
+
+    if (missing.length > 0) {
+        e.preventDefault();
+        alert('以下の日付で休み理由が未選択です:\n' + missing.join('\n'));
+    }
+});
+</script>
+{% endblock %}
