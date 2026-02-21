@@ -116,7 +116,7 @@
                                 data-date="{{ info.date|date:'Y-m-d' }}">
                             <option value="">選択してください</option>
                             <option value="PERSONAL" {% if info.absence_category == 'PERSONAL' %}selected{% endif %}>私用</option>
-                            <option value="SICK" {% if info.absence_category == 'SICK' %}selected{% endif %}>特例休み</option>
+                            <option value="SICK" {% if info.absence_category == 'SICK' %}selected{% endif %}>収入調整</option>
                             <option value="SUBSTITUTE" {% if info.absence_category == 'SUBSTITUTE' %}selected{% endif %}>代理休み</option>
                             <option value="OTHER" {% if info.absence_category == 'OTHER' %}selected{% endif %}>冠婚葬祭・療養入院</option>
                         </select>

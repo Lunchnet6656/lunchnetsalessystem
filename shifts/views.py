@@ -890,10 +890,14 @@ def user_settings(request):
     if line_code and not profile.line_user_id:
         from django.conf import settings as django_settings
         import urllib.parse
+        import logging
+        logger = logging.getLogger(__name__)
         basic_id = getattr(django_settings, 'LINE_BOT_BASIC_ID', '')
         context['line_link_code'] = line_code
         if basic_id:
             context['line_url'] = f"https://line.me/R/oaMessage/{basic_id}/?{urllib.parse.quote(line_code)}"
+        else:
+            logger.warning("LINE_BOT_BASIC_ID is not configured. LINE app link will not be shown.")
     return render(request, 'shifts/user_settings.html', context)
 
 

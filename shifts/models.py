@@ -125,7 +125,7 @@ class AvailabilityDay(models.Model):
     ]
     ABSENCE_CATEGORY_CHOICES = [
         ('PERSONAL', '私用休み'),
-        ('SICK', '特例休み'),
+        ('SICK', '収入調整'),
         ('SUBSTITUTE', '代理休み'),
         ('OTHER', '冠婚葬祭・療養入院'),
     ]
