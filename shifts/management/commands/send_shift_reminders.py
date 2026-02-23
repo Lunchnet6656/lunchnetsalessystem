@@ -53,7 +53,7 @@ class Command(BaseCommand):
             ).values_list('user_id', flat=True)
 
             unsubmitted_profiles = UserProfile.objects.filter(
-                user__is_active=True,
+                user__is_active=True, uses_app=True,
             ).exclude(user_id__in=submitted_ids).select_related('user')
 
             count = unsubmitted_profiles.count()

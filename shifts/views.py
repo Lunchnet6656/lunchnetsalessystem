@@ -538,7 +538,7 @@ def admin_periods(request):
                     period=period, submitted_at__isnull=False,
                 ).values_list('user_id', flat=True)
                 unsubmitted_profiles = UserProfile.objects.filter(
-                    user__is_active=True,
+                    user__is_active=True, uses_app=True,
                 ).exclude(user_id__in=submitted_ids).select_related('user')
                 count = unsubmitted_profiles.count()
                 if count == 0:
@@ -613,7 +613,7 @@ def admin_dashboard(request):
     ).prefetch_related('days')
 
     # 全ユーザー一覧（未提出確認用）
-    all_active_users = User.objects.filter(is_active=True)
+    all_active_users = User.objects.filter(is_active=True, profile__uses_app=True)
     submitted_user_ids = submissions.values_list('user_id', flat=True)
     not_submitted_users = all_active_users.exclude(id__in=submitted_user_ids)
 
