@@ -1,7 +1,18 @@
 from django import forms
-from sales.models import Product, ItemQuantity, DailyReport, DailyReportEntry,ShiftRequest
+from sales.models import Product, ItemQuantity, DailyReport, DailyReportEntry, ShiftRequest, UserMenuPermission
 from datetime import date, timedelta, datetime
 import calendar
+
+
+class UserMenuPermissionForm(forms.ModelForm):
+    class Meta:
+        model = UserMenuPermission
+        exclude = ['user']
+        widgets = {
+            field.name: forms.CheckboxInput()
+            for field in UserMenuPermission._meta.get_fields()
+            if hasattr(field, 'default') and field.name not in ('id', 'user')
+        }
 
 
 class UploadFileForm(forms.Form):

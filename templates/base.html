@@ -52,95 +52,130 @@
                 <div class="sidebar-header">
                 </div>
                 <ul class="list-group">
-                    {% if user.is_staff %} <!-- スタッフ専用 -->
-                    <!-- 管理セクション -->
+                    <!-- TOP: 全ユーザー共通 -->
                     <li class="list-group-item">
-                        <h6 class="text-uppercase">管理</h6>
                         <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-home"></i> TOP
                         </a>
-                        <a href="{% url 'upload' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-upload"></i> データアップロード
-                        </a>
-                        <a href="{% url 'register' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-user-plus"></i> 新規ユーザー登録
-                        </a>
+                    </li>
+
+                    <!-- 管理セクション -->
+                    {% if user.menu_permission.can_view_mypage or user.menu_permission.can_view_upload or user.menu_permission.can_view_register %}
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">管理</h6>
+                        {% if user.menu_permission.can_view_mypage %}
                         <a href="{% url 'mypage' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-user"></i> マイページ
                         </a>
-
+                        {% endif %}
+                        {% if user.menu_permission.can_view_upload %}
+                        <a href="{% url 'upload' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-upload"></i> データアップロード
+                        </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_register %}
+                        <a href="{% url 'register' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-plus"></i> 新規ユーザー登録
+                        </a>
+                        {% endif %}
                     </li>
-                    <!-- データセクション -->
+                    {% endif %}
+
+                    <!-- データ管理セクション -->
+                    {% if user.menu_permission.can_view_user_list or user.menu_permission.can_view_location_list or user.menu_permission.can_view_product_list or user.menu_permission.can_view_item_quantity or user.menu_permission.can_view_others_item %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">データ管理</h6>
+                        {% if user.menu_permission.can_view_user_list %}
                         <a href="{% url 'user_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> ユーザー管理
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_location_list %}
                         <a href="{% url 'location_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> 販売場所データ確認
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_product_list %}
                         <a href="{% url 'product_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> メニューデータ確認
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_item_quantity %}
                         <a href="{% url 'item_quantity_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> 持参数データ確認
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_others_item %}
                         <a href="{% url 'others_item_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> その他の項目設定
                         </a>
+                        {% endif %}
                     </li>
+                    {% endif %}
+
+                    <!-- 実績管理セクション（管理者用） -->
+                    {% if user.menu_permission.can_view_daily_report_list or user.menu_permission.can_view_performance_data or user.menu_permission.can_view_performance_by_location or user.menu_permission.can_view_menu_history %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">実績管理</h6>
+                        {% if user.menu_permission.can_view_daily_report_list %}
                         <a href="{% url 'daily_report_list' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-list"></i> 日計表 送信結果
+                            <i class="fas fa-list"></i> 日計表 送信結果（管理者用）
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_performance_data %}
                         <a href="{% url 'performance_data' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> 日別実績集計データ
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_performance_by_location %}
                         <a href="{% url 'performance_by_location' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-list"></i> 販売場所別実績集計データ
+                            <i class="fas fa-list"></i> 販売場所別実績集計データ（管理者用）
                         </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_menu_history %}
                         <a href="{% url 'menu_history' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> メニュー別販売履歴
                         </a>
-                    </li>
-                    <!-- シフトセクション -->
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">シフトリンク</h6>
-                        <a href="{% url 'shifts:submit_availability' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-file-alt"></i> シフトアプリ
-                        </a>
-                    </li>
-                    {% else %} <!-- 一般 -->
-                    <li class="list-group-item">
-                        <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-home"></i> TOP
-                        </a>
-                    </li>
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">データ</h6>
-                        <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-list"></i> 日計表 送信結果
-                        </a>
-                        <a href="{% url 'performance_by_location_rol' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-list"></i> 販売場所別実績データ
-                        </a>
+                        {% endif %}
                     </li>
                     {% endif %}
+
+                    <!-- 一般ユーザー向けデータセクション -->
+                    {% if user.menu_permission.can_view_daily_report_rol or user.menu_permission.can_view_performance_by_location_rol %}
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">データ</h6>
+                        {% if user.menu_permission.can_view_daily_report_rol %}
+                        <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 日計表 送信結果（一般用）
+                        </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_performance_by_location_rol %}
+                        <a href="{% url 'performance_by_location_rol' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> 販売場所別実績データ（一般用）
+                        </a>
+                        {% endif %}
+                    </li>
+                    {% endif %}
+
                     <!-- 日計表セクション -->
+                    {% if user.menu_permission.can_view_daily_report_form %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">日計表リンク</h6>
                         <a href="{% url 'daily_report' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-alt"></i> 日計表入力フォーム
                         </a>
                     </li>
-                    <!-- シフトセクション 
+                    {% endif %}
+
+                    <!-- シフトセクション -->
+                    {% if user.menu_permission.can_view_shift_app %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">シフトリンク</h6>
                         <a href="{% url 'shifts:submit_availability' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-alt"></i> シフトアプリ
                         </a>
-                    </li> -->
+                    </li>
+                    {% endif %}
                 </ul>
               </div>
           </div>

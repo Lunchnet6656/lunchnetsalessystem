@@ -1,0 +1,486 @@
+{% extends "shifts/base.html" %}
+{% load shift_extras %}
+{% block title %}割当グリッド - {{ period }}{% endblock %}
+{% block nav_dashboard %}bg-gray-600{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grid-table { border-collapse: collapse; }
+    .grid-table th, .grid-table td { border: 1px solid #d1d5db; padding: 2px 4px; font-size: 12px; min-width: 60px; text-align: center; }
+    .grid-table th { background: #f3f4f6; position: sticky; top: 0; z-index: 10; }
+    .grid-table .loc-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; text-align: left; min-width: 120px; white-space: nowrap; }
+    .grid-table .departure-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; min-width: 50px; }
+    .grid-table .loc-cell { position: sticky; left: 50px; z-index: 5; background: #fff; text-align: left; min-width: 120px; white-space: nowrap; font-weight: 600; }
+    .grid-table td.holiday-cell { background: #f9fafb; color: #9ca3af; }
+    .grid-table td.assigned { cursor: pointer; }
+    .grid-table td.empty-cell { cursor: pointer; background: #fefce8; }
+    .grid-table td.assigned:hover, .grid-table td.empty-cell:hover { opacity: 0.8; }
+    .cell-external { color: #7c3aed; }
+    .cell-helper { background: #fef08a; }
+    .cell-non-default { background: #93c5fd; }
+    .cell-special { background: #dc2626; color: white; }
+    .badge-ext { display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 9px; padding: 0 3px; border-radius: 3px; margin-left: 2px; }
+    .badge-drive { display: inline-block; font-size: 9px; margin-right: 2px; }
+    .dropdown-overlay { position: fixed; inset: 0; z-index: 40; }
+    .dropdown-menu { position: absolute; z-index: 50; background: white; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 250px; overflow-y: auto; min-width: 160px; }
+    .dropdown-item { padding: 6px 10px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+    .dropdown-item:hover { background: #eff6ff; }
+    .dropdown-item.disabled { color: #9ca3af; cursor: not-allowed; }
+    .dropdown-item.remove { color: #dc2626; border-top: 1px solid #e5e7eb; }
+    .sat { color: #3b82f6; }
+    .sun { color: #ef4444; }
+    .route-group-first td { border-top: 3px solid #333 !important; }
+    .route-group-last td { border-bottom: 3px solid #333 !important; }
+    .departure-time-cell {
+        position: sticky; left: 0; z-index: 6;
+        background: #e0f2fe; font-weight: 700; font-size: 11px;
+        text-align: center; min-width: 50px; white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'shifts:admin_dashboard' %}?period_id={{ period.id }}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; ダッシュボードに戻る</a>
+</div>
+
+<div class="flex items-center justify-between mb-4">
+    <div>
+        <h1 class="text-xl font-bold">割当グリッド</h1>
+        <p class="text-sm text-gray-600">{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'shifts:admin_external_availability' period.id %}" class="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700">外部スタッフ出勤設定</a>
+        <button id="btn-autofill" class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700">自動割当</button>
+        <button id="btn-clear-all" class="bg-red-500 text-white px-3 py-2 rounded text-sm hover:bg-red-600">全クリア</button>
+    </div>
+</div>
+
+<!-- グリッドテーブル -->
+<div class="bg-white rounded shadow overflow-auto" style="max-height: 70vh;">
+    <table class="grid-table" id="assignment-grid">
+        <thead>
+            <tr>
+                <th class="departure-header">出発</th>
+                <th class="loc-header" style="left:50px;">売り場</th>
+                {% for d in dates %}
+                <th class="{% if d|weekday_ja == '土' %}sat{% elif d|weekday_ja == '日' %}sun{% endif %}">
+                    {{ d|date:"n/j" }}<br>
+                    <span class="text-xs">{{ d|weekday_ja }}</span>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for group in route_groups %}
+                {% for row in group.rows %}
+                <tr class="{% if forloop.first %}route-group-first{% endif %}{% if forloop.last %} route-group-last{% endif %}">
+                    {% if forloop.first %}
+                    <td class="departure-time-cell" rowspan="{{ group.rows|length }}">
+                        {% if group.route %}
+                            {{ group.departure_time }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td class="loc-cell">
+                        {% if row.location.requires_drive %}<span class="badge-drive" title="運転必須">🚗</span>{% endif %}
+                        {{ row.location.name }}
+                    </td>
+                    {% for cell in row.cells %}
+                    <td
+                        data-date="{{ cell.date|date:'Y-m-d' }}"
+                        data-location-id="{{ row.location.id }}"
+                        data-requires-drive="{{ row.location.requires_drive|yesno:'1,0' }}"
+                        {% if cell.is_holiday %}
+                            class="holiday-cell"
+                        {% elif cell.assignment %}
+                            class="assigned{% if cell.assignment.special_type %} cell-special{% elif cell.work_pattern == 'HELPER' %} cell-helper{% elif cell.default_location_id != None and cell.default_location_id != row.location.id %} cell-non-default{% elif cell.default_location_id == None and cell.work_pattern == 'PART' %} cell-non-default{% endif %}{% if cell.assignment.is_external %} cell-external{% endif %}"
+                            data-user-id="{{ cell.assignment.user_id|default:'' }}"
+                            data-ext-id="{{ cell.assignment.external_staff_id|default:'' }}"
+                            data-special-type="{{ cell.assignment.special_type|default:'' }}"
+                            data-work-pattern="{{ cell.work_pattern|default:'' }}"
+                            data-default-location-id="{{ cell.default_location_id|default:'' }}"
+                        {% else %}
+                            class="empty-cell"
+                        {% endif %}
+                        {% if not cell.is_holiday %}onclick="openDropdown(this)"{% endif %}
+                    >
+                        {% if cell.is_holiday %}
+                            -
+                        {% elif cell.assignment %}
+                            {{ cell.assignment.assignee_name }}
+                            {% if cell.assignment.is_external %}<span class="badge-ext">外</span>{% endif %}
+                        {% else %}
+                            &nbsp;
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- フリー枠 -->
+<div class="mt-6 bg-white rounded shadow p-4">
+    <h2 class="text-lg font-semibold mb-3">フリー枠（未割当スタッフ）</h2>
+    <div id="free-staff-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    </div>
+</div>
+
+<!-- 共有事項欄 -->
+<div class="mt-6 bg-white rounded shadow p-4">
+    <h2 class="text-lg font-semibold mb-3">共有事項</h2>
+    <textarea id="shared-notes-input" class="w-full border rounded p-2 text-sm" rows="6"
+        placeholder="確定シフト画面に表示される共有事項を入力してください">{{ period.shared_notes }}</textarea>
+    <div class="mt-2 flex items-center gap-3">
+        <button onclick="saveSharedNotes()"
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">保存</button>
+        <span id="shared-notes-status" class="text-sm text-gray-500"></span>
+    </div>
+</div>
+
+<!-- ドロップダウン用オーバーレイ -->
+<div id="dropdown-overlay" class="dropdown-overlay hidden" onclick="closeDropdown()"></div>
+<div id="dropdown-menu" class="dropdown-menu hidden"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var candidatesByDate = {{ candidates_by_date|safe }};
+var freeStaffByDate = {{ free_staff_by_date|safe }};
+var holidayDates = {{ holiday_dates|safe }};
+var currentCell = null;
+var csrfToken = '{{ csrf_token }}';
+
+function openDropdown(td) {
+    var date = td.dataset.date;
+    var locationId = td.dataset.locationId;
+    var requiresDrive = td.dataset.requiresDrive === '1';
+
+    if (holidayDates.indexOf(date) >= 0) return;
+
+    currentCell = td;
+    var candidates = candidatesByDate[date] || [];
+
+    // 現在の割当
+    var currentUserId = td.dataset.userId || '';
+    var currentExtId = td.dataset.extId || '';
+
+    // この日の割当済みを取得
+    var assignedOnDate = getAssignedOnDate(date);
+
+    var menu = document.getElementById('dropdown-menu');
+    var html = '';
+
+    var currentSpecialType = td.dataset.specialType || '';
+
+    // 特殊種別（休み・中止）選択肢
+    html += '<div class="dropdown-item" style="color:#dc2626;font-weight:600;border-bottom:1px solid #e5e7eb;" onclick="selectSpecial(\'' + date + '\',' + locationId + ',\'REST\')">休み</div>';
+    html += '<div class="dropdown-item" style="color:#dc2626;font-weight:600;border-bottom:1px solid #e5e7eb;" onclick="selectSpecial(\'' + date + '\',' + locationId + ',\'CANCEL\')">中止</div>';
+
+    candidates.forEach(function(c) {
+        var isAssigned = false;
+        if (c.type === 'user') {
+            var info = assignedOnDate.users[c.id];
+            if (info && info.locationId !== parseInt(locationId)) {
+                isAssigned = true;
+            }
+        } else {
+            var info = assignedOnDate.externals[c.id];
+            if (info && info.locationId !== parseInt(locationId)) {
+                isAssigned = true;
+            }
+        }
+
+        // 他の売り場に割当済みのスタッフは非表示
+        if (isAssigned) return;
+
+        var disabled = requiresDrive && !c.can_drive;
+        var isCurrent = (c.type === 'user' && String(c.id) === currentUserId) ||
+                       (c.type === 'external' && String(c.id) === currentExtId);
+
+        html += '<div class="dropdown-item' + (disabled ? ' disabled' : '') + (isCurrent ? ' font-bold bg-blue-50' : '') + '"';
+        if (!disabled) {
+            html += ' onclick="selectCandidate(\'' + date + '\',' + locationId + ',\'' + c.type + '\',' + c.id + ')"';
+        }
+        html += '>';
+        if (c.can_drive) html += '<span class="badge-drive">🚗</span>';
+        html += c.name;
+        if (c.type === 'external') html += '<span class="badge-ext">外</span>';
+        html += '</div>';
+    });
+
+    // 割当解除
+    if (currentUserId || currentExtId || currentSpecialType) {
+        html += '<div class="dropdown-item remove" onclick="removeAssignment(\'' + date + '\',' + locationId + ')">割当解除</div>';
+    }
+
+    if (!html) {
+        html = '<div class="dropdown-item disabled">候補者なし</div>';
+    }
+
+    menu.innerHTML = html;
+
+    // 位置計算
+    var rect = td.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top = (rect.bottom + 2) + 'px';
+
+    menu.classList.remove('hidden');
+    document.getElementById('dropdown-overlay').classList.remove('hidden');
+}
+
+function closeDropdown() {
+    document.getElementById('dropdown-menu').classList.add('hidden');
+    document.getElementById('dropdown-overlay').classList.add('hidden');
+    currentCell = null;
+}
+
+function getAssignedOnDate(date) {
+    var result = { users: {}, externals: {} };
+    document.querySelectorAll('td[data-date="' + date + '"]').forEach(function(td) {
+        var locId = parseInt(td.dataset.locationId);
+        var locCell = td.parentElement.querySelector('.loc-cell');
+        var locName = locCell ? locCell.textContent.trim() : '';
+        if (td.dataset.userId) {
+            result.users[parseInt(td.dataset.userId)] = { locationId: locId, locationName: locName };
+        }
+        if (td.dataset.extId) {
+            result.externals[parseInt(td.dataset.extId)] = { locationId: locId, locationName: locName };
+        }
+    });
+    return result;
+}
+
+function selectCandidate(date, locationId, type, id) {
+    closeDropdown();
+    var body = { date: date, location_id: locationId };
+    if (type === 'user') {
+        body.user_id = id;
+    } else {
+        body.external_staff_id = id;
+    }
+    fetch('{% url "shifts:api_assignment_update" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify(body),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        updateCell(date, locationId, data);
+        refreshFreeStaff();
+    });
+}
+
+function selectSpecial(date, locationId, specialType) {
+    closeDropdown();
+    var body = { date: date, location_id: locationId, special_type: specialType };
+    fetch('{% url "shifts:api_assignment_update" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify(body),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        updateCell(date, locationId, data);
+        refreshFreeStaff();
+    });
+}
+
+function removeAssignment(date, locationId) {
+    closeDropdown();
+    fetch('{% url "shifts:api_assignment_update" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ date: date, location_id: locationId }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        clearCell(date, locationId);
+        refreshFreeStaff();
+    });
+}
+
+function updateCell(date, locationId, data) {
+    var td = document.querySelector('td[data-date="' + date + '"][data-location-id="' + locationId + '"]');
+    if (!td) return;
+
+    // 色クラス決定
+    var cls = 'assigned';
+    if (data.special_type) {
+        cls += ' cell-special';
+    } else if (data.work_pattern === 'HELPER') {
+        cls += ' cell-helper';
+    } else if (data.default_location_id && data.default_location_id !== parseInt(locationId)) {
+        cls += ' cell-non-default';
+    } else if (!data.default_location_id && ['PART', 'FULL'].includes(data.work_pattern)) {
+        cls += ' cell-non-default';
+    }
+    if (data.is_external) cls += ' cell-external';
+
+    td.className = cls;
+    td.innerHTML = data.assignee_name + (data.is_external ? '<span class="badge-ext">外</span>' : '');
+    td.dataset.userId = data.user_id ? String(data.user_id) : '';
+    td.dataset.extId = data.external_staff_id ? String(data.external_staff_id) : '';
+    td.dataset.specialType = data.special_type || '';
+    td.dataset.workPattern = data.work_pattern || '';
+    td.dataset.defaultLocationId = data.default_location_id ? String(data.default_location_id) : '';
+
+    rebuildFreeStaffForDate(date);
+}
+
+function clearCell(date, locationId) {
+    var td = document.querySelector('td[data-date="' + date + '"][data-location-id="' + locationId + '"]');
+    if (!td) return;
+    td.className = 'empty-cell';
+    td.innerHTML = '&nbsp;';
+    td.dataset.userId = '';
+    td.dataset.extId = '';
+    td.dataset.specialType = '';
+    td.dataset.workPattern = '';
+    td.dataset.defaultLocationId = '';
+    rebuildFreeStaffForDate(date);
+}
+
+function rebuildFreeStaffForDate(date) {
+    var candidates = candidatesByDate[date] || [];
+    var assigned = getAssignedOnDate(date);
+    var free = [];
+    candidates.forEach(function(c) {
+        if (c.type === 'user' && !assigned.users[c.id]) {
+            free.push(c);
+        } else if (c.type === 'external' && !assigned.externals[c.id]) {
+            free.push(c);
+        }
+    });
+    freeStaffByDate[date] = free.map(function(c) {
+        return { id: c.id, name: c.name, can_drive: c.can_drive, is_external: c.type === 'external' };
+    });
+    renderFreeStaff();
+}
+
+function refreshFreeStaff() {
+    // フリー枠を全日付について再構築
+    Object.keys(candidatesByDate).forEach(function(date) {
+        rebuildFreeStaffForDate(date);
+    });
+}
+
+function renderFreeStaff() {
+    var container = document.getElementById('free-staff-container');
+    var html = '';
+    var sortedDates = Object.keys(freeStaffByDate).sort();
+    sortedDates.forEach(function(date) {
+        var staff = freeStaffByDate[date];
+        if (!staff || staff.length === 0) return;
+        var parts = date.split('-');
+        var label = parseInt(parts[1]) + '/' + parseInt(parts[2]);
+        html += '<div class="border rounded p-2">';
+        html += '<div class="text-xs font-semibold text-gray-600 mb-1">' + label + '</div>';
+        html += '<div class="flex flex-wrap gap-1">';
+        staff.forEach(function(s) {
+            html += '<span class="text-xs px-2 py-1 rounded ' +
+                    (s.is_external ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700') + '">';
+            if (s.can_drive) html += '🚗';
+            html += s.name;
+            if (s.is_external) html += '<span class="badge-ext">外</span>';
+            html += '</span>';
+        });
+        html += '</div></div>';
+    });
+    if (!html) {
+        html = '<p class="text-gray-400 text-sm col-span-full">全スタッフが割当済みです。</p>';
+    }
+    container.innerHTML = html;
+}
+
+// 自動割当
+document.getElementById('btn-autofill').addEventListener('click', function() {
+    if (!confirm('デフォルト売り場に基づいて自動割当を実行しますか？既存の割当は上書きされません。')) return;
+    fetch('{% url "shifts:api_autofill" period.id %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: '{}',
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        alert(data.created_count + '件の割当を作成しました。ページをリロードします。');
+        location.reload();
+    });
+});
+
+// 全クリア
+document.getElementById('btn-clear-all').addEventListener('click', function() {
+    if (!confirm('この期間の全ての割当を削除しますか？この操作は取り消せません。')) return;
+    // 全セルの割当を一括削除（assigned クラスを持つセルすべて）
+    var cells = document.querySelectorAll('td.assigned');
+    var promises = [];
+    cells.forEach(function(td) {
+        var date = td.dataset.date;
+        var locationId = td.dataset.locationId;
+        promises.push(
+            fetch('{% url "shifts:api_assignment_update" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ date: date, location_id: parseInt(locationId) }),
+            })
+        );
+    });
+    Promise.all(promises).then(function() {
+        location.reload();
+    });
+});
+
+// 初期表示
+renderFreeStaff();
+
+function getCookie(name) {
+    var value = '; ' + document.cookie;
+    var parts = value.split('; ' + name + '=');
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+}
+
+function saveSharedNotes() {
+    var notes = document.getElementById('shared-notes-input').value;
+    var status = document.getElementById('shared-notes-status');
+    fetch("{% url 'shifts:api_save_shared_notes' period.id %}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify({shared_notes: notes})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            status.textContent = '保存しました';
+            status.className = 'text-sm text-green-600';
+        } else {
+            status.textContent = '保存に失敗しました';
+            status.className = 'text-sm text-red-600';
+        }
+        setTimeout(function() { status.textContent = ''; }, 3000);
+    });
+}
+</script>
+{% endblock %}

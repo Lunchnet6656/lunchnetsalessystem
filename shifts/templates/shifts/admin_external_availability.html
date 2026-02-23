@@ -1,0 +1,91 @@
+{% extends "shifts/base.html" %}
+{% load shift_extras %}
+{% block title %}外部スタッフ出勤可能日 - {{ period }}{% endblock %}
+{% block nav_external_staff %}bg-gray-600{% endblock %}
+
+{% block extra_css %}
+<style>
+    .avail-table { border-collapse: collapse; }
+    .avail-table th, .avail-table td { border: 1px solid #d1d5db; padding: 2px 4px; font-size: 12px; min-width: 40px; text-align: center; }
+    .avail-table th { background: #f3f4f6; position: sticky; top: 0; z-index: 10; }
+    .avail-table .staff-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; text-align: left; min-width: 120px; white-space: nowrap; }
+    .avail-table .staff-cell { position: sticky; left: 0; z-index: 5; background: #fff; text-align: left; min-width: 120px; white-space: nowrap; font-weight: 600; }
+    .avail-table td.holiday-cell { background: #f9fafb; color: #9ca3af; }
+    .sat { color: #3b82f6; }
+    .sun { color: #ef4444; }
+    .avail-table td input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'shifts:admin_external_staff' %}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; 外部スタッフ管理に戻る</a>
+</div>
+
+<div class="flex items-center justify-between mb-4">
+    <div>
+        <h1 class="text-xl font-bold">外部スタッフ出勤可能日設定</h1>
+        <p class="text-sm text-gray-600">{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</p>
+    </div>
+    <div class="flex gap-2">
+        <button type="button" id="btn-select-all" class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700">全て出勤可能</button>
+        <button type="button" id="btn-clear-all" class="bg-gray-500 text-white px-3 py-2 rounded text-sm hover:bg-gray-600">全てクリア</button>
+    </div>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="bg-white rounded shadow overflow-auto" style="max-height: 70vh;">
+        <table class="avail-table" id="avail-grid">
+            <thead>
+                <tr>
+                    <th class="staff-header">スタッフ名</th>
+                    {% for d in dates %}
+                    <th class="{% if d|weekday_ja == '土' %}sat{% elif d|weekday_ja == '日' %}sun{% endif %}">
+                        {{ d|date:"n/j" }}<br>
+                        <span class="text-xs">{{ d|weekday_ja }}</span>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in grid %}
+                <tr>
+                    <td class="staff-cell">{{ row.staff.name }}</td>
+                    {% for cell in row.cells %}
+                    <td {% if cell.is_holiday %}class="holiday-cell"{% endif %}>
+                        {% if cell.is_holiday %}
+                            -
+                        {% else %}
+                            <input type="checkbox"
+                                   name="avail_{{ row.staff.id }}_{{ cell.date|date:'Y-m-d' }}"
+                                   value="1"
+                                   {% if cell.checked %}checked{% endif %}
+                                   class="avail-cb">
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4 flex gap-3">
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded text-sm hover:bg-blue-700">保存</button>
+        <a href="{% url 'shifts:admin_external_staff' %}" class="bg-gray-300 text-gray-700 px-6 py-2 rounded text-sm hover:bg-gray-400">キャンセル</a>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('btn-select-all').addEventListener('click', function() {
+    document.querySelectorAll('.avail-cb').forEach(function(cb) { cb.checked = true; });
+});
+document.getElementById('btn-clear-all').addEventListener('click', function() {
+    document.querySelectorAll('.avail-cb').forEach(function(cb) { cb.checked = false; });
+});
+</script>
+{% endblock %}

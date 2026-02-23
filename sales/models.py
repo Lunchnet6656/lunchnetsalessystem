@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import User
 from django.utils.timezone import now
+from django.conf import settings
 
 
 class CustomUser(AbstractUser):
@@ -24,6 +25,20 @@ class CustomUser(AbstractUser):
         help_text='Specific permissions for this user.'
     )
 
+class CarpoolRoute(models.Model):
+    name = models.CharField(max_length=100, verbose_name="ルート名")
+    departure_time = models.TimeField(verbose_name="出発時間")
+    display_order = models.IntegerField(default=0, verbose_name="表示順")
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        verbose_name = "同乗ルート"
+        verbose_name_plural = "同乗ルート"
+
+    def __str__(self):
+        return f"{self.name} ({self.departure_time:%H:%M})"
+
+
 class SalesLocation(models.Model):
     no = models.IntegerField(default=0)
     name = models.CharField(max_length=255)
@@ -36,6 +51,11 @@ class SalesLocation(models.Model):
     requires_drive = models.BooleanField(default=False, verbose_name="運転必須")
     priority = models.CharField(max_length=1, choices=[("S","S"),("A","A"),("B","B")], default="A", verbose_name="優先度")
     excluded_from_shift = models.BooleanField(default=False, verbose_name="シフト対象外")
+    carpool_route = models.ForeignKey(
+        'CarpoolRoute', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='locations',
+        verbose_name="同乗ルート",
+    )
 
     def __str__(self):
         return f"{self.name}"
@@ -172,3 +192,30 @@ class ShiftRequest(models.Model):
     
     class Meta:
         unique_together = ('user', 'date')  # 同じユーザーが同じ日付のシフトを複数回送信できない
+
+
+class UserMenuPermission(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='menu_permission'
+    )
+    can_view_upload = models.BooleanField(default=False, verbose_name="データアップロード")
+    can_view_register = models.BooleanField(default=False, verbose_name="新規ユーザー登録")
+    can_view_mypage = models.BooleanField(default=True, verbose_name="マイページ")
+    can_view_user_list = models.BooleanField(default=False, verbose_name="ユーザー管理")
+    can_view_location_list = models.BooleanField(default=False, verbose_name="販売場所データ確認")
+    can_view_product_list = models.BooleanField(default=False, verbose_name="メニューデータ確認")
+    can_view_item_quantity = models.BooleanField(default=False, verbose_name="持参数データ確認")
+    can_view_others_item = models.BooleanField(default=False, verbose_name="その他の項目設定")
+    can_view_daily_report_list = models.BooleanField(default=False, verbose_name="日計表 送信結果（管理者）")
+    can_view_performance_data = models.BooleanField(default=False, verbose_name="日別実績集計データ")
+    can_view_performance_by_location = models.BooleanField(default=False, verbose_name="販売場所別実績（管理者）")
+    can_view_menu_history = models.BooleanField(default=False, verbose_name="メニュー別販売履歴")
+    can_view_daily_report_rol = models.BooleanField(default=True, verbose_name="日計表 送信結果（一般）")
+    can_view_performance_by_location_rol = models.BooleanField(default=True, verbose_name="販売場所別実績データ（一般）")
+    can_view_daily_report_form = models.BooleanField(default=True, verbose_name="日計表入力フォーム")
+    can_view_shift_app = models.BooleanField(default=True, verbose_name="シフトアプリ")
+
+    def __str__(self):
+        return f"MenuPermission({self.user})"

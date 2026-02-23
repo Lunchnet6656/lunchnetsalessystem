@@ -38,7 +38,9 @@
                     <a href="{% url 'shifts:admin_company_holidays' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_holidays %}{% endblock %}">会社カレンダー</a>
                     <a href="{% url 'shifts:admin_user_profiles' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_profiles %}{% endblock %}">スタッフ設定</a>
                     <a href="{% url 'shifts:admin_shift_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_settings %}{% endblock %}">しきい値設定</a>
+                    <a href="{% url 'shifts:admin_external_staff' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_external_staff %}{% endblock %}">外部スタッフ</a>
                     <a href="{% url 'shifts:admin_location_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_location_settings %}{% endblock %}">販売場所設定</a>
+                    <a href="{% url 'shifts:admin_carpool_routes' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_carpool_routes %}{% endblock %}">ルート設定</a>
                 {% endif %}
             </div>
         </div>

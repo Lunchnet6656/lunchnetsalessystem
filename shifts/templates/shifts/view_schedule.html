@@ -1,50 +1,174 @@
 {% extends "shifts/base.html" %}
+{% load shift_extras %}
 {% block title %}確定シフト{% endblock %}
 {% block nav_schedule %}bg-gray-600{% endblock %}
 
-{% block content %}
-<h1 class="text-2xl font-bold mb-4">確定シフト</h1>
+{% block extra_css %}
+<style>
+    /* ── グリッド基本 ── */
+    .grid-table { border-collapse: collapse; }
+    .grid-table th, .grid-table td {
+        border: 1px solid #d1d5db; padding: 2px 4px;
+        font-size: 12px; min-width: 60px; text-align: center;
+    }
+    /* sticky ヘッダ・左列 */
+    .grid-table th { background: #f3f4f6; position: sticky; top: 0; z-index: 10; }
+    .grid-table .departure-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; min-width: 50px; }
+    .grid-table .loc-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; text-align: left; min-width: 120px; white-space: nowrap; }
+    .grid-table .loc-cell { position: sticky; left: 50px; z-index: 5; background: #fff; text-align: left; min-width: 120px; white-space: nowrap; font-weight: 600; }
+    .departure-time-cell {
+        position: sticky; left: 0; z-index: 6;
+        background: #e0f2fe; font-weight: 700; font-size: 11px;
+        text-align: center; min-width: 50px; white-space: nowrap;
+    }
+    /* ── 管理グリッドと同じセル色 ── */
+    .grid-table td.holiday-cell { background: #f9fafb; color: #9ca3af; }
+    .grid-table td.empty-cell   { background: #fefce8; }
+    .cell-special   { background: #dc2626 !important; color: white !important; }
+    .cell-helper    { background: #fef08a; }
+    .cell-non-default { background: #93c5fd; }
+    .cell-external  { color: #7c3aed; }
+    .badge-ext { display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 9px; padding: 0 3px; border-radius: 3px; margin-left: 2px; }
+    /* ── 自分のセル（最優先） ── */
+    .my-cell {
+        background: #1d4ed8 !important;
+        color: #fff !important;
+        font-weight: 800;
+        outline: 3px solid #1e40af;
+        outline-offset: -3px;
+    }
+    .my-cell .badge-ext { background: rgba(255,255,255,0.25); color: #fff; }
+    /* ── 曜日色・ルートグループ境界 ── */
+    .sat { color: #3b82f6; }
+    .sun { color: #ef4444; }
+    .route-group-first td { border-top: 3px solid #333 !important; }
+    .route-group-last  td { border-bottom: 3px solid #333 !important; }
+    /* ── 期間リストカード ── */
+    .period-card {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px;
+        background: #fff; margin-bottom: 8px;
+        transition: box-shadow .15s;
+    }
+    .period-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+</style>
+{% endblock %}
 
-{% if not period %}
+{% block content %}
+
+{% if not show_grid %}
+{# ─────────────── 期間選択リスト ─────────────── #}
+<h1 class="text-2xl font-bold mb-6">確定シフト</h1>
+
+{% if not all_periods %}
     <p class="text-gray-500">公開済みのシフトはありません。</p>
 {% else %}
-    <div class="bg-white rounded shadow p-4 mb-4">
-        <p class="text-sm text-gray-600">期間: <strong>{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</strong></p>
+    <p class="text-sm text-gray-500 mb-4">表示したい期間を選んでください。</p>
+    {% for p in all_periods %}
+    <div class="period-card">
+        <div class="overflow-hidden">
+            <span class="font-semibold text-gray-800">
+                {{ p.start_date|date:"Y年n月j日" }} 〜 {{ p.end_date|date:"Y年n月j日" }}
+            </span>
+            <span class="ml-3 text-xs text-gray-400">{{ p.start_date|date:"Y年n月" }}</span>
+            {% if p.shared_notes %}
+            <p class="text-xs text-gray-500 mt-1 truncate">{{ p.shared_notes }}</p>
+            {% endif %}
+        </div>
+        <a href="?period_id={{ p.id }}"
+           class="ml-4 flex-shrink-0 bg-blue-600 text-white text-sm px-4 py-1.5 rounded hover:bg-blue-700 font-medium">
+            表示
+        </a>
     </div>
+    {% endfor %}
+{% endif %}
 
-    {% if assignments %}
-    <div class="bg-white rounded shadow overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="bg-gray-100 text-left">
-                    <th class="px-4 py-2">日付</th>
-                    <th class="px-4 py-2">売り場</th>
-                    <th class="px-4 py-2">担当者</th>
-                    <th class="px-4 py-2">ステータス</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in assignments %}
-                <tr class="border-b border-gray-100 {% if a.user == current_user %}bg-blue-50{% endif %}">
-                    <td class="px-4 py-2">{{ a.date|date:"n/j" }}</td>
-                    <td class="px-4 py-2">{{ a.sales_location.name }}</td>
-                    <td class="px-4 py-2 {% if a.user == current_user %}font-bold text-blue-700{% endif %}">
-                        {{ a.user.last_name }} {{ a.user.first_name }}
+{% else %}
+{# ─────────────── グリッド表示 ─────────────── #}
+
+<div class="mb-3 flex items-center gap-3">
+    <a href="{% url 'shifts:view_schedule' %}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; 期間選択に戻る</a>
+    <h1 class="text-xl font-bold">確定シフト</h1>
+    <span class="text-sm text-gray-500">{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</span>
+</div>
+
+<!-- グリッドテーブル -->
+<div class="bg-white rounded shadow overflow-auto" style="max-height: 80vh;">
+    <table class="grid-table">
+        <thead>
+            <tr>
+                <th class="departure-header">出発</th>
+                <th class="loc-header" style="left:50px;">売り場</th>
+                {% for d in dates %}
+                <th class="{% if d|weekday_ja == '土' %}sat{% elif d|weekday_ja == '日' %}sun{% endif %}">
+                    {{ d|date:"n/j" }}<br>
+                    <span class="text-xs">{{ d|weekday_ja }}</span>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for group in route_groups %}
+                {% for row in group.rows %}
+                <tr class="{% if forloop.first %}route-group-first{% endif %}{% if forloop.last %} route-group-last{% endif %}">
+                    {% if forloop.first %}
+                    <td class="departure-time-cell" rowspan="{{ group.rows|length }}">
+                        {{ group.departure_time|default:"-" }}
                     </td>
-                    <td class="px-4 py-2">
-                        <span class="text-xs px-2 py-1 rounded
-                            {% if a.status == 'CONFIRMED' %}bg-green-100 text-green-700
-                            {% else %}bg-gray-100 text-gray-600{% endif %}">
-                            {{ a.get_status_display }}
-                        </span>
+                    {% endif %}
+                    <td class="loc-cell">{{ row.location.name }}</td>
+                    {% for cell in row.cells %}
+                    <td class="{% if cell.is_mine %}my-cell{% elif cell.is_holiday %}holiday-cell{% elif cell.assignment %}{% if cell.assignment.special_type %}cell-special{% elif cell.work_pattern == 'HELPER' %}cell-helper{% elif cell.default_location_id != None and cell.default_location_id != row.location.id %}cell-non-default{% elif cell.default_location_id == None and cell.work_pattern == 'PART' %}cell-non-default{% endif %}{% if cell.assignment.is_external %} cell-external{% endif %}{% else %}empty-cell{% endif %}">
+                        {% if cell.assignment %}
+                            {% if cell.is_mine %}★ {% endif %}{{ cell.assignment.assignee_name }}{% if cell.assignment.is_external %}<span class="badge-ext">外</span>{% endif %}
+                        {% elif cell.is_holiday %}
+                            -
+                        {% else %}
+                            &nbsp;
+                        {% endif %}
                     </td>
+                    {% endfor %}
                 </tr>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-        <p class="text-gray-500">まだ割当がありません。</p>
-    {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 凡例 -->
+<div class="mt-4 flex flex-wrap gap-4 text-xs text-gray-600">
+    <span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded" style="background:#1d4ed8;"></span>
+        ★あなたの担当
+    </span>
+    <span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#fff;"></span>
+        通常担当
+    </span>
+    <span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#fef08a;"></span>
+        助っ人
+    </span>
+    <span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#93c5fd;"></span>
+        移動
+    </span>
+    <span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#dc2626;"></span>
+        休み・中止
+    </span>
+    <!--<span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#f9fafb;"></span>
+        定休日
+    </span>-->
+</div>
+
+{% if period.shared_notes %}
+<div class="mt-4 bg-blue-50 border border-blue-200 rounded p-4">
+    <h3 class="text-sm font-semibold text-blue-800 mb-2">共有事項</h3>
+    <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ period.shared_notes }}</div>
+</div>
+{% endif %}
+
 {% endif %}
 {% endblock %}

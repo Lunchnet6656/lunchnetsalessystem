@@ -60,7 +60,88 @@
                     {% endfor %}
                 </div>
             </div>
-            
+
+            <hr class="my-4">
+            <h5 class="mb-3">サイドバー表示設定</h5>
+
+            <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">管理系</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        {{ menu_form.can_view_upload }} <label class="form-check-label">{{ menu_form.can_view_upload.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_register }} <label class="form-check-label">{{ menu_form.can_view_register.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_mypage }} <label class="form-check-label">{{ menu_form.can_view_mypage.label }}</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">データ管理</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        {{ menu_form.can_view_user_list }} <label class="form-check-label">{{ menu_form.can_view_user_list.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_location_list }} <label class="form-check-label">{{ menu_form.can_view_location_list.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_product_list }} <label class="form-check-label">{{ menu_form.can_view_product_list.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_item_quantity }} <label class="form-check-label">{{ menu_form.can_view_item_quantity.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_others_item }} <label class="form-check-label">{{ menu_form.can_view_others_item.label }}</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">実績管理</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        {{ menu_form.can_view_daily_report_list }} <label class="form-check-label">{{ menu_form.can_view_daily_report_list.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_performance_data }} <label class="form-check-label">{{ menu_form.can_view_performance_data.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_performance_by_location }} <label class="form-check-label">{{ menu_form.can_view_performance_by_location.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_menu_history }} <label class="form-check-label">{{ menu_form.can_view_menu_history.label }}</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">一般</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        {{ menu_form.can_view_daily_report_rol }} <label class="form-check-label">{{ menu_form.can_view_daily_report_rol.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_performance_by_location_rol }} <label class="form-check-label">{{ menu_form.can_view_performance_by_location_rol.label }}</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">共通</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        {{ menu_form.can_view_daily_report_form }} <label class="form-check-label">{{ menu_form.can_view_daily_report_form.label }}</label>
+                    </div>
+                    <div class="form-check">
+                        {{ menu_form.can_view_shift_app }} <label class="form-check-label">{{ menu_form.can_view_shift_app.label }}</label>
+                    </div>
+                </div>
+            </div>
+
             {% if form.errors %}
                 <div class="alert alert-danger">
                     <ul>

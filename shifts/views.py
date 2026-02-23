@@ -1,5 +1,6 @@
 import csv
 import datetime
+import json
 import random
 import string
 import urllib.parse
@@ -10,18 +11,20 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from sales.models import SalesLocation
+from sales.models import CarpoolRoute, SalesLocation
 
 from .models import (
     AvailabilityDay,
     AvailabilitySubmission,
     CompanyHoliday,
+    ExternalAvailabilityDay,
+    ExternalStaff,
     SchedulePeriod,
     ShiftAssignment,
     ShiftNotification,
@@ -362,22 +365,90 @@ def my_submissions(request):
 
 @login_required
 def view_schedule(request):
-    period = SchedulePeriod.objects.filter(status='PUBLISHED').first()
-    if not period:
-        period = SchedulePeriod.objects.filter(status='FIXED').first()
-    if not period:
-        messages.info(request, '公開済みのシフトはありません。')
-        return render(request, 'shifts/view_schedule.html', {'assignments': [], 'period': None})
+    all_periods = SchedulePeriod.objects.filter(status='PUBLISHED').order_by('-start_date')
+
+    period_id = request.GET.get('period_id')
+
+    # period_id 未指定 → 期間一覧を表示
+    if not period_id:
+        return render(request, 'shifts/view_schedule.html', {
+            'all_periods': all_periods,
+            'period': None,
+            'show_grid': False,
+        })
+
+    period = get_object_or_404(SchedulePeriod, pk=period_id, status='PUBLISHED')
+    dates = list(generate_date_range(period.start_date, period.end_date))
 
     assignments = ShiftAssignment.objects.filter(
-        date__gte=period.start_date,
-        date__lte=period.end_date,
-    ).select_related('sales_location', 'user')
+        date__gte=period.start_date, date__lte=period.end_date,
+    ).select_related('user', 'external_staff', 'sales_location')
+    assignment_map = {(a.date, a.sales_location_id): a for a in assignments}
+
+    locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by(
+        models.Case(
+            models.When(priority='S', then=0),
+            models.When(priority='A', then=1),
+            models.When(priority='B', then=2),
+            default=3,
+            output_field=models.IntegerField(),
+        ),
+        'no',
+    )
+
+    # 管理グリッドと同じ色分けのためプロフィール情報を取得
+    profiles = {p.user_id: p for p in UserProfile.objects.all()}
+
+    def build_row(loc):
+        row = {'location': loc, 'cells': []}
+        for d in dates:
+            holiday = is_holiday(d)
+            a = assignment_map.get((d, loc.id))
+            cell = {
+                'date': d,
+                'is_holiday': holiday,
+                'assignment': a,
+                'is_mine': bool(a and a.user_id == request.user.id),
+            }
+            if a and not a.special_type:
+                if a.user_id:
+                    p = profiles.get(a.user_id)
+                    cell['work_pattern'] = p.work_pattern if p else 'FULL'
+                    cell['default_location_id'] = p.default_location_id if p else None
+                elif a.external_staff_id:
+                    cell['work_pattern'] = 'HELPER'
+                    cell['default_location_id'] = a.external_staff.default_location_id if a.external_staff else None
+            row['cells'].append(cell)
+        return row
+
+    carpool_routes = list(CarpoolRoute.objects.all())
+    route_groups = []
+    routed_loc_ids = set()
+
+    for route in carpool_routes:
+        route_locs = [loc for loc in locations if loc.carpool_route_id == route.id]
+        if not route_locs:
+            continue
+        rows = [build_row(loc) for loc in route_locs]
+        route_groups.append({
+            'route': route,
+            'departure_time': route.departure_time.strftime('%H:%M') if route.departure_time else '',
+            'rows': rows,
+        })
+        routed_loc_ids.update(loc.id for loc in route_locs)
+
+    unrouted_locs = [loc for loc in locations if loc.id not in routed_loc_ids]
+    if unrouted_locs:
+        rows = [build_row(loc) for loc in unrouted_locs]
+        route_groups.append({'route': None, 'departure_time': '', 'rows': rows})
 
     context = {
+        'all_periods': all_periods,
         'period': period,
-        'assignments': assignments,
+        'dates': dates,
+        'route_groups': route_groups,
         'current_user': request.user,
+        'show_grid': True,
     }
     return render(request, 'shifts/view_schedule.html', context)
 
@@ -716,7 +787,7 @@ def admin_daily_assignment(request, target_date):
     # 既存割当
     existing = {
         sa.sales_location_id: sa
-        for sa in ShiftAssignment.objects.filter(date=d).select_related('user')
+        for sa in ShiftAssignment.objects.filter(date=d).select_related('user', 'external_staff')
     }
 
     # 候補者リスト構築
@@ -760,6 +831,7 @@ def admin_daily_assignment(request, target_date):
                 date=d, sales_location=loc,
                 defaults={
                     'user': assigned_user,
+                    'external_staff': None,
                     'status': 'DRAFT',
                 },
             )
@@ -806,14 +878,18 @@ def admin_edit_profile(request, user_id):
         profile.min_shifts_per_week = int(request.POST.get('min_shifts_per_week', 0))
         profile.max_shifts_per_week = int(request.POST.get('max_shifts_per_week', 5))
         profile.fixed_weekdays = request.POST.get('fixed_weekdays', '')
+        default_loc = request.POST.get('default_location')
+        profile.default_location_id = int(default_loc) if default_loc else None
         profile.save()
         messages.success(request, f'{target_user.get_full_name() or target_user.username} のプロフィールを更新しました。')
         return redirect('shifts:admin_user_profiles')
 
+    locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by('no')
     context = {
         'target_user': target_user,
         'profile': profile,
         'work_pattern_choices': UserProfile.WORK_PATTERN_CHOICES,
+        'locations': locations,
     }
     return render(request, 'shifts/admin_edit_profile.html', context)
 
@@ -1003,3 +1079,556 @@ def admin_export_submissions_csv(request, period_id):
         writer.writerow(row)
 
     return response
+
+
+# ---------- 期間別割当グリッド ----------
+
+@staff_member_required
+def admin_period_assignment(request, period_id):
+    period = get_object_or_404(SchedulePeriod, pk=period_id)
+    dates = list(generate_date_range(period.start_date, period.end_date))
+
+    locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by(
+        models.Case(
+            models.When(priority='S', then=0),
+            models.When(priority='A', then=1),
+            models.When(priority='B', then=2),
+            default=3,
+            output_field=models.IntegerField(),
+        ),
+        'no',
+    )
+
+    # 既存割当を取得 key=(date, location_id)
+    assignments = ShiftAssignment.objects.filter(
+        date__gte=period.start_date, date__lte=period.end_date,
+    ).select_related('user', 'external_staff', 'sales_location')
+    assignment_map = {}
+    for a in assignments:
+        assignment_map[(a.date, a.sales_location_id)] = a
+
+    # 出勤可能ユーザー (date -> [user_ids])
+    avail_days = AvailabilityDay.objects.filter(
+        submission__period=period,
+        submission__status__in=['SUBMITTED', 'APPROVED'],
+        availability='WORK',
+    ).values_list('date', 'submission__user_id')
+    available_by_date = {}
+    for d, uid in avail_days:
+        available_by_date.setdefault(d, set()).add(uid)
+
+    # プロフィール情報
+    profiles = {p.user_id: p for p in UserProfile.objects.select_related('user').all()}
+
+    # 外部スタッフ
+    external_staff_list = list(ExternalStaff.objects.filter(is_active=True))
+
+    # 外部スタッフの出勤可能日
+    ext_avail_qs = ExternalAvailabilityDay.objects.filter(
+        period=period, is_available=True,
+    ).values_list('external_staff_id', 'date')
+    ext_available_by_date = {}
+    for ext_id, d in ext_avail_qs:
+        ext_available_by_date.setdefault(d, set()).add(ext_id)
+
+    # 割当済みユーザー/外部スタッフ (date -> set of user_ids / ext_ids)
+    assigned_users_by_date = {}
+    assigned_ext_by_date = {}
+    for a in assignments:
+        if a.user_id:
+            assigned_users_by_date.setdefault(a.date, set()).add(a.user_id)
+        if a.external_staff_id:
+            assigned_ext_by_date.setdefault(a.date, set()).add(a.external_staff_id)
+
+    # ユーザー情報
+    all_active_users = User.objects.filter(is_active=True).order_by('last_name', 'first_name')
+    user_map = {u.id: u for u in all_active_users}
+
+    # グリッドデータ構築（ルートグループ化）
+    def build_row(loc):
+        row = {'location': loc, 'cells': []}
+        for d in dates:
+            holiday = is_holiday(d)
+            a = assignment_map.get((d, loc.id))
+            cell = {
+                'date': d,
+                'is_holiday': holiday,
+                'assignment': a,
+            }
+            if a and not a.special_type:
+                if a.user_id:
+                    p = profiles.get(a.user_id)
+                    cell['work_pattern'] = p.work_pattern if p else 'FULL'
+                    cell['default_location_id'] = p.default_location_id if p else None
+                elif a.external_staff_id:
+                    cell['work_pattern'] = 'HELPER'
+                    cell['default_location_id'] = a.external_staff.default_location_id if a.external_staff else None
+            row['cells'].append(cell)
+        return row
+
+    # ルートごとにグループ化
+    carpool_routes = list(CarpoolRoute.objects.all())
+    route_groups = []
+    routed_loc_ids = set()
+
+    for route in carpool_routes:
+        route_locs = [loc for loc in locations if loc.carpool_route_id == route.id]
+        if not route_locs:
+            continue
+        rows = [build_row(loc) for loc in route_locs]
+        route_groups.append({
+            'route': route,
+            'departure_time': route.departure_time.strftime('%H:%M') if route.departure_time else '',
+            'rows': rows,
+        })
+        routed_loc_ids.update(loc.id for loc in route_locs)
+
+    # ルート未設定の販売場所
+    unrouted_locs = [loc for loc in locations if loc.id not in routed_loc_ids]
+    if unrouted_locs:
+        rows = [build_row(loc) for loc in unrouted_locs]
+        route_groups.append({
+            'route': None,
+            'departure_time': '',
+            'rows': rows,
+        })
+
+    # 後方互換: grid も生成
+    grid = []
+    for group in route_groups:
+        grid.extend(group['rows'])
+
+    # フリー枠: 出勤可能だが未割当のスタッフ（日別）
+    free_staff_by_date = {}
+    for d in dates:
+        if is_holiday(d):
+            continue
+        avail_ids = available_by_date.get(d, set())
+        assigned_ids = assigned_users_by_date.get(d, set())
+        free_ids = avail_ids - assigned_ids
+        free_users = []
+        for uid in free_ids:
+            u = user_map.get(uid)
+            if u:
+                p = profiles.get(uid)
+                free_users.append({
+                    'id': uid,
+                    'name': f"{u.last_name} {u.first_name}".strip() or u.username,
+                    'can_drive': p.can_drive if p else False,
+                    'is_external': False,
+                })
+        # 外部スタッフで出勤可能かつ未割当のもの
+        assigned_ext_ids = assigned_ext_by_date.get(d, set())
+        ext_avail_ids = ext_available_by_date.get(d, set())
+        for ext in external_staff_list:
+            if ext.id in ext_avail_ids and ext.id not in assigned_ext_ids:
+                free_users.append({
+                    'id': ext.id,
+                    'name': ext.name,
+                    'can_drive': ext.can_drive,
+                    'is_external': True,
+                })
+        free_users.sort(key=lambda x: x['name'])
+        free_staff_by_date[d.isoformat()] = free_users
+
+    # JS用候補者データ (date -> list of candidates)
+    candidates_by_date = {}
+    for d in dates:
+        if is_holiday(d):
+            continue
+        avail_ids = available_by_date.get(d, set())
+        candidates = []
+        for uid in avail_ids:
+            u = user_map.get(uid)
+            if u:
+                p = profiles.get(uid)
+                candidates.append({
+                    'type': 'user',
+                    'id': uid,
+                    'name': f"{u.last_name} {u.first_name}".strip() or u.username,
+                    'can_drive': p.can_drive if p else False,
+                    'work_pattern': p.work_pattern if p else 'FULL',
+                    'default_location_id': p.default_location_id if p else None,
+                })
+        ext_avail_ids = ext_available_by_date.get(d, set())
+        for ext in external_staff_list:
+            if ext.id in ext_avail_ids:
+                candidates.append({
+                    'type': 'external',
+                    'id': ext.id,
+                    'name': ext.name,
+                    'can_drive': ext.can_drive,
+                    'work_pattern': 'HELPER',
+                    'default_location_id': ext.default_location_id,
+                })
+        candidates.sort(key=lambda x: x['name'])
+        candidates_by_date[d.isoformat()] = candidates
+
+    # 祝日リスト
+    holiday_dates = [d.isoformat() for d in dates if is_holiday(d)]
+
+    context = {
+        'period': period,
+        'dates': dates,
+        'locations': locations,
+        'grid': grid,
+        'route_groups': route_groups,
+        'free_staff_by_date': json.dumps(free_staff_by_date, ensure_ascii=False),
+        'candidates_by_date': json.dumps(candidates_by_date, ensure_ascii=False),
+        'holiday_dates': json.dumps(holiday_dates),
+        'assignment_map': assignment_map,
+    }
+    return render(request, 'shifts/admin_period_assignment.html', context)
+
+
+# ---------- AJAX: セル更新 ----------
+
+@staff_member_required
+@require_POST
+def api_assignment_update(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': '不正なリクエスト'}, status=400)
+
+    date_str = data.get('date')
+    location_id = data.get('location_id')
+    user_id = data.get('user_id')
+    ext_id = data.get('external_staff_id')
+    special_type = data.get('special_type', '')
+
+    if not date_str or not location_id:
+        return JsonResponse({'error': 'date と location_id は必須です'}, status=400)
+
+    d = datetime.date.fromisoformat(date_str)
+    location = get_object_or_404(SalesLocation, pk=location_id)
+
+    # 割当削除
+    if not user_id and not ext_id and not special_type:
+        ShiftAssignment.objects.filter(date=d, sales_location=location).delete()
+        return JsonResponse({'status': 'deleted'})
+
+    # 特殊種別（休み・中止）
+    if special_type in ('REST', 'CANCEL'):
+        defaults = {
+            'user': None,
+            'external_staff': None,
+            'special_type': special_type,
+            'status': 'DRAFT',
+        }
+        assignment, _ = ShiftAssignment.objects.update_or_create(
+            date=d, sales_location=location, defaults=defaults,
+        )
+        return JsonResponse({
+            'status': 'ok',
+            'assignee_name': assignment.assignee_name,
+            'is_external': False,
+            'user_id': None,
+            'external_staff_id': None,
+            'special_type': special_type,
+            'work_pattern': '',
+            'default_location_id': None,
+        })
+
+    # 運転必須チェック
+    if location.requires_drive:
+        if user_id:
+            profile = UserProfile.objects.filter(user_id=user_id).first()
+            if not profile or not profile.can_drive:
+                return JsonResponse({'error': 'この売り場は運転必須です。運転不可のスタッフは割当できません。'}, status=400)
+        elif ext_id:
+            ext = ExternalStaff.objects.filter(pk=ext_id).first()
+            if not ext or not ext.can_drive:
+                return JsonResponse({'error': 'この売り場は運転必須です。運転不可のスタッフは割当できません。'}, status=400)
+
+    # 同日重複割当チェック
+    if user_id:
+        dup = ShiftAssignment.objects.filter(date=d, user_id=user_id).exclude(sales_location=location).first()
+        if dup:
+            return JsonResponse({'error': f'このスタッフは同日に {dup.sales_location.name} に割当済みです。'}, status=400)
+    elif ext_id:
+        dup = ShiftAssignment.objects.filter(date=d, external_staff_id=ext_id).exclude(sales_location=location).first()
+        if dup:
+            return JsonResponse({'error': f'この外部スタッフは同日に {dup.sales_location.name} に割当済みです。'}, status=400)
+
+    # 保存
+    defaults = {'status': 'DRAFT', 'special_type': ''}
+    work_pattern = ''
+    default_location_id = None
+    if user_id:
+        defaults['user_id'] = user_id
+        defaults['external_staff'] = None
+        p = UserProfile.objects.filter(user_id=user_id).first()
+        work_pattern = p.work_pattern if p else 'FULL'
+        default_location_id = p.default_location_id if p else None
+    else:
+        defaults['external_staff_id'] = ext_id
+        defaults['user'] = None
+        ext_obj = ExternalStaff.objects.filter(pk=ext_id).first()
+        work_pattern = 'HELPER'
+        default_location_id = ext_obj.default_location_id if ext_obj else None
+
+    assignment, _ = ShiftAssignment.objects.update_or_create(
+        date=d, sales_location=location, defaults=defaults,
+    )
+
+    assignee_name = assignment.assignee_name
+    return JsonResponse({
+        'status': 'ok',
+        'assignee_name': assignee_name,
+        'is_external': assignment.is_external,
+        'user_id': assignment.user_id,
+        'external_staff_id': assignment.external_staff_id,
+        'special_type': '',
+        'work_pattern': work_pattern,
+        'default_location_id': default_location_id,
+    })
+
+
+# ---------- AJAX: 自動割当 ----------
+
+@staff_member_required
+@require_POST
+def api_autofill(request, period_id):
+    period = get_object_or_404(SchedulePeriod, pk=period_id)
+    dates = list(generate_date_range(period.start_date, period.end_date))
+
+    # 出勤可能データ
+    avail_days = AvailabilityDay.objects.filter(
+        submission__period=period,
+        submission__status__in=['SUBMITTED', 'APPROVED'],
+        availability='WORK',
+    ).values_list('date', 'submission__user_id')
+    available_by_date = {}
+    for d, uid in avail_days:
+        available_by_date.setdefault(d, set()).add(uid)
+
+    # デフォルト売り場が設定されたユーザー
+    profiles_with_default = UserProfile.objects.filter(
+        default_location__isnull=False,
+    ).select_related('user', 'default_location')
+
+    # デフォルト売り場が設定された外部スタッフ
+    ext_with_default = ExternalStaff.objects.filter(
+        is_active=True, default_location__isnull=False,
+    ).select_related('default_location')
+
+    # 外部スタッフの出勤可能日
+    ext_avail_qs = ExternalAvailabilityDay.objects.filter(
+        period=period, is_available=True,
+    ).values_list('external_staff_id', 'date')
+    ext_available_by_date = {}
+    for ext_id, d in ext_avail_qs:
+        ext_available_by_date.setdefault(d, set()).add(ext_id)
+
+    created_count = 0
+
+    for d in dates:
+        if is_holiday(d):
+            continue
+        avail_ids = available_by_date.get(d, set())
+
+        # ユーザーの自動割当
+        for profile in profiles_with_default:
+            if profile.user_id not in avail_ids:
+                continue
+            loc = profile.default_location
+            if loc.excluded_from_shift:
+                continue
+            # 運転必須チェック
+            if loc.requires_drive and not profile.can_drive:
+                continue
+            # 同日に別の売り場に割当済みならスキップ
+            if ShiftAssignment.objects.filter(date=d, user_id=profile.user_id).exists():
+                continue
+            _, created = ShiftAssignment.objects.get_or_create(
+                date=d, sales_location=loc,
+                defaults={'user': profile.user, 'status': 'DRAFT'},
+            )
+            if created:
+                created_count += 1
+
+        # 外部スタッフの自動割当（出勤可能日のみ）
+        ext_avail_ids = ext_available_by_date.get(d, set())
+        for ext in ext_with_default:
+            if ext.id not in ext_avail_ids:
+                continue
+            loc = ext.default_location
+            if loc.excluded_from_shift:
+                continue
+            if loc.requires_drive and not ext.can_drive:
+                continue
+            if ShiftAssignment.objects.filter(date=d, external_staff=ext).exists():
+                continue
+            _, created = ShiftAssignment.objects.get_or_create(
+                date=d, sales_location=loc,
+                defaults={'external_staff': ext, 'status': 'DRAFT'},
+            )
+            if created:
+                created_count += 1
+
+    return JsonResponse({'status': 'ok', 'created_count': created_count})
+
+
+@staff_member_required
+def api_save_shared_notes(request, period_id):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    period = get_object_or_404(SchedulePeriod, pk=period_id)
+    data = json.loads(request.body)
+    period.shared_notes = data.get('shared_notes', '')
+    period.save(update_fields=['shared_notes'])
+    return JsonResponse({'ok': True})
+
+
+# ---------- 外部スタッフ管理 ----------
+
+@staff_member_required
+def admin_external_staff(request):
+    locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by('no')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'add':
+            name = request.POST.get('name', '').strip()
+            can_drive = request.POST.get('can_drive') == 'on'
+            default_location_id = request.POST.get('default_location') or None
+            if name:
+                ExternalStaff.objects.create(
+                    name=name,
+                    can_drive=can_drive,
+                    default_location_id=default_location_id,
+                )
+                messages.success(request, f'{name} を追加しました。')
+        elif action == 'delete':
+            staff_id = request.POST.get('staff_id')
+            if staff_id:
+                ExternalStaff.objects.filter(pk=staff_id).delete()
+                messages.success(request, '削除しました。')
+        elif action == 'toggle_active':
+            staff_id = request.POST.get('staff_id')
+            if staff_id:
+                ext = get_object_or_404(ExternalStaff, pk=staff_id)
+                ext.is_active = not ext.is_active
+                ext.save()
+                messages.success(request, f'{ext.name} を{"有効" if ext.is_active else "無効"}にしました。')
+        return redirect('shifts:admin_external_staff')
+
+    staff_list = ExternalStaff.objects.all().order_by('-is_active', 'name')
+    periods = SchedulePeriod.objects.filter(status__in=['OPEN', 'REVIEW', 'FIXED']).order_by('-start_date')
+    context = {'staff_list': staff_list, 'locations': locations, 'periods': periods}
+    return render(request, 'shifts/admin_external_staff.html', context)
+
+
+# ---------- 外部スタッフ出勤可能日管理 ----------
+
+@staff_member_required
+def admin_external_availability(request, period_id):
+    period = get_object_or_404(SchedulePeriod, pk=period_id)
+    dates = list(generate_date_range(period.start_date, period.end_date))
+    external_staff_list = list(ExternalStaff.objects.filter(is_active=True).order_by('name'))
+
+    holiday_dates = set()
+    for d in dates:
+        if is_holiday(d):
+            holiday_dates.add(d)
+
+    if request.method == 'POST':
+        # 全レコード削除→チェック済みのみ bulk_create
+        ExternalAvailabilityDay.objects.filter(period=period).delete()
+        new_records = []
+        for ext in external_staff_list:
+            for d in dates:
+                if d in holiday_dates:
+                    continue
+                key = f'avail_{ext.id}_{d.isoformat()}'
+                if key in request.POST:
+                    new_records.append(ExternalAvailabilityDay(
+                        external_staff=ext, period=period, date=d, is_available=True,
+                    ))
+        if new_records:
+            ExternalAvailabilityDay.objects.bulk_create(new_records)
+        messages.success(request, f'{len(new_records)}件の出勤可能日を保存しました。')
+        return redirect('shifts:admin_external_availability', period_id=period.id)
+
+    # 既存データ取得
+    existing = set(
+        ExternalAvailabilityDay.objects.filter(
+            period=period, is_available=True,
+        ).values_list('external_staff_id', 'date')
+    )
+
+    # グリッドデータ構築
+    grid = []
+    for ext in external_staff_list:
+        row = {'staff': ext, 'cells': []}
+        for d in dates:
+            is_hol = d in holiday_dates
+            checked = (ext.id, d) in existing
+            row['cells'].append({
+                'date': d,
+                'is_holiday': is_hol,
+                'checked': checked,
+            })
+        grid.append(row)
+
+    context = {
+        'period': period,
+        'dates': dates,
+        'grid': grid,
+        'external_staff_list': external_staff_list,
+        'holiday_dates': holiday_dates,
+    }
+    return render(request, 'shifts/admin_external_availability.html', context)
+
+
+# ---------- 同乗ルート管理 ----------
+
+@staff_member_required
+def admin_carpool_routes(request):
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'create':
+            name = request.POST.get('name', '').strip()
+            departure_time = request.POST.get('departure_time', '')
+            display_order = int(request.POST.get('display_order', 0))
+            if name and departure_time:
+                CarpoolRoute.objects.create(
+                    name=name,
+                    departure_time=departure_time,
+                    display_order=display_order,
+                )
+                messages.success(request, f'ルート「{name}」を作成しました。')
+        elif action == 'update':
+            route_id = request.POST.get('route_id')
+            if route_id:
+                route = get_object_or_404(CarpoolRoute, pk=route_id)
+                route.name = request.POST.get('name', route.name).strip()
+                departure_time = request.POST.get('departure_time', '')
+                if departure_time:
+                    route.departure_time = departure_time
+                route.display_order = int(request.POST.get('display_order', route.display_order))
+                route.save()
+                messages.success(request, f'ルート「{route.name}」を更新しました。')
+        elif action == 'delete':
+            route_id = request.POST.get('route_id')
+            if route_id:
+                route = get_object_or_404(CarpoolRoute, pk=route_id)
+                route.delete()
+                messages.success(request, 'ルートを削除しました。')
+        elif action == 'assign_locations':
+            locations = SalesLocation.objects.filter(excluded_from_shift=False)
+            for loc in locations:
+                route_id = request.POST.get(f'loc_route_{loc.id}', '')
+                loc.carpool_route_id = int(route_id) if route_id else None
+                loc.save()
+            messages.success(request, '販売場所のルート割当を更新しました。')
+        return redirect('shifts:admin_carpool_routes')
+
+    routes = CarpoolRoute.objects.all()
+    locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by('no')
+    context = {
+        'routes': routes,
+        'locations': locations,
+    }
+    return render(request, 'shifts/admin_carpool_routes.html', context)

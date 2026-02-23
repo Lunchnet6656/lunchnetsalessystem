@@ -1,0 +1,106 @@
+{% extends "shifts/base.html" %}
+{% block title %}外部スタッフ管理{% endblock %}
+{% block nav_external_staff %}bg-gray-600{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">外部スタッフ管理</h1>
+
+<!-- 追加フォーム -->
+<div class="bg-white rounded shadow p-4 mb-6">
+    <h2 class="text-lg font-semibold mb-3">外部スタッフを追加</h2>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <div class="flex flex-wrap gap-3 items-end">
+            <div>
+                <label class="block text-sm text-gray-600">名前 <span class="text-red-500">*</span></label>
+                <input type="text" name="name" required placeholder="例: 田中太郎" class="border rounded px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600">デフォルト売り場</label>
+                <select name="default_location" class="border rounded px-3 py-2 text-sm">
+                    <option value="">-- なし --</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}">{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-center pt-5">
+                <input type="checkbox" id="new_can_drive" name="can_drive" class="h-4 w-4 text-blue-600 rounded border-gray-300">
+                <label for="new_can_drive" class="ml-2 text-sm text-gray-700">運転可能</label>
+            </div>
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">追加</button>
+        </div>
+    </form>
+</div>
+
+<!-- 一覧 -->
+<div class="bg-white rounded shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="bg-gray-100 text-left">
+                <th class="px-4 py-2">名前</th>
+                <th class="px-4 py-2">運転可能</th>
+                <th class="px-4 py-2">デフォルト売り場</th>
+                <th class="px-4 py-2">ステータス</th>
+                <th class="px-4 py-2">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in staff_list %}
+            <tr class="border-b border-gray-100 {% if not s.is_active %}bg-gray-50 text-gray-400{% endif %}">
+                <td class="px-4 py-2">{{ s.name }}</td>
+                <td class="px-4 py-2">{% if s.can_drive %}🚗 可{% else %}-{% endif %}</td>
+                <td class="px-4 py-2">{{ s.default_location|default:"-" }}</td>
+                <td class="px-4 py-2">
+                    {% if s.is_active %}
+                    <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700">有効</span>
+                    {% else %}
+                    <span class="text-xs px-2 py-1 rounded bg-gray-200 text-gray-500">無効</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-2 flex gap-2">
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_active">
+                        <input type="hidden" name="staff_id" value="{{ s.id }}">
+                        <button type="submit" class="text-xs {% if s.is_active %}text-yellow-600{% else %}text-green-600{% endif %} hover:underline">
+                            {% if s.is_active %}無効にする{% else %}有効にする{% endif %}
+                        </button>
+                    </form>
+                    <form method="post" class="inline" onsubmit="return confirm('{{ s.name }} を削除しますか？')">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="staff_id" value="{{ s.id }}">
+                        <button type="submit" class="text-xs text-red-600 hover:underline">削除</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="px-4 py-4 text-gray-400 text-center">外部スタッフは登録されていません。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 出勤可能日設定 -->
+{% if periods %}
+<div class="bg-white rounded shadow p-4 mt-6">
+    <h2 class="text-lg font-semibold mb-3">出勤可能日を設定</h2>
+    <div class="flex flex-wrap gap-2">
+        {% for p in periods %}
+        <a href="{% url 'shifts:admin_external_availability' p.id %}"
+           class="inline-block border rounded px-3 py-2 text-sm hover:bg-blue-50 hover:border-blue-400">
+            {{ p.start_date|date:"n/j" }}〜{{ p.end_date|date:"n/j" }}
+            <span class="text-xs px-1 rounded
+                {% if p.status == 'OPEN' %}bg-green-100 text-green-700
+                {% elif p.status == 'REVIEW' %}bg-yellow-100 text-yellow-700
+                {% else %}bg-blue-100 text-blue-700{% endif %}">
+                {{ p.get_status_display }}
+            </span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -39,9 +39,11 @@
             <a href="{% url 'shifts:admin_shift_settings' %}" class="ml-1 text-blue-500 underline">変更</a>
         </p>
         {% endif %}
-        <div class="mt-2">
+        <div class="mt-2 flex gap-2">
             <a href="{% url 'shifts:admin_review_submissions' period.id %}"
                class="text-sm bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700">提出状況を確認</a>
+            <a href="{% url 'shifts:admin_period_assignment' period.id %}"
+               class="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">割当グリッド</a>
         </div>
     </div>
 

@@ -5,9 +5,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
-from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm,ShiftRequestForm
+from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
 import pandas as pd
-from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem,ShiftRequest,ShiftRequest,Holiday
+from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
 from django.utils.dateparse import parse_date
@@ -403,13 +403,16 @@ class CustomUserChangeForm(UserChangeForm):
 @login_required
 def user_edit_view(request, user_id):
     user = get_object_or_404(User, id=user_id)
+    menu_perm, _ = UserMenuPermission.objects.get_or_create(user=user)
+
     if request.method == 'POST':
         form = CustomUserChangeForm(request.POST, instance=user)
+        menu_form = UserMenuPermissionForm(request.POST, instance=menu_perm)
         current_password = request.POST.get('current_password', '').strip()
         new_password = request.POST.get('new_password', '').strip()
         confirm_password = request.POST.get('confirm_password', '').strip()
 
-        if form.is_valid():
+        if form.is_valid() and menu_form.is_valid():
             # パスワード変更処理が必要か確認
             if current_password or new_password or confirm_password:
                 # 現在のパスワードが入力されている場合のみチェック
@@ -425,10 +428,11 @@ def user_edit_view(request, user_id):
 
             # フォームがエラーを含む場合、保存処理を中断
             if form.errors:
-                return render(request, 'user_edit.html', {'form': form})
+                return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
 
             # 他のフィールドを保存
             user.save()
+            menu_form.save()
 
             # パスワードが変更された場合、セッションを更新
             if new_password:
@@ -436,10 +440,13 @@ def user_edit_view(request, user_id):
 
             messages.success(request, f'ユーザー {user.username} を更新しました。')
             return redirect('user_list')
+        else:
+            return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
     else:
         form = CustomUserChangeForm(instance=user)
+        menu_form = UserMenuPermissionForm(instance=menu_perm)
 
-    return render(request, 'user_edit.html', {'form': form})
+    return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
 
 @login_required
 def user_delete_view(request, user_id):

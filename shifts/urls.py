@@ -30,11 +30,24 @@ urlpatterns = [
     path('admin/profiles/', views.admin_user_profiles, name='admin_user_profiles'),
     path('admin/profiles/<int:user_id>/', views.admin_edit_profile, name='admin_edit_profile'),
 
+    # 管理者 期間別割当グリッド
+    path('admin/period-assign/<int:period_id>/', views.admin_period_assignment, name='admin_period_assignment'),
+    path('admin/api/assignment/', views.api_assignment_update, name='api_assignment_update'),
+    path('admin/api/autofill/<int:period_id>/', views.api_autofill, name='api_autofill'),
+    path('admin/api/shared-notes/<int:period_id>/', views.api_save_shared_notes, name='api_save_shared_notes'),
+
+    # 管理者 外部スタッフ管理
+    path('admin/external-staff/', views.admin_external_staff, name='admin_external_staff'),
+    path('admin/external-availability/<int:period_id>/', views.admin_external_availability, name='admin_external_availability'),
+
     # 管理者 しきい値設定
     path('admin/shift-settings/', views.admin_shift_settings, name='admin_shift_settings'),
 
     # 管理者 販売場所設定
     path('admin/location-settings/', views.admin_location_settings, name='admin_location_settings'),
+
+    # 管理者 同乗ルート管理
+    path('admin/carpool-routes/', views.admin_carpool_routes, name='admin_carpool_routes'),
 
     # ユーザー設定（LINE連携・通知設定）
     path('settings/', views.user_settings, name='user_settings'),

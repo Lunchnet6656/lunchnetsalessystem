@@ -27,6 +27,11 @@ class UserProfile(models.Model):
         verbose_name="固定出勤曜日",
         help_text="カンマ区切り: 0=月,1=火,...,6=日",
     )
+    default_location = models.ForeignKey(
+        'sales.SalesLocation', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='default_users',
+        verbose_name="デフォルト売り場",
+    )
     line_user_id = models.CharField(max_length=50, blank=True, default='', verbose_name='LINE User ID')
     notify_via_line = models.BooleanField(default=False, verbose_name='LINE通知')
     notify_via_email = models.BooleanField(default=True, verbose_name='メール通知')
@@ -69,6 +74,7 @@ class SchedulePeriod(models.Model):
         max_length=10, choices=STATUS_CHOICES,
         default='OPEN', verbose_name="ステータス",
     )
+    shared_notes = models.TextField(blank=True, verbose_name="共有事項")
 
     class Meta:
         ordering = ['-start_date']
@@ -164,10 +170,54 @@ class AvailabilityDay(models.Model):
         return f"{self.date} - {self.get_availability_display()}"
 
 
+class ExternalStaff(models.Model):
+    name = models.CharField(max_length=100, verbose_name="名前")
+    can_drive = models.BooleanField(default=False, verbose_name="運転可能")
+    is_active = models.BooleanField(default=True, verbose_name="有効")
+    default_location = models.ForeignKey(
+        'sales.SalesLocation', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='default_external_staff',
+        verbose_name="デフォルト売り場",
+    )
+
+    class Meta:
+        verbose_name = "外部スタッフ"
+        verbose_name_plural = "外部スタッフ"
+
+    def __str__(self):
+        return self.name
+
+
+class ExternalAvailabilityDay(models.Model):
+    external_staff = models.ForeignKey(
+        ExternalStaff, on_delete=models.CASCADE,
+        related_name='availability_days', verbose_name="外部スタッフ",
+    )
+    period = models.ForeignKey(
+        SchedulePeriod, on_delete=models.CASCADE,
+        related_name='external_availability_days', verbose_name="期間",
+    )
+    date = models.DateField(verbose_name="日付")
+    is_available = models.BooleanField(default=True, verbose_name="出勤可能")
+
+    class Meta:
+        unique_together = ('external_staff', 'period', 'date')
+        ordering = ['date']
+        verbose_name = "外部スタッフ出勤可能日"
+        verbose_name_plural = "外部スタッフ出勤可能日"
+
+    def __str__(self):
+        return f"{self.external_staff.name} - {self.date} ({'可' if self.is_available else '不可'})"
+
+
 class ShiftAssignment(models.Model):
     STATUS_CHOICES = [
         ('DRAFT', '仮'),
         ('CONFIRMED', '確定'),
+    ]
+    SPECIAL_TYPE_CHOICES = [
+        ('REST', '休み'),
+        ('CANCEL', '中止'),
     ]
 
     date = models.DateField(verbose_name="日付")
@@ -180,8 +230,20 @@ class ShiftAssignment(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        null=True, blank=True,
         related_name='shift_assignments',
         verbose_name="担当者",
+    )
+    external_staff = models.ForeignKey(
+        ExternalStaff,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='shift_assignments',
+        verbose_name="外部スタッフ",
+    )
+    special_type = models.CharField(
+        max_length=10, choices=SPECIAL_TYPE_CHOICES,
+        blank=True, default='', verbose_name="特殊種別",
     )
     status = models.CharField(
         max_length=10, choices=STATUS_CHOICES,
@@ -194,9 +256,37 @@ class ShiftAssignment(models.Model):
         ordering = ['date', 'sales_location']
         verbose_name = "シフト割当"
         verbose_name_plural = "シフト割当"
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(user__isnull=False, external_staff__isnull=True, special_type='')
+                    | models.Q(user__isnull=True, external_staff__isnull=False, special_type='')
+                    | models.Q(user__isnull=True, external_staff__isnull=True, special_type__in=['REST', 'CANCEL'])
+                ),
+                name='assignment_user_or_external_staff',
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.date} {self.sales_location} → {self.user}"
+        if self.special_type:
+            return f"{self.date} {self.sales_location} → {self.get_special_type_display()}"
+        assignee = self.user or self.external_staff
+        return f"{self.date} {self.sales_location} → {assignee}"
+
+    @property
+    def assignee_name(self):
+        if self.special_type:
+            return self.get_special_type_display()
+        if self.user:
+            full_name = f"{self.user.last_name} {self.user.first_name}".strip()
+            return full_name or self.user.username
+        if self.external_staff:
+            return self.external_staff.name
+        return ""
+
+    @property
+    def is_external(self):
+        return self.external_staff is not None
 
 
 class ShiftNotification(models.Model):
