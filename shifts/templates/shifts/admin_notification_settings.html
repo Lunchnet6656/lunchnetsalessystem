@@ -1,0 +1,48 @@
+{% extends "shifts/base.html" %}
+{% block title %}通知テンプレート設定{% endblock %}
+{% block nav_notification_settings %}bg-gray-600{% endblock %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-4">通知テンプレート設定</h1>
+
+<div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+    利用可能なプレースホルダ:
+    <code class="bg-blue-100 px-1 rounded">{period_range}</code> = 対象期間（例: 3/1 〜 3/14）、
+    <code class="bg-blue-100 px-1 rounded">{deadline}</code> = 提出締切（例: 2/25 18:00）
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    {% for tmpl in templates %}
+    <div class="bg-white rounded shadow p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold">{{ tmpl.get_notification_type_display }}</h2>
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="tmpl_{{ tmpl.id }}_enabled" {% if tmpl.is_enabled %}checked{% endif %}
+                    class="rounded border-gray-300">
+                <span>有効</span>
+            </label>
+        </div>
+
+        <div class="mb-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+            <input type="text" name="tmpl_{{ tmpl.id }}_title" value="{{ tmpl.title_template }}"
+                class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">本文</label>
+            <textarea name="tmpl_{{ tmpl.id }}_body" rows="5"
+                class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">{{ tmpl.body_template }}</textarea>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="flex justify-end">
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 text-sm font-medium">
+            一括保存
+        </button>
+    </div>
+</form>
+{% endblock %}

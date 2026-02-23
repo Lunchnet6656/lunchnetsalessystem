@@ -8,9 +8,24 @@ from django.conf import settings
 from django.core.mail import send_mail
 
 from .line_bot import send_line_message
-from .models import ShiftNotification, UserProfile
+from .models import NotificationTemplate, ShiftNotification, UserProfile
 
 logger = logging.getLogger(__name__)
+
+
+def _get_template(notification_type):
+    """NotificationTemplateを取得。なければNone。"""
+    try:
+        return NotificationTemplate.objects.get(notification_type=notification_type)
+    except NotificationTemplate.DoesNotExist:
+        return None
+
+
+def _render(template_str, period):
+    """プレースホルダを置換"""
+    period_range = f'{period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}'
+    deadline = period.submission_close_at.strftime("%-m/%-d %H:%M")
+    return template_str.replace('{period_range}', period_range).replace('{deadline}', deadline)
 
 
 def notify_users(period, notification_type: str, title: str, body: str, profiles=None) -> ShiftNotification:
@@ -53,37 +68,94 @@ def notify_users(period, notification_type: str, title: str, body: str, profiles
     return notification
 
 
-def notify_period_open(period) -> ShiftNotification:
+def notify_period_open(period):
     """募集開始通知を全スタッフに送信する。"""
-    title = '【シフト募集開始】'
-    body = (
-        f'新しいシフト希望募集が始まりました。\n'
-        f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
-        f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
-        'アプリからシフト希望を提出してください。'
-    )
+    tmpl = _get_template('OPEN')
+    if tmpl and not tmpl.is_enabled:
+        return None
+    if tmpl:
+        title = _render(tmpl.title_template, period)
+        body = _render(tmpl.body_template, period)
+    else:
+        title = '【シフト募集開始】'
+        body = (
+            f'新しいシフト希望募集が始まりました。\n'
+            f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
+            f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
+            'アプリからシフト希望を提出してください。'
+        )
     return notify_users(period, 'OPEN', title, body)
 
 
-def notify_reminder(period, unsubmitted_profiles) -> ShiftNotification:
+def notify_reminder(period, unsubmitted_profiles):
     """締切リマインドを未提出スタッフに送信する。"""
-    title = '【シフト提出リマインド】締切が迫っています'
-    body = (
-        f'シフト希望の締切が近づいています。\n'
-        f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
-        f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
-        'まだ未提出の方はお早めに提出してください。'
-    )
+    tmpl = _get_template('REMINDER')
+    if tmpl and not tmpl.is_enabled:
+        return None
+    if tmpl:
+        title = _render(tmpl.title_template, period)
+        body = _render(tmpl.body_template, period)
+    else:
+        title = '【シフト提出リマインド】締切が迫っています'
+        body = (
+            f'シフト希望の締切が近づいています。\n'
+            f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
+            f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
+            'まだ未提出の方はお早めに提出してください。'
+        )
     return notify_users(period, 'REMINDER', title, body, profiles=unsubmitted_profiles)
 
 
-def notify_manual_reminder(period, unsubmitted_profiles) -> ShiftNotification:
+def notify_manual_reminder(period, unsubmitted_profiles):
     """管理者による手動リマインドを未提出スタッフに送信する。"""
-    title = '【シフト提出のお願い】'
-    body = (
-        f'シフト希望をまだご提出いただいていません。\n'
-        f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
-        f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
-        '早急にアプリからご提出ください。'
-    )
+    tmpl = _get_template('MANUAL')
+    if tmpl and not tmpl.is_enabled:
+        return None
+    if tmpl:
+        title = _render(tmpl.title_template, period)
+        body = _render(tmpl.body_template, period)
+    else:
+        title = '【シフト提出のお願い】'
+        body = (
+            f'シフト希望をまだご提出いただいていません。\n'
+            f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
+            f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
+            '早急にアプリからご提出ください。'
+        )
     return notify_users(period, 'MANUAL', title, body, profiles=unsubmitted_profiles)
+
+
+def notify_published(period):
+    """シフト公開通知を全スタッフに送信する。"""
+    tmpl = _get_template('PUBLISHED')
+    if tmpl and not tmpl.is_enabled:
+        return None
+    if tmpl:
+        title = _render(tmpl.title_template, period)
+        body = _render(tmpl.body_template, period)
+    else:
+        title = '【シフト公開】'
+        body = (
+            f'シフトが公開されました。\n'
+            f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n\n'
+            'アプリから確定シフトをご確認ください。'
+        )
+    return notify_users(period, 'PUBLISHED', title, body)
+
+
+def notify_assignment_changed(period):
+    """シフト変更通知を全スタッフに送信する。"""
+    tmpl = _get_template('ASSIGNMENT_CHANGED')
+    if tmpl and not tmpl.is_enabled:
+        return None
+    if tmpl:
+        title = _render(tmpl.title_template, period)
+        body = _render(tmpl.body_template, period)
+    else:
+        title = '【シフト変更のお知らせ】'
+        body = (
+            f'公開済みシフトに変更がありました。\n'
+            f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n\n'
+            'アプリから最新のシフトをご確認ください。'
+        )
+    return notify_users(period, 'ASSIGNMENT_CHANGED', title, body)

@@ -53,6 +53,13 @@
         <a href="{% url 'shifts:admin_external_availability' period.id %}" class="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700">外部スタッフ出勤設定</a>
         <button id="btn-autofill" class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700">自動割当</button>
         <button id="btn-clear-all" class="bg-red-500 text-white px-3 py-2 rounded text-sm hover:bg-red-600">全クリア</button>
+        {% if period.status == 'PUBLISHED' %}
+        <form method="post" style="display:inline;" onsubmit="return confirm('全スタッフにシフト変更通知を送信しますか？');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="notify_change">
+            <button type="submit" class="bg-orange-500 text-white px-3 py-2 rounded text-sm hover:bg-orange-600">変更通知を送信</button>
+        </form>
+        {% endif %}
     </div>
 </div>
 

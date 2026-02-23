@@ -25,13 +25,14 @@ from .models import (
     CompanyHoliday,
     ExternalAvailabilityDay,
     ExternalStaff,
+    NotificationTemplate,
     SchedulePeriod,
     ShiftAssignment,
     ShiftNotification,
     ShiftSettings,
     UserProfile,
 )
-from .notifications import notify_manual_reminder, notify_period_open
+from .notifications import notify_assignment_changed, notify_manual_reminder, notify_period_open, notify_published
 from .utils import auto_close_expired_periods, can_submit_for_period, generate_date_range, get_holiday_name, is_holiday
 
 User = get_user_model()
@@ -560,6 +561,16 @@ def admin_periods(request):
                 period.status = new_status
                 period.save()
                 messages.success(request, 'ステータスを変更しました。')
+                if new_status == 'PUBLISHED':
+                    try:
+                        notif = notify_published(period)
+                        if notif:
+                            messages.info(
+                                request,
+                                f'シフト公開通知を送信しました。（LINE={notif.sent_line_count}, メール={notif.sent_email_count}）',
+                            )
+                    except Exception:
+                        messages.warning(request, 'シフト公開通知の送信中にエラーが発生しました。')
         elif action == 'delete':
             period_id = request.POST.get('period_id')
             if period_id:
@@ -917,6 +928,26 @@ def admin_shift_settings(request):
     return render(request, 'shifts/admin_shift_settings.html', context)
 
 
+# ---------- 通知テンプレート設定 ----------
+
+@staff_member_required
+def admin_notification_settings(request):
+    templates = NotificationTemplate.objects.all().order_by('notification_type')
+
+    if request.method == 'POST':
+        for tmpl in templates:
+            prefix = f'tmpl_{tmpl.id}'
+            tmpl.is_enabled = request.POST.get(f'{prefix}_enabled') == 'on'
+            tmpl.title_template = request.POST.get(f'{prefix}_title', tmpl.title_template)
+            tmpl.body_template = request.POST.get(f'{prefix}_body', tmpl.body_template)
+            tmpl.save()
+        messages.success(request, '通知テンプレート設定を保存しました。')
+        return redirect('shifts:admin_notification_settings')
+
+    context = {'templates': templates}
+    return render(request, 'shifts/admin_notification_settings.html', context)
+
+
 # ---------- 販売場所設定 ----------
 
 @staff_member_required
@@ -971,6 +1002,7 @@ def user_settings(request):
         basic_id = getattr(django_settings, 'LINE_BOT_BASIC_ID', '')
         context['line_link_code'] = line_code
         if basic_id:
+            context['line_friend_url'] = f"https://line.me/R/ti/p/{basic_id}"
             context['line_url'] = f"https://line.me/R/oaMessage/{basic_id}/?{urllib.parse.quote(line_code)}"
         else:
             logger.warning("LINE_BOT_BASIC_ID is not configured. LINE app link will not be shown.")
@@ -994,6 +1026,18 @@ def line_webhook(request):
     try:
         from linebot.models import FollowEvent, MessageEvent, TextMessage
         from linebot.exceptions import InvalidSignatureError
+
+        @handler.add(FollowEvent)
+        def handle_follow(event):
+            from .line_bot import _get_line_api
+            from linebot.models import TextSendMessage
+            api = _get_line_api()
+            if api is None:
+                return
+            api.reply_message(
+                event.reply_token,
+                TextSendMessage(text='友だち追加ありがとうございます！\nシフト管理アプリで発行された6桁のコードをこちらに送信してください。')
+            )
 
         @handler.add(MessageEvent, message=TextMessage)
         def handle_text(event):
@@ -1086,6 +1130,25 @@ def admin_export_submissions_csv(request, period_id):
 @staff_member_required
 def admin_period_assignment(request, period_id):
     period = get_object_or_404(SchedulePeriod, pk=period_id)
+
+    # 変更通知送信アクション
+    if request.method == 'POST' and request.POST.get('action') == 'notify_change':
+        if period.status == 'PUBLISHED':
+            try:
+                notif = notify_assignment_changed(period)
+                if notif:
+                    messages.success(
+                        request,
+                        f'シフト変更通知を送信しました。（LINE={notif.sent_line_count}, メール={notif.sent_email_count}）',
+                    )
+                else:
+                    messages.info(request, 'シフト変更通知は無効に設定されています。')
+            except Exception:
+                messages.error(request, 'シフト変更通知の送信中にエラーが発生しました。')
+        else:
+            messages.warning(request, '公開済み期間のみ変更通知を送信できます。')
+        return redirect('shifts:admin_period_assignment', period_id=period_id)
+
     dates = list(generate_date_range(period.start_date, period.end_date))
 
     locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by(

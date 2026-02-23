@@ -43,6 +43,9 @@ urlpatterns = [
     # 管理者 しきい値設定
     path('admin/shift-settings/', views.admin_shift_settings, name='admin_shift_settings'),
 
+    # 管理者 通知テンプレート設定
+    path('admin/notification-settings/', views.admin_notification_settings, name='admin_notification_settings'),
+
     # 管理者 販売場所設定
     path('admin/location-settings/', views.admin_location_settings, name='admin_location_settings'),
 

@@ -13,11 +13,11 @@
     }
     /* sticky ヘッダ・左列 */
     .grid-table th { background: #f3f4f6; position: sticky; top: 0; z-index: 10; }
-    .grid-table .departure-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; min-width: 50px; }
+    .grid-table .departure-header { z-index: 10; background: #f3f4f6; min-width: 50px; }
     .grid-table .loc-header { position: sticky; left: 0; z-index: 20; background: #f3f4f6; text-align: left; min-width: 120px; white-space: nowrap; }
-    .grid-table .loc-cell { position: sticky; left: 50px; z-index: 5; background: #fff; text-align: left; min-width: 120px; white-space: nowrap; font-weight: 600; }
+    .grid-table .loc-cell { position: sticky; left: 0; z-index: 5; background: #fff; text-align: left; min-width: 120px; white-space: nowrap; font-weight: 600; }
     .departure-time-cell {
-        position: sticky; left: 0; z-index: 6;
+        z-index: 6;
         background: #e0f2fe; font-weight: 700; font-size: 11px;
         text-align: center; min-width: 50px; white-space: nowrap;
     }
@@ -91,14 +91,19 @@
     <h1 class="text-xl font-bold">確定シフト</h1>
     <span class="text-sm text-gray-500">{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</span>
 </div>
-
+{% if period.shared_notes %}
+<div class="mt-4 mb-2 bg-blue-50 border border-blue-200 rounded p-4">
+    <h3 class="text-sm font-semibold text-blue-800 mb-2">共有事項</h3>
+    <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ period.shared_notes }}</div>
+</div>
+{% endif %}
 <!-- グリッドテーブル -->
 <div class="bg-white rounded shadow overflow-auto" style="max-height: 80vh;">
     <table class="grid-table">
         <thead>
             <tr>
                 <th class="departure-header">出発</th>
-                <th class="loc-header" style="left:50px;">売り場</th>
+                <th class="loc-header">売り場</th>
                 {% for d in dates %}
                 <th class="{% if d|weekday_ja == '土' %}sat{% elif d|weekday_ja == '日' %}sun{% endif %}">
                     {{ d|date:"n/j" }}<br>
@@ -162,13 +167,6 @@
         定休日
     </span>-->
 </div>
-
-{% if period.shared_notes %}
-<div class="mt-4 bg-blue-50 border border-blue-200 rounded p-4">
-    <h3 class="text-sm font-semibold text-blue-800 mb-2">共有事項</h3>
-    <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ period.shared_notes }}</div>
-</div>
-{% endif %}
 
 {% endif %}
 {% endblock %}

@@ -129,7 +129,8 @@ h1.mb-4::after {
         top: -100%; /* 上部に配置 */
         left: 0; /* 左端に配置 */
         z-index: 1000; /* 他の要素より前面に */
-        height: 50%; /* 画面全体の高さ */
+        height: auto; /* コンテンツ量に応じて高さが伸縮 */
+        max-height: calc(100vh - 55px); /* ナビバーを除いたビューポート全体を上限 */
         background-color: rgba(0, 0, 0, 0.9); /* 半透明の背景色 */
         overflow-y: auto; /* 内容が多い場合にスクロール可能に */
         display: none; /* デフォルトで非表示 */

@@ -25,8 +25,8 @@
         </p>
         <ol class="text-sm text-gray-700 list-decimal list-inside space-y-1 mb-4">
             <li>下の「連携コードを発行」ボタンを押す</li>
-            <li>表示された「LINEアプリで連携する」ボタンを押す</li>
-            <li>LINEが開いたら送信ボタンを押すだけで連携完了</li>
+            <li>LINE Botを友だち追加する</li>
+            <li>「コードを送信して連携する」ボタンを押し、LINEで送信して連携完了</li>
         </ol>
         <form method="post">
             {% csrf_token %}
@@ -40,12 +40,30 @@
         <div class="bg-green-50 border border-green-200 rounded p-4 mt-4">
             <p class="text-sm text-gray-700 mb-2">連携コードが発行されました：</p>
             <p class="font-mono text-2xl font-bold tracking-widest text-center mb-4">{{ line_link_code }}</p>
-            {% if line_url %}
-            <a href="{{ line_url }}" target="_blank" rel="noopener"
-               class="block text-center bg-green-600 text-white px-4 py-3 rounded text-sm font-semibold hover:bg-green-700">
-                LINEアプリで連携する →
-            </a>
-            <p class="text-xs text-gray-500 mt-2 text-center">ボタンを押すとLINEが開き、コードが自動入力されます。送信するだけで連携完了です。</p>
+            {% if line_friend_url %}
+            <div class="space-y-3 mt-2">
+                <div class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-7 h-7 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-700 mb-1">まず友だち追加してください（追加済みならスキップOK）</p>
+                        <a href="{{ line_friend_url }}" target="_blank" rel="noopener"
+                           class="inline-block bg-green-100 text-green-800 border border-green-300 px-4 py-2 rounded text-sm font-semibold hover:bg-green-200">
+                            LINE Botを友だち追加する
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-7 h-7 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-700 mb-1">友だち追加後、コードを送信して連携します</p>
+                        <a href="{{ line_url }}" target="_blank" rel="noopener"
+                           class="inline-block bg-green-600 text-white px-4 py-3 rounded text-sm font-semibold hover:bg-green-700">
+                            コードを送信して連携する →
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-3 text-center">ステップ2のボタンを押すとLINEが開き、コードが自動入力されます。送信するだけで連携完了です。</p>
             {% else %}
             <p class="text-sm text-gray-600">LINE Botを友だち追加して、上のコードを送信してください。</p>
             {% endif %}

@@ -289,11 +289,37 @@ class ShiftAssignment(models.Model):
         return self.external_staff is not None
 
 
+class NotificationTemplate(models.Model):
+    NOTIFICATION_TYPE_CHOICES = [
+        ('OPEN', 'シフト募集開始'),
+        ('REMINDER', '締切リマインド（自動）'),
+        ('MANUAL', '締切リマインド（手動）'),
+        ('PUBLISHED', 'シフト公開'),
+        ('ASSIGNMENT_CHANGED', 'シフト変更通知'),
+    ]
+
+    notification_type = models.CharField(
+        max_length=30, unique=True, choices=NOTIFICATION_TYPE_CHOICES, verbose_name="通知種別",
+    )
+    is_enabled = models.BooleanField(default=True, verbose_name="有効")
+    title_template = models.CharField(max_length=200, verbose_name="タイトルテンプレート")
+    body_template = models.TextField(verbose_name="本文テンプレート")
+
+    class Meta:
+        verbose_name = "通知テンプレート"
+        verbose_name_plural = "通知テンプレート"
+
+    def __str__(self):
+        return f"[{self.get_notification_type_display()}] {self.title_template}"
+
+
 class ShiftNotification(models.Model):
     NOTIFICATION_TYPE_CHOICES = [
         ('OPEN', '募集開始'),
         ('REMINDER', '締切リマインド'),
         ('MANUAL', '手動通知'),
+        ('PUBLISHED', 'シフト公開'),
+        ('ASSIGNMENT_CHANGED', 'シフト変更通知'),
     ]
 
     period = models.ForeignKey(SchedulePeriod, on_delete=models.CASCADE, related_name='notifications', verbose_name="期間")
