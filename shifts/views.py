@@ -705,7 +705,7 @@ def admin_review_submissions(request, period_id):
     period = get_object_or_404(SchedulePeriod, pk=period_id)
     submissions = AvailabilitySubmission.objects.filter(
         period=period,
-    ).select_related('user').prefetch_related('days').order_by('user__last_name', 'user__first_name')
+    ).select_related('user').prefetch_related('days').order_by('-submitted_at')
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1372,7 +1372,7 @@ def api_assignment_update(request):
         return JsonResponse({'status': 'deleted'})
 
     # 特殊種別（休み・中止）
-    if special_type in ('REST', 'CANCEL'):
+    if special_type in ('REST', 'CANCEL', 'RECRUITING'):
         defaults = {
             'user': None,
             'external_staff': None,

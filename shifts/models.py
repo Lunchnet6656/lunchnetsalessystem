@@ -218,6 +218,7 @@ class ShiftAssignment(models.Model):
     SPECIAL_TYPE_CHOICES = [
         ('REST', '休み'),
         ('CANCEL', '中止'),
+        ('RECRUITING', '募集中'),
     ]
 
     date = models.DateField(verbose_name="日付")
@@ -261,7 +262,7 @@ class ShiftAssignment(models.Model):
                 check=(
                     models.Q(user__isnull=False, external_staff__isnull=True, special_type='')
                     | models.Q(user__isnull=True, external_staff__isnull=False, special_type='')
-                    | models.Q(user__isnull=True, external_staff__isnull=True, special_type__in=['REST', 'CANCEL'])
+                    | models.Q(user__isnull=True, external_staff__isnull=True, special_type__in=['REST', 'CANCEL', 'RECRUITING'])
                 ),
                 name='assignment_user_or_external_staff',
             ),

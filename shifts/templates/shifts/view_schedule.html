@@ -25,6 +25,7 @@
     .grid-table td.holiday-cell { background: #f9fafb; color: #9ca3af; }
     .grid-table td.empty-cell   { background: #fefce8; }
     .cell-special   { background: #dc2626 !important; color: white !important; }
+    .cell-recruiting { background: #f97316 !important; color: white !important; }
     .cell-helper    { background: #fef08a; }
     .cell-non-default { background: #93c5fd; }
     .cell-external  { color: #7c3aed; }
@@ -123,7 +124,7 @@
                     {% endif %}
                     <td class="loc-cell">{{ row.location.name }}</td>
                     {% for cell in row.cells %}
-                    <td class="{% if cell.is_mine %}my-cell{% elif cell.is_holiday %}holiday-cell{% elif cell.assignment %}{% if cell.assignment.special_type %}cell-special{% elif cell.work_pattern == 'HELPER' %}cell-helper{% elif cell.default_location_id != None and cell.default_location_id != row.location.id %}cell-non-default{% elif cell.default_location_id == None and cell.work_pattern == 'PART' %}cell-non-default{% endif %}{% if cell.assignment.is_external %} cell-external{% endif %}{% else %}empty-cell{% endif %}">
+                    <td class="{% if cell.is_mine %}my-cell{% elif cell.is_holiday %}holiday-cell{% elif cell.assignment %}{% if cell.assignment.special_type == 'RECRUITING' %}cell-recruiting{% elif cell.assignment.special_type %}cell-special{% elif cell.work_pattern == 'HELPER' %}cell-helper{% elif cell.default_location_id != None and cell.default_location_id != row.location.id %}cell-non-default{% elif cell.default_location_id == None and cell.work_pattern == 'PART' %}cell-non-default{% endif %}{% if cell.assignment.is_external %} cell-external{% endif %}{% else %}empty-cell{% endif %}">
                         {% if cell.assignment %}
                             {% if cell.is_mine %}★ {% endif %}{{ cell.assignment.assignee_name }}{% if cell.assignment.is_external %}<span class="badge-ext">外</span>{% endif %}
                         {% elif cell.is_holiday %}
@@ -161,6 +162,10 @@
     <span class="flex items-center gap-1">
         <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#dc2626;"></span>
         休み・中止
+    </span>
+    <span class="flex items-center gap-1">
+        <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#f97316;"></span>
+        募集中
     </span>
     <!--<span class="flex items-center gap-1">
         <span class="inline-block w-5 h-4 rounded border border-gray-300" style="background:#f9fafb;"></span>

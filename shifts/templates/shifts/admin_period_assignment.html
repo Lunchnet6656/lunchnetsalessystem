@@ -19,6 +19,7 @@
     .cell-helper { background: #fef08a; }
     .cell-non-default { background: #93c5fd; }
     .cell-special { background: #dc2626; color: white; }
+    .cell-recruiting { background: #f97316; color: white; }
     .badge-ext { display: inline-block; background: #ede9fe; color: #6d28d9; font-size: 9px; padding: 0 3px; border-radius: 3px; margin-left: 2px; }
     .badge-drive { display: inline-block; font-size: 9px; margin-right: 2px; }
     .dropdown-overlay { position: fixed; inset: 0; z-index: 40; }
@@ -189,6 +190,7 @@ function openDropdown(td) {
     // 特殊種別（休み・中止）選択肢
     html += '<div class="dropdown-item" style="color:#dc2626;font-weight:600;border-bottom:1px solid #e5e7eb;" onclick="selectSpecial(\'' + date + '\',' + locationId + ',\'REST\')">休み</div>';
     html += '<div class="dropdown-item" style="color:#dc2626;font-weight:600;border-bottom:1px solid #e5e7eb;" onclick="selectSpecial(\'' + date + '\',' + locationId + ',\'CANCEL\')">中止</div>';
+    html += '<div class="dropdown-item" style="color:#f97316;font-weight:600;border-bottom:1px solid #e5e7eb;" onclick="selectSpecial(\'' + date + '\',' + locationId + ',\'RECRUITING\')">募集中</div>';
 
     candidates.forEach(function(c) {
         var isAssigned = false;
@@ -331,7 +333,9 @@ function updateCell(date, locationId, data) {
 
     // 色クラス決定
     var cls = 'assigned';
-    if (data.special_type) {
+    if (data.special_type === 'RECRUITING') {
+        cls += ' cell-recruiting';
+    } else if (data.special_type) {
         cls += ' cell-special';
     } else if (data.work_pattern === 'HELPER') {
         cls += ' cell-helper';
