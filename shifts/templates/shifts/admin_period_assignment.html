@@ -104,7 +104,7 @@
                         {% if cell.is_holiday %}
                             class="holiday-cell"
                         {% elif cell.assignment %}
-                            class="assigned{% if cell.assignment.special_type %} cell-special{% elif cell.work_pattern == 'HELPER' %} cell-helper{% elif cell.default_location_id != None and cell.default_location_id != row.location.id %} cell-non-default{% elif cell.default_location_id == None and cell.work_pattern == 'PART' %} cell-non-default{% endif %}{% if cell.assignment.is_external %} cell-external{% endif %}"
+                            class="assigned{% if cell.assignment.special_type == 'RECRUITING' %} cell-recruiting{% elif cell.assignment.special_type %} cell-special{% elif cell.work_pattern == 'HELPER' %} cell-helper{% elif cell.default_location_id != None and cell.default_location_id != row.location.id %} cell-non-default{% elif cell.default_location_id == None and cell.work_pattern == 'PART' %} cell-non-default{% endif %}{% if cell.assignment.is_external %} cell-external{% endif %}"
                             data-user-id="{{ cell.assignment.user_id|default:'' }}"
                             data-ext-id="{{ cell.assignment.external_staff_id|default:'' }}"
                             data-special-type="{{ cell.assignment.special_type|default:'' }}"

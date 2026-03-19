@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db import models
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -705,7 +705,7 @@ def admin_review_submissions(request, period_id):
     period = get_object_or_404(SchedulePeriod, pk=period_id)
     submissions = AvailabilitySubmission.objects.filter(
         period=period,
-    ).select_related('user').prefetch_related('days').order_by('-submitted_at')
+    ).select_related('user').prefetch_related('days').order_by(F('submitted_at').desc(nulls_last=True))
 
     if request.method == 'POST':
         action = request.POST.get('action')
