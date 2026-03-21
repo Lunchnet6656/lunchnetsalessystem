@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Heroku post_compile hook: ビルドフェーズ中にstaticfilesを再生成
+# --clear で既存ファイルを削除し、ManifestStorageのハッシュ付きファイルを確実に生成
+python manage.py collectstatic --no-input --clear
