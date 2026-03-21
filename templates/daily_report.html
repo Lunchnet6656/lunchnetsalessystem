@@ -7,7 +7,9 @@
 
   {% load static %}
   <link href="{% static 'css/styles_daily_report.css' %}" rel="stylesheet">
-  <div class="container mt-4">
+  <div class="container mt-4"
+       data-shin-yokohama-url="{% url 'shin_yokohama_users' %}"
+       data-selected-person="{{ selected_person|escapejs }}">
   <h1 class="text-center">ランチネット日計表入力</h1>
   <form method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission();">
     {% csrf_token %}
@@ -27,28 +29,27 @@
     <!-- 天気セクション -->
       <div class="col-6 col-md-6">
         <label class="form-label">天気</label>
-        <div class="form-check">
-            {% for weather_option in weather_options %}
+        {% for weather_option in weather_options %}
+            <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="weather" value="{{ weather_option }}" id="weather-{{ weather_option }}"
                 {% if weather_option in selected_weather %}checked{% endif %}>
-                <label class="form-check-label" for="weather-{{ weather_option }}">{{ weather_option }}</label><br>
-            {% endfor %}
-        </div>
+                <label class="form-check-label" for="weather-{{ weather_option }}">{{ weather_option }}</label>
+            </div>
+        {% endfor %}
       </div>
 
     <!-- 体感気温セクション -->
       <div class="col-6 col-md-6">
         <label class="form-label">体感気温</label>
-        <div class="form-check">
-            {% for temp_option in temp_options %}
+        {% for temp_option in temp_options %}
+            <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="temp" value="{{ temp_option }}" id="temp-{{ temp_option }}"
                 {% if temp_option in selected_temp %}checked{% endif %}>
-                <label class="form-check-label" for="temp-{{ temp_option }}">{{ temp_option }}</label><br>
-            {% endfor %}
-        </div>
+                <label class="form-check-label" for="temp-{{ temp_option }}">{{ temp_option }}</label>
+            </div>
+        {% endfor %}
       </div>
     </div>
-    <br>
     <div class="mb-3">
         <label for="location" class="form-label">販売所</label>
         <select id="location" name="location" class="form-select" required>
@@ -77,7 +78,9 @@
 
         {% if item_data %}
         {% load humanize %}
+            <div id="bento-section">
             <h2 class="bg-dark text-white mt-4">お弁当一覧</h2>
+            </div>
             <div class="table-responsive">
             <table class="table table-striped table-sm">
                 <thead>
@@ -119,7 +122,7 @@
                                <input type="hidden" id="total_sales_{{ item.menu_no }}" name="total_sales_{{ item.menu_no }}" value="0">
                             </td>
                             <td>
-                                <input type="checkbox" id="sold_out_{{ item.menu_no }}" name="sold_out_{{ item.menu_no }}" onchange="toggleSoldOut(this, '{{ item.menu_no }}')">
+                                <input type="checkbox" id="sold_out_{{ item.menu_no }}" name="sold_out_{{ item.menu_no }}">
                             </td>
                             <td>
                                 <input type="checkbox" id="popular_{{ item.menu_no }}" name="popular_{{ item.menu_no }}">
@@ -147,6 +150,7 @@
                     </tr>
                 </tfoot>
             </table>
+            </div>
             <div class="table-responsive">
             <table class="table table-striped">
                 <thead>
@@ -184,13 +188,14 @@
                              <input type="hidden" id="total_sales_{{ item.menu_no }}" name="total_sales_{{ item.menu_no }}" value="0">
                          </td>
                           <td>
-                              <input type="checkbox" id="sold_out_{{ item.menu_no }}" name="sold_out_{{ item.menu_no }}" onchange="toggleSoldOut(this, '{{ item.menu_no }}')">
+                              <input type="checkbox" id="sold_out_{{ item.menu_no }}" name="sold_out_{{ item.menu_no }}">
                           </td>
                     </tr>
                     {% endif %}
                   {% endfor %}
               </tbody>
             </table>
+            </div>
             <table class="table table-bordered">
                 <thead>
                     <tr>
@@ -199,20 +204,16 @@
                         <th>合計金額</th>
                     </tr>
                 </thead>
-                <!-- 単価別集計行を追加 -->
-                <div class="price-summary">
-                    <tbody>
-                        {% for price in unique_prices %}
-                        <tr>
-                            <td colspan="1">{{ price }}円商品</td>
-                            <td colspan="1" id="price_{{ price }}_sales_quantity">0</td>
-                            <input type="hidden" name="sales_price_quantity_{{ forloop.counter }}" value="price_{{ price }}_sales">
-                            <td colspan="1" id="price_{{ price }}_sales">0</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                <div>
-                </table>
+                <tbody class="price-summary">
+                    {% for price in unique_prices %}
+                    <tr>
+                        <td>{{ price }}円商品</td>
+                        <td id="price_{{ price }}_sales_quantity">0</td>
+                        <input type="hidden" name="sales_price_quantity_{{ forloop.counter }}" value="price_{{ price }}_sales">
+                        <td id="price_{{ price }}_sales">0</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
             {% else %}
             {% endif %}
@@ -243,12 +244,6 @@
                   <input type="number" id="others_price1" name="others_price1" class="form-control others-input" min="0" value="0" readonly>
                   <span class="input-group-text">円</span>
                 </div>
-                <script>
-                  function updatePrice(element, type) {
-                    var price = element.getAttribute('data-price' + type);
-                    document.getElementById('others_price' + type).value = price;
-                  }
-                </script>
               </div>
               <div class="col-6 mb-2 discount-item">
                   <label for="others_sales_quantity1" class="form-label">個数</label>
@@ -307,14 +302,14 @@
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                               <label for="no_rice_quantity" class="form-label">なし(▲100円)</label>
-                              <input type="number" id="no_rice_quantity" name="no_rice_quantity" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                              <input type="number" id="no_rice_quantity" name="no_rice_quantity" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
                         <!-- ご飯追加 -->
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                               <label for="extra_rice_quantity" class="form-label">追加(＋100円)</label>
-                              <input type="number" id="extra_rice_quantity" name="extra_rice_quantity" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                              <input type="number" id="extra_rice_quantity" name="extra_rice_quantity" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
 
@@ -325,13 +320,13 @@
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="coupon_type_600">650円</label>
-                                <input type="number" id="coupon_type_600" name="coupon_type_600" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                                <input type="number" id="coupon_type_600" name="coupon_type_600" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="coupon_type_700">700円</label>
-                                <input type="number" id="coupon_type_700" name="coupon_type_700" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                                <input type="number" id="coupon_type_700" name="coupon_type_700" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
 
@@ -342,13 +337,13 @@
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="discount_50" class="form-label">▲50円</label>
-                                <input type="number" id="discount_50" name="discount_50" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                                <input type="number" id="discount_50" name="discount_50" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="discount_100" class="form-label">▲100円</label>
-                                <input type="number" id="discount_100" name="discount_100" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                                <input type="number" id="discount_100" name="discount_100" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
 
@@ -367,7 +362,7 @@
                         <!-- 100円引き -->
                         <div class="col-12 col-md-4 mb-2 discount-item">
                             <label for="service_type_100" class="form-label">サービス販売数</label>
-                            <input type="number" id="service_type_100" name="service_type_100" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                            <input type="number" id="service_type_100" name="service_type_100" class="form-control" min="0" value="0" oninput="updateDiscount()">
                         </div>
                         <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
                       {% else %}
@@ -383,13 +378,13 @@
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="service_type_600">650円</label>
-                                <input type="number" id="service_type_600" name="service_type_600" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                                <input type="number" id="service_type_600" name="service_type_600" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
                         <div class="col-6 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="service_type_700">700円</label>
-                                <input type="number" id="service_type_700" name="service_type_700" class="form-control" min="0" value="0" onchange="updateDiscount()">
+                                <input type="number" id="service_type_700" name="service_type_700" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
                         <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
@@ -419,21 +414,21 @@
                     <div class="col-12 col-md-4 mb-2">
                         <label for="paypay" class="form-label">PayPay</label>
                         <div class="input-group">
-                        <input type="number" id="paypay" name="paypay" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="paypay" name="paypay" class="form-control" min="0" value="0" oninput="updateRevenue()">
                         <span class="input-group-text">円</span>
                         </div>
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="digital_payment" class="form-label">電子決済</label>
                         <div class="input-group">
-                        <input type="number" id="digital_payment" name="digital_payment" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="digital_payment" name="digital_payment" class="form-control" min="0" value="0" oninput="updateRevenue()">
                         <span class="input-group-text">円</span>
                         </div>
                     </div>
                     <div class="col-12 col-md-4 mb-2">
-                        <label for="cash" class="form-label" style="color: red; font-weight: bold;">現金(入力忘れないで！)</label>
+                        <label for="cash" class="form-label label-cash-warning">現金(入力忘れないで！)</label>
                         <div class="input-group">
-                        <input type="number" id="cash" name="cash" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="cash" name="cash" class="form-control" min="0" value="0" oninput="updateRevenue()">
                         <span class="input-group-text">円</span>
                         </div>
                     </div>
@@ -483,23 +478,23 @@
                 <div class="row">
                     <div class="col-12 col-md-4 mb-2">
                         <label for="gasolin" class="form-label">ガソリン代</label>
-                        <input type="number" id="gasolin" name="gasolin" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="gasolin" name="gasolin" class="form-control" min="0" value="0" oninput="updateRevenue()">
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="highway" class="form-label">高速代</label>
-                        <input type="number" id="highway" name="highway" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="highway" name="highway" class="form-control" min="0" value="0" oninput="updateRevenue()">
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="parking" class="form-label">駐車場代</label>
-                        <input type="number" id="parking" name="parking" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="parking" name="parking" class="form-control" min="0" value="0" oninput="updateRevenue()">
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="part" class="form-label">パート代</label>
-                        <input type="number" id="part" name="part" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="part" name="part" class="form-control" min="0" value="0" oninput="updateRevenue()">
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="others" class="form-label">その他</label>
-                        <input type="number" id="others" name="others" class="form-control" min="0" value="0" onchange="updateRevenue()">
+                        <input type="number" id="others" name="others" class="form-control" min="0" value="0" oninput="updateRevenue()">
                     </div>
                 </div>
             </div>
@@ -518,24 +513,31 @@
                 </div>
             </div>
             <div id="check-section">
-                <h2 class="bg-dark text-white mt-4">チェック事項</h2>               
-                <p style="color: black; text-decoration: underline; font-size: larger;">① 販売場所は「<span id="selected-location" style="color: red;">{{ selected_location }}</span>」で間違いありませんか？</p>
+                <h2 class="bg-dark text-white mt-4">チェック事項</h2>
+                <p class="check-text">① 販売場所は「<span id="selected-location" class="check-highlight">{{ selected_location }}</span>」で間違いありませんか？</p>
                 <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="location_check" name="location_check" style="transform: scale(1.5); margin-left: 5px;">
-                    <label class="form-check-label" for="location_check" style="font-size: larger; margin-left: 10px;">確認しました。</label>
+                    <input class="form-check-input check-checkbox" type="checkbox" id="location_check" name="location_check">
+                    <label class="form-check-label check-label" for="location_check">確認しました。</label>
                 </div>
-                <label class="form-label" style="color: black; text-decoration: underline; font-size: larger;">
-                    ② <span style="color: red;">閉店時間</span>
-                    <span id="closing-time-message" style="color: black;"></span>
+                <label class="form-label check-text">
+                    ② <span class="check-highlight">閉店時間</span>
+                    <span id="closing-time-message"></span>
                 </label>
-                <script>
-
-                </script>
             </div>
                 <!-- 送信ボタン -->
                 <div class="mb-3">
-                    <button type="submit" name="action" value="send" class="btn btn-success w-100 py-3" id="submit-button" style="display: none;">送信</button>
+                    <button type="submit" name="action" value="send" class="btn btn-success w-100 py-3 btn-submit-hidden" id="submit-button">送信</button>
                 </div>
+            <!-- スマホ用セクションナビゲーション -->
+            <nav class="section-nav d-md-none">
+                <a href="#bento-section" title="弁当"><i class="fas fa-utensils"></i><span>弁当</span></a>
+                <a href="#others-sales-section" title="その他"><i class="fas fa-plus-circle"></i><span>その他</span></a>
+                <a href="#discount-section" title="割引"><i class="fas fa-tag"></i><span>割引</span></a>
+                <a href="#sales-section" title="売上"><i class="fas fa-yen-sign"></i><span>売上</span></a>
+                <a href="#time-section" title="時間"><i class="fas fa-clock"></i><span>時間</span></a>
+                <a href="#expenses-section" title="経費"><i class="fas fa-gas-pump"></i><span>経費</span></a>
+                <a href="#check-section" title="確認"><i class="fas fa-check-circle"></i><span>確認</span></a>
+            </nav>
             {% endif %}
 
     </form>
@@ -546,123 +548,5 @@
 
     {% load static %}
     <script src="{% static 'js/script.js' %}"></script>
-    <script>
-        // 新横浜担当者の切替処理（共通関数）
-        function switchPersonField(locationValue, preselectedPerson) {
-            const personDefault = document.getElementById('person-default');
-            const personSelect = document.getElementById('person-select');
-            const selectEl = document.getElementById('担当者_select');
-
-            if (locationValue === '新横浜') {
-                fetch('{% url "shin_yokohama_users" %}')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.length === 0) {
-                            showDefaultPerson();
-                            return;
-                        }
-                        // 担当者セレクトを表示
-                        personDefault.style.display = 'none';
-                        personSelect.style.display = '';
-                        selectEl.name = '担当者';
-                        // デフォルト側のname属性を無効化
-                        const hiddenField = document.getElementById('担当者_hidden');
-                        if (hiddenField) hiddenField.removeAttribute('name');
-                        const inputField = document.getElementById('担当者_input');
-                        if (inputField) inputField.removeAttribute('name');
-
-                        if (data.length === 1) {
-                            selectEl.innerHTML = '';
-                            const option = document.createElement('option');
-                            option.value = data[0].name;
-                            option.textContent = data[0].name;
-                            selectEl.appendChild(option);
-                        } else {
-                            selectEl.innerHTML = '<option value="">-- 担当者を選択 --</option>';
-                            data.forEach(user => {
-                                const option = document.createElement('option');
-                                option.value = user.name;
-                                option.textContent = user.name;
-                                selectEl.appendChild(option);
-                            });
-                        }
-                        // POST後の再表示時に以前選択した担当者を復元
-                        if (preselectedPerson) {
-                            selectEl.value = preselectedPerson;
-                        }
-                    });
-            } else {
-                showDefaultPerson();
-            }
-        }
-
-        function showDefaultPerson() {
-            const personDefault = document.getElementById('person-default');
-            const personSelect = document.getElementById('person-select');
-            const selectEl = document.getElementById('担当者_select');
-            personDefault.style.display = '';
-            personSelect.style.display = 'none';
-            selectEl.removeAttribute('name');
-            const hiddenField = document.getElementById('担当者_hidden');
-            if (hiddenField) hiddenField.name = '担当者';
-            const inputField = document.getElementById('担当者_input');
-            if (inputField) inputField.name = '担当者';
-        }
-
-        // 販売所変更時
-        document.getElementById('location').addEventListener('change', function() {
-            switchPersonField(this.value, null);
-        });
-
-        // ページ読み込み時: POST後に新横浜が選択された状態なら担当者セレクトを復元
-        document.addEventListener('DOMContentLoaded', function() {
-            const locationEl = document.getElementById('location');
-            if (locationEl.value === '新横浜') {
-                // サーバーから渡されたselected_personを復元用に使う
-                const savedPerson = '{{ selected_person|escapejs }}';
-                switchPersonField('新横浜', savedPerson);
-            }
-        });
-
-        function updateClosingTimeMessage() {
-            const closingTime = document.getElementById('closing_time').value;
-            const messageElement = document.getElementById('closing-time-message');
-            messageElement.textContent = closingTime ? 'は入力されています。' : 'を入力してください。';
-        }
-        document.getElementById('closing_time').addEventListener('input', updateClosingTimeMessage);
-        document.addEventListener('DOMContentLoaded', updateClosingTimeMessage);
-
-        
-        // 各ドロップダウン内のアイテムを選択したときに対応するボタンのテキストを変更し、隠しフィールドに値をセット
-        document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
-            dropdown.querySelectorAll('.dropdown-item').forEach(item => {
-                item.addEventListener('click', function(event) {
-                    event.preventDefault(); // リンクのデフォルト動作を防止
-                    const selectedValue = this.getAttribute('data-value'); // 選択されたアイテムの値を取得
-                    const dropdownButton = this.closest('.dropdown').querySelector('.dropdown-toggle');
-                    dropdownButton.textContent = selectedValue; // 対応するボタンのテキストを変更
-
-                    // 対応する隠しフィールドに値をセット
-                    if (dropdownButton.id === 'dropdownMenuButton1') {
-                        document.getElementById('selected_item_1').value = selectedValue;
-                    } else if (dropdownButton.id === 'dropdownMenuButton2') {
-                        document.getElementById('selected_item_2').value = selectedValue;
-                    }
-                });
-            });
-        });
-
-        // 閉店時間が入力されている場合に送信ボタンを表示
-        function toggleSubmitButton() {
-            const closingTime = document.getElementById('closing_time').value;
-            const locationCheck = document.getElementById('location_check').checked; // location-checkの状態を取得
-            const submitButton = document.getElementById('submit-button');
-            submitButton.style.display = closingTime && locationCheck ? 'block' : 'none'; // 両方の条件を確認
-        }
-    
-        // ページ読み込み時とinput変更時に実行
-        document.addEventListener('DOMContentLoaded', toggleSubmitButton);
-        document.getElementById('closing_time').addEventListener('input', toggleSubmitButton);
-        document.getElementById('location_check').addEventListener('change', toggleSubmitButton); // チェックボックスの変更時にも実行
-    </script>
+    <script src="{% static 'js/daily_report.js' %}"></script>
     {% endblock %}

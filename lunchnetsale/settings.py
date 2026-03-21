@@ -94,6 +94,8 @@ AXES_LOCK_OUT_URL = '/locked_out/'
 # 静的ファイル: 本番のみWhiteNoise圧縮、開発時はDjangoデフォルト
 if IS_PRODUCTION:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    WHITENOISE_USE_FINDERS = True
 
 ROOT_URLCONF = 'lunchnetsale.urls'
 

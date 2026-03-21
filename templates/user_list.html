@@ -10,8 +10,7 @@
             <thead>
                 <tr>
                     <th>ユーザー名</th>
-                    <th>名</th>
-                    <th>姓</th>
+                    <th>名前</th>
                     <th>権限</th>
                     <th>直行直帰</th>
                     <th>操作</th>
@@ -21,8 +20,7 @@
                 {% for user in users %}
                     <tr>
                         <td>{{ user.username }}</td>
-                        <td>{{ user.first_name }}</td>
-                        <td>{{ user.last_name }}</td>
+                        <td>{{ user.last_name }} {{ user.first_name }}</td>
                         <td>{{ user.is_staff|yesno:"管理者,一般" }}</td>
                         <td class="text-center">
                             <input type="checkbox" class="direct-return-checkbox"
