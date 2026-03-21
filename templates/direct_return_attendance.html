@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}直行直帰出勤記録{% endblock %}
+{% block content %}
+<h3>直行直帰 出勤記録</h3>
+<hr>
+
+<!-- フィルターフォーム -->
+<form method="get" class="mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <label class="form-label">締日</label>
+            <input type="number" name="closing_day" min="1" max="31" value="{{ closing_day }}" class="form-control" style="width:80px;" readonly>
+        </div>
+        <div class="col-auto">
+            <label class="form-label">対象年</label>
+            <input type="number" name="target_year" value="{{ target_year }}" class="form-control" style="width:100px;">
+        </div>
+        <div class="col-auto">
+            <label class="form-label">対象月</label>
+            <select name="target_month" class="form-select" style="width:90px;">
+                <option value="1" {% if target_month == 1 %}selected{% endif %}>1月</option>
+                <option value="2" {% if target_month == 2 %}selected{% endif %}>2月</option>
+                <option value="3" {% if target_month == 3 %}selected{% endif %}>3月</option>
+                <option value="4" {% if target_month == 4 %}selected{% endif %}>4月</option>
+                <option value="5" {% if target_month == 5 %}selected{% endif %}>5月</option>
+                <option value="6" {% if target_month == 6 %}selected{% endif %}>6月</option>
+                <option value="7" {% if target_month == 7 %}selected{% endif %}>7月</option>
+                <option value="8" {% if target_month == 8 %}selected{% endif %}>8月</option>
+                <option value="9" {% if target_month == 9 %}selected{% endif %}>9月</option>
+                <option value="10" {% if target_month == 10 %}selected{% endif %}>10月</option>
+                <option value="11" {% if target_month == 11 %}selected{% endif %}>11月</option>
+                <option value="12" {% if target_month == 12 %}selected{% endif %}>12月</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">検索</button>
+        </div>
+    </div>
+</form>
+
+<p class="text-muted">対象期間：{{ start_date_str }} 〜 {{ end_date_str }}</p>
+
+{% if not direct_return_names %}
+<div class="alert alert-warning">直行直帰に設定されているユーザーがいません。ユーザー管理から設定してください。</div>
+{% endif %}
+
+<!-- 出勤日数集計テーブル -->
+<h5>担当者別 出勤日数（給与計算用）</h5>
+<table class="table table-bordered table-sm mb-4" style="max-width:400px;">
+    <thead class="table-dark">
+        <tr>
+            <th>担当者名</th>
+            <th>出勤日数</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in summary %}
+        <tr>
+            <td>{{ row.person_in_charge }}</td>
+            <td>{{ row.attendance_count }} 日</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2" class="text-center text-muted">対象期間の記録がありません</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 出勤記録一覧テーブル -->
+<h5>出勤記録一覧</h5>
+<table class="table table-bordered table-sm table-hover">
+    <thead class="table-secondary">
+        <tr>
+            <th>日付</th>
+            <th>店舗</th>
+            <th>担当者名</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for report in reports %}
+        <tr>
+            <td>{{ report.date_str }}</td>
+            <td>{{ report.location }}</td>
+            <td>{{ report.person_in_charge }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center text-muted">対象期間の記録がありません</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

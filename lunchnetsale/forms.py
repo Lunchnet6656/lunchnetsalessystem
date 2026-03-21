@@ -7,7 +7,7 @@ import calendar
 class UserMenuPermissionForm(forms.ModelForm):
     class Meta:
         model = UserMenuPermission
-        exclude = ['user']
+        exclude = ['user', 'direct_return']
         widgets = {
             field.name: forms.CheckboxInput()
             for field in UserMenuPermission._meta.get_fields()

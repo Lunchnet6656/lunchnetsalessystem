@@ -364,7 +364,7 @@ def dashboard_view(request):
 
 @login_required
 def user_list_view(request):
-    users = User.objects.all().order_by('date_joined')  # ユーザー情報を古い順に取得
+    users = User.objects.all().select_related('menu_permission').order_by('date_joined')  # ユーザー情報を古い順に取得
     return render(request, 'user_list.html', {'users': users})
 
 
@@ -456,6 +456,19 @@ def user_delete_view(request, user_id):
         messages.success(request, f'ユーザー {user.username} を削除しました。')
         return JsonResponse({'message': 'ユーザーを削除しました。'})
     return render(request, 'user_confirm_delete.html', {'user': user})
+
+
+@login_required
+def toggle_direct_return_view(request, user_id):
+    if request.method == 'POST':
+        user = get_object_or_404(User, id=user_id)
+        perm, _ = UserMenuPermission.objects.get_or_create(user=user)
+        checked = request.POST.get('checked') == 'true'
+        perm.direct_return = checked
+        perm.save()
+        status = "オン" if checked else "オフ"
+        return JsonResponse({'message': f'{user.username} の直行直帰を{status}にしました。', 'success': True})
+    return JsonResponse({'success': False}, status=400)
 
 
 @login_required
@@ -1325,6 +1338,88 @@ def others_list_view(request):
     return render(request, 'others_item_list.html', {'item':item})
 
 
+@login_required
+def direct_return_attendance_view(request):
+    WEEKDAY_JA = ['月', '火', '水', '木', '金', '土', '日']
+
+    def format_date_ja(d):
+        return f"{d.year}年{d.month}月{d.day}日({WEEKDAY_JA[d.weekday()]})"
+
+    today = date.today()
+    closing_day = 15
+    target_year = int(request.GET.get('target_year', today.year))
+    target_month = int(request.GET.get('target_month', today.month))
+
+    # 締日から対象期間を計算
+    last_day_target = monthrange(target_year, target_month)[1]
+    end_day = min(closing_day, last_day_target)
+    end_date = date(target_year, target_month, end_day)
+
+    if target_month == 1:
+        prev_year, prev_month = target_year - 1, 12
+    else:
+        prev_year, prev_month = target_year, target_month - 1
+
+    last_day_prev = monthrange(prev_year, prev_month)[1]
+    start_day = closing_day + 1
+    if start_day > last_day_prev:
+        start_date = date(target_year, target_month, 1)
+    else:
+        start_date = date(prev_year, prev_month, start_day)
+
+    # 直行直帰ユーザーの名前リストを取得
+    direct_return_users = User.objects.filter(
+        menu_permission__direct_return=True
+    ).select_related('menu_permission')
+    direct_return_names = [
+        f"{u.last_name} {u.first_name}" for u in direct_return_users
+        if u.last_name or u.first_name
+    ]
+
+    reports = DailyReport.objects.filter(
+        date__gte=start_date,
+        date__lte=end_date,
+        person_in_charge__in=direct_return_names
+    ).order_by('date', 'person_in_charge')
+
+    # 管理者以外は自分の記録のみ表示
+    is_admin = request.user.is_staff or request.user.is_superuser
+    if not is_admin:
+        current_user_name = f"{request.user.last_name} {request.user.first_name}"
+        reports = reports.filter(person_in_charge=current_user_name)
+
+    summary = (
+        reports
+        .values('person_in_charge')
+        .annotate(attendance_count=Count('id'))
+        .order_by('person_in_charge')
+    )
+
+    reports_display = [
+        {'date_str': format_date_ja(r.date), 'location': r.location, 'person_in_charge': r.person_in_charge}
+        for r in reports
+    ]
+
+    month_choices = []
+    for i in range(12):
+        d = today.replace(day=1) - relativedelta(months=i)
+        month_choices.append((d.year, d.month))
+
+    context = {
+        'reports': reports_display,
+        'summary': summary,
+        'closing_day': closing_day,
+        'target_year': target_year,
+        'target_month': target_month,
+        'start_date': start_date,
+        'end_date': end_date,
+        'start_date_str': format_date_ja(start_date),
+        'end_date_str': format_date_ja(end_date),
+        'direct_return_names': direct_return_names,
+        'month_choices': month_choices,
+        'is_admin': is_admin,
+    }
+    return render(request, 'direct_return_attendance.html', context)
 
 
 # 持参数データ(ItemQuantity)の一覧表示、編集、削除

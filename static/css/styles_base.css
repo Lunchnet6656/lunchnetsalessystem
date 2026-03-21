@@ -29,6 +29,7 @@ h1.mb-4::after {
     background-color: #343a40;
     padding-top: 60px ;
     z-index: 998; /* 他の要素の上に表示 */
+    transition: width 0.3s ease;
 }
 
 .sidebar ul {
@@ -79,15 +80,22 @@ h1.mb-4::after {
     margin-bottom: 10px;
 }
 
+/* col-md-2の無効化（固定サイドバーはフローから外れるため） */
+.main-wrapper > .row > .col-md-2 {
+    width: 0;
+    padding: 0;
+    flex: none;
+}
 
 /* メインコンテンツ */
 .container-fluid {
     margin-left: 20px; /* サイドバーの幅分の余白を設定 */
     padding-top: 70px; /* ナビバーの高さ分、上部に余白を設定 */
+    transition: margin-left 0.3s ease;
 }
 
 .container-fluid.expanded {
-    margin-left: 180px;
+    margin-left: 230px; /* 220pxサイドバー + 10px余白 */
     margin-right: 20px;
 }
 
@@ -106,8 +114,13 @@ h1.mb-4::after {
         width: 200px; /* サイドバーの幅を調整 */
     }
 
-    .container-fluid {
-        margin-left: 200px; /* サイドバーの幅分の余白を設定 */
+    .sidebar.collapsed {
+        width: 0;
+        overflow: hidden;
+    }
+
+    .container-fluid.expanded {
+        margin-left: 210px; /* 200pxサイドバー + 10px余白 */
     }
 
     .custom-table {
@@ -116,7 +129,8 @@ h1.mb-4::after {
 
     /* アイテムの余白を調整 */
     .sidebar ul li a {
-        padding: 12px; /* アイテムの内側の余白を調整 */
+        padding: 10px 12px; /* アイテムの内側の余白を調整 */
+        font-size: 14px;
     }
 }
 
@@ -126,49 +140,58 @@ h1.mb-4::after {
     .sidebar {
         width: 100%; /* 横幅いっぱい */
         position: fixed; /* 画面に固定 */
-        top: -100%; /* 上部に配置 */
+        top: 60px; /* ナビバーの高さに合わせる */
         left: 0; /* 左端に配置 */
         z-index: 1000; /* 他の要素より前面に */
         height: auto; /* コンテンツ量に応じて高さが伸縮 */
-        max-height: calc(100vh - 55px); /* ナビバーを除いたビューポート全体を上限 */
+        max-height: calc(100vh - 60px); /* ナビバーを除いたビューポート全体を上限 */
         background-color: rgba(0, 0, 0, 0.9); /* 半透明の背景色 */
         overflow-y: auto; /* 内容が多い場合にスクロール可能に */
-        display: none; /* デフォルトで非表示 */
+        -webkit-overflow-scrolling: touch; /* iOSスムーズスクロール */
         padding-top: 3px; /* 上部の余白を狭く設定 */
-        transition: top 0.3s ease-in-out; /* 上からスライドインするアニメーション */
+        /* display: none の代わりに visibility/opacity で トランジション有効化 */
+        visibility: hidden;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: visibility 0s linear 0.3s, opacity 0.3s ease, transform 0.3s ease;
     }
 
     /* サイドバーを表示させるためのクラス */
     .sidebar.expanded {
-        display: block; /* サイドバーを表示 */
-        top: 55px; /* スライドイン */
+        visibility: visible;
+        opacity: 1;
+        transform: translateY(0);
+        transition: visibility 0s linear 0s, opacity 0.3s ease, transform 0.3s ease;
     }
 
-    /* サイドバーを表示させるためのクラス */
-    .sidebar.expanded {
-        display: block; /* サイドバーを表示 */
+    .sidebar.collapsed {
+        visibility: hidden;
+        opacity: 0;
     }
 
     .sidebar ul li a {
-        padding: 10px; /* 余白を少し減らして見やすく */
-        font-size: 20px; /* テキストサイズを調整 */
+        padding: 8px 12px; /* 余白を少し減らして見やすく */
+        font-size: 16px; /* テキストサイズを調整（20px→16px） */
         width: 100%; /* 横幅いっぱいに */
     }
 
     .container-fluid {
         margin-left: 5px;
         margin-right: 5px;
-        padding-top: 50px; /* ナビバー分の余白をキープ */
+        padding-top: 70px; /* ナビバー分の余白をキープ */
     }
 
     .container-fluid.expanded {
-        margin-left: 0px;
-        margin-right: 0px;
-        padding-top: 50px; /* ナビバー分の余白をキープ */
+        margin-left: 5px; /* スマホではサイドバーオフセット不要 */
+        margin-right: 5px;
+        padding-top: 70px; /* ナビバー分の余白をキープ */
     }
 
-    .sidebar.collapsed {
-        display: none; /* サイドバーを隠す */
+    /* col-md-2の無効化（スマホ） */
+    .main-wrapper > .row > .col-md-2 {
+        width: 0;
+        padding: 0;
+        flex: none;
     }
 
     /* ログアウトボタンはマージンなし */
@@ -178,8 +201,9 @@ h1.mb-4::after {
 
     .navbar {
         height: auto;
+        min-height: 60px; /* 最低高さを確保 */
         flex-wrap: nowrap; /* アイテムを折り返さないように */
-        z-index: 1000; /* 他の要素より前面に */
+        z-index: 1001; /* サイドバーより上に */
     }
 
     .navbar-brand {

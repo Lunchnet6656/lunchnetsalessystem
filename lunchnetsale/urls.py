@@ -41,8 +41,10 @@ urlpatterns = [
     path('users/', views.user_list_view, name='user_list'),
     path('user/edit/<int:user_id>/', views.user_edit_view, name='user_edit'),
     path('user/delete/<int:user_id>/', views.user_delete_view, name='user_delete'),
+    path('user/toggle_direct_return/<int:user_id>/', views.toggle_direct_return_view, name='toggle_direct_return'),
 
     path('others_item_list/', views.others_list_view, name='others_item_list'),
+    path('direct_return_attendance/', views.direct_return_attendance_view, name='direct_return_attendance'),
 
     path('daily_report/', views.daily_report_view, name='daily_report'), #日計表のURL
     path('submission_complete/', views.submission_complete_view, name='submission_complete'),  # 完了ページのURL

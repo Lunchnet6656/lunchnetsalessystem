@@ -82,7 +82,7 @@
                     {% endif %}
 
                     <!-- データ管理セクション -->
-                    {% if user.menu_permission.can_view_user_list or user.menu_permission.can_view_location_list or user.menu_permission.can_view_product_list or user.menu_permission.can_view_item_quantity or user.menu_permission.can_view_others_item %}
+                    {% if user.menu_permission.can_view_user_list or user.menu_permission.can_view_location_list or user.menu_permission.can_view_product_list or user.menu_permission.can_view_item_quantity or user.menu_permission.can_view_others_item or user.menu_permission.can_view_direct_return_attendance %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">データ管理</h6>
                         {% if user.menu_permission.can_view_user_list %}
@@ -108,6 +108,11 @@
                         {% if user.menu_permission.can_view_others_item %}
                         <a href="{% url 'others_item_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> その他の項目設定
+                        </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_direct_return_attendance %}
+                        <a href="{% url 'direct_return_attendance' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-calendar-check"></i> 直行直帰出勤記録
                         </a>
                         {% endif %}
                     </li>
@@ -213,14 +218,33 @@
 
             // 画面幅に応じて処理を切り替え
             if (window.innerWidth > 768) {
-                // PC画面
+                // PC・タブレット画面
                 sidebar.classList.toggle("collapsed");
                 container.classList.toggle("expanded");
             } else {
                 // スマホ画面
-                sidebar.classList.toggle("expanded"); // expandedクラスを切り替え
+                sidebar.classList.toggle("expanded");
             }
         };
+
+        // ブレークポイントをまたぐリサイズ時にクラスをクリーンアップ
+        window.addEventListener('resize', function() {
+            const sidebar = document.querySelector(".sidebar");
+            const container = document.querySelector(".container-fluid");
+
+            if (window.innerWidth > 768) {
+                // デスクトップ/タブレットに入った: モバイル用expandedを除去、デスクトップ状態を復元
+                sidebar.classList.remove("expanded");
+                if (!sidebar.classList.contains("collapsed")) {
+                    container.classList.add("expanded");
+                }
+            } else {
+                // モバイルに入った: デスクトップ用collapsedを除去、サイドバーを閉じる
+                sidebar.classList.remove("collapsed");
+                sidebar.classList.remove("expanded");
+                container.classList.remove("expanded");
+            }
+        });
 
         function confirmLogout(event) {
             if (!confirm('ログアウトしてもよろしいですか？')) {

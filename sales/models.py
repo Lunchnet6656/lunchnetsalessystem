@@ -208,6 +208,7 @@ class UserMenuPermission(models.Model):
     can_view_product_list = models.BooleanField(default=False, verbose_name="メニューデータ確認")
     can_view_item_quantity = models.BooleanField(default=False, verbose_name="持参数データ確認")
     can_view_others_item = models.BooleanField(default=False, verbose_name="その他の項目設定")
+    can_view_direct_return_attendance = models.BooleanField(default=False, verbose_name="直行直帰出勤記録")
     can_view_daily_report_list = models.BooleanField(default=False, verbose_name="日計表 送信結果（管理者）")
     can_view_performance_data = models.BooleanField(default=False, verbose_name="日別実績集計データ")
     can_view_performance_by_location = models.BooleanField(default=False, verbose_name="販売場所別実績（管理者）")
@@ -216,6 +217,7 @@ class UserMenuPermission(models.Model):
     can_view_performance_by_location_rol = models.BooleanField(default=True, verbose_name="販売場所別実績データ（一般）")
     can_view_daily_report_form = models.BooleanField(default=True, verbose_name="日計表入力フォーム")
     can_view_shift_app = models.BooleanField(default=True, verbose_name="シフトアプリ")
+    direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
 
     def __str__(self):
         return f"MenuPermission({self.user})"

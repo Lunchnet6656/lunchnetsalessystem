@@ -13,6 +13,7 @@
                     <th>名</th>
                     <th>姓</th>
                     <th>権限</th>
+                    <th>直行直帰</th>
                     <th>操作</th>
                 </tr>
             </thead>
@@ -23,6 +24,11 @@
                         <td>{{ user.first_name }}</td>
                         <td>{{ user.last_name }}</td>
                         <td>{{ user.is_staff|yesno:"管理者,一般" }}</td>
+                        <td class="text-center">
+                            <input type="checkbox" class="direct-return-checkbox"
+                                data-user-id="{{ user.id }}"
+                                {% if user.menu_permission and user.menu_permission.direct_return %}checked{% endif %}>
+                        </td>
                         <td>
                             <a href="{% url 'user_edit' user.id %}" class="btn btn-warning btn-sm">編集</a>
                             <a href="{% url 'user_delete' user.id %}" class="btn btn-danger btn-sm" onclick="return openCenterPopup(this.href, 'ユーザー削除', 480, 300); return false;">削除</a>
@@ -30,7 +36,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center">ユーザーが存在しません。</td>
+                        <td colspan="6" class="text-center">ユーザーが存在しません。</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -69,9 +75,36 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 `;
                 document.querySelector('.container').prepend(alertDiv);
-                
+
                 // メッセージをクリア
                 sessionStorage.removeItem('deleteMessage');
+            }
+
+            // 直行直帰チェックボックスのAJAX処理
+            document.querySelectorAll('.direct-return-checkbox').forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const userId = this.dataset.userId;
+                    const checked = this.checked;
+                    const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+                    fetch(`/user/toggle_direct_return/${userId}/`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken},
+                        body: `checked=${checked}`
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        showAlert(data.message, data.success ? 'success' : 'danger');
+                    });
+                });
+            });
+
+            function showAlert(message, type) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                alertDiv.role = 'alert';
+                alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+                document.querySelector('.container').prepend(alertDiv);
+                setTimeout(() => alertDiv.remove(), 3000);
             }
         });
     </script>
