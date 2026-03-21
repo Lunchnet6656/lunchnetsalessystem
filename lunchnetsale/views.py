@@ -1030,42 +1030,27 @@ def daily_report_edit(request, pk):
             report = form.save(commit=False)
             report.save()
 
-            # 日計表明細の処理
-            for index in range(1, len(entries) + 1):
-                product_name = request.POST.get(f'product_{index}')
-                quantity = request.POST.get(f'quantity_{index}')
-                sales_quantity = request.POST.get(f'sales_quantity_{index}')
-                remaining_number = request.POST.get(f'remaining_number_{index}')
-                total_sales = request.POST.get(f'total_sales_{index}')
-                sold_out = request.POST.get(f'sold_out_{index}') is not None
-                popular = request.POST.get(f'popular_{index}') is not None
-                unpopular = request.POST.get(f'unpopular_{index}') is not None
+            # 日計表明細の処理（product_noベースでフィールド名を取得）
+            for entry in entries:
+                pno = entry.product_no
+                product_name = request.POST.get(f'product_{pno}', entry.product)
+                quantity = request.POST.get(f'quantity_{pno}')
+                sales_quantity = request.POST.get(f'sales_quantity_{pno}')
+                remaining_number = request.POST.get(f'remaining_{pno}')
+                total_sales = request.POST.get(f'total_sales_{pno}')
+                sold_out = request.POST.get(f'sold_out_{pno}') is not None
+                popular = request.POST.get(f'popular_{pno}') is not None
+                unpopular = request.POST.get(f'unpopular_{pno}') is not None
 
-                # 既存のエントリを更新
-                if index <= len(entries):
-                    entry = entries[index - 1]
-                    entry.product = product_name
-                    entry.quantity = int(quantity)  # 整数型に変換
-                    entry.sales_quantity = int(sales_quantity)  # 整数型に変換
-                    entry.remaining_number = int(remaining_number)  # 整数型に変換
-                    entry.total_sales = int(total_sales)  # 整数型に変換
-                    entry.sold_out = sold_out
-                    entry.popular = popular
-                    entry.unpopular = unpopular
-                    entry.save()
-                else:
-                    # 新しいエントリを作成
-                    DailyReportEntry.objects.create(
-                        report=report,
-                        product=product_name,
-                        quantity=int(quantity),  # 整数型に変換
-                        sales_quantity=int(sales_quantity),  # 整数型に変換
-                        remaining_number=int(remaining_number),  # 整数型に変換
-                        total_sales=int(total_sales),  # 整数型に変換
-                        sold_out=sold_out,
-                        popular=popular,
-                        unpopular=unpopular,
-                    )
+                entry.product = product_name
+                entry.quantity = int(quantity) if quantity else 0
+                entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
+                entry.remaining_number = int(remaining_number) if remaining_number else 0
+                entry.total_sales = int(total_sales) if total_sales else 0
+                entry.sold_out = sold_out
+                entry.popular = popular
+                entry.unpopular = unpopular
+                entry.save()
 
             messages.success(request, "更新されました")  # メッセージを追加
             return redirect('daily_report_detail', date=report.date)  # 保存後にリダイレクト
@@ -1083,11 +1068,23 @@ def daily_report_edit(request, pk):
             'closing_time': report.closing_time,
         })
 
+    # 各entryにderived_priceを計算して付与
+    unique_prices = set()
+    for entry in entries:
+        if entry.sales_quantity and entry.sales_quantity > 0:
+            entry.derived_price = int(entry.total_sales / entry.sales_quantity)
+        else:
+            entry.derived_price = 0
+        if entry.derived_price > 0:
+            unique_prices.add(entry.derived_price)
+    unique_prices = sorted(list(unique_prices), reverse=True)
+
     return render(request, 'daily_report_edit.html', {
         'form': form,
         'time_form': time_form,
         'report': report,
-        'entries': entries
+        'entries': entries,
+        'unique_prices': unique_prices
     })
 
 # 編集ビュー
@@ -1136,37 +1133,36 @@ def daily_report_edit_rol(request, pk):
                 report = form.save()
                 print("レポート保存完了")
 
-                # 日計表明細の処理
+                # 日計表明細の処理（product_noベースでフィールド名を取得）
                 print("=== エントリー処理開始 ===")
-                for index in range(1, len(entries) + 1):
-                    print(f"エントリー {index} 処理中")
-                    product_name = request.POST.get(f'product_{index}')
-                    quantity = request.POST.get(f'quantity_{index}')
-                    sales_quantity = request.POST.get(f'sales_quantity_{index}')
-                    remaining_number = request.POST.get(f'remaining_number_{index}')
-                    total_sales = request.POST.get(f'total_sales_{index}')
-                    sold_out = request.POST.get(f'sold_out_{index}') is not None
-                    popular = request.POST.get(f'popular_{index}') is not None
-                    unpopular = request.POST.get(f'unpopular_{index}') is not None
+                for entry in entries:
+                    pno = entry.product_no
+                    print(f"エントリー {pno} 処理中")
+                    product_name = request.POST.get(f'product_{pno}', entry.product)
+                    quantity = request.POST.get(f'quantity_{pno}')
+                    sales_quantity = request.POST.get(f'sales_quantity_{pno}')
+                    remaining_number = request.POST.get(f'remaining_{pno}')
+                    total_sales = request.POST.get(f'total_sales_{pno}')
+                    sold_out = request.POST.get(f'sold_out_{pno}') is not None
+                    popular = request.POST.get(f'popular_{pno}') is not None
+                    unpopular = request.POST.get(f'unpopular_{pno}') is not None
 
                     print(f"エントリーデータ: product={product_name}, quantity={quantity}, sales={sales_quantity}")
 
-                    if index <= len(entries):
-                        try:
-                            entry = entries[index - 1]
-                            entry.product = product_name
-                            entry.quantity = int(quantity) if quantity else 0
-                            entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
-                            entry.remaining_number = int(remaining_number) if remaining_number else 0
-                            entry.total_sales = int(total_sales) if total_sales else 0
-                            entry.sold_out = sold_out
-                            entry.popular = popular
-                            entry.unpopular = unpopular
-                            entry.save()
-                            print(f"エントリー {index} 保存成功")
-                        except Exception as e:
-                            print(f"エントリー {index} 保存エラー: {str(e)}")
-                            raise
+                    try:
+                        entry.product = product_name
+                        entry.quantity = int(quantity) if quantity else 0
+                        entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
+                        entry.remaining_number = int(remaining_number) if remaining_number else 0
+                        entry.total_sales = int(total_sales) if total_sales else 0
+                        entry.sold_out = sold_out
+                        entry.popular = popular
+                        entry.unpopular = unpopular
+                        entry.save()
+                        print(f"エントリー {pno} 保存成功")
+                    except Exception as e:
+                        print(f"エントリー {pno} 保存エラー: {str(e)}")
+                        raise
 
                 print("=== 全処理完了 ===")
                 messages.success(request, "更新されました")
@@ -1190,11 +1186,23 @@ def daily_report_edit_rol(request, pk):
             'closing_time': report.closing_time,
         })
 
+    # 各entryにderived_priceを計算して付与
+    unique_prices = set()
+    for entry in entries:
+        if entry.sales_quantity and entry.sales_quantity > 0:
+            entry.derived_price = int(entry.total_sales / entry.sales_quantity)
+        else:
+            entry.derived_price = 0
+        if entry.derived_price > 0:
+            unique_prices.add(entry.derived_price)
+    unique_prices = sorted(list(unique_prices), reverse=True)
+
     context = {
         'form': form,
         'time_form': time_form,
         'report': report,
         'entries': entries,
+        'unique_prices': unique_prices,
     }
     print("=== レンダリング開始 ===")
     return render(request, 'daily_report_edit_rol.html', context)

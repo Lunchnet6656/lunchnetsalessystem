@@ -34,49 +34,48 @@ document.addEventListener('DOMContentLoaded', function () {
 // 数値入力フォーカス時に値を全選択（0を消す手間を省略）
 document.addEventListener('focusin', function(e) {
     if (e.target.type === 'number') {
-        e.target.select();
+        var target = e.target;
+        setTimeout(function() { target.select(); }, 0);
     }
 });
 
 
-function updateRemainingAndSales(inputElement) {
-    var menuNo = inputElement.name.split('_')[2];  // 商品番号の取得
+// 残数入力から販売数・売上を自動計算する関数
+function updateFromRemaining(inputElement) {
+    var menuNo = inputElement.id.replace('remaining_input_', '');  // 商品番号の取得
     var quantityInput = document.getElementById('quantity_' + menuNo);
-    var quantity = parseInt(quantityInput.value, 10);  // 持参数の取得
-    var price = Math.round(parseFloat(inputElement.dataset.price));  // 単価の取得（小数点を丸める）
-    var salesQuantity = parseInt(inputElement.value, 10);  // 入力された販売数の取得
+    var quantity = parseInt(quantityInput.value, 10) || 0;  // 持参数の取得
+    var priceElement = document.getElementById('price_' + menuNo);
+    var price = Math.round(parseFloat(priceElement.textContent)) || 0;  // 単価の取得
+    var remaining = parseInt(inputElement.value, 10) || 0;  // 入力された残数の取得
 
-    // 完売チェックボックスの状態を取得
-    var soldOutCheckbox = document.getElementById('sold_out_' + menuNo);
-    var isSoldOut = soldOutCheckbox ? soldOutCheckbox.checked : false;
-
-    // 完売状態の場合、販売数と残数を持参数に設定
-    if (isSoldOut) {
-        salesQuantity = quantity;  // 完売時は販売数を持参数と同じに設定
-        inputElement.value = salesQuantity;  // 入力ボックスも更新
-    } else {
-        salesQuantity = parseInt(inputElement.value, 10); // チェックが外れた場合はユーザー入力値を使用
-    }
-
-    // 残数の計算
-    var remaining = quantity - salesQuantity;
+    // 販売数の計算（残数が持参数を超えた場合は0）
+    var salesQuantity = Math.max(0, quantity - remaining);
 
     // 売上の計算
     var totalSales = salesQuantity * price;
 
-    // 残数と売上の表示を更新
-    var remainingElement = document.getElementById('remaining_' + menuNo);
-    var remainingDisplayElement = document.getElementById('remaining_display_' + menuNo);
+    // 販売数の表示を更新
+    var salesQuantityElement = document.getElementById('sales_quantity_' + menuNo);
+    var salesQuantityDisplayElement = document.getElementById('sales_quantity_display_' + menuNo);
+
+    if (salesQuantityElement) {
+        salesQuantityElement.value = salesQuantity;
+    }
+
+    if (salesQuantityDisplayElement) {
+        salesQuantityDisplayElement.innerText = numberWithCommas(salesQuantity);
+    }
+
+    // 残数のhidden inputを更新
+    var remainingHidden = document.getElementById('remaining_' + menuNo);
+    if (remainingHidden) {
+        remainingHidden.value = remaining;
+    }
+
+    // 売上の表示を更新
     var totalSalesElement = document.getElementById('total_sales_' + menuNo);
     var totalSalesDisplayElement = document.getElementById('total_sales_display_' + menuNo);
-
-    if (remainingElement) {
-        remainingElement.value = remaining;
-    }
-
-    if (remainingDisplayElement) {
-        remainingDisplayElement.innerText = numberWithCommas(remaining);
-    }
 
     if (totalSalesElement) {
         totalSalesElement.value = totalSales;
@@ -88,6 +87,15 @@ function updateRemainingAndSales(inputElement) {
 
     // 合計を再計算
     calculateTotals();
+}
+
+// 持参数変更時に残数から再計算する関数
+function onQuantityChange(inputElement) {
+    var menuNo = inputElement.id.replace('quantity_', '');
+    var remainingInput = document.getElementById('remaining_input_' + menuNo);
+    if (remainingInput) {
+        updateFromRemaining(remainingInput);
+    }
 }
 
 function numberWithCommas(x) {
@@ -104,12 +112,14 @@ function calculateTotals() {
     // 単価別の集計用変数
     var salesByPrice = {};
 
-    document.querySelectorAll('[name^="sales_quantity_"]').forEach(function(input) {
-        var menuNo = parseInt(input.name.split('_')[2], 10);  // メニュー番号を取得
-        var salesQuantity = parseInt(input.value, 10);
-        var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10);
-        var price = Math.round(parseFloat(input.dataset.price));
-        var remaining = quantity - salesQuantity;
+    // 残数入力フィールドを基準に集計
+    document.querySelectorAll('[id^="remaining_input_"]').forEach(function(remainingInput) {
+        var menuNo = parseInt(remainingInput.id.replace('remaining_input_', ''), 10);
+        var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10) || 0;
+        var remaining = parseInt(remainingInput.value, 10) || 0;
+        var salesQuantity = Math.max(0, quantity - remaining);
+        var priceElement = document.getElementById('price_' + menuNo);
+        var price = priceElement ? Math.round(parseFloat(priceElement.textContent)) || 0 : 0;
         var totalSalesForItem = salesQuantity * price;
 
         // 単価別の販売数を集計
@@ -167,24 +177,25 @@ function calculateTotals() {
 // チェックボックスの状態が変更された時に呼ばれる関数
 function onSoldOutCheckboxChange(checkboxElement) {
     var menuNo = checkboxElement.id.split('_')[2];  // 商品番号の取得
-    var salesQuantityInput = document.querySelector('[name="sales_quantity_' + menuNo + '"]');
-    var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10);
+    var remainingInput = document.getElementById('remaining_input_' + menuNo);
+    var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10) || 0;
 
     if (checkboxElement.checked) {
-        // 完売にチェックが入った場合、販売数を持参数と同じに設定
-        salesQuantityInput.value = quantity;
+        // 完売にチェックが入った場合、残数を0に設定
+        remainingInput.value = 0;
     } else {
-        // 完売のチェックが外れた場合、販売数をユーザーが再設定できるようにする
-        salesQuantityInput.value = 0;
+        // 完売のチェックが外れた場合、残数を持参数に戻す
+        remainingInput.value = quantity;
     }
 
-    // 残数と売上を再計算
-    updateRemainingAndSales(salesQuantityInput);
+    // 販売数と売上を再計算
+    updateFromRemaining(remainingInput);
 }
 
 // チェックボックスにイベントリスナーを追加する
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
+        if (checkbox.id === 'sold_out_total') return;  // 全完売チェックは別処理
         checkbox.addEventListener('change', function() {
             onSoldOutCheckboxChange(this);
         });
@@ -307,19 +318,21 @@ function updateDiscount() {
 function toggleSoldOutTotal() {
     var isTotalSoldOut = document.getElementById('sold_out_total').checked;
     document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
-        checkbox.checked = isTotalSoldOut;
+        if (checkbox.id === 'sold_out_total') return;  // 自分自身はスキップ
         var menuNo = checkbox.id.split('_')[2];
-        var salesQuantityInput = document.querySelector('[name="sales_quantity_' + menuNo + '"]');
-        var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10);
+        if (parseInt(menuNo, 10) === 11) return;  // 単品11(大盛りご飯)は対象外
+        checkbox.checked = isTotalSoldOut;
+        var remainingInput = document.getElementById('remaining_input_' + menuNo);
+        var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10) || 0;
 
         if (isTotalSoldOut) {
-            salesQuantityInput.value = quantity;
+            remainingInput.value = 0;
         } else {
-            salesQuantityInput.value = 0;
+            remainingInput.value = quantity;
         }
 
-        // 残数と売上を再計算
-        updateRemainingAndSales(salesQuantityInput);
+        // 販売数と売上を再計算
+        updateFromRemaining(remainingInput);
     });
 }
 
@@ -372,10 +385,9 @@ function updateRevenue() {
 
 // 個別チェックボックスにイベントリスナーを追加
 document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
+    if (checkbox.id === 'sold_out_total') return;  // 全完売チェックは別処理
     checkbox.addEventListener('change', function() {
-        var menuNo = this.id.split('_')[2];
-        var salesQuantityInput = document.querySelector('[name="sales_quantity_' + menuNo + '"]');
-        updateRemainingAndSales(salesQuantityInput);
+        onSoldOutCheckboxChange(this);
     });
 });
 

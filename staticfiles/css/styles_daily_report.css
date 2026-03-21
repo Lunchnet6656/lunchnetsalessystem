@@ -195,4 +195,149 @@ h2.bg-dark {
     body {
         padding-bottom: 55px;
     }
+
+    /* === お弁当テーブル: モバイルカードレイアウト === */
+
+    /* テーブルヘッダー非表示 */
+    .bento-table thead {
+        display: none;
+    }
+
+    /* sticky解除 */
+    .bento-table .fixed-column,
+    .bento-table .fixed-column-2 {
+        position: static !important;
+        left: auto !important;
+        box-shadow: none !important;
+    }
+
+    /* テーブル・tbody・行をブロック化 */
+    .bento-table,
+    .bento-table tbody,
+    .bento-table tfoot {
+        display: block;
+        width: 100%;
+    }
+
+    /* 各行をカードとして表示 */
+    .bento-table tbody tr {
+        display: grid;
+        grid-template-columns: auto 1fr 1fr;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        padding: 8px;
+        background: #fff;
+        gap: 2px 8px;
+        align-items: center;
+    }
+
+    /* 1行目: メニュー名(No結合) + 単価 — No列はモバイルで非表示 */
+    .bento-table .col-no {
+        display: none;
+    }
+    .bento-table .col-menu {
+        grid-column: 1 / 3;
+        grid-row: 1;
+        font-weight: bold;
+        max-width: none;
+        overflow: visible;
+        white-space: normal;
+    }
+    .bento-table .col-price {
+        grid-column: 3 / 4;
+        grid-row: 1;
+        text-align: right;
+        color: #6c757d;
+    }
+
+    /* 2行目: 持参数 | 残数(入力) | 販売数 | 売上 */
+    .bento-table .col-quantity {
+        grid-column: 1 / 2;
+        grid-row: 2;
+    }
+    .bento-table .col-remaining {
+        grid-column: 2 / 3;
+        grid-row: 2;
+    }
+    .bento-table .col-sales-qty {
+        grid-column: 1 / 2;
+        grid-row: 3;
+    }
+    .bento-table .col-total-sales {
+        grid-column: 2 / 3;
+        grid-row: 3;
+    }
+
+    /* 3行目: 完売 | 人気 | 不人気 */
+    .bento-table .col-sold-out {
+        grid-column: 3 / 4;
+        grid-row: 2 / 4;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .bento-table .col-popular {
+        grid-column: 1 / 2;
+        grid-row: 4;
+    }
+    .bento-table .col-unpopular {
+        grid-column: 2 / 3;
+        grid-row: 4;
+    }
+
+    /* ラベル表示 */
+    .bento-table td::before {
+        content: attr(data-label);
+        font-size: 0.65rem;
+        color: #6c757d;
+        display: block;
+        line-height: 1;
+        margin-bottom: 2px;
+    }
+
+    /* 単価ラベルはデスクトップ風に */
+    .bento-table .col-price::before {
+        content: none;
+    }
+    .bento-table .col-price span::before {
+        content: '¥';
+    }
+
+    /* No列はラベル不要 */
+    .bento-table .col-no::before {
+        content: none;
+    }
+    /* メニュー列はラベル不要 */
+    .bento-table .col-menu::before {
+        content: none;
+    }
+
+    /* カード内の入力を幅いっぱいに */
+    .bento-table td input[type="number"] {
+        width: 100% !important;
+        max-width: 80px;
+    }
+
+    /* 合計行のカードレイアウト */
+    .bento-table tfoot tr.total-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        border: 2px solid #343a40;
+        border-radius: 6px;
+        padding: 8px;
+        background: #f8f9fa;
+        gap: 4px 8px;
+        align-items: center;
+        font-weight: bold;
+    }
+
+    .bento-table tfoot .col-total-label {
+        grid-column: 1 / 4;
+        grid-row: 1;
+        text-align: center;
+        font-size: 1rem;
+    }
 }

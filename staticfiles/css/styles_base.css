@@ -1,7 +1,3 @@
-.alert-messages {
-    margin-left: 50px; /* サイドバーの幅に合わせてメッセージをずらす */
-}
-
 
 
 h1.mb-4 {
@@ -33,7 +29,7 @@ h1.mb-4::after {
     background-color: #343a40;
     padding-top: 60px ;
     z-index: 998; /* 他の要素の上に表示 */
-    overflow-y: auto; /* スクロール可能にする */
+    transition: width 0.3s ease;
 }
 
 .sidebar ul {
@@ -84,15 +80,22 @@ h1.mb-4::after {
     margin-bottom: 10px;
 }
 
+/* col-md-2の無効化（固定サイドバーはフローから外れるため） */
+.main-wrapper > .row > .col-md-2 {
+    width: 0;
+    padding: 0;
+    flex: none;
+}
 
 /* メインコンテンツ */
 .container-fluid {
     margin-left: 20px; /* サイドバーの幅分の余白を設定 */
     padding-top: 70px; /* ナビバーの高さ分、上部に余白を設定 */
+    transition: margin-left 0.3s ease;
 }
 
 .container-fluid.expanded {
-    margin-left: 180px;
+    margin-left: 230px; /* 220pxサイドバー + 10px余白 */
     margin-right: 20px;
 }
 
@@ -107,99 +110,27 @@ h1.mb-4::after {
 
 /* タブレット向けスタイル */
 @media (max-width: 1024px) {
-    .container {
-        width: 100%; /* デバイスの横幅に合わせる */
-        max-width: 100%; /* 横幅を制限しない */
-        margin: 0 auto; /* 水平中央揃え */
+    .sidebar {
+        width: 200px; /* サイドバーの幅を調整 */
     }
 
-    .sidebar {
-        width: 190px; /* サイドバーの幅を調整 */
+    .sidebar.collapsed {
+        width: 0;
+        overflow: hidden;
+    }
+
+    .container-fluid.expanded {
+        margin-left: 210px; /* 200pxサイドバー + 10px余白 */
     }
 
     .custom-table {
-        width: 100%; /* テーブルの幅をデバイスに合わせる */
-    }
-
-    .custom-table td, .custom-table th {
-        font-size: 14px; /* テーブル内の文字サイズを調整 */
-    }
-
-    .btn, .btn-sm, .btn-danger {
-        font-size: 14px; /* ボタンの文字サイズを調整 */
-        padding: 8px 16px; /* ボタンの余白を調整 */
+        width: 90%; /* 幅を広げてタブレットでも見やすく */
     }
 
     /* アイテムの余白を調整 */
     .sidebar ul li a {
-        padding: 12px; /* アイテムの内側の余白を調整 */
-        font-size: 12px; /* 文字サイズを小さく */
-        white-space: nowrap; /* 折り返さないように設定 */
-    }
-
-        /* メインコンテンツ */
-    .container-fluid {
-        margin-left: 20px; /* サイドバーの幅分の余白を設定 */
-        padding-top: 70px; /* ナビバーの高さ分、上部に余白を設定 */
-    }
-
-    .container-fluid.expanded {
-        margin-left: 190px;
-        margin-right: 20px;
-    }
-
-    .navbar {
-        height: 60px; /* ナビバーの高さを指定 */
-        flex-wrap: nowrap; /* アイテムを折り返さないように */
-    }
-
-    .navbar-brand {
-        font-size: 16px;
-        margin-right: auto; /* 左寄せ */
-    }
-
-    .navbar-nav {
-        display: flex; /* 横並びに */
-        justify-content: flex-end; /* 右寄せ */
-        flex-wrap: nowrap; /* 折り返しを防ぐ */
-        align-items: center; /* 垂直方向に中央揃え */
-        padding-left: 0; /* 左側の余白を排除 */
-        margin-bottom: 0;
-    }
-
-    .navbar-nav .nav-item {
-        display: flex; /* flexboxを使ってアイテムを並べる */
-        align-items: center; /* アイテムを垂直中央揃え */
-    }
-
-    .navbar-text {
-        font-size: 16px;
-        white-space: nowrap;
-        margin-right: 20px; /* 氏名とログアウトボタンの間に余白を追加 */
-    }
-
-    .btn-danger {
-        font-size: 14px; /* ボタン文字のサイズを調整 */
-        padding: 6px 12px; /* ボタンの余白を調整 */
-        white-space: nowrap; /* ボタンが改行されないように */
-    }
-
-    .btn-sm {
+        padding: 10px 12px; /* アイテムの内側の余白を調整 */
         font-size: 14px;
-        padding: 6px 12px; /* ボタンの余白を調整 */
-        white-space: nowrap; /* ボタンが改行されないように */
-    }
-
-    h1.mb-4 {
-        font-size: 28px; /* 見出しサイズを調整 */
-    }
-
-    h1.mb-4::after {
-        height: 3px; /* 線の太さを調整 */
-    }
-
-    h5.card-title {
-        font-size: 18px;
     }
 }
 
@@ -209,48 +140,58 @@ h1.mb-4::after {
     .sidebar {
         width: 100%; /* 横幅いっぱい */
         position: fixed; /* 画面に固定 */
-        top: -100%; /* 上部に配置 */
+        top: 60px; /* ナビバーの高さに合わせる */
         left: 0; /* 左端に配置 */
         z-index: 1000; /* 他の要素より前面に */
-        height: 50%; /* 画面全体の高さ */
+        height: auto; /* コンテンツ量に応じて高さが伸縮 */
+        max-height: calc(100vh - 60px); /* ナビバーを除いたビューポート全体を上限 */
         background-color: rgba(0, 0, 0, 0.9); /* 半透明の背景色 */
         overflow-y: auto; /* 内容が多い場合にスクロール可能に */
-        display: none; /* デフォルトで非表示 */
+        -webkit-overflow-scrolling: touch; /* iOSスムーズスクロール */
         padding-top: 3px; /* 上部の余白を狭く設定 */
-        transition: top 0.3s ease-in-out; /* 上からスライドインするアニメーション */
+        /* display: none の代わりに visibility/opacity で トランジション有効化 */
+        visibility: hidden;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: visibility 0s linear 0.3s, opacity 0.3s ease, transform 0.3s ease;
     }
 
     /* サイドバーを表示させるためのクラス */
     .sidebar.expanded {
-        display: block; /* サイドバーを表示 */
-        top: 55px; /* スライドイン */
+        visibility: visible;
+        opacity: 1;
+        transform: translateY(0);
+        transition: visibility 0s linear 0s, opacity 0.3s ease, transform 0.3s ease;
     }
 
-    /* サイドバーを表示させるためのクラス */
-    .sidebar.expanded {
-        display: block; /* サイドバーを表示 */
+    .sidebar.collapsed {
+        visibility: hidden;
+        opacity: 0;
     }
 
     .sidebar ul li a {
-        padding: 10px; /* 余白を少し減らして見やすく */
-        font-size: 20px; /* テキストサイズを調整 */
+        padding: 8px 12px; /* 余白を少し減らして見やすく */
+        font-size: 16px; /* テキストサイズを調整（20px→16px） */
         width: 100%; /* 横幅いっぱいに */
     }
 
     .container-fluid {
         margin-left: 5px;
         margin-right: 5px;
-        padding-top: 50px; /* ナビバー分の余白をキープ */
+        padding-top: 70px; /* ナビバー分の余白をキープ */
     }
 
     .container-fluid.expanded {
-        margin-left: 0px;
-        margin-right: 0px;
-        padding-top: 50px; /* ナビバー分の余白をキープ */
+        margin-left: 5px; /* スマホではサイドバーオフセット不要 */
+        margin-right: 5px;
+        padding-top: 70px; /* ナビバー分の余白をキープ */
     }
 
-    .sidebar.collapsed {
-        display: none; /* サイドバーを隠す */
+    /* col-md-2の無効化（スマホ） */
+    .main-wrapper > .row > .col-md-2 {
+        width: 0;
+        padding: 0;
+        flex: none;
     }
 
     /* ログアウトボタンはマージンなし */
@@ -260,8 +201,9 @@ h1.mb-4::after {
 
     .navbar {
         height: auto;
+        min-height: 60px; /* 最低高さを確保 */
         flex-wrap: nowrap; /* アイテムを折り返さないように */
-        z-index: 1000; /* 他の要素より前面に */
+        z-index: 1001; /* サイドバーより上に */
     }
 
     .navbar-brand {
@@ -316,8 +258,4 @@ h1.mb-4::after {
     .custom-table {
         width: 100%; /* スマホでは横幅をフルに */
     }
-    .alert-messages {
-        margin-left: 0px;
-    }
-    
 }

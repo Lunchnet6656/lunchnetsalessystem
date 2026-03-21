@@ -128,9 +128,14 @@ function hasMeaningfulData(form) {
         var el = document.getElementById(fields[i]);
         if (el && parseInt(el.value, 10) > 0) return true;
     }
-    var salesInputs = form.querySelectorAll('[name^="sales_quantity_"]');
-    for (var j = 0; j < salesInputs.length; j++) {
-        if (parseInt(salesInputs[j].value, 10) > 0) return true;
+    // 残数が持参数と異なれば入力済みとみなす
+    var remainingInputs = form.querySelectorAll('[id^="remaining_input_"]');
+    for (var j = 0; j < remainingInputs.length; j++) {
+        var menuNo = remainingInputs[j].id.replace('remaining_input_', '');
+        var quantityEl = document.getElementById('quantity_' + menuNo);
+        var quantity = quantityEl ? parseInt(quantityEl.value, 10) || 0 : 0;
+        var remaining = parseInt(remainingInputs[j].value, 10) || 0;
+        if (remaining !== quantity) return true;
     }
     return false;
 }
@@ -194,7 +199,8 @@ function restoreDraft() {
     }
     if (!hasMeaningful) {
         Object.keys(data).forEach(function(k) {
-            if (k.match(/^sales_quantity_/) && parseInt(data[k], 10) > 0) {
+            if (k.match(/^remaining_/) && parseInt(data[k], 10) >= 0) {
+                // 残数が保存されていれば有意なデータあり
                 hasMeaningful = true;
             }
         });
@@ -224,6 +230,13 @@ function restoreDraft() {
         var el = form.querySelector('[name="' + fieldName + '"]');
         if (el && el.type !== 'hidden') {
             el.value = data[fieldName];
+        }
+    });
+
+    // 残数入力フィールドの復元後に再計算
+    document.querySelectorAll('[id^="remaining_input_"]').forEach(function(input) {
+        if (typeof updateFromRemaining === 'function') {
+            updateFromRemaining(input);
         }
     });
 }

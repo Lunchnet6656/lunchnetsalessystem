@@ -95,12 +95,13 @@ h1 {
     visibility: hidden;
 }
 
-.calendar .day-cell:nth-child(1),
+.calendar .day-cell:nth-child(6),
 .calendar .day-cell:nth-child(7) {
     background-color: #f8f9fa; /* 薄いグレー */
     color: #5f6368; /* 中間グレー */
 }
 
+/* 追加: 戻るボタン用のクラスを定義 */
 .back-button {
     display: inline-block;
     margin-top: 20px;
