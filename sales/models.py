@@ -218,6 +218,7 @@ class UserMenuPermission(models.Model):
     can_view_daily_report_form = models.BooleanField(default=True, verbose_name="日計表入力フォーム")
     can_view_shift_app = models.BooleanField(default=True, verbose_name="シフトアプリ")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
+    shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
 
     def __str__(self):
         return f"MenuPermission({self.user})"

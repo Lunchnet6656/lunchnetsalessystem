@@ -434,6 +434,10 @@ def user_edit_view(request, user_id):
             user.save()
             menu_form.save()
 
+            # shin_yokohamaはフォームexcludeのため手動保存
+            menu_perm.shin_yokohama = 'shin_yokohama' in request.POST
+            menu_perm.save()
+
             # パスワードが変更された場合、セッションを更新
             if new_password:
                 update_session_auth_hash(request, user)
@@ -1400,6 +1404,33 @@ def direct_return_attendance_view(request):
         for r in reports
     ]
 
+    # 管理者向けピボットテーブル用データ構築
+    pivot_rows = []
+    pivot_locations = []
+    if is_admin:
+        from collections import defaultdict
+        pivot_dict = defaultdict(dict)
+        locations_set = set()
+        dates_ordered = []
+        seen_dates = set()
+        for r in reports:
+            d_str = format_date_ja(r.date)
+            if d_str not in seen_dates:
+                dates_ordered.append(d_str)
+                seen_dates.add(d_str)
+            locations_set.add(r.location)
+            if r.location not in pivot_dict[d_str]:
+                pivot_dict[d_str][r.location] = []
+            if r.person_in_charge not in pivot_dict[d_str][r.location]:
+                pivot_dict[d_str][r.location].append(r.person_in_charge)
+        pivot_locations = sorted(locations_set)
+        for d_str in dates_ordered:
+            row = {'date_str': d_str, 'cells': []}
+            for loc in pivot_locations:
+                names = pivot_dict[d_str].get(loc, [])
+                row['cells'].append(', '.join(names) if names else '')
+            pivot_rows.append(row)
+
     month_choices = []
     for i in range(12):
         d = today.replace(day=1) - relativedelta(months=i)
@@ -1418,6 +1449,8 @@ def direct_return_attendance_view(request):
         'direct_return_names': direct_return_names,
         'month_choices': month_choices,
         'is_admin': is_admin,
+        'pivot_rows': pivot_rows,
+        'pivot_locations': pivot_locations,
     }
     return render(request, 'direct_return_attendance.html', context)
 
@@ -2217,3 +2250,14 @@ def performance_by_location_calender_view(request, location_id, search_year, sea
     })
 
     return render(request, 'performance_by_location_calender.html', context)
+
+
+@login_required
+def get_shin_yokohama_users(request):
+    """新横浜担当者一覧をJSON形式で返すAPIエンドポイント"""
+    users = UserMenuPermission.objects.filter(shin_yokohama=True).select_related('user')
+    data = [
+        {'id': perm.user.id, 'name': f"{perm.user.last_name} {perm.user.first_name}"}
+        for perm in users
+    ]
+    return JsonResponse(data, safe=False)

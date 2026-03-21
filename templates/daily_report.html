@@ -58,13 +58,20 @@
             {% endfor %}
         </select>
     </div>
-    <div class="mb-3">
+    <div class="mb-3" id="person-section">
         <label for="担当者" class="form-label">担当者</label>
-        {% if user.first_name %}
-          <p id="担当者" class="form-control-static">{{ user.last_name }} {{ user.first_name }}</p>
-        {% else %}
-          <input type="text" id="担当者" name="担当者" class="form-control" required value="{{ selected_person }}">
-        {% endif %}
+        <div id="person-default">
+            {% if user.first_name %}
+              <p id="担当者_display" class="form-control-static">{{ user.last_name }} {{ user.first_name }}</p>
+              <input type="hidden" id="担当者_hidden" name="担当者" value="{{ user.last_name }} {{ user.first_name }}">
+            {% else %}
+              <input type="text" id="担当者_input" name="担当者" class="form-control" required value="{{ selected_person }}">
+            {% endif %}
+        </div>
+        <div id="person-select" style="display:none;">
+            <select id="担当者_select" name="担当者_select" class="form-select">
+            </select>
+        </div>
     </div>
     <button type="submit" id="display-data-btn" name="action" value="display" class="btn btn-primary w-100 py-3">データを表示</button>
 
@@ -540,6 +547,83 @@
     {% load static %}
     <script src="{% static 'js/script.js' %}"></script>
     <script>
+        // 新横浜担当者の切替処理（共通関数）
+        function switchPersonField(locationValue, preselectedPerson) {
+            const personDefault = document.getElementById('person-default');
+            const personSelect = document.getElementById('person-select');
+            const selectEl = document.getElementById('担当者_select');
+
+            if (locationValue === '新横浜') {
+                fetch('{% url "shin_yokohama_users" %}')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.length === 0) {
+                            showDefaultPerson();
+                            return;
+                        }
+                        // 担当者セレクトを表示
+                        personDefault.style.display = 'none';
+                        personSelect.style.display = '';
+                        selectEl.name = '担当者';
+                        // デフォルト側のname属性を無効化
+                        const hiddenField = document.getElementById('担当者_hidden');
+                        if (hiddenField) hiddenField.removeAttribute('name');
+                        const inputField = document.getElementById('担当者_input');
+                        if (inputField) inputField.removeAttribute('name');
+
+                        if (data.length === 1) {
+                            selectEl.innerHTML = '';
+                            const option = document.createElement('option');
+                            option.value = data[0].name;
+                            option.textContent = data[0].name;
+                            selectEl.appendChild(option);
+                        } else {
+                            selectEl.innerHTML = '<option value="">-- 担当者を選択 --</option>';
+                            data.forEach(user => {
+                                const option = document.createElement('option');
+                                option.value = user.name;
+                                option.textContent = user.name;
+                                selectEl.appendChild(option);
+                            });
+                        }
+                        // POST後の再表示時に以前選択した担当者を復元
+                        if (preselectedPerson) {
+                            selectEl.value = preselectedPerson;
+                        }
+                    });
+            } else {
+                showDefaultPerson();
+            }
+        }
+
+        function showDefaultPerson() {
+            const personDefault = document.getElementById('person-default');
+            const personSelect = document.getElementById('person-select');
+            const selectEl = document.getElementById('担当者_select');
+            personDefault.style.display = '';
+            personSelect.style.display = 'none';
+            selectEl.removeAttribute('name');
+            const hiddenField = document.getElementById('担当者_hidden');
+            if (hiddenField) hiddenField.name = '担当者';
+            const inputField = document.getElementById('担当者_input');
+            if (inputField) inputField.name = '担当者';
+        }
+
+        // 販売所変更時
+        document.getElementById('location').addEventListener('change', function() {
+            switchPersonField(this.value, null);
+        });
+
+        // ページ読み込み時: POST後に新横浜が選択された状態なら担当者セレクトを復元
+        document.addEventListener('DOMContentLoaded', function() {
+            const locationEl = document.getElementById('location');
+            if (locationEl.value === '新横浜') {
+                // サーバーから渡されたselected_personを復元用に使う
+                const savedPerson = '{{ selected_person|escapejs }}';
+                switchPersonField('新横浜', savedPerson);
+            }
+        });
+
         function updateClosingTimeMessage() {
             const closingTime = document.getElementById('closing_time').value;
             const messageElement = document.getElementById('closing-time-message');

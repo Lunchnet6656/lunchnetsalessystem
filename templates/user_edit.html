@@ -62,6 +62,19 @@
             </div>
 
             <hr class="my-4">
+            <h5 class="mb-3">担当設定</h5>
+
+            <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">販売所担当</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        <input type="checkbox" name="shin_yokohama" id="id_shin_yokohama" class="form-check-input" {% if menu_form.instance.shin_yokohama %}checked{% endif %}>
+                        <label class="form-check-label" for="id_shin_yokohama">新横浜</label>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
             <h5 class="mb-3">サイドバー表示設定</h5>
 
             <div class="row mb-3">

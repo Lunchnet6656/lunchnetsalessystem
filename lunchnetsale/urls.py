@@ -80,4 +80,5 @@ urlpatterns = [
 
     path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),
 
+    path('api/shin_yokohama_users/', views.get_shin_yokohama_users, name='shin_yokohama_users'),
 ]

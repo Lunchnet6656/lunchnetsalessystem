@@ -1,6 +1,25 @@
 {% extends 'base.html' %}
 {% block title %}直行直帰出勤記録{% endblock %}
 {% block content %}
+<style>
+@media print {
+    .navbar, .sidebar, .main-wrapper > .row > .col-md-2,
+    form, .no-print, hr { display: none !important; }
+    .main-wrapper, .main-wrapper > .row,
+    .main-wrapper > .row > .col-md-10,
+    .container-fluid { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    @page { size: A4 portrait; margin: 10mm; }
+    body { font-size: 10pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h3 { font-size: 14pt; margin-bottom: 4px; }
+    h5 { font-size: 11pt; margin-bottom: 4px; margin-top: 8px; }
+    .table { font-size: 9pt; margin-bottom: 8px; }
+    .table td, .table th { padding: 1px 4px !important; }
+    .text-muted { font-size: 9pt; margin-bottom: 4px !important; }
+    table { page-break-inside: avoid; }
+    .table-dark th { background-color: #333 !important; color: #fff !important; }
+    .table-secondary th { background-color: #ddd !important; }
+}
+</style>
 <h3>直行直帰 出勤記録</h3>
 <hr>
 
@@ -38,7 +57,11 @@
     </div>
 </form>
 
-<p class="text-muted">対象期間：{{ start_date_str }} 〜 {{ end_date_str }}</p>
+<p class="text-muted">対象期間：{{ start_date_str }} 〜 {{ end_date_str }}
+{% if is_admin %}
+    <button type="button" class="btn btn-primary no-print ms-3" onclick="window.print()">&#128424; 印刷</button>
+{% endif %}
+</p>
 
 {% if not direct_return_names %}
 <div class="alert alert-warning">直行直帰に設定されているユーザーがいません。ユーザー管理から設定してください。</div>
@@ -67,6 +90,30 @@
 
 <!-- 出勤記録一覧テーブル -->
 <h5>出勤記録一覧</h5>
+{% if is_admin %}
+<table class="table table-bordered table-sm table-hover">
+    <thead class="table-secondary">
+        <tr>
+            <th>日付</th>
+            {% for loc in pivot_locations %}
+            <th>{{ loc }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in pivot_rows %}
+        <tr>
+            <td>{{ row.date_str }}</td>
+            {% for cell in row.cells %}
+            <td>{{ cell }}</td>
+            {% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ pivot_locations|length|add:1 }}" class="text-center text-muted">対象期間の記録がありません</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
 <table class="table table-bordered table-sm table-hover">
     <thead class="table-secondary">
         <tr>
@@ -87,5 +134,6 @@
         {% endfor %}
     </tbody>
 </table>
+{% endif %}
 
 {% endblock %}
