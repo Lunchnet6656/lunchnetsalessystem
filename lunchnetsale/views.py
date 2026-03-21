@@ -16,6 +16,7 @@ from django.utils import timezone
 from collections import defaultdict
 from django.http import JsonResponse
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 import csv
 import calendar
 from calendar import monthrange
@@ -276,6 +277,11 @@ def export_shift_request(request):
     return response
 
 
+def csrf_failure_view(request, reason=""):
+    return render(request, 'csrf_failure.html', status=403)
+
+
+@never_cache
 def login_view(request):
     logger = logging.getLogger(__name__)
     User = get_user_model()

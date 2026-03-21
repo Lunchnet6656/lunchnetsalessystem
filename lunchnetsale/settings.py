@@ -56,6 +56,9 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SESSION_COOKIE_SECURE = IS_PRODUCTION
 CSRF_COOKIE_SECURE = IS_PRODUCTION
 
+# --- CSRF 失敗時のカスタムビュー ---
+CSRF_FAILURE_VIEW = 'lunchnetsale.views.csrf_failure_view'
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -136,7 +139,7 @@ LOGOUT_REDIRECT_URL = '/login/'
 # セッションタイムアウト設定（24時間）
 SESSION_COOKIE_AGE = 24 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_SAVE_EVERY_REQUEST = False
+SESSION_SAVE_EVERY_REQUEST = True
 
 
 # Password validation
