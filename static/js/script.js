@@ -12,6 +12,17 @@ document.addEventListener('keydown', function(event) {
 });
 
 
+// 書式付き値から数値を抽出する関数
+function stripFormatting(value) {
+    if (!value) return '0';
+    // ▲, ＋, ±, カンマを除去し、▲の場合は負数にする
+    var isNegative = value.indexOf('▲') !== -1;
+    var cleaned = value.replace(/[▲＋±,+]/g, '');
+    var num = parseFloat(cleaned) || 0;
+    if (isNegative) num = -num;
+    return String(Math.round(num));
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const forms = document.querySelectorAll('form');
 
@@ -23,8 +34,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (clickedButton.name === 'action' && clickedButton.value === 'send') {
                     if (!confirm('販売場所は間違いありませんか？')) {
                         event.preventDefault();
+                        return;
                     }
                 }
+
+                // 書式付きreadonly フィールドの値を数値に戻す
+                var fieldsToClean = ['total_revenue', 'total_discount', 'sales_difference', 'total_others_sales'];
+                fieldsToClean.forEach(function(fieldId) {
+                    var el = document.getElementById(fieldId);
+                    if (el) {
+                        el.value = stripFormatting(el.value);
+                    }
+                });
             });
         }
     });

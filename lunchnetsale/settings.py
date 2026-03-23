@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'sales',
     'shifts',
+    'orders',
     'lunchnetsale',
     'django.contrib.humanize',
     'axes',

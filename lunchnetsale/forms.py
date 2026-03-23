@@ -41,6 +41,10 @@ class ProductUpdateForm(forms.ModelForm):
 
 
 class DailyReportForm(forms.ModelForm):
+    sales_price_quantity_1 = forms.DecimalField(required=False)
+    sales_price_quantity_2 = forms.DecimalField(required=False)
+    sales_price_quantity_3 = forms.DecimalField(required=False)
+
     class Meta:
         model = DailyReport
         fields = ['date', 'location', 'location_no', 'person_in_charge', 'weather', 'temp',
@@ -65,7 +69,7 @@ class TimeForm(forms.Form):
     arrival_time = forms.TimeField(widget=forms.TimeInput(attrs={'class': 'form-control'}), required=False)
     opening_time = forms.TimeField(widget=forms.TimeInput(attrs={'class': 'form-control'}), required=False)
     sold_out_time = forms.TimeField(widget=forms.TimeInput(attrs={'class': 'form-control'}), required=False)
-    closing_time = forms.TimeField(widget=forms.TimeInput(attrs={'class': 'form-control'}), required=True)
+    closing_time = forms.TimeField(widget=forms.TimeInput(attrs={'class': 'form-control'}), required=False)
 
 
 import calendar

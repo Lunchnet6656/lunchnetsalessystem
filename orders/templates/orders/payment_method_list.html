@@ -1,0 +1,59 @@
+{% extends "orders/base.html" %}
+{% block title %}支払い方法一覧 - 受注管理{% endblock %}
+{% block nav_payment_methods %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-3 sm:mb-0">支払い方法一覧</h1>
+    <a href="{% url 'orders:payment_method_create' %}"
+       class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-center">
+        ＋ 新規登録
+    </a>
+</div>
+
+{% if payment_methods %}
+<div class="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">表示順</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">支払い方法名</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">状態</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for pm in payment_methods %}
+                <tr class="hover:bg-gray-50 transition {% if not pm.is_active %}opacity-50{% endif %}">
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ pm.sort_order }}</td>
+                    <td class="px-4 py-3 font-medium">{{ pm.name }}</td>
+                    <td class="px-4 py-3 text-sm">
+                        {% if pm.is_active %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">有効</span>
+                        {% else %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">無効</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex justify-end gap-2">
+                            <a href="{% url 'orders:payment_method_edit' pm.pk %}"
+                               class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition">編集</a>
+                            {% if pm.is_active %}
+                            <a href="{% url 'orders:payment_method_delete' pm.pk %}"
+                               class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition">無効化</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">
+    支払い方法が登録されていません。
+</div>
+{% endif %}
+{% endblock %}

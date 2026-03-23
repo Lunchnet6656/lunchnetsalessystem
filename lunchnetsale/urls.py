@@ -23,6 +23,7 @@ from .views import locked_out_view,my_page,submit_shift,edit_shift
 urlpatterns = [
     path('secure-admin/', admin.site.urls),
     path('shifts/', include('shifts.urls')),
+    path('orders/', include('orders.urls')),
     path('login/', views.login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),

@@ -27,3 +27,6 @@ media/
 
 # Jupyter
 *.ipynb_checkpoints
+
+# Tailwind standalone CLI binary
+tailwindcss

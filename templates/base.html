@@ -172,6 +172,16 @@
                     </li>
                     {% endif %}
 
+                    <!-- 受注管理セクション -->
+                    {% if user.menu_permission.can_view_orders %}
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">受注管理</h6>
+                        <a href="{% url 'orders:regular_dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-shopping-cart"></i> 受注管理
+                        </a>
+                    </li>
+                    {% endif %}
+
                     <!-- シフトセクション -->
                     {% if user.menu_permission.can_view_shift_app %}
                     <li class="list-group-item">

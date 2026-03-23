@@ -1,0 +1,104 @@
+{% extends "orders/base.html" %}
+{% block title %}{{ order.order_number }} - 受注管理{% endblock %}
+{% block nav_regular %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- ヘッダー -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-3 sm:mb-0">{{ order.order_number }}</h1>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'orders:order_pdf' order.pk %}" target="_blank"
+               class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition text-sm">
+                納品書PDF
+            </a>
+            <a href="{% url 'orders:order_edit' order.pk %}"
+               class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm">編集</a>
+            <a href="{% url 'orders:order_delete' order.pk %}"
+               class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm">削除</a>
+        </div>
+    </div>
+
+    <!-- 受注情報 -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">受注情報</h2>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            <div>
+                <dt class="text-sm text-gray-500">顧客</dt>
+                <dd class="font-medium">
+                    <a href="{% url 'orders:customer_detail' order.customer.pk %}" class="text-blue-600 hover:underline">
+                        {{ order.customer }}
+                    </a>
+                </dd>
+            </div>
+            <div>
+                <dt class="text-sm text-gray-500">価格タイプ</dt>
+                <dd class="font-medium">{{ order.customer.get_price_type_display }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-gray-500">受注日</dt>
+                <dd class="font-medium">{{ order.order_date|date:"Y年m月d日" }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-gray-500">納品日</dt>
+                <dd class="font-medium text-blue-700">{{ order.delivery_date|date:"Y年m月d日" }}</dd>
+            </div>
+            {% if order.notes %}
+            <div class="sm:col-span-2">
+                <dt class="text-sm text-gray-500">備考</dt>
+                <dd class="font-medium">{{ order.notes }}</dd>
+            </div>
+            {% endif %}
+            <div>
+                <dt class="text-sm text-gray-500">作成者</dt>
+                <dd class="text-sm text-gray-600">{{ order.created_by|default:"—" }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-gray-500">登録日時</dt>
+                <dd class="text-sm text-gray-600">{{ order.created_at|date:"Y/m/d H:i" }}</dd>
+            </div>
+        </dl>
+    </div>
+
+    <!-- 明細 -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">注文明細</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">商品名</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">単価</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">数量</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">金額</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for item in order.items.all %}
+                    <tr>
+                        <td class="px-4 py-2">{{ item.product_name }}</td>
+                        <td class="px-4 py-2 text-right">&yen;{{ item.unit_price|floatformat:0 }}</td>
+                        <td class="px-4 py-2 text-right">
+                            {{ item.quantity }}
+                            <div class="text-xs text-gray-500">
+                                {% if item.quantity_large %}大盛り:{{ item.quantity_large }}{% endif %}
+                                {% if item.quantity_regular %}普通盛り:{{ item.quantity_regular }}{% endif %}
+                                {% if item.quantity_small %}小盛り:{{ item.quantity_small }}{% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-2 text-right">&yen;{{ item.subtotal|floatformat:0 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-gray-50">
+                        <td colspan="2" class="px-4 py-3"></td>
+                        <td class="px-4 py-3 text-right font-bold text-gray-700">合計</td>
+                        <td class="px-4 py-3 text-right text-lg font-bold text-blue-600">&yen;{{ order.total|floatformat:0 }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

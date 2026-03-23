@@ -1,0 +1,86 @@
+{% extends "orders/base.html" %}
+{% block title %}受注一覧 - 受注管理{% endblock %}
+{% block nav_orders %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-3 sm:mb-0">受注一覧</h1>
+    <a href="{% url 'orders:order_create' %}"
+       class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-center">
+        ＋ 新規受注
+    </a>
+</div>
+
+<!-- フィルター -->
+<form method="get" class="mb-6 bg-white p-4 rounded-lg shadow-sm">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">納品日（開始）</label>
+            <input type="date" name="date_from" value="{{ date_from }}"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">納品日（終了）</label>
+            <input type="date" name="date_to" value="{{ date_to }}"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">顧客名</label>
+            <input type="text" name="customer_name" value="{{ customer_name }}" placeholder="顧客名検索"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition text-sm">
+                検索
+            </button>
+        </div>
+    </div>
+</form>
+
+<!-- 一覧 -->
+{% if orders %}
+<div class="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">受注番号</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">顧客</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">納品日</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600 hidden sm:table-cell">食数</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">合計</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for order in orders %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-4 py-3 text-sm">
+                        <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium">
+                            {{ order.order_number }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 text-sm">{{ order.customer }}</td>
+                    <td class="px-4 py-3 text-sm">{{ order.delivery_date|date:"Y/m/d" }}</td>
+                    <td class="px-4 py-3 text-sm text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium">&yen;{{ order.total|floatformat:0 }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex justify-end gap-1">
+                            <a href="{% url 'orders:order_pdf' order.pk %}" target="_blank"
+                               class="text-xs {% if order.pdf_printed_at %}bg-green-500{% else %}bg-purple-500{% endif %} text-white px-2 py-1 rounded hover:opacity-80">PDF{% if order.pdf_printed_at %} ✓{% endif %}</a>
+                            <a href="{% url 'orders:order_edit' order.pk %}"
+                               class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600">編集</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">
+    受注データがありません。
+</div>
+{% endif %}
+{% endblock %}

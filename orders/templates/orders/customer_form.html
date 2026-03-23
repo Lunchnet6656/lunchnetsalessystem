@@ -1,0 +1,157 @@
+{% extends "orders/base.html" %}
+{% block title %}{% if is_edit %}顧客編集{% else %}新規顧客登録{% endif %} - 受注管理{% endblock %}
+{% block nav_customers %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">
+        {% if is_edit %}顧客編集{% else %}新規顧客登録{% endif %}
+    </h1>
+
+    <form method="post" class="bg-white rounded-lg shadow-sm p-6 space-y-5">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-sm">
+            入力内容にエラーがあります。確認してください。
+        </div>
+        {% endif %}
+
+        <!-- 顧客種別 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.customer_type.label }}</label>
+            <select name="customer_type" id="id_customer_type"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                {% for value, label in form.fields.customer_type.choices %}
+                <option value="{{ value }}" {% if form.customer_type.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- 法人フィールド -->
+        <div id="b2b-fields">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.company_name.label }}</label>
+                    <input type="text" name="company_name" value="{{ form.company_name.value|default:'' }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                    {% if form.company_name.errors %}<p class="text-red-600 text-xs mt-1">{{ form.company_name.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.contact_person.label }}</label>
+                    <input type="text" name="contact_person" value="{{ form.contact_person.value|default:'' }}"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+        </div>
+
+        <!-- 顧客名 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.name.label }}</label>
+            <input type="text" name="name" value="{{ form.name.value|default:'' }}" required
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            {% if form.name.errors %}<p class="text-red-600 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <!-- 連絡先 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.phone.label }}</label>
+                <input type="tel" name="phone" value="{{ form.phone.value|default:'' }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.fax.label }}</label>
+                <input type="tel" name="fax" value="{{ form.fax.value|default:'' }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.email.label }}</label>
+            <input type="email" name="email" value="{{ form.email.value|default:'' }}"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+
+        <!-- 住所 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.postal_code.label }}</label>
+                <input type="text" name="postal_code" value="{{ form.postal_code.value|default:'' }}" placeholder="000-0000"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.address.label }}</label>
+                <input type="text" name="address" value="{{ form.address.value|default:'' }}"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+        </div>
+
+        <!-- 価格タイプ -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.price_type.label }}</label>
+            <select name="price_type"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                {% for value, label in form.fields.price_type.choices %}
+                <option value="{{ value }}" {% if form.price_type.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- 支払い方法 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.payment_method.label }}</label>
+            <select name="payment_method"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">---------</option>
+                {% for pm in form.payment_method.field.queryset %}
+                <option value="{{ pm.pk }}" {% if form.payment_method.value|stringformat:"s" == pm.pk|stringformat:"s" %}selected{% endif %}>{{ pm.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- 定期注文 -->
+        <div class="flex items-center gap-2">
+            <input type="checkbox" name="is_regular" id="id_is_regular"
+                   {% if form.is_regular.value %}checked{% endif %}
+                   class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+            <label for="id_is_regular" class="text-sm font-semibold text-gray-700">定期注文の顧客</label>
+        </div>
+
+        <!-- 備考 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.notes.label }}</label>
+            <textarea name="notes" rows="3"
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        <!-- ボタン -->
+        <div class="flex gap-3 pt-2">
+            <button type="submit"
+                    class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
+                {% if is_edit %}更新する{% else %}登録する{% endif %}
+            </button>
+            <a href="{% url 'orders:customer_list' %}"
+               class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition text-center font-medium">
+                キャンセル
+            </a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSelect = document.getElementById('id_customer_type');
+    const b2bFields = document.getElementById('b2b-fields');
+
+    function toggleB2B() {
+        b2bFields.style.display = typeSelect.value === 'B2B' ? '' : 'none';
+    }
+    typeSelect.addEventListener('change', toggleB2B);
+    toggleB2B();
+});
+</script>
+{% endblock %}

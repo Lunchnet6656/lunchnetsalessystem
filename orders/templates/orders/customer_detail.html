@@ -1,0 +1,122 @@
+{% extends "orders/base.html" %}
+{% block title %}{{ customer }} - 受注管理{% endblock %}
+{% block nav_customers %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- ヘッダー -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-3 sm:mb-0">{{ customer }}</h1>
+        <div class="flex gap-2">
+            <a href="{% url 'orders:order_create_for_customer' customer.pk %}"
+               class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm">新規受注</a>
+            <a href="{% url 'orders:customer_edit' customer.pk %}"
+               class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm">編集</a>
+            <a href="{% url 'orders:customer_delete' customer.pk %}"
+               class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm">削除</a>
+        </div>
+    </div>
+
+    <!-- 顧客情報 -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">顧客情報</h2>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            <div>
+                <dt class="text-sm text-gray-500">種別</dt>
+                <dd class="font-medium">{{ customer.get_customer_type_display }}</dd>
+            </div>
+            {% if customer.company_name %}
+            <div>
+                <dt class="text-sm text-gray-500">会社名</dt>
+                <dd class="font-medium">{{ customer.company_name }}</dd>
+            </div>
+            {% endif %}
+            {% if customer.contact_person %}
+            <div>
+                <dt class="text-sm text-gray-500">担当者</dt>
+                <dd class="font-medium">{{ customer.contact_person }}</dd>
+            </div>
+            {% endif %}
+            <div>
+                <dt class="text-sm text-gray-500">顧客名</dt>
+                <dd class="font-medium">{{ customer.name }}</dd>
+            </div>
+            {% if customer.phone %}
+            <div>
+                <dt class="text-sm text-gray-500">電話番号</dt>
+                <dd class="font-medium">{{ customer.phone }}</dd>
+            </div>
+            {% endif %}
+            {% if customer.fax %}
+            <div>
+                <dt class="text-sm text-gray-500">FAX</dt>
+                <dd class="font-medium">{{ customer.fax }}</dd>
+            </div>
+            {% endif %}
+            {% if customer.email %}
+            <div>
+                <dt class="text-sm text-gray-500">メール</dt>
+                <dd class="font-medium">{{ customer.email }}</dd>
+            </div>
+            {% endif %}
+            {% if customer.postal_code or customer.address %}
+            <div class="sm:col-span-2">
+                <dt class="text-sm text-gray-500">住所</dt>
+                <dd class="font-medium">{% if customer.postal_code %}〒{{ customer.postal_code }} {% endif %}{{ customer.address }}</dd>
+            </div>
+            {% endif %}
+            <div>
+                <dt class="text-sm text-gray-500">価格タイプ</dt>
+                <dd class="font-medium">{{ customer.get_price_type_display }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-gray-500">支払い方法</dt>
+                <dd class="font-medium">{% if customer.payment_method %}{{ customer.payment_method.name }}{% else %}未設定{% endif %}</dd>
+            </div>
+            {% if customer.notes %}
+            <div class="sm:col-span-2">
+                <dt class="text-sm text-gray-500">備考</dt>
+                <dd class="font-medium">{{ customer.notes }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+    </div>
+
+    <!-- 受注履歴 -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">受注履歴</h2>
+        {% if recent_orders %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">受注番号</th>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">納品日</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">食数</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">合計金額</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for order in recent_orders %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 text-sm">
+                            <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline">{{ order.order_number }}</a>
+                        </td>
+                        <td class="px-4 py-2 text-sm">{{ order.delivery_date|date:"Y/m/d" }}</td>
+                        <td class="px-4 py-2 text-sm text-right">{{ order.total_quantity }}</td>
+                        <td class="px-4 py-2 text-sm text-right">&yen;{{ order.total|floatformat:0 }}</td>
+                        <td class="px-4 py-2 text-right">
+                            <a href="{% url 'orders:order_pdf' order.pk %}" class="text-xs bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600">PDF</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-center py-4">受注履歴はありません。</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

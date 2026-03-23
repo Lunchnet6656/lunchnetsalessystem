@@ -1005,12 +1005,49 @@ def daily_report_edit(request, pk):
     locations = SalesLocation.objects.all()
 
     # locationの中から、report.locationと一致するものを探す
+    price_type = 'A'
     for location in locations:
         if location.name == report.location:
             report.service_name = location.service_name
             report.service_price = location.service_price
             report.service_style = location.service_style
+            price_type = location.price_type
             break  # 一致するlocationが見つかったらループを終了
+
+    # Productモデルから実際の単価を取得（derived_priceが0の場合のフォールバック用）
+    date_str = str(report.date)  # ISO形式 "2026-03-23"（ItemQuantity.target_dateの保存形式と一致）
+    product_prices = {}
+    item_quantities = ItemQuantity.objects.filter(
+        target_date=date_str,
+        sales_location__name=report.location
+    ).select_related('product')
+    for iq in item_quantities:
+        product = iq.product
+        if price_type == 'A':
+            product_prices[product.no] = int(product.price_A)
+        elif price_type == 'B':
+            product_prices[product.no] = int(product.price_B)
+        elif price_type == 'C':
+            product_prices[product.no] = int(product.price_C)
+        else:
+            product_prices[product.no] = 0
+
+    # product_pricesが不完全な場合、Productモデルから直接単価を取得
+    entry_product_nos = set(entry.product_no for entry in entries)
+    missing_nos = entry_product_nos - set(product_prices.keys())
+    if missing_nos:
+        iq_any = ItemQuantity.objects.filter(target_date=date_str).first()
+        if iq_any:
+            fallback_products = Product.objects.filter(no__in=missing_nos, week=iq_any.target_week)
+            for product in fallback_products:
+                if price_type == 'A':
+                    product_prices[product.no] = int(product.price_A)
+                elif price_type == 'B':
+                    product_prices[product.no] = int(product.price_B)
+                elif price_type == 'C':
+                    product_prices[product.no] = int(product.price_C)
+                else:
+                    product_prices[product.no] = 0
 
     if request.method == "POST":
         # TimeFormのインスタンスを作成
@@ -1021,18 +1058,15 @@ def daily_report_edit(request, pk):
             post_data['service_name'] = 'なし'
         if not post_data.get('service_price'):
             post_data['service_price'] = '0'
+        # 単価別販売数はunique_pricesの数により欠損する場合があるためデフォルト設定
+        for i in range(1, 4):
+            if not post_data.get(f'sales_price_quantity_{i}'):
+                post_data[f'sales_price_quantity_{i}'] = '0'
 
         form = DailyReportForm(post_data, instance=report)
-        
+
         if form.is_valid() and time_form.is_valid():
-            # 時間データを明示的に取得
-            report.departure_time = request.POST.get('departure_time')
-            report.arrival_time = request.POST.get('arrival_time')
-            report.opening_time = request.POST.get('opening_time')
-            report.sold_out_time = request.POST.get('sold_out_time')
-            report.closing_time = request.POST.get('closing_time')
-            
-            # 他のフィールドの保存
+            # フォームから保存（時間フィールドもフォーム経由で保存される）
             report = form.save(commit=False)
             report.save()
 
@@ -1074,13 +1108,13 @@ def daily_report_edit(request, pk):
             'closing_time': report.closing_time,
         })
 
-    # 各entryにderived_priceを計算して付与
+    # 各entryにderived_priceを計算して付与（sales_quantityが0の場合はProductモデルの単価を使用）
     unique_prices = set()
     for entry in entries:
         if entry.sales_quantity and entry.sales_quantity > 0:
             entry.derived_price = int(entry.total_sales / entry.sales_quantity)
         else:
-            entry.derived_price = 0
+            entry.derived_price = product_prices.get(entry.product_no, 0)
         if entry.derived_price > 0:
             unique_prices.add(entry.derived_price)
     unique_prices = sorted(list(unique_prices), reverse=True)
@@ -1102,12 +1136,49 @@ def daily_report_edit_rol(request, pk):
     locations = SalesLocation.objects.all()
 
     # locationの中から、report.locationと一致するものを探す
+    price_type = 'A'
     for location in locations:
         if location.name == report.location:
             report.service_name = location.service_name
             report.service_price = location.service_price
             report.service_style = location.service_style
+            price_type = location.price_type
             break  # 一致するlocationが見つかったらループを終了
+
+    # Productモデルから実際の単価を取得（derived_priceが0の場合のフォールバック用）
+    date_str = str(report.date)  # ISO形式 "2026-03-23"（ItemQuantity.target_dateの保存形式と一致）
+    product_prices = {}
+    item_quantities = ItemQuantity.objects.filter(
+        target_date=date_str,
+        sales_location__name=report.location
+    ).select_related('product')
+    for iq in item_quantities:
+        product = iq.product
+        if price_type == 'A':
+            product_prices[product.no] = int(product.price_A)
+        elif price_type == 'B':
+            product_prices[product.no] = int(product.price_B)
+        elif price_type == 'C':
+            product_prices[product.no] = int(product.price_C)
+        else:
+            product_prices[product.no] = 0
+
+    # product_pricesが不完全な場合、Productモデルから直接単価を取得
+    entry_product_nos = set(entry.product_no for entry in entries)
+    missing_nos = entry_product_nos - set(product_prices.keys())
+    if missing_nos:
+        iq_any = ItemQuantity.objects.filter(target_date=date_str).first()
+        if iq_any:
+            fallback_products = Product.objects.filter(no__in=missing_nos, week=iq_any.target_week)
+            for product in fallback_products:
+                if price_type == 'A':
+                    product_prices[product.no] = int(product.price_A)
+                elif price_type == 'B':
+                    product_prices[product.no] = int(product.price_B)
+                elif price_type == 'C':
+                    product_prices[product.no] = int(product.price_C)
+                else:
+                    product_prices[product.no] = 0
 
     if request.method == "POST":
         print("=== POST処理開始 ===")
@@ -1118,24 +1189,19 @@ def daily_report_edit_rol(request, pk):
             post_data['service_name'] = 'なし'
         if not post_data.get('service_price'):
             post_data['service_price'] = '0'
+        # 単価別販売数はunique_pricesの数により欠損する場合があるためデフォルト設定
+        for i in range(1, 4):
+            if not post_data.get(f'sales_price_quantity_{i}'):
+                post_data[f'sales_price_quantity_{i}'] = '0'
 
         form = DailyReportForm(post_data, instance=report)
-        
+
         print("POSTデータ:", request.POST)
         
         if form.is_valid() and time_form.is_valid():
             print("フォームのバリデーション成功")
             try:
-                # 時間データを明示的に取得
-                report.departure_time = request.POST.get('departure_time')
-                report.arrival_time = request.POST.get('arrival_time')
-                report.opening_time = request.POST.get('opening_time')
-                report.sold_out_time = request.POST.get('sold_out_time')
-                report.closing_time = request.POST.get('closing_time')
-                
-                print("時間データ設定完了")
-                
-                # フォームから直接保存
+                # フォームから直接保存（時間フィールドもフォーム経由で保存される）
                 report = form.save()
                 print("レポート保存完了")
 
@@ -1192,13 +1258,13 @@ def daily_report_edit_rol(request, pk):
             'closing_time': report.closing_time,
         })
 
-    # 各entryにderived_priceを計算して付与
+    # 各entryにderived_priceを計算して付与（sales_quantityが0の場合はProductモデルの単価を使用）
     unique_prices = set()
     for entry in entries:
         if entry.sales_quantity and entry.sales_quantity > 0:
             entry.derived_price = int(entry.total_sales / entry.sales_quantity)
         else:
-            entry.derived_price = 0
+            entry.derived_price = product_prices.get(entry.product_no, 0)
         if entry.derived_price > 0:
             unique_prices.add(entry.derived_price)
     unique_prices = sorted(list(unique_prices), reverse=True)
