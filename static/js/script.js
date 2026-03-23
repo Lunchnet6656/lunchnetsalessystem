@@ -282,15 +282,22 @@ function updateDiscount() {
         skipProcessing_a = true;
         skipProcessing_b = true;
     } else {
-        var selectedOption = serviceNameElement.options[serviceNameElement.selectedIndex];
-        servicePrice = parseInt(selectedOption.value, 10) || 0;
-        var serviceStyleElement = document.getElementById('service_style').value;
+        // <select>（入力フォーム）と <input>（編集フォーム）の両方に対応
+        if (serviceNameElement.tagName === 'SELECT') {
+            var selectedOption = serviceNameElement.options[serviceNameElement.selectedIndex];
+            servicePrice = parseInt(selectedOption.value, 10) || 0;
+        } else {
+            servicePrice = parseInt(serviceNameElement.value, 10) || 0;
+        }
 
-        if (serviceStyleElement === 'なし') {
+        var serviceStyleEl = document.getElementById('service_style');
+        var serviceStyleValue = serviceStyleEl ? serviceStyleEl.value : '';
+
+        if (serviceStyleValue === 'なし' || !serviceStyleValue) {
             skipProcessing_a = true;
             skipProcessing_b = true;
         }
-        else if (serviceStyleElement === '割引') {
+        else if (serviceStyleValue === '割引') {
             skipProcessing_a = true;
             skipProcessing_b = false;
         }
