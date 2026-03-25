@@ -31,6 +31,10 @@
                    class="px-3 py-1.5 rounded transition {% block nav_regular %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     受注ダッシュボード
                 </a>
+                <a href="{% url 'orders:delivery_list' %}"
+                   class="px-3 py-1.5 rounded transition {% block nav_delivery_list %}text-gray-300 hover:bg-gray-600{% endblock %}">
+                    配達リスト
+                </a>
                 <a href="{% url 'orders:order_create' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_new_order %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     新規受注

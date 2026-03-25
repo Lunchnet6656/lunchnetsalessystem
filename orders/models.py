@@ -18,6 +18,21 @@ class PaymentMethod(models.Model):
         return self.name
 
 
+class DeliveryBin(models.Model):
+    name = models.CharField(max_length=50, unique=True, verbose_name="便名")
+    is_active = models.BooleanField(default=True, verbose_name="有効")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="表示順")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = "配達便"
+        verbose_name_plural = "配達便"
+
+    def __str__(self):
+        return self.name
+
+
 class Customer(models.Model):
     CUSTOMER_TYPE_CHOICES = [
         ('B2B', '法人'),
@@ -28,14 +43,19 @@ class Customer(models.Model):
         ('B', '価格B'),
         ('C', '価格C'),
     ]
+    BENTO_TYPE_CHOICES = [
+        ('REGULAR', '通常弁当'),
+        ('CATERING', '仕出し弁当'),
+    ]
 
     customer_type = models.CharField(
         max_length=10, choices=CUSTOMER_TYPE_CHOICES, default='B2B',
         verbose_name="顧客種別"
     )
     company_name = models.CharField(max_length=200, blank=True, verbose_name="会社名")
+    department = models.CharField(max_length=100, blank=True, verbose_name="部署名")
     contact_person = models.CharField(max_length=100, blank=True, verbose_name="担当者名")
-    name = models.CharField(max_length=100, verbose_name="顧客名")
+    name = models.CharField(max_length=100, blank=True, default='', verbose_name="顧客名")
     postal_code = models.CharField(max_length=10, blank=True, verbose_name="郵便番号")
     address = models.TextField(blank=True, verbose_name="住所")
     phone = models.CharField(max_length=20, blank=True, verbose_name="電話番号")
@@ -49,26 +69,54 @@ class Customer(models.Model):
         PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name="支払い方法"
     )
+    delivery_bin = models.ForeignKey(
+        'DeliveryBin', on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="配達便"
+    )
     notes = models.TextField(blank=True, verbose_name="備考")
+    bento_type = models.CharField(
+        max_length=10, choices=BENTO_TYPE_CHOICES, default='REGULAR',
+        verbose_name="弁当種別"
+    )
     is_regular = models.BooleanField(default=False, verbose_name="定期注文")
+    REGULAR_TYPE_CHOICES = [
+        ('WEEKDAY', '平日毎日（月〜金）'),
+        ('CUSTOM', '曜日指定'),
+    ]
+    regular_type = models.CharField(
+        max_length=10, choices=REGULAR_TYPE_CHOICES, default='WEEKDAY', blank=True,
+        verbose_name="定期スケジュール"
+    )
+    schedule_mon = models.BooleanField(default=False, verbose_name="月")
+    schedule_tue = models.BooleanField(default=False, verbose_name="火")
+    schedule_wed = models.BooleanField(default=False, verbose_name="水")
+    schedule_thu = models.BooleanField(default=False, verbose_name="木")
+    schedule_fri = models.BooleanField(default=False, verbose_name="金")
+    schedule_sat = models.BooleanField(default=False, verbose_name="土")
+    schedule_sun = models.BooleanField(default=False, verbose_name="日")
     is_active = models.BooleanField(default=True, verbose_name="有効")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['company_name', 'name']
+        ordering = ['customer_type', 'company_name', 'department', 'name']
         verbose_name = "顧客"
         verbose_name_plural = "顧客"
 
     def __str__(self):
         if self.customer_type == 'B2B' and self.company_name:
-            return f"{self.company_name}（{self.contact_person}）"
-        return self.name
+            parts = self.company_name
+            if self.department:
+                parts = f"{parts} {self.department}"
+            if self.contact_person:
+                parts = f"{parts}（{self.contact_person}）"
+            return parts
+        return self.name or ''
 
     def display_name(self):
         if self.customer_type == 'B2B' and self.company_name:
             return self.company_name
-        return self.name
+        return self.name or ''
 
 
 class Order(models.Model):
@@ -105,6 +153,12 @@ class Order(models.Model):
 
     @property
     def total(self):
+        bento = sum(item.subtotal for item in self.items.all())
+        extra = sum(ei.subtotal for ei in self.extra_items.all())
+        return bento + extra
+
+    @property
+    def bento_total(self):
         return sum(item.subtotal for item in self.items.all())
 
     @property
@@ -136,7 +190,7 @@ class OrderItem(models.Model):
     )
     product = models.ForeignKey(
         'sales.Product', on_delete=models.PROTECT,
-        verbose_name="商品"
+        null=True, blank=True, verbose_name="商品"
     )
     product_name = models.CharField(max_length=255, verbose_name="商品名")
     quantity = models.PositiveIntegerField(default=0, verbose_name="数量（合計）")
@@ -164,6 +218,48 @@ class OrderItem(models.Model):
         super().save(*args, **kwargs)
 
 
+class ExtraProduct(models.Model):
+    name = models.CharField(max_length=200, verbose_name="商品名")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=0, verbose_name="単価")
+    is_active = models.BooleanField(default=True, verbose_name="有効")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="表示順")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = "追加商品"
+        verbose_name_plural = "追加商品"
+
+    def __str__(self):
+        return self.name
+
+
+class OrderExtraItem(models.Model):
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name='extra_items',
+        verbose_name="受注"
+    )
+    extra_product = models.ForeignKey(
+        ExtraProduct, on_delete=models.PROTECT,
+        null=True, blank=True, verbose_name="追加商品マスタ"
+    )
+    product_name = models.CharField(max_length=200, verbose_name="商品名")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=0, verbose_name="単価")
+    quantity = models.PositiveIntegerField(default=1, verbose_name="数量")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=0, default=0, verbose_name="小計")
+
+    class Meta:
+        verbose_name = "追加商品明細"
+        verbose_name_plural = "追加商品明細"
+
+    def __str__(self):
+        return f"{self.product_name} x {self.quantity}"
+
+    def save(self, *args, **kwargs):
+        self.subtotal = self.unit_price * self.quantity
+        super().save(*args, **kwargs)
+
+
 class OrderSettings(models.Model):
     tax_rate = models.DecimalField(
         max_digits=5, decimal_places=2, default=8,
@@ -184,6 +280,9 @@ class OrderSettings(models.Model):
     )
     fax = models.CharField(
         max_length=20, default="045-592-8424", verbose_name="FAX番号"
+    )
+    invoice_number = models.CharField(
+        max_length=20, default="T4020002059715", verbose_name="登録番号"
     )
 
     class Meta:

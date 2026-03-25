@@ -8,7 +8,7 @@
         {% if is_edit %}受注編集 - {{ order.order_number }}{% else %}新規受注{% endif %}
     </h1>
 
-    <form method="post" id="order-form" class="space-y-6" {% if is_edit %}data-order-pk="{{ order.pk }}"{% endif %}>
+    <form method="post" id="order-form" class="space-y-6" {% if is_edit %}data-order-pk="{{ order.pk }}"{% endif %} data-is-catering="{% if is_catering %}true{% else %}false{% endif %}" data-extra-products="{{ extra_products_json }}">
         {% csrf_token %}
 
         {% if form.errors or formset.errors %}
@@ -32,6 +32,7 @@
                         <option value="">--- 顧客を選択 ---</option>
                         {% for c in customers %}
                         <option value="{{ c.pk }}" data-price-type="{{ c.price_type }}"
+                                data-bento-type="{{ c.bento_type }}"
                                 {% if form.customer.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>
                             {{ c }}
                         </option>
@@ -84,16 +85,35 @@
             </div>
 
             {{ formset.management_form }}
+            {{ extra_formset.management_form }}
 
             <!-- 既存フォームセットのhidden fields（編集時用） -->
             <div id="formset-hidden-area" class="hidden">
                 {% for item_form in formset %}
                 <div class="formset-form" data-index="{{ forloop.counter0 }}"
                      data-product-id="{{ item_form.product.value|default:'' }}"
+                     data-product-name="{{ item_form.product_name.value|default:'' }}"
                      data-quantity-large="{{ item_form.quantity_large.value|default:'0' }}"
                      data-quantity-regular="{{ item_form.quantity_regular.value|default:'0' }}"
-                     data-quantity-small="{{ item_form.quantity_small.value|default:'0' }}">
+                     data-quantity-small="{{ item_form.quantity_small.value|default:'0' }}"
+                     data-unit-price="{{ item_form.unit_price.value|default:'0' }}"
+                     data-subtotal="{{ item_form.subtotal.value|default:'0' }}">
                     {{ item_form.id }}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 追加商品フォームセットのhidden fields（編集時用） -->
+            <div id="extra-formset-hidden-area" class="hidden">
+                {% for ef in extra_formset %}
+                <div class="extra-formset-form"
+                     data-index="{{ forloop.counter0 }}"
+                     data-product-name="{{ ef.product_name.value|default:'' }}"
+                     data-unit-price="{{ ef.unit_price.value|default:'0' }}"
+                     data-quantity="{{ ef.quantity.value|default:'0' }}"
+                     data-subtotal="{{ ef.subtotal.value|default:'0' }}"
+                     data-extra-product-id="{{ ef.extra_product.value|default:'' }}">
+                    {{ ef.id }}
                 </div>
                 {% endfor %}
             </div>
@@ -104,6 +124,54 @@
                     納品日を選択すると商品カードが表示されます
                 </p>
                 <div id="product-cards-grid" class="grid gap-3 hidden" style="grid-template-columns: 1fr 10rem;"></div>
+            </div>
+
+            <!-- 仕出し弁当入力テーブル（仕出し顧客のみ表示） -->
+            <div id="catering-section" class="hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse" id="catering-table">
+                        <thead>
+                            <tr class="bg-orange-50">
+                                <th class="text-left px-3 py-2 border border-gray-200 font-semibold text-gray-600">商品名</th>
+                                <th class="text-center px-3 py-2 border border-gray-200 font-semibold text-gray-600 w-28">単価（円）</th>
+                                <th class="text-center px-3 py-2 border border-gray-200 font-semibold text-gray-600 w-24">数量</th>
+                                <th class="text-center px-3 py-2 border border-gray-200 font-semibold text-gray-600 w-28">小計</th>
+                                <th class="w-10 border border-gray-200"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="catering-rows"></tbody>
+                    </table>
+                </div>
+                <button type="button" id="catering-add-row-btn"
+                        class="mt-3 text-sm text-orange-600 border border-orange-300 rounded px-3 py-1.5 hover:bg-orange-50 transition">
+                    ＋ 行追加
+                </button>
+            </div>
+
+            <!-- 追加商品セクション（常時表示） -->
+            <div class="mt-6 bg-white rounded-lg border border-teal-200">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-teal-100">
+                    <h3 class="text-sm font-semibold text-teal-700">追加商品（お茶・単品ご飯など）</h3>
+                    <button type="button" id="extra-add-row-btn"
+                            class="text-sm text-teal-600 border border-teal-300 rounded px-3 py-1 hover:bg-teal-50 transition">
+                        ＋ 追加
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm" id="extra-items-table">
+                        <thead>
+                            <tr class="bg-teal-50">
+                                <th class="text-left px-3 py-2 border-b border-gray-200 font-semibold text-gray-600">商品名</th>
+                                <th class="text-center px-3 py-2 border-b border-gray-200 font-semibold text-gray-600 w-28">単価（円）</th>
+                                <th class="text-center px-3 py-2 border-b border-gray-200 font-semibold text-gray-600 w-20">数量</th>
+                                <th class="text-center px-3 py-2 border-b border-gray-200 font-semibold text-gray-600 w-28">小計</th>
+                                <th class="w-10 border-b border-gray-200"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="extra-items-rows"></tbody>
+                    </table>
+                    <p id="extra-items-empty" class="text-xs text-gray-400 text-center py-3">追加商品なし</p>
+                </div>
             </div>
 
             <!-- 合計 -->
@@ -150,11 +218,13 @@
                 {% for c in customers %}
                 <div class="customer-card cursor-pointer border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all"
                      data-customer-id="{{ c.pk }}"
-                     data-search-text="{{ c.company_name }} {{ c.contact_person }} {{ c.name }}">
+                     data-bento-type="{{ c.bento_type }}"
+                     data-search-text="{{ c.company_name }} {{ c.department }} {{ c.contact_person }} {{ c.name }}">
                     <div class="flex items-start justify-between mb-2">
                         <div class="font-bold text-gray-800 text-base leading-tight">
                             {% if c.customer_type == 'B2B' and c.company_name %}
                                 {{ c.company_name }}
+                                {% if c.department %}<span class="block text-sm text-gray-600 font-normal">{{ c.department }}</span>{% endif %}
                             {% else %}
                                 {{ c.name }}
                             {% endif %}
@@ -172,11 +242,16 @@
                     {% if c.phone %}
                     <p class="text-xs text-gray-400">{{ c.phone }}</p>
                     {% endif %}
-                    <div class="mt-2">
+                    <div class="mt-2 flex items-center gap-1 flex-wrap">
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                             {% if c.customer_type == 'B2B' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-600{% endif %}">
                             {{ c.get_customer_type_display }}
                         </span>
+                        {% if c.bento_type == 'CATERING' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                            仕出し
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}

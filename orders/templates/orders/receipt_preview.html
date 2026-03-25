@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>領収証 - {{ customer_name }} {{ issue_date }}</title>
+<style>
+    /* ===== 印刷ボタンバー（画面表示のみ） ===== */
+    .print-bar {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        background: #1e40af;
+        color: #fff;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .print-bar .btn-print {
+        background: #fff;
+        color: #1e40af;
+        border: none;
+        padding: 10px 28px;
+        font-size: 17px;
+        font-weight: bold;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .print-bar .btn-print:hover { background: #dbeafe; }
+    .print-bar .bar-label { font-size: 14px; opacity: 0.9; }
+    .print-bar .btn-close {
+        margin-left: auto;
+        background: transparent;
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.5);
+        padding: 6px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        text-decoration: none;
+    }
+    .print-bar .btn-close:hover { background: rgba(255,255,255,0.15); }
+
+    /* ===== 背景・ラッパー ===== */
+    body {
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+        font-size: 10pt;
+        color: #000;
+        margin: 0;
+        padding: 0;
+        background: #e5e7eb;
+    }
+    .slip-wrapper {
+        margin-top: 70px;
+        padding: 24px;
+        display: flex;
+        justify-content: center;
+    }
+    .slip {
+        background: #fff;
+        width: 210mm;
+        padding: 8mm 10mm;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+        box-sizing: border-box;
+    }
+
+    /* ===== ヘッダー行（タイトル＋日付） ===== */
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 3mm;
+    }
+    .title {
+        font-size: 26pt;
+        font-weight: bold;
+        letter-spacing: 0.6em;
+        line-height: 1;
+    }
+    .issue-date {
+        font-size: 10pt;
+        padding-bottom: 1mm;
+    }
+
+    /* ===== 宛名 ===== */
+    .customer-row {
+        margin-bottom: 3mm;
+    }
+    .customer-name {
+        font-size: {{ customer_name_font_size }};
+        font-weight: bold;
+        border-bottom: 2px solid #000;
+        padding-bottom: 1mm;
+        display: inline-block;
+        min-width: 70mm;
+        white-space: nowrap;
+    }
+    .sama {
+        font-size: 13pt;
+        font-weight: bold;
+        margin-left: 2mm;
+    }
+
+    /* ===== 金額枠 ===== */
+    .amount-box {
+        border: 3px solid #000;
+        text-align: center;
+        padding: 3mm 0;
+        margin: 0 auto 3mm;
+        width: 80%;
+        font-size: 26pt;
+        font-weight: bold;
+        letter-spacing: 0.05em;
+    }
+
+    /* ===== 但し書き・領収文 ===== */
+    .tadashi-row {
+        text-align: center;
+        font-size: 10pt;
+        margin-bottom: 1.5mm;
+    }
+    .tadashi-item {
+        font-weight: bold;
+        font-size: 11pt;
+        margin: 0 4mm;
+    }
+    .received-text {
+        text-align: center;
+        font-size: 9pt;
+        margin-bottom: 3mm;
+    }
+
+    /* ===== 区切り線 ===== */
+    .divider {
+        border-top: 1px dashed #666;
+        margin: 2mm 0;
+    }
+
+    /* ===== 下段 ===== */
+    .bottom-section {
+        display: flex;
+        gap: 4mm;
+        margin-top: 3mm;
+        align-items: stretch;
+    }
+
+    /* 収入印紙 */
+    .stamp-cell {
+        width: 16mm;
+        flex-shrink: 0;
+        border: 1px solid #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 8pt;
+        min-height: 22mm;
+    }
+    .stamp-top {
+        border-bottom: 1px solid #000;
+        width: 100%;
+        text-align: center;
+        padding: 2mm 0;
+    }
+    .stamp-bottom {
+        width: 100%;
+        text-align: center;
+        padding: 2mm 0;
+    }
+
+    /* 内訳 */
+    .breakdown-cell {
+        width: 62mm;
+        flex-shrink: 0;
+        border: 1px solid #000;
+    }
+    .breakdown-header {
+        border-bottom: 1px solid #000;
+        padding: 1.5mm 3mm;
+        font-weight: bold;
+        font-size: 8.5pt;
+    }
+    .breakdown-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 1.5mm 3mm;
+        font-size: 9pt;
+        border-bottom: 1px solid #eee;
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+
+    /* 自社情報 */
+    .company-cell {
+        flex: 1;
+        padding-left: 4mm;
+        font-size: 8.5pt;
+        line-height: 1.9;
+    }
+    .company-name-text {
+        font-size: 10pt;
+        font-weight: bold;
+        display: block;
+        margin-bottom: 1.5mm;
+    }
+
+    /* ===== 印刷時 ===== */
+    @media print {
+        @page { size: A5 landscape; margin: 8mm 10mm; }
+        .print-bar { display: none; }
+        body { background: #fff; }
+        .slip-wrapper { margin-top: 0; padding: 0; }
+        .slip { box-shadow: none; width: 100%; padding: 0; }
+    }
+</style>
+</head>
+<body>
+
+<!-- 印刷ボタンバー -->
+<div class="print-bar">
+    <button class="btn-print" onclick="window.print()">
+        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2H8v2h4v-2h-4z" clip-rule="evenodd"/>
+        </svg>
+        今すぐ印刷
+    </button>
+    <span class="bar-label">領収証　{{ customer_name }}　様　{{ issue_date }}</span>
+    <a href="javascript:window.close()" class="btn-close">閉じる</a>
+</div>
+
+<!-- 領収証本体 -->
+<div class="slip-wrapper">
+<div class="slip">
+
+    <!-- ヘッダー -->
+    <div class="header">
+        <div class="title">領　収　証</div>
+        <div class="issue-date">{{ issue_date }}</div>
+    </div>
+
+    <!-- 宛名 -->
+    <div class="customer-row">
+        <span class="customer-name">{{ customer_name }}{% if customer_department %}<br>{{ customer_department }}{% endif %}</span><span class="sama">様</span>
+    </div>
+
+    <!-- 金額 -->
+    <div class="amount-box">¥{{ total_formatted }}</div>
+
+    <!-- 但し書き -->
+    <div class="tadashi-row">
+        但し<span class="tadashi-item">お弁当代</span>として
+    </div>
+
+    <!-- 領収文 -->
+    <div class="received-text">上記、正に領収いたしました</div>
+
+    <div class="divider"></div>
+
+    <!-- 下段 -->
+    <div class="bottom-section">
+        <!-- 収入印紙 -->
+        <div class="stamp-cell">
+            <span class="stamp-top">収　入</span>
+            <span class="stamp-bottom">印　紙</span>
+        </div>
+
+        <!-- 内訳 -->
+        <div class="breakdown-cell">
+            <div class="breakdown-header">内訳</div>
+            <div class="breakdown-row">
+                <span>税抜金額</span>
+                <span>¥{{ tax_excluded_formatted }}</span>
+            </div>
+            <div class="breakdown-row">
+                <span>消費税額等（{{ tax_rate }}%）</span>
+                <span>¥{{ tax_amount_formatted }}</span>
+            </div>
+        </div>
+
+        <!-- 自社情報 -->
+        <div class="company-cell">
+            <span class="company-name-text">{{ settings.company_name }}</span>
+            {{ settings.postal_code }}　{{ settings.address }}<br>
+            TEL {{ settings.tel }}　FAX {{ settings.fax }}<br>
+            登録番号：{{ settings.invoice_number }}
+        </div>
+    </div>
+
+</div>
+</div>
+
+<script>
+    window.onload = function() { window.print(); };
+</script>
+</body>
+</html>

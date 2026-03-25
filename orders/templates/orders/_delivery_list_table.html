@@ -1,0 +1,61 @@
+<div class="overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b">
+            <tr>
+                <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">部署</th>
+                <th class="text-center px-4 py-3 font-semibold text-gray-600">注文状況</th>
+                <th class="text-right px-4 py-3 font-semibold text-gray-600">食数</th>
+                <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">備考</th>
+                <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for row in rows %}
+            <tr class="hover:bg-gray-50 {% if not row.has_order %}bg-red-50{% endif %}">
+                <td class="px-4 py-3">
+                    <a href="{% url 'orders:customer_detail' row.customer.pk %}"
+                       class="text-blue-600 hover:underline font-medium">
+                        {{ row.customer.display_name }}
+                    </a>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">
+                    {{ row.customer.department|default:"-" }}
+                </td>
+                <td class="px-4 py-3 text-center">
+                    {% if row.has_order %}
+                    <span class="inline-flex items-center bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full">
+                        注文済み
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center bg-red-100 text-red-700 text-xs font-medium px-2 py-1 rounded-full">
+                        未注文
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-right font-medium">
+                    {% if row.has_order %}{{ row.total_quantity }}{% else %}-{% endif %}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
+                    {{ row.notes|default:"" }}
+                </td>
+                <td class="px-4 py-3 text-center">
+                    {% if row.has_order %}
+                    <div class="flex items-center justify-center gap-1">
+                        <a href="{% url 'orders:order_detail' row.order.pk %}"
+                           class="text-xs bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600">詳細</a>
+                        <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
+                           class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">納品書</a>
+                    </div>
+                    {% else %}
+                    <a href="{% url 'orders:order_create_for_customer' row.customer.pk %}?delivery_date={{ target_date_str }}"
+                       class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                        新規受注
+                    </a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

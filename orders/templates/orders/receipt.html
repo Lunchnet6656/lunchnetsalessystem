@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>領収証</title>
+<style>
+    @font-face {
+        font-family: "IPAexGothic";
+        src: url("file://{{ font_dir }}/ipaexg.ttf");
+    }
+    @page {
+        size: A5 landscape;
+        margin: 8mm 10mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+        font-family: "IPAexGothic", sans-serif;
+        font-size: 9pt;
+        color: #000;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* ===== ヘッダー行（タイトル＋日付） ===== */
+    .header {
+        display: table;
+        width: 100%;
+        margin-bottom: 3mm;
+    }
+    .header-left {
+        display: table-cell;
+        vertical-align: bottom;
+    }
+    .header-right {
+        display: table-cell;
+        vertical-align: bottom;
+        text-align: right;
+        font-size: 10pt;
+        padding-bottom: 1mm;
+    }
+    .title {
+        font-size: 26pt;
+        font-weight: bold;
+        letter-spacing: 0.6em;
+        line-height: 1;
+    }
+
+    /* ===== 宛名行 ===== */
+    .customer-row {
+        display: table;
+        width: 100%;
+        margin-bottom: 3mm;
+    }
+    .customer-name-wrap {
+        display: table-cell;
+        vertical-align: bottom;
+    }
+    .customer-name {
+        font-size: {{ customer_name_font_size }};
+        font-weight: bold;
+        border-bottom: 2px solid #000;
+        padding-bottom: 0.5mm;
+        display: inline-block;
+        min-width: 70mm;
+        white-space: nowrap;
+    }
+    .sama {
+        font-size: 13pt;
+        font-weight: bold;
+        margin-left: 2mm;
+    }
+
+    /* ===== 金額枠 ===== */
+    .amount-box {
+        border: 3px solid #000;
+        text-align: center;
+        padding: 3mm 0;
+        margin: 0 auto 3mm;
+        width: 80%;
+        font-size: 26pt;
+        font-weight: bold;
+        letter-spacing: 0.05em;
+    }
+
+    /* ===== 但し書き・領収文 ===== */
+    .tadashi-row {
+        text-align: center;
+        font-size: 10pt;
+        margin-bottom: 1.5mm;
+    }
+    .tadashi-item {
+        font-weight: bold;
+        font-size: 11pt;
+        margin: 0 4mm;
+    }
+    .received-text {
+        text-align: center;
+        font-size: 9pt;
+        margin-bottom: 3mm;
+    }
+
+    /* ===== 区切り線 ===== */
+    .divider {
+        border-top: 1px dashed #666;
+        margin: 2mm 0;
+    }
+
+    /* ===== 下段テーブル ===== */
+    .bottom-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 2mm;
+        table-layout: fixed;
+    }
+    .bottom-table td {
+        vertical-align: middle;
+        padding: 0;
+    }
+
+    /* 収入印紙セル */
+    .stamp-col { width: 16mm; }
+    .stamp-outer {
+        border: 1px solid #000;
+        text-align: center;
+        height: 22mm;
+        display: table;
+        width: 100%;
+    }
+    .stamp-inner {
+        display: table-cell;
+        vertical-align: middle;
+        font-size: 8pt;
+        line-height: 2;
+    }
+    .stamp-top {
+        border-bottom: 1px solid #000;
+        display: block;
+        padding: 1mm 0;
+    }
+    .stamp-bottom {
+        display: block;
+        padding: 1mm 0;
+    }
+
+    /* 内訳セル */
+    .breakdown-col { width: 62mm; padding-left: 2mm; padding-right: 2mm; }
+    .breakdown-outer {
+        border: 1px solid #000;
+    }
+    .breakdown-header {
+        border-bottom: 1px solid #000;
+        padding: 1mm 3mm;
+        font-weight: bold;
+        font-size: 8.5pt;
+    }
+    .breakdown-row {
+        display: table;
+        width: 100%;
+        padding: 1.5mm 3mm;
+        font-size: 9pt;
+        border-bottom: 1px solid #ccc;
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+    .breakdown-label { display: table-cell; }
+    .breakdown-amount { display: table-cell; text-align: right; }
+
+    /* 自社情報セル */
+    .company-col { padding-left: 4mm; }
+    .company-name-text {
+        font-size: 10pt;
+        font-weight: bold;
+        display: block;
+        margin-bottom: 1.5mm;
+    }
+    .company-info {
+        font-size: 8.5pt;
+        line-height: 1.9;
+    }
+</style>
+</head>
+<body>
+
+<!-- ヘッダー：タイトル＋日付 -->
+<div class="header">
+    <div class="header-left">
+        <div class="title">領　収　証</div>
+    </div>
+    <div class="header-right">{{ issue_date }}</div>
+</div>
+
+<!-- 宛名 -->
+<div class="customer-row">
+    <div class="customer-name-wrap">
+        <span class="customer-name">{{ customer_name }}{% if customer_department %}<br>{{ customer_department }}{% endif %}</span><span class="sama">様</span>
+    </div>
+</div>
+
+<!-- 金額 -->
+<div class="amount-box">¥{{ total_formatted }}</div>
+
+<!-- 但し書き -->
+<div class="tadashi-row">
+    但し<span class="tadashi-item">お弁当代</span>として
+</div>
+
+<!-- 領収文 -->
+<div class="received-text">上記、正に領収いたしました</div>
+
+<div class="divider"></div>
+
+<!-- 下段：収入印紙 ＋ 内訳 ＋ 会社情報 -->
+<table class="bottom-table">
+    <tr>
+        <!-- 収入印紙 -->
+        <td class="stamp-col">
+            <div class="stamp-outer">
+                <div class="stamp-inner">
+                    <span class="stamp-top">収　入</span>
+                    <span class="stamp-bottom">印　紙</span>
+                </div>
+            </div>
+        </td>
+
+        <!-- 内訳 -->
+        <td class="breakdown-col">
+            <div class="breakdown-outer">
+                <div class="breakdown-header">内訳</div>
+                <div class="breakdown-row">
+                    <span class="breakdown-label">税抜金額</span>
+                    <span class="breakdown-amount">¥{{ tax_excluded_formatted }}</span>
+                </div>
+                <div class="breakdown-row">
+                    <span class="breakdown-label">消費税額等（{{ tax_rate }}%）</span>
+                    <span class="breakdown-amount">¥{{ tax_amount_formatted }}</span>
+                </div>
+            </div>
+        </td>
+
+        <!-- 自社情報 -->
+        <td class="company-col">
+            <span class="company-name-text">{{ settings.company_name }}</span>
+            <div class="company-info">
+                {{ settings.postal_code }}　{{ settings.address }}<br>
+                TEL {{ settings.tel }}　FAX {{ settings.fax }}<br>
+                登録番号：{{ settings.invoice_number }}
+            </div>
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

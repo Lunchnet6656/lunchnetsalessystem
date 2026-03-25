@@ -31,16 +31,24 @@
                 <dd class="font-medium">{{ customer.company_name }}</dd>
             </div>
             {% endif %}
+            {% if customer.department %}
+            <div>
+                <dt class="text-sm text-gray-500">部署名</dt>
+                <dd class="font-medium">{{ customer.department }}</dd>
+            </div>
+            {% endif %}
             {% if customer.contact_person %}
             <div>
                 <dt class="text-sm text-gray-500">担当者</dt>
                 <dd class="font-medium">{{ customer.contact_person }}</dd>
             </div>
             {% endif %}
+            {% if customer.name %}
             <div>
                 <dt class="text-sm text-gray-500">顧客名</dt>
                 <dd class="font-medium">{{ customer.name }}</dd>
             </div>
+            {% endif %}
             {% if customer.phone %}
             <div>
                 <dt class="text-sm text-gray-500">電話番号</dt>
@@ -70,8 +78,21 @@
                 <dd class="font-medium">{{ customer.get_price_type_display }}</dd>
             </div>
             <div>
+                <dt class="text-sm text-gray-500">弁当種別</dt>
+                <dd class="font-medium">
+                    {{ customer.get_bento_type_display }}
+                    {% if customer.bento_type == 'CATERING' %}
+                    <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">仕出し</span>
+                    {% endif %}
+                </dd>
+            </div>
+            <div>
                 <dt class="text-sm text-gray-500">支払い方法</dt>
                 <dd class="font-medium">{% if customer.payment_method %}{{ customer.payment_method.name }}{% else %}未設定{% endif %}</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-gray-500">配達便</dt>
+                <dd class="font-medium">{% if customer.delivery_bin %}{{ customer.delivery_bin.name }}{% else %}未設定{% endif %}</dd>
             </div>
             {% if customer.notes %}
             <div class="sm:col-span-2">

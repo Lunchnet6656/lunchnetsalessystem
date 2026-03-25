@@ -1,0 +1,89 @@
+{% extends "orders/base.html" %}
+{% block title %}配達リスト - 受注管理{% endblock %}
+{% block nav_delivery_list %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- ヘッダー -->
+    <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">配達リスト</h1>
+            <p class="text-base text-gray-500 mt-1">
+                {{ target_date|date:"Y年m月d日" }}（{{ weekday_label }}）
+            </p>
+        </div>
+        <form method="get">
+            <input type="date" name="date" value="{{ target_date_str }}"
+                   onchange="this.form.submit()"
+                   class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </form>
+    </div>
+
+    <!-- 便カード一覧 -->
+    <div class="space-y-3">
+        {% for section in bin_sections %}
+        <a href="{% url 'orders:delivery_list_by_bin' section.bin.pk %}?date={{ target_date_str }}"
+           class="block bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">{{ section.bin.name }}</h2>
+                    <div class="flex items-center gap-3 mt-2 text-sm">
+                        <span class="text-gray-500">
+                            注文済み
+                            <span class="font-bold text-green-600 text-base ml-1">{{ section.ordered_count }}</span>
+                            <span class="text-gray-400">/ {{ section.total_customers }}</span>
+                        </span>
+                        <span class="text-gray-400">|</span>
+                        <span class="text-gray-500">
+                            食数
+                            <span class="font-bold text-blue-600 text-base ml-1">{{ section.total_quantity }}</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    {% if section.ordered_count == section.total_customers and section.total_customers > 0 %}
+                    <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-1 rounded-full">完了</span>
+                    {% elif section.ordered_count > 0 %}
+                    <span class="text-xs bg-yellow-100 text-yellow-700 font-medium px-2 py-1 rounded-full">対応中</span>
+                    {% else %}
+                    <span class="text-xs bg-gray-100 text-gray-500 font-medium px-2 py-1 rounded-full">未対応</span>
+                    {% endif %}
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </div>
+        </a>
+        {% empty %}
+        <div class="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
+            配達便が登録されていません。<br>
+            <a href="{% url 'orders:order_settings' %}" class="text-blue-600 hover:underline text-sm mt-2 inline-block">
+                設定ページで配達便を登録する
+            </a>
+        </div>
+        {% endfor %}
+
+        {% if unassigned_section.total_customers > 0 %}
+        <div class="bg-white rounded-xl shadow-sm border border-dashed border-gray-300 p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-gray-500">未割り当て</h2>
+                    <div class="flex items-center gap-3 mt-1 text-sm">
+                        <span class="text-gray-400">
+                            注文済み
+                            <span class="font-bold text-gray-600 ml-1">{{ unassigned_section.ordered_count }}</span>
+                            / {{ unassigned_section.total_customers }}
+                        </span>
+                        <span class="text-gray-300">|</span>
+                        <span class="text-gray-400">
+                            食数 <span class="font-bold text-gray-600 ml-1">{{ unassigned_section.total_quantity }}</span>
+                        </span>
+                    </div>
+                </div>
+                <span class="text-xs text-gray-400">便未設定</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

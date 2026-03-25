@@ -12,9 +12,16 @@ urlpatterns = [
     path('<int:pk>/edit/', views.order_edit, name='order_edit'),
     path('<int:pk>/delete/', views.order_delete, name='order_delete'),
     path('<int:pk>/pdf/', views.order_pdf, name='order_pdf'),
+    path('<int:pk>/print/', views.order_print_preview, name='order_print'),
+    path('<int:pk>/receipt/print/', views.receipt_print_preview, name='receipt_print'),
+    path('<int:pk>/receipt/pdf/', views.receipt_pdf, name='receipt_pdf'),
 
     # Regular order dashboard
     path('regular/', views.regular_order_dashboard, name='regular_dashboard'),
+
+    # Delivery list
+    path('delivery-list/', views.delivery_list, name='delivery_list'),
+    path('delivery-list/<int:pk>/', views.delivery_list_by_bin, name='delivery_list_by_bin'),
 
     # Customers
     path('customers/', views.customer_list, name='customer_list'),
@@ -32,9 +39,20 @@ urlpatterns = [
     # Settings
     path('settings/', views.order_settings, name='order_settings'),
 
+    # Extra Products
+    path('extra-products/create/', views.extra_product_create, name='extra_product_create'),
+    path('extra-products/<int:pk>/edit/', views.extra_product_edit, name='extra_product_edit'),
+    path('extra-products/<int:pk>/delete/', views.extra_product_delete, name='extra_product_delete'),
+
+    # Delivery Bins
+    path('delivery-bins/create/', views.delivery_bin_create, name='delivery_bin_create'),
+    path('delivery-bins/<int:pk>/edit/', views.delivery_bin_edit, name='delivery_bin_edit'),
+    path('delivery-bins/<int:pk>/delete/', views.delivery_bin_delete, name='delivery_bin_delete'),
+
     # API
     path('api/customer/<int:pk>/info/', views.api_customer_info, name='api_customer_info'),
     path('api/products/<str:date>/', views.api_products, name='api_products'),
     path('api/check-duplicate/', views.api_check_duplicate, name='api_check_duplicate'),
     path('api/order-totals/<str:date>/', views.api_order_totals, name='api_order_totals'),
+    path('api/extra-products/', views.api_extra_products, name='api_extra_products'),
 ]

@@ -1,0 +1,199 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}{{ delivery_bin.name }} 配達リスト - 受注管理{% endblock %}
+{% block nav_delivery_list %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+    <!-- ヘッダー -->
+    <div class="mb-5">
+        <div class="flex items-center gap-2 mb-1">
+            <a href="{% url 'orders:delivery_list' %}?date={{ target_date_str }}"
+               class="text-sm text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                便一覧
+            </a>
+        </div>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">{{ delivery_bin.name }}</h1>
+                <p class="text-base text-gray-500 mt-0.5">
+                    {{ target_date|date:"Y年m月d日" }}（{{ weekday_label }}）
+                </p>
+            </div>
+            <form method="get">
+                <input type="date" name="date" value="{{ target_date_str }}"
+                       onchange="this.form.submit()"
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </form>
+        </div>
+    </div>
+
+    <!-- サマリーバー -->
+    <div class="space-y-3 mb-5">
+        <!-- 1行目：合計件数 -->
+        <div class="bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100 flex items-center gap-3 w-full">
+            <p class="text-sm text-gray-400">合計件数</p>
+            <p class="text-2xl font-bold text-gray-700">{{ rows|length }}</p>
+        </div>
+        <!-- 2行目：支払い方法別金額合計（1行目と同幅で均等分割） -->
+        {% if payment_method_totals %}
+        <div class="flex gap-3 w-full">
+            {% for pm in payment_method_totals %}
+            <div class="flex-1 bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100">
+                <p class="text-sm text-gray-400">{{ pm.name }}</p>
+                <p class="text-2xl font-bold text-gray-700">¥{{ pm.total|intcomma }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 未注文を先頭に、注文済みを後ろに並べる -->
+    {% if not_ordered_count > 0 %}
+    <div class="mb-2">
+        <p class="text-xs font-semibold text-red-500 uppercase tracking-wide px-1 mb-2">未注文 {{ not_ordered_count }}件</p>
+        <!-- モバイル：カード / タブレット以上：テーブル -->
+
+        <!-- カード表示（md未満） -->
+        <div class="space-y-2 md:hidden">
+            {% for row in rows %}{% if not row.has_order %}
+            <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                        <p class="font-bold text-gray-800 text-base leading-tight">{{ row.customer.display_name }}</p>
+                        {% if row.customer.department %}
+                        <p class="text-sm text-gray-500 mt-0.5">{{ row.customer.department }}</p>
+                        {% endif %}
+                    </div>
+                    <span class="shrink-0 text-xs bg-red-100 text-red-600 font-medium px-2 py-1 rounded-full mt-0.5">未注文</span>
+                </div>
+                {% if row.notes %}
+                <p class="text-sm text-gray-600 bg-white rounded-lg px-3 py-2 mb-3 border border-gray-100">{{ row.notes }}</p>
+                {% endif %}
+                <a href="{% url 'orders:order_create_for_customer' row.customer.pk %}?delivery_date={{ target_date_str }}"
+                   class="block w-full text-center bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition text-sm">
+                    受注を登録する
+                </a>
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+
+        <!-- テーブル表示（md以上） -->
+        <div class="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden border border-red-100">
+            <table class="w-full text-sm">
+                <thead class="bg-red-50 border-b border-red-100">
+                    <tr>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">部署</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">備考</th>
+                        <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for row in rows %}{% if not row.has_order %}
+                    <tr class="bg-red-50 hover:bg-red-100 transition">
+                        <td class="px-4 py-3 font-medium text-gray-800">{{ row.customer.display_name }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.customer.department|default:"-" }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.notes|default:"" }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <a href="{% url 'orders:order_create_for_customer' row.customer.pk %}?delivery_date={{ target_date_str }}"
+                               class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition font-medium">
+                                受注を登録する
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if ordered_count > 0 %}
+    <div class="mt-5">
+        <p class="text-xs font-semibold text-green-600 uppercase tracking-wide px-1 mb-2">注文済み {{ ordered_count }}件</p>
+
+        <!-- カード表示（md未満） -->
+        <div class="space-y-2 md:hidden">
+            {% for row in rows %}{% if row.has_order %}
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                        <p class="font-bold text-gray-800 text-base leading-tight">{{ row.customer.display_name }}</p>
+                        {% if row.customer.department %}
+                        <p class="text-sm text-gray-500 mt-0.5">{{ row.customer.department }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-1 rounded-full">注文済み</span>
+                        <span class="text-sm font-bold text-blue-600">{{ row.total_quantity }}食</span>
+                    </div>
+                </div>
+                {% if row.notes %}
+                <p class="text-sm text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">{{ row.notes }}</p>
+                {% endif %}
+                <div class="flex gap-2">
+                    <a href="{% url 'orders:order_detail' row.order.pk %}"
+                       class="flex-1 text-center bg-gray-100 text-gray-700 font-semibold py-2.5 rounded-lg hover:bg-gray-200 active:bg-gray-300 transition text-sm">
+                        受注詳細
+                    </a>
+                    <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
+                       class="flex-1 text-center bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition text-sm">
+                        納品書
+                    </a>
+                </div>
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+
+        <!-- テーブル表示（md以上） -->
+        <div class="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">部署</th>
+                        <th class="text-right px-4 py-3 font-semibold text-gray-600">食数</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">備考</th>
+                        <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for row in rows %}{% if row.has_order %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-4 py-3 font-medium text-gray-800">{{ row.customer.display_name }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.customer.department|default:"-" }}</td>
+                        <td class="px-4 py-3 text-right font-bold text-blue-600">{{ row.total_quantity }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.notes|default:"" }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <a href="{% url 'orders:order_detail' row.order.pk %}"
+                                   class="text-xs bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 transition font-medium">
+                                    詳細
+                                </a>
+                                <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
+                                   class="text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-700 transition font-medium">
+                                    納品書
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not rows %}
+    <div class="bg-white rounded-xl shadow-sm p-10 text-center text-gray-400">
+        この日の対象顧客はいません。
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

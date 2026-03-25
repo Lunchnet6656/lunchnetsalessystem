@@ -1,0 +1,28 @@
+{% extends "orders/base.html" %}
+{% block title %}配達便無効化 - 受注管理{% endblock %}
+{% block nav_settings %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h1 class="text-xl font-bold text-gray-800 mb-4">配達便の無効化</h1>
+        <p class="text-gray-600 mb-2">以下の配達便を無効にしますか？</p>
+        <p class="text-lg font-semibold text-gray-800 mb-4">{{ delivery_bin.name }}</p>
+        <p class="text-sm text-gray-500 mb-6">
+            無効にした配達便は顧客フォームのプルダウンに表示されなくなりますが、
+            既にこの便が割り当てられている顧客データは保持されます。
+        </p>
+        <form method="post" class="flex gap-3">
+            {% csrf_token %}
+            <button type="submit"
+                    class="flex-1 bg-red-600 text-white py-2.5 rounded-lg hover:bg-red-700 transition font-medium">
+                無効にする
+            </button>
+            <a href="{% url 'orders:order_settings' %}"
+               class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition text-center font-medium">
+                キャンセル
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

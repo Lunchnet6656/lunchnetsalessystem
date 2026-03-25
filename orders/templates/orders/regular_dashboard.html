@@ -1,4 +1,5 @@
 {% extends "orders/base.html" %}
+{% load humanize %}
 {% block title %}受注ダッシュボード - 受注管理{% endblock %}
 {% block nav_regular %}bg-gray-600 text-white{% endblock %}
 
@@ -7,16 +8,15 @@
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">受注ダッシュボード</h1>
-            <h2 class="text-lg text-gray-500">{{ today_display }}の注文サマリー</h2>
+            <h2 class="text-lg text-gray-500">{{ today_display }}の注文サマリー
+                <span class="text-base text-gray-400">（{{ weekday_label }}）</span>
+            </h2>
         </div>
         <div class="flex items-center gap-2">
-            <form method="get" class="flex items-center gap-2">
+            <form method="get">
                 <input type="date" name="date" value="{{ target_date_str }}"
+                       onchange="this.form.submit()"
                        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <button type="submit"
-                        class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition">
-                    表示
-                </button>
             </form>
             <a href="{% url 'orders:order_create' %}?delivery_date={{ target_date_str }}"
                class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition">
@@ -47,6 +47,18 @@
             </p>
         </div>
     </div>
+
+    <!-- 支払い方法別合計 -->
+    {% if payment_method_totals %}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {% for pm in payment_method_totals %}
+        <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-yellow-500">
+            <p class="text-sm text-gray-500">{{ pm.name }}（{{ pm.count }}件）</p>
+            <p class="text-2xl font-bold text-yellow-600">&yen;{{ pm.total|intcomma }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- メニュー別注文数 -->
     {% if menu_summary %}
@@ -126,6 +138,9 @@
                                class="text-blue-600 hover:underline font-medium">
                                 {{ row.customer.display_name }}
                             </a>
+                            {% if row.customer.department %}
+                            <span class="text-xs text-gray-500 ml-1">{{ row.customer.department }}</span>
+                            {% endif %}
                             {% if row.customer.contact_person %}
                             <span class="text-xs text-gray-400 ml-1">（{{ row.customer.contact_person }}）</span>
                             {% endif %}
@@ -160,14 +175,18 @@
                             {% if row.has_order %}{{ row.total_quantity }}{% else %}-{% endif %}
                         </td>
                         <td class="px-4 py-3 text-right hidden sm:table-cell">
-                            {% if row.has_order %}&yen;{{ row.total|floatformat:0 }}{% else %}-{% endif %}
+                            {% if row.has_order %}&yen;{{ row.total|floatformat:0|intcomma }}{% else %}-{% endif %}
                         </td>
                         <td class="px-4 py-3 text-center">
                             {% if row.has_order %}
                             <div class="flex items-center justify-center gap-1">
-                                <a href="{% url 'orders:order_pdf' row.order.pk %}" target="_blank"
-                                   class="text-xs {% if row.pdf_printed %}bg-green-500{% else %}bg-purple-500{% endif %} text-white px-2 py-1 rounded hover:opacity-80">
-                                    PDF{% if row.pdf_printed %} ✓{% endif %}
+                                <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
+                                   class="text-xs {% if row.pdf_printed %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
+                                    納品書{% if row.pdf_printed %} ✓{% endif %}
+                                </a>
+                                <a href="{% url 'orders:receipt_print' row.order.pk %}" target="_blank"
+                                   class="text-xs text-white px-2 py-1 rounded hover:opacity-80 font-bold" style="background-color:#7c3aed;">
+                                    領収書
                                 </a>
                                 <a href="{% url 'orders:order_edit' row.order.pk %}"
                                    class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:opacity-80">
@@ -232,12 +251,16 @@
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
-                        <td class="px-4 py-3 text-right hidden sm:table-cell">&yen;{{ order.total|floatformat:0 }}</td>
+                        <td class="px-4 py-3 text-right hidden sm:table-cell">&yen;{{ order.total|floatformat:0|intcomma }}</td>
                         <td class="px-4 py-3 text-center">
                             <div class="flex items-center justify-center gap-1">
-                                <a href="{% url 'orders:order_pdf' order.pk %}" target="_blank"
-                                   class="text-xs {% if order.pdf_printed_at %}bg-green-500{% else %}bg-purple-500{% endif %} text-white px-2 py-1 rounded hover:opacity-80">
-                                    PDF{% if order.pdf_printed_at %} ✓{% endif %}
+                                <a href="{% url 'orders:order_print' order.pk %}" target="_blank"
+                                   class="text-xs {% if order.pdf_printed_at %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
+                                    納品書{% if order.pdf_printed_at %} ✓{% endif %}
+                                </a>
+                                <a href="{% url 'orders:receipt_print' order.pk %}" target="_blank"
+                                   class="text-xs text-white px-2 py-1 rounded hover:opacity-80 font-bold" style="background-color:#7c3aed;">
+                                    領収書
                                 </a>
                                 <a href="{% url 'orders:order_edit' order.pk %}"
                                    class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:opacity-80">

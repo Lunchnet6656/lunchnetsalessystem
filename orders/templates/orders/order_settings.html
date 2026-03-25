@@ -78,8 +78,63 @@
     </form>
 </div>
 
+<!-- 追加商品一覧 -->
+<div class="bg-white rounded-lg shadow-sm p-6 mt-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-700">追加商品マスタ</h2>
+        <a href="{% url 'orders:extra_product_create' %}"
+           class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
+            ＋ 新規登録
+        </a>
+    </div>
+
+    {% if extra_products %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">表示順</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">商品名</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">単価</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">状態</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for ep in extra_products %}
+                <tr class="hover:bg-gray-50 transition {% if not ep.is_active %}opacity-50{% endif %}">
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ ep.sort_order }}</td>
+                    <td class="px-4 py-3 font-medium">{{ ep.name }}</td>
+                    <td class="px-4 py-3 text-right text-sm">¥{{ ep.unit_price|floatformat:0 }}</td>
+                    <td class="px-4 py-3 text-sm">
+                        {% if ep.is_active %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">有効</span>
+                        {% else %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">無効</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex justify-end gap-2">
+                            <a href="{% url 'orders:extra_product_edit' ep.pk %}"
+                               class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition">編集</a>
+                            {% if ep.is_active %}
+                            <a href="{% url 'orders:extra_product_delete' ep.pk %}"
+                               class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition">無効化</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">追加商品が登録されていません。</p>
+    {% endif %}
+</div>
+
 <!-- 支払い方法一覧 -->
-<div class="bg-white rounded-lg shadow-sm p-6">
+<div class="bg-white rounded-lg shadow-sm p-6 mt-8">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-700">支払い方法</h2>
         <a href="{% url 'orders:payment_method_create' %}"
@@ -128,6 +183,59 @@
     </div>
     {% else %}
     <p class="text-gray-500 text-sm">支払い方法が登録されていません。</p>
+    {% endif %}
+</div>
+
+<!-- 配達便マスタ -->
+<div class="bg-white rounded-lg shadow-sm p-6 mt-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-700">配達便マスタ</h2>
+        <a href="{% url 'orders:delivery_bin_create' %}"
+           class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
+            ＋ 新規登録
+        </a>
+    </div>
+
+    {% if delivery_bins %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">表示順</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">便名</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">状態</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for db in delivery_bins %}
+                <tr class="hover:bg-gray-50 transition {% if not db.is_active %}opacity-50{% endif %}">
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ db.sort_order }}</td>
+                    <td class="px-4 py-3 font-medium">{{ db.name }}</td>
+                    <td class="px-4 py-3 text-sm">
+                        {% if db.is_active %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">有効</span>
+                        {% else %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">無効</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex justify-end gap-2">
+                            <a href="{% url 'orders:delivery_bin_edit' db.pk %}"
+                               class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition">編集</a>
+                            {% if db.is_active %}
+                            <a href="{% url 'orders:delivery_bin_delete' db.pk %}"
+                               class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition">無効化</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">配達便が登録されていません。</p>
     {% endif %}
 </div>
 {% endblock %}

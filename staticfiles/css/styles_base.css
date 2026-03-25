@@ -30,6 +30,7 @@ h1.mb-4::after {
     padding-top: 60px ;
     z-index: 998; /* 他の要素の上に表示 */
     transition: width 0.3s ease;
+    overflow-y: auto;
 }
 
 .sidebar ul {

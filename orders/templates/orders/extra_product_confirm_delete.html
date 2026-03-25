@@ -1,0 +1,30 @@
+{% extends "orders/base.html" %}
+{% block title %}追加商品無効化 - 受注管理{% endblock %}
+{% block nav_settings %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h1 class="text-xl font-bold text-gray-800 mb-4">追加商品の無効化</h1>
+        <p class="text-gray-600 mb-2">
+            以下の追加商品を無効にしますか？
+        </p>
+        <p class="text-lg font-semibold text-gray-800 mb-2">{{ extra_product.name }}</p>
+        <p class="text-sm text-gray-600 mb-4">単価：¥{{ extra_product.unit_price|floatformat:0 }}</p>
+        <p class="text-sm text-gray-500 mb-6">
+            無効にした追加商品は受注フォームのプルダウンに表示されなくなりますが、既存の受注データは保持されます。
+        </p>
+        <form method="post" class="flex gap-3">
+            {% csrf_token %}
+            <button type="submit"
+                    class="flex-1 bg-red-600 text-white py-2.5 rounded-lg hover:bg-red-700 transition font-medium">
+                無効にする
+            </button>
+            <a href="{% url 'orders:order_settings' %}"
+               class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition text-center font-medium">
+                キャンセル
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

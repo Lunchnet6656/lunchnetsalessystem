@@ -1,5 +1,5 @@
 from django import forms
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin
 
 
 class OrderSettingsForm(forms.ModelForm):
@@ -14,23 +14,38 @@ class PaymentMethodForm(forms.ModelForm):
         fields = ['name', 'sort_order', 'is_active']
 
 
+class DeliveryBinForm(forms.ModelForm):
+    class Meta:
+        model = DeliveryBin
+        fields = ['name', 'sort_order', 'is_active']
+
+
 class CustomerForm(forms.ModelForm):
     class Meta:
         model = Customer
         fields = [
-            'customer_type', 'company_name', 'contact_person', 'name',
+            'customer_type', 'company_name', 'department', 'contact_person', 'name',
             'postal_code', 'address', 'phone', 'fax', 'email',
-            'price_type', 'payment_method', 'is_regular', 'notes',
+            'price_type', 'payment_method', 'delivery_bin', 'bento_type', 'is_regular',
+            'regular_type',
+            'schedule_mon', 'schedule_tue', 'schedule_wed', 'schedule_thu',
+            'schedule_fri', 'schedule_sat', 'schedule_sun',
+            'notes',
         ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['payment_method'].queryset = PaymentMethod.objects.filter(is_active=True)
+        self.fields['delivery_bin'].queryset = DeliveryBin.objects.filter(is_active=True)
+        self.fields['name'].required = False
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get('customer_type') == 'B2B' and not cleaned.get('company_name'):
+        customer_type = cleaned.get('customer_type')
+        if customer_type == 'B2B' and not cleaned.get('company_name'):
             self.add_error('company_name', '法人の場合、会社名は必須です。')
+        if customer_type == 'INDIVIDUAL' and not cleaned.get('name'):
+            self.add_error('name', '個人顧客の場合、顧客名は必須です。')
         return cleaned
 
 
@@ -91,5 +106,32 @@ OrderItemFormSet = forms.inlineformset_factory(
     OrderItem,
     form=OrderItemForm,
     extra=10,
+    can_delete=True,
+)
+
+
+class ExtraProductForm(forms.ModelForm):
+    class Meta:
+        model = ExtraProduct
+        fields = ['name', 'unit_price', 'sort_order', 'is_active']
+
+
+class OrderExtraItemForm(forms.ModelForm):
+    class Meta:
+        model = OrderExtraItem
+        fields = ['extra_product', 'product_name', 'unit_price', 'quantity', 'subtotal']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.required = False
+        self.fields['extra_product'].queryset = ExtraProduct.objects.filter(is_active=True)
+
+
+OrderExtraItemFormSet = forms.inlineformset_factory(
+    Order,
+    OrderExtraItem,
+    form=OrderExtraItemForm,
+    extra=0,
     can_delete=True,
 )

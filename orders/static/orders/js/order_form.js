@@ -13,8 +13,47 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentProducts = [];
     let largeExtraPrice = 0; // No.11の単価（大盛り割増）
 
+    // 仕出しモード関連
+    const orderFormEl = document.getElementById('order-form');
+    let isCateringMode = orderFormEl && orderFormEl.dataset.isCatering === 'true';
+
+    // --- 追加商品セクション ---
+    const extraAddRowBtn = document.getElementById('extra-add-row-btn');
+    const extraItemsRows = document.getElementById('extra-items-rows');
+    const extraItemsEmpty = document.getElementById('extra-items-empty');
+    const extraTotalFormsInput = document.querySelector('[name="extra_items-TOTAL_FORMS"]');
+    const extraInitialFormsInput = document.querySelector('[name="extra_items-INITIAL_FORMS"]');
+    let extraRowCount = 0;
+    let extraProducts = [];
+    try {
+        var epJson = orderFormEl ? orderFormEl.dataset.extraProducts : '[]';
+        extraProducts = JSON.parse(epJson) || [];
+    } catch(e) { extraProducts = []; }
+
+    const existingExtraItems = [];
+    document.querySelectorAll('.extra-formset-form').forEach(function(el) {
+        var qty = parseInt(el.dataset.quantity) || 0;
+        var price = parseInt(el.dataset.unitPrice) || 0;
+        if (qty > 0 && price > 0) {
+            existingExtraItems.push({
+                productName: el.dataset.productName || '',
+                unitPrice: price,
+                quantity: qty,
+                subtotal: parseInt(el.dataset.subtotal) || 0,
+                extraProductId: el.dataset.extraProductId || '',
+                idField: el.querySelector('input[name$="-id"]'),
+            });
+        }
+    });
+    let cateringRowCount = 0;
+    const cateringSection = document.getElementById('catering-section');
+    const cateringRowsContainer = document.getElementById('catering-rows');
+    const cateringAddRowBtn = document.getElementById('catering-add-row-btn');
+    const productCardsContainer = document.getElementById('product-cards-container');
+
     // 編集時の既存データを取得
     const existingItems = {};
+    const existingCateringItems = [];
     document.querySelectorAll('.formset-form').forEach(function(el) {
         const productId = el.dataset.productId;
         if (productId) {
@@ -25,6 +64,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 quantitySmall: parseInt(el.dataset.quantitySmall) || 0,
                 idField: el.querySelector('input[name$="-id"]'),
             };
+        } else {
+            existingCateringItems.push({
+                index: parseInt(el.dataset.index),
+                productName: el.dataset.productName || '',
+                quantityRegular: parseInt(el.dataset.quantityRegular) || 0,
+                unitPrice: parseInt(el.dataset.unitPrice) || 0,
+                subtotal: parseInt(el.dataset.subtotal) || 0,
+                idField: el.querySelector('input[name$="-id"]'),
+            });
         }
     });
 
@@ -141,6 +189,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentPriceType = selected.dataset.priceType || 'A';
                 priceTypeDisplay.textContent = '価格タイプ: ' + currentPriceType;
                 priceTypeDisplay.classList.remove('hidden');
+                // 仕出しモード切替
+                var newCateringMode = (selected.dataset.bentoType === 'CATERING');
+                if (newCateringMode !== isCateringMode) {
+                    isCateringMode = newCateringMode;
+                    switchBentoMode(isCateringMode);
+                }
                 updateAllCardPrices();
                 // 顧客の備考を受注備考に引き継ぐ（備考欄が空の場合のみ）
                 fetch('/orders/api/customer/' + selected.value + '/info/')
@@ -161,6 +215,10 @@ document.addEventListener('DOMContentLoaded', function() {
             currentPriceType = initSelected.dataset.priceType || 'A';
             priceTypeDisplay.textContent = '価格タイプ: ' + currentPriceType;
             priceTypeDisplay.classList.remove('hidden');
+            isCateringMode = (initSelected.dataset.bentoType === 'CATERING');
+            if (isCateringMode) {
+                switchBentoMode(true);
+            }
         }
         updateCustomerDisplay();
     }
@@ -372,27 +430,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 '<!-- 1行目: ラベル -->' +
                 '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px;">' +
-                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#ea580c;">大盛り</div>' +
-                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#2563eb;">普通盛り</div>' +
+                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#ff0000;">大盛り</div>' +
+                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#b45309;">普通盛り</div>' +
                     '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#16a34a;">小盛り</div>' +
                 '</div>' +
 
                 '<!-- 2行目: 数量 -->' +
                 '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px;">' +
-                    '<div class="qty-large-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#ea580c;">' + initLarge + '</div>' +
-                    '<div class="qty-regular-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#2563eb;">' + initRegular + '</div>' +
+                    '<div class="qty-large-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#ff0000;">' + initLarge + '</div>' +
+                    '<div class="qty-regular-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#b45309;">' + initRegular + '</div>' +
                     '<div class="qty-small-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#16a34a;">' + initSmall + '</div>' +
                 '</div>' +
 
                 '<!-- 3行目: +-ボタン -->' +
                 '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">' +
                     '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="large" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#fed7aa;color:#c2410c;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="large" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#ea580c;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
+                        '<button type="button" class="qty-minus" data-size="large" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#fecaca;color:#cc0000;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
+                        '<button type="button" class="qty-plus" data-size="large" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#ff0000;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
                     '</div>' +
                     '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="regular" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#bfdbfe;color:#1d4ed8;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="regular" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
+                        '<button type="button" class="qty-minus" data-size="regular" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#fde68a;color:#92400e;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
+                        '<button type="button" class="qty-plus" data-size="regular" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#b45309;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
                     '</div>' +
                     '<div style="display:flex;justify-content:center;gap:6px;">' +
                         '<button type="button" class="qty-minus" data-size="small" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#bbf7d0;color:#15803d;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
@@ -488,6 +546,131 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // --- 追加商品: 行追加 ---
+    function addExtraRow(initName, initPrice, initQty, initSubtotal, rowIdVal) {
+        var idx = extraTotalFormsInput ? parseInt(extraTotalFormsInput.value) : extraRowCount;
+        var name = initName || '';
+        var price = initPrice || 0;
+        var qty = initQty || 1;
+        var subtotal = (initSubtotal !== undefined && initSubtotal !== null) ? initSubtotal : (price * qty);
+        var idVal = rowIdVal || '';
+
+        var optionsHtml = '<option value="">-- 選択 --</option>';
+        extraProducts.forEach(function(ep) {
+            var selected = (name && ep.name === name) ? ' selected' : '';
+            optionsHtml += '<option value="' + ep.id + '" data-price="' + ep.unit_price + '"' +
+                           selected + '>' + escapeHtml(ep.name) + '</option>';
+        });
+
+        var tr = document.createElement('tr');
+        tr.className = 'extra-row';
+        tr.dataset.rowIdx = idx;
+
+        tr.innerHTML =
+            '<input type="hidden" name="extra_items-' + idx + '-id" value="' + escapeHtml(String(idVal)) + '">' +
+            '<input type="hidden" name="extra_items-' + idx + '-subtotal" value="' + subtotal + '">' +
+            '<input type="hidden" name="extra_items-' + idx + '-DELETE" value="">' +
+            '<td class="px-2 py-1.5 border-b border-gray-100">' +
+                '<div class="flex gap-1 items-center">' +
+                    '<select class="extra-product-select text-sm border border-gray-200 rounded px-1 py-0.5 bg-white max-w-xs">' +
+                        optionsHtml +
+                    '</select>' +
+                    '<input type="text" name="extra_items-' + idx + '-product_name" value="' + escapeHtml(name) + '" ' +
+                           'class="flex-1 outline-none text-sm border-b border-gray-200 px-1 min-w-0" placeholder="または直接入力">' +
+                '</div>' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border-b border-gray-100 text-center">' +
+                '<input type="number" name="extra_items-' + idx + '-unit_price" value="' + price + '" min="0" ' +
+                       'class="w-full text-center outline-none text-sm border-b border-gray-200">' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border-b border-gray-100 text-center">' +
+                '<input type="number" name="extra_items-' + idx + '-quantity" value="' + qty + '" min="1" ' +
+                       'class="w-full text-center outline-none text-sm border-b border-gray-200">' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border-b border-gray-100 text-right font-medium text-sm">' +
+                '<span class="extra-subtotal-display">\u00a5' + subtotal.toLocaleString() + '</span>' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border-b border-gray-100 text-center">' +
+                '<button type="button" class="extra-delete-row text-red-400 hover:text-red-600 text-xl leading-none">&times;</button>' +
+            '</td>';
+
+        if (extraItemsRows) extraItemsRows.appendChild(tr);
+        if (extraItemsEmpty) extraItemsEmpty.classList.add('hidden');
+        extraRowCount++;
+        if (extraTotalFormsInput) extraTotalFormsInput.value = idx + 1;
+        if (idVal && extraInitialFormsInput) {
+            extraInitialFormsInput.value = parseInt(extraInitialFormsInput.value || 0) + 1;
+        }
+    }
+
+    function updateExtraRowSubtotal(row) {
+        var idx = row.dataset.rowIdx;
+        var qtyInput = row.querySelector('[name="extra_items-' + idx + '-quantity"]');
+        var priceInput = row.querySelector('[name="extra_items-' + idx + '-unit_price"]');
+        var qty = parseInt(qtyInput ? qtyInput.value : 1) || 0;
+        var price = parseInt(priceInput ? priceInput.value : 0) || 0;
+        var subtotal = qty * price;
+        var subHidden = row.querySelector('[name="extra_items-' + idx + '-subtotal"]');
+        if (subHidden) subHidden.value = subtotal;
+        var display = row.querySelector('.extra-subtotal-display');
+        if (display) display.textContent = '\u00a5' + subtotal.toLocaleString();
+    }
+
+    // 追加行ボタン
+    if (extraAddRowBtn) {
+        extraAddRowBtn.addEventListener('click', function() { addExtraRow(); });
+    }
+
+    // 追加商品: 入力イベント（委譲）
+    document.addEventListener('input', function(e) {
+        var row = e.target.closest('.extra-row');
+        if (!row) return;
+        if (e.target.classList.contains('extra-product-select')) {
+            var selected = e.target.options[e.target.selectedIndex];
+            if (selected && selected.value) {
+                var price = parseInt(selected.dataset.price) || 0;
+                var idx = row.dataset.rowIdx;
+                var priceInput = row.querySelector('[name="extra_items-' + idx + '-unit_price"]');
+                var nameInput = row.querySelector('[name="extra_items-' + idx + '-product_name"]');
+                if (priceInput) priceInput.value = price;
+                if (nameInput) nameInput.value = selected.textContent.trim();
+            }
+        }
+        updateExtraRowSubtotal(row);
+        calcGrandTotal();
+    });
+
+    // 追加商品: 削除ボタン（委譲）
+    if (extraItemsRows) {
+        extraItemsRows.addEventListener('click', function(e) {
+            var btn = e.target.closest('.extra-delete-row');
+            if (!btn) return;
+            var row = btn.closest('.extra-row');
+            if (!row) return;
+            var idx = row.dataset.rowIdx;
+            var deleteInput = row.querySelector('[name="extra_items-' + idx + '-DELETE"]');
+            if (deleteInput) deleteInput.value = 'on';
+            row.remove();
+            if (extraItemsRows.children.length === 0 && extraItemsEmpty) {
+                extraItemsEmpty.classList.remove('hidden');
+            }
+            calcGrandTotal();
+        });
+    }
+
+    // 編集時の既存追加商品を復元
+    // extra=0 なので TOTAL_FORMS と INITIAL_FORMS を一旦リセットして再カウント
+    if (existingExtraItems.length > 0) {
+        if (extraTotalFormsInput) extraTotalFormsInput.value = '0';
+        if (extraInitialFormsInput) extraInitialFormsInput.value = '0';
+        existingExtraItems.forEach(function(item) {
+            addExtraRow(
+                item.productName, item.unitPrice, item.quantity, item.subtotal,
+                item.idField ? item.idField.value : ''
+            );
+        });
+    }
+
     // --- 合計計算 ---
     function calcGrandTotal() {
         var total = 0;
@@ -499,8 +682,147 @@ document.addEventListener('DOMContentLoaded', function() {
             total += subtotalVal;
             totalMeals += qtyVal;
         });
+        // 仕出し行
+        document.querySelectorAll('.catering-row').forEach(function(row) {
+            var idx = row.dataset.rowIdx;
+            var subInput = row.querySelector('[name="items-' + idx + '-subtotal"]');
+            var qtyInput = row.querySelector('[name="items-' + idx + '-quantity"]');
+            total += subInput ? (parseInt(subInput.value) || 0) : 0;
+            totalMeals += qtyInput ? (parseInt(qtyInput.value) || 0) : 0;
+        });
+        // 追加商品行（食数には含めない）
+        document.querySelectorAll('.extra-row').forEach(function(row) {
+            var idx = row.dataset.rowIdx;
+            var subInput = row.querySelector('[name="extra_items-' + idx + '-subtotal"]');
+            total += subInput ? (parseInt(subInput.value) || 0) : 0;
+        });
         grandTotalEl.textContent = '\u00a5' + total.toLocaleString();
         document.getElementById('grand-total-meals').textContent = totalMeals + '食';
+    }
+
+    // --- 仕出しモード ---
+    function switchBentoMode(isCatering) {
+        if (isCatering) {
+            if (productCardsContainer) productCardsContainer.classList.add('hidden');
+            var totalsHeader = document.getElementById('order-totals-header');
+            if (totalsHeader) totalsHeader.classList.add('hidden');
+            if (cateringSection) cateringSection.classList.remove('hidden');
+            if (totalFormsInput) totalFormsInput.value = 0;
+            if (initialFormsInput) initialFormsInput.value = 0;
+            if (cateringRowCount === 0) {
+                if (existingCateringItems.length > 0) {
+                    existingCateringItems.forEach(function(item) {
+                        addCateringRow(
+                            item.productName,
+                            item.quantityRegular,
+                            item.unitPrice,
+                            item.subtotal,
+                            item.idField ? item.idField.value : ''
+                        );
+                    });
+                } else {
+                    addCateringRow();
+                }
+            }
+        } else {
+            if (cateringSection) cateringSection.classList.add('hidden');
+            if (productCardsContainer) productCardsContainer.classList.remove('hidden');
+            if (totalFormsInput) totalFormsInput.value = 0;
+            var dateVal = deliveryDateInput ? deliveryDateInput.value : '';
+            if (dateVal) fetchProductsForDate(dateVal);
+        }
+        calcGrandTotal();
+    }
+
+    function addCateringRow(initName, initQty, initPrice, initSubtotal, rowId) {
+        var idx = totalFormsInput ? parseInt(totalFormsInput.value) : cateringRowCount;
+        var name = initName || '';
+        var qty = initQty || 0;
+        var price = initPrice || 0;
+        var subtotal = (initSubtotal !== undefined) ? initSubtotal : (qty * price);
+        var idVal = rowId || '';
+
+        var tr = document.createElement('tr');
+        tr.className = 'catering-row';
+        tr.dataset.rowIdx = idx;
+
+        tr.innerHTML =
+            '<input type="hidden" name="items-' + idx + '-id" value="' + escapeHtml(String(idVal)) + '">' +
+            '<input type="hidden" name="items-' + idx + '-product" value="">' +
+            '<input type="hidden" name="items-' + idx + '-quantity_large" value="0">' +
+            '<input type="hidden" name="items-' + idx + '-quantity_small" value="0">' +
+            '<input type="hidden" name="items-' + idx + '-DELETE" value="">' +
+            '<td class="px-2 py-1.5 border border-gray-200">' +
+                '<input type="text" name="items-' + idx + '-product_name" value="' + escapeHtml(name) + '" ' +
+                       'class="w-full outline-none text-sm bg-transparent" placeholder="商品名を入力">' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border border-gray-200 text-center">' +
+                '<input type="number" name="items-' + idx + '-unit_price" value="' + price + '" min="0" ' +
+                       'class="w-full text-center outline-none text-sm bg-transparent">' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border border-gray-200 text-center">' +
+                '<input type="number" name="items-' + idx + '-quantity_regular" value="' + qty + '" min="0" ' +
+                       'class="w-full text-center outline-none text-sm bg-transparent">' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border border-gray-200 text-right font-medium text-sm">' +
+                '<input type="hidden" name="items-' + idx + '-quantity" value="' + qty + '">' +
+                '<input type="hidden" name="items-' + idx + '-subtotal" value="' + subtotal + '">' +
+                '<span class="catering-subtotal-display">&yen;' + subtotal.toLocaleString() + '</span>' +
+            '</td>' +
+            '<td class="px-2 py-1.5 border border-gray-200 text-center">' +
+                '<button type="button" class="catering-delete-row text-red-400 hover:text-red-600 text-xl leading-none">&times;</button>' +
+            '</td>';
+
+        if (cateringRowsContainer) cateringRowsContainer.appendChild(tr);
+        cateringRowCount++;
+        if (totalFormsInput) totalFormsInput.value = idx + 1;
+        if (idVal && initialFormsInput) {
+            initialFormsInput.value = parseInt(initialFormsInput.value || 0) + 1;
+        }
+    }
+
+    function updateCateringRowSubtotal(row) {
+        var idx = row.dataset.rowIdx;
+        var qtyInput = row.querySelector('[name="items-' + idx + '-quantity_regular"]');
+        var priceInput = row.querySelector('[name="items-' + idx + '-unit_price"]');
+        var qty = parseInt(qtyInput ? qtyInput.value : 0) || 0;
+        var price = parseInt(priceInput ? priceInput.value : 0) || 0;
+        var subtotal = qty * price;
+        row.querySelector('[name="items-' + idx + '-quantity"]').value = qty;
+        row.querySelector('[name="items-' + idx + '-subtotal"]').value = subtotal;
+        var display = row.querySelector('.catering-subtotal-display');
+        if (display) display.textContent = '\u00a5' + subtotal.toLocaleString();
+    }
+
+    // 仕出し行追加ボタン
+    if (cateringAddRowBtn) {
+        cateringAddRowBtn.addEventListener('click', function() {
+            addCateringRow();
+        });
+    }
+
+    // 仕出し行への入力イベント（委譲）
+    document.addEventListener('input', function(e) {
+        if (!isCateringMode) return;
+        var row = e.target.closest('.catering-row');
+        if (!row) return;
+        updateCateringRowSubtotal(row);
+        calcGrandTotal();
+    });
+
+    // 仕出し行削除ボタン（委譲）
+    if (cateringRowsContainer) {
+        cateringRowsContainer.addEventListener('click', function(e) {
+            var btn = e.target.closest('.catering-delete-row');
+            if (!btn) return;
+            var row = btn.closest('.catering-row');
+            if (!row) return;
+            var idx = row.dataset.rowIdx;
+            var deleteInput = row.querySelector('[name="items-' + idx + '-DELETE"]');
+            if (deleteInput) deleteInput.value = 'on';
+            row.remove();
+            calcGrandTotal();
+        });
     }
 
     // --- 顧客変更時に全カードの価格を更新 ---
@@ -545,9 +867,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- 納品日変更 ---
     if (deliveryDateInput) {
         deliveryDateInput.addEventListener('change', function() {
-            fetchProductsForDate(this.value);
+            if (isCateringMode) {
+                fetchOrderTotals(this.value);
+            } else {
+                fetchProductsForDate(this.value);
+            }
         });
-        if (deliveryDateInput.value) {
+        if (deliveryDateInput.value && !isCateringMode) {
             fetchProductsForDate(deliveryDateInput.value);
         }
     }

@@ -1,0 +1,63 @@
+{% extends "orders/base.html" %}
+{% block title %}{% if is_edit %}追加商品編集{% else %}追加商品登録{% endif %} - 受注管理{% endblock %}
+{% block nav_settings %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">
+        {% if is_edit %}追加商品編集{% else %}追加商品登録{% endif %}
+    </h1>
+
+    <form method="post" class="bg-white rounded-lg shadow-sm p-6 space-y-5">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-sm">
+            入力内容にエラーがあります。確認してください。
+        </div>
+        {% endif %}
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.name.label }}</label>
+            <input type="text" name="name" value="{{ form.name.value|default:'' }}" required
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                   placeholder="例：お茶、単品ご飯">
+            {% if form.name.errors %}<p class="text-red-600 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.unit_price.label }}（円）</label>
+            <input type="number" name="unit_price" value="{{ form.unit_price.value|default:'' }}" required min="0"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            {% if form.unit_price.errors %}<p class="text-red-600 text-xs mt-1">{{ form.unit_price.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.sort_order.label }}</label>
+            <input type="number" name="sort_order" value="{{ form.sort_order.value|default:'0' }}" min="0"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            {% if form.sort_order.errors %}<p class="text-red-600 text-xs mt-1">{{ form.sort_order.errors.0 }}</p>{% endif %}
+        </div>
+
+        {% if is_edit %}
+        <div class="flex items-center gap-2">
+            <input type="checkbox" name="is_active" id="id_is_active"
+                   {% if form.is_active.value %}checked{% endif %}
+                   class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+            <label for="id_is_active" class="text-sm font-semibold text-gray-700">有効</label>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit"
+                    class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
+                {% if is_edit %}更新する{% else %}登録する{% endif %}
+            </button>
+            <a href="{% url 'orders:order_settings' %}"
+               class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition text-center font-medium">
+                キャンセル
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

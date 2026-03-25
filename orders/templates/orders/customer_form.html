@@ -43,12 +43,18 @@
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
             </div>
+            <div class="mt-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.department.label }}</label>
+                <input type="text" name="department" value="{{ form.department.value|default:'' }}"
+                       placeholder="例：総務部、営業部"
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
         </div>
 
-        <!-- 顧客名 -->
-        <div>
+        <!-- 顧客名（個人のみ） -->
+        <div id="individual-name-field">
             <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.name.label }}</label>
-            <input type="text" name="name" value="{{ form.name.value|default:'' }}" required
+            <input type="text" name="name" value="{{ form.name.value|default:'' }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
             {% if form.name.errors %}<p class="text-red-600 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
         </div>
@@ -110,12 +116,71 @@
             </select>
         </div>
 
+        <!-- 配達便 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.delivery_bin.label }}</label>
+            <select name="delivery_bin"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">---------</option>
+                {% for db in form.delivery_bin.field.queryset %}
+                <option value="{{ db.pk }}" {% if form.delivery_bin.value|stringformat:"s" == db.pk|stringformat:"s" %}selected{% endif %}>{{ db.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- 弁当種別 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.bento_type.label }}</label>
+            <select name="bento_type"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                {% for value, label in form.fields.bento_type.choices %}
+                <option value="{{ value }}" {% if form.bento_type.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <!-- 定期注文 -->
         <div class="flex items-center gap-2">
             <input type="checkbox" name="is_regular" id="id_is_regular"
                    {% if form.is_regular.value %}checked{% endif %}
                    class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
             <label for="id_is_regular" class="text-sm font-semibold text-gray-700">定期注文の顧客</label>
+        </div>
+
+        <!-- 定期スケジュール（is_regularがtrueの時のみ表示） -->
+        <div id="regular-schedule-section" class="{% if not form.is_regular.value %}hidden{% endif %} bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+            <p class="text-sm font-semibold text-blue-700">定期スケジュール</p>
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="radio" name="regular_type" value="WEEKDAY"
+                           {% if form.regular_type.value != 'CUSTOM' %}checked{% endif %}
+                           class="text-blue-600">
+                    平日毎日（月〜金）
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="radio" name="regular_type" value="CUSTOM"
+                           {% if form.regular_type.value == 'CUSTOM' %}checked{% endif %}
+                           class="text-blue-600">
+                    曜日指定
+                </label>
+            </div>
+            <div id="custom-days-section" class="{% if form.regular_type.value != 'CUSTOM' %}hidden{% endif %} flex flex-wrap gap-3">
+                {% for day_name, field_name in day_fields %}
+                <label class="flex items-center gap-1 text-sm text-gray-700 bg-white border border-gray-300 rounded px-3 py-1.5 cursor-pointer hover:bg-blue-50">
+                    <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}"
+                           {% if field_name == 'schedule_mon' and form.schedule_mon.value %}checked
+                           {% elif field_name == 'schedule_tue' and form.schedule_tue.value %}checked
+                           {% elif field_name == 'schedule_wed' and form.schedule_wed.value %}checked
+                           {% elif field_name == 'schedule_thu' and form.schedule_thu.value %}checked
+                           {% elif field_name == 'schedule_fri' and form.schedule_fri.value %}checked
+                           {% elif field_name == 'schedule_sat' and form.schedule_sat.value %}checked
+                           {% elif field_name == 'schedule_sun' and form.schedule_sun.value %}checked
+                           {% endif %}
+                           class="w-4 h-4 text-blue-600 rounded border-gray-300">
+                    {{ day_name }}
+                </label>
+                {% endfor %}
+            </div>
         </div>
 
         <!-- 備考 -->
@@ -146,12 +211,34 @@
 document.addEventListener('DOMContentLoaded', function() {
     const typeSelect = document.getElementById('id_customer_type');
     const b2bFields = document.getElementById('b2b-fields');
+    const individualNameField = document.getElementById('individual-name-field');
 
     function toggleB2B() {
-        b2bFields.style.display = typeSelect.value === 'B2B' ? '' : 'none';
+        const isB2B = typeSelect.value === 'B2B';
+        b2bFields.style.display = isB2B ? '' : 'none';
+        individualNameField.style.display = isB2B ? 'none' : '';
     }
     typeSelect.addEventListener('change', toggleB2B);
     toggleB2B();
+
+    // 定期スケジュールのトグル
+    const isRegularCheck = document.getElementById('id_is_regular');
+    const scheduleSection = document.getElementById('regular-schedule-section');
+    const regularTypeRadios = document.querySelectorAll('input[name="regular_type"]');
+    const customDaysSection = document.getElementById('custom-days-section');
+
+    function toggleSchedule() {
+        scheduleSection.classList.toggle('hidden', !isRegularCheck.checked);
+    }
+
+    function toggleCustomDays() {
+        const isCustom = document.querySelector('input[name="regular_type"]:checked')?.value === 'CUSTOM';
+        customDaysSection.classList.toggle('hidden', !isCustom);
+    }
+
+    isRegularCheck.addEventListener('change', toggleSchedule);
+    regularTypeRadios.forEach(r => r.addEventListener('change', toggleCustomDays));
+    toggleCustomDays();
 });
 </script>
 {% endblock %}
