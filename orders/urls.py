@@ -29,6 +29,9 @@ urlpatterns = [
     path('payment-methods/<int:pk>/edit/', views.payment_method_edit, name='payment_method_edit'),
     path('payment-methods/<int:pk>/delete/', views.payment_method_delete, name='payment_method_delete'),
 
+    # Settings
+    path('settings/', views.order_settings, name='order_settings'),
+
     # API
     path('api/customer/<int:pk>/info/', views.api_customer_info, name='api_customer_info'),
     path('api/products/<str:date>/', views.api_products, name='api_products'),

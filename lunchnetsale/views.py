@@ -618,6 +618,19 @@ def register_user(request):
 
 
 # ヘルパー関数の定義
+def safe_int(value, default=0, min_val=None, max_val=None):
+    """POST値を安全に整数に変換する。範囲制限も可能。"""
+    try:
+        result = int(value)
+    except (ValueError, TypeError):
+        return default
+    if min_val is not None and result < min_val:
+        return min_val
+    if max_val is not None and result > max_val:
+        return max_val
+    return result
+
+
 def parse_value(value_str):
     """
     文字列形式の数値または割引額を数値に変換します。
@@ -649,10 +662,11 @@ def parse_value(value_str):
 @login_required
 def daily_report_view(request):
 
+    logger = logging.getLogger(__name__)
     selected_person = ""
     # ログインユーザーのfirst_nameを取得
     selected_person = request.user.first_name if request.user.is_authenticated else ""
-    print(f"Logged-in user's first name: {selected_person}")  # デバッグ用
+    logger.debug(f"Logged-in user's first name: {selected_person}")
 
     # 日付と販売場所の取得
     dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('-target_date')[:3]
@@ -673,19 +687,18 @@ def daily_report_view(request):
 
     if request.method == 'POST':
         action = request.POST.get('action') # ボタンを判断する。
-        print(f"送信されたPOSTデータ: {request.POST}")  # ここで全POSTデータを確認
+        logger.debug("送信されたPOSTデータ（アクション: %s）", action)
         selected_date = request.POST.get('date')
         selected_location = request.POST.get('location')
         selected_person = request.POST.get('担当者',  f"{request.user.last_name} {request.user.first_name}")
-        print(f"送信される担当者名: {selected_person}")  # ここで値を確認
-        print(f"Logged-in user's first name: {selected_person}")
+        logger.debug("送信される担当者名: %s", selected_person)
         selected_weather = request.POST.getlist('weather')
         selected_temp = request.POST.getlist('temp')
 
-        # 売上関連のデータ
-        total_quantity = request.POST.get('total_quantity',0)
-        total_sales_quantity = request.POST.get('total_sales_quantity',0)
-        total_remaining = request.POST.get('total_remaining',0)
+        # 売上関連のデータ（safe_intで型安全に変換）
+        total_quantity = safe_int(request.POST.get('total_quantity', 0), min_val=0)
+        total_sales_quantity = safe_int(request.POST.get('total_sales_quantity', 0), min_val=0)
+        total_remaining = safe_int(request.POST.get('total_remaining', 0), min_val=0)
         total_sales = parse_value(request.POST.get('total_sales', 0))
         total_revenue = parse_value(request.POST.get('total_revenue', 0))
         sales_price_quantity_1 = request.POST.get('sales_price_quantity_1',0)
@@ -693,33 +706,33 @@ def daily_report_view(request):
         sales_price_quantity_3 = request.POST.get('sales_price_quantity_3',0)
 
         # その他の売上関連のデータ
-        others_sales_1 = request.POST.get('selected_item_1', 0)
-        others_price1 = request.POST.get('others_price1', 0)
-        others_sales_quantity1 = request.POST.get('others_sales_quantity1', 0)
-        others_sales_2 = request.POST.get('selected_item_2', 0)
-        others_price2 = request.POST.get('others_price2', 0)
-        others_sales_quantity2 = request.POST.get('others_sales_quantity2', 0)
+        others_sales_1 = request.POST.get('selected_item_1', '')
+        others_price1 = safe_int(request.POST.get('others_price1', 0), min_val=0)
+        others_sales_quantity1 = safe_int(request.POST.get('others_sales_quantity1', 0), min_val=0)
+        others_sales_2 = request.POST.get('selected_item_2', '')
+        others_price2 = safe_int(request.POST.get('others_price2', 0), min_val=0)
+        others_sales_quantity2 = safe_int(request.POST.get('others_sales_quantity2', 0), min_val=0)
         total_others_sales = parse_value(request.POST.get('total_others_sales', 0))
 
-        # 割引関連のデータ
-        no_rice_quantity = request.POST.get('no_rice_quantity',0)
-        extra_rice_quantity = request.POST.get('extra_rice_quantity',0)
-        coupon_type_600 = request.POST.get('coupon_type_600',0)
-        coupon_type_700 = request.POST.get('coupon_type_700',0)
-        discount_50 = request.POST.get('discount_50',0)
-        discount_100 = request.POST.get('discount_100',0)
+        # 割引関連のデータ（safe_intで型安全に変換）
+        no_rice_quantity = safe_int(request.POST.get('no_rice_quantity', 0), min_val=0)
+        extra_rice_quantity = safe_int(request.POST.get('extra_rice_quantity', 0), min_val=0)
+        coupon_type_600 = safe_int(request.POST.get('coupon_type_600', 0), min_val=0)
+        coupon_type_700 = safe_int(request.POST.get('coupon_type_700', 0), min_val=0)
+        discount_50 = safe_int(request.POST.get('discount_50', 0), min_val=0)
+        discount_100 = safe_int(request.POST.get('discount_100', 0), min_val=0)
         # 割引関連のデータ(サービス)
         service_name = request.POST.get('service_name', 0)
         service_price = request.POST.get('service_price', 0)
-        service_type_600 = request.POST.get('service_type_600', 0)
-        service_type_700 = request.POST.get('service_type_700', 0)
-        service_type_100 = request.POST.get('service_type_100', 0)
+        service_type_600 = safe_int(request.POST.get('service_type_600', 0), min_val=0)
+        service_type_700 = safe_int(request.POST.get('service_type_700', 0), min_val=0)
+        service_type_100 = safe_int(request.POST.get('service_type_100', 0), min_val=0)
         total_discount = parse_value(request.POST.get('total_discount', '0'))
 
-        # 売上金関連のデータ
-        paypay = request.POST.get('paypay', 0)
-        digital_payment = request.POST.get('digital_payment', 0)
-        cash = request.POST.get('cash', 0)
+        # 売上金関連のデータ（safe_intで型安全に変換）
+        paypay = safe_int(request.POST.get('paypay', 0), min_val=0)
+        digital_payment = safe_int(request.POST.get('digital_payment', 0), min_val=0)
+        cash = safe_int(request.POST.get('cash', 0), min_val=0)
         sales_difference = parse_value(request.POST.get('sales_difference', '0'))
 
         # 時間データの取得
@@ -729,16 +742,16 @@ def daily_report_view(request):
         sold_out_time = request.POST.get('sold_out_time')
         closing_time = request.POST.get('closing_time')
 
-        # 経費関連のデータ
-        gasolin = request.POST.get('gasolin', 0)
-        highway = request.POST.get('highway', 0)
-        parking = request.POST.get('parking', 0)
-        part = request.POST.get('part', 0)
-        others = request.POST.get('others', 0)
+        # 経費関連のデータ（safe_intで型安全に変換）
+        gasolin = safe_int(request.POST.get('gasolin', 0), min_val=0)
+        highway = safe_int(request.POST.get('highway', 0), min_val=0)
+        parking = safe_int(request.POST.get('parking', 0), min_val=0)
+        part = safe_int(request.POST.get('part', 0), min_val=0)
+        others = safe_int(request.POST.get('others', 0), min_val=0)
 
         # 情報関連のデータ
-        comment = request.POST.get('comment', 0)
-        food_count_setting = request.POST.get('food_count_setting', 0)
+        comment = request.POST.get('comment', '')
+        food_count_setting = request.POST.get('food_count_setting', '')
 
         # 日付と販売場所に基づいてデータを取得
         item_quantities = ItemQuantity.objects.filter(
@@ -747,16 +760,19 @@ def daily_report_view(request):
         ).select_related('product', 'sales_location')
 
 
-        service = SalesLocation.objects.get(name=selected_location)
-        print(service.service_name)
-        print(service.service_price)
+        try:
+            service = SalesLocation.objects.get(name=selected_location)
+        except SalesLocation.DoesNotExist:
+            messages.error(request, f'販売所「{selected_location}」が見つかりません。', extra_tags='alert alert-danger')
+            return redirect('daily_report')
+        logger.debug("サービス情報: %s (%s円)", service.service_name, service.service_price)
         
         # 商品の情報を取得
         products = Product.objects.filter(
             no__in=item_quantities.values_list('product__no', flat=True),
             itemquantity__target_date=selected_date  # target_dateを条件に追加
         )
-        print(f"デバッグ : {item_quantities} ")
+        logger.debug("item_quantities count: %d", item_quantities.count())
         
         # 商品情報を辞書にまとめる
         product_data = {
@@ -797,7 +813,7 @@ def daily_report_view(request):
         
         # 日付と販売場所に基づいて既存のDailyReportを取得または作成
         if action == 'send':
-            print(f"送信される担当者名: {selected_person}")  # ここで値を確認
+            logger.debug("送信処理開始: 担当者=%s", selected_person)
             
             # 既存のレポートを確認
             existing_report = DailyReport.objects.filter(

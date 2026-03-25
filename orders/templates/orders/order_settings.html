@@ -1,0 +1,133 @@
+{% extends "orders/base.html" %}
+{% block title %}設定 - 受注管理{% endblock %}
+{% block nav_settings %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-800 mb-6">設定</h1>
+
+<!-- 受注設定フォーム -->
+<div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">納品書・税率設定</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="id_tax_rate" class="block text-sm font-medium text-gray-700 mb-1">{{ form.tax_rate.label }}</label>
+                <div class="flex items-center">
+                    <input type="number" name="tax_rate" id="id_tax_rate" value="{{ form.tax_rate.value }}"
+                           step="0.01" min="0" max="100"
+                           class="w-24 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                    <span class="ml-2 text-sm text-gray-500">%</span>
+                </div>
+                {% if form.tax_rate.errors %}
+                <p class="text-red-600 text-xs mt-1">{{ form.tax_rate.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <h3 class="text-md font-semibold text-gray-600 mt-6 mb-3">会社情報（納品書に表示）</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="id_company_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.company_name.label }}</label>
+                <input type="text" name="company_name" id="id_company_name" value="{{ form.company_name.value }}"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                {% if form.company_name.errors %}
+                <p class="text-red-600 text-xs mt-1">{{ form.company_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label for="id_postal_code" class="block text-sm font-medium text-gray-700 mb-1">{{ form.postal_code.label }}</label>
+                <input type="text" name="postal_code" id="id_postal_code" value="{{ form.postal_code.value }}"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                {% if form.postal_code.errors %}
+                <p class="text-red-600 text-xs mt-1">{{ form.postal_code.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div class="md:col-span-2">
+                <label for="id_address" class="block text-sm font-medium text-gray-700 mb-1">{{ form.address.label }}</label>
+                <input type="text" name="address" id="id_address" value="{{ form.address.value }}"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                {% if form.address.errors %}
+                <p class="text-red-600 text-xs mt-1">{{ form.address.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label for="id_tel" class="block text-sm font-medium text-gray-700 mb-1">{{ form.tel.label }}</label>
+                <input type="text" name="tel" id="id_tel" value="{{ form.tel.value }}"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                {% if form.tel.errors %}
+                <p class="text-red-600 text-xs mt-1">{{ form.tel.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label for="id_fax" class="block text-sm font-medium text-gray-700 mb-1">{{ form.fax.label }}</label>
+                <input type="text" name="fax" id="id_fax" value="{{ form.fax.value }}"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                {% if form.fax.errors %}
+                <p class="text-red-600 text-xs mt-1">{{ form.fax.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <button type="submit"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                設定を保存
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- 支払い方法一覧 -->
+<div class="bg-white rounded-lg shadow-sm p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-700">支払い方法</h2>
+        <a href="{% url 'orders:payment_method_create' %}"
+           class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
+            ＋ 新規登録
+        </a>
+    </div>
+
+    {% if payment_methods %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">表示順</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">支払い方法名</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">状態</th>
+                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for pm in payment_methods %}
+                <tr class="hover:bg-gray-50 transition {% if not pm.is_active %}opacity-50{% endif %}">
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ pm.sort_order }}</td>
+                    <td class="px-4 py-3 font-medium">{{ pm.name }}</td>
+                    <td class="px-4 py-3 text-sm">
+                        {% if pm.is_active %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">有効</span>
+                        {% else %}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">無効</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex justify-end gap-2">
+                            <a href="{% url 'orders:payment_method_edit' pm.pk %}"
+                               class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition">編集</a>
+                            {% if pm.is_active %}
+                            <a href="{% url 'orders:payment_method_delete' pm.pk %}"
+                               class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition">無効化</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">支払い方法が登録されていません。</p>
+    {% endif %}
+</div>
+{% endblock %}

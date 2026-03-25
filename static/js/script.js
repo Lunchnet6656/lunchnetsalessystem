@@ -8,6 +8,15 @@ function confirmLogout(event) {
 document.addEventListener('keydown', function(event) {
     if (event.key === "Enter" && event.target.tagName !== 'TEXTAREA') {
         event.preventDefault();  // Enterキーでのフォーム送信を無効化（textareaは除外）
+        // 次の入力フィールドにフォーカス移動
+        var form = event.target.closest('form');
+        if (form) {
+            var focusable = Array.from(form.querySelectorAll('input:not([type="hidden"]):not([readonly]):not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
+            var index = focusable.indexOf(event.target);
+            if (index >= 0 && index < focusable.length - 1) {
+                focusable[index + 1].focus();
+            }
+        }
     }
 });
 
@@ -35,6 +44,27 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!confirm('販売場所は間違いありませんか？')) {
                         event.preventDefault();
                         return;
+                    }
+
+                    // 時間順序チェック
+                    if (typeof validateTimeOrder === 'function') {
+                        var timeWarning = validateTimeOrder();
+                        if (timeWarning && !confirm(timeWarning)) {
+                            event.preventDefault();
+                            return;
+                        }
+                    }
+
+                    // 差額チェック
+                    var diffEl = document.getElementById('sales_difference');
+                    if (diffEl) {
+                        var diffVal = stripFormatting(diffEl.value);
+                        if (parseInt(diffVal, 10) !== 0) {
+                            if (!confirm('差額が0ではありません（' + diffEl.value + '円）。送信してよろしいですか？')) {
+                                event.preventDefault();
+                                return;
+                            }
+                        }
                     }
                 }
 
@@ -70,7 +100,13 @@ function updateFromRemaining(inputElement) {
     var price = Math.round(parseFloat(priceElement.textContent)) || 0;  // 単価の取得
     var remaining = parseInt(inputElement.value, 10) || 0;  // 入力された残数の取得
 
-    // 販売数の計算（残数が持参数を超えた場合は0）
+    // 残数が持参数を超えた場合は持参数に制限
+    if (remaining > quantity && quantity > 0) {
+        remaining = quantity;
+        inputElement.value = quantity;
+    }
+
+    // 販売数の計算
     var salesQuantity = Math.max(0, quantity - remaining);
 
     // 売上の計算
@@ -200,13 +236,16 @@ function onSoldOutCheckboxChange(checkboxElement) {
     var menuNo = checkboxElement.id.split('_')[2];  // 商品番号の取得
     var remainingInput = document.getElementById('remaining_input_' + menuNo);
     var quantity = parseInt(document.getElementById('quantity_' + menuNo).value, 10) || 0;
+    var row = checkboxElement.closest('tr');
 
     if (checkboxElement.checked) {
         // 完売にチェックが入った場合、残数を0に設定
         remainingInput.value = 0;
+        if (row) row.classList.add('sold-out-row');
     } else {
         // 完売のチェックが外れた場合、残数を持参数に戻す
         remainingInput.value = quantity;
+        if (row) row.classList.remove('sold-out-row');
     }
 
     // 販売数と売上を再計算
@@ -416,6 +455,28 @@ document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
     if (checkbox.id === 'sold_out_total') return;  // 全完売チェックは別処理
     checkbox.addEventListener('change', function() {
         onSoldOutCheckboxChange(this);
+    });
+});
+
+// 人気/不人気の排他制御
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[id^="popular_"]').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            if (this.checked) {
+                var menuNo = this.id.replace('popular_', '');
+                var unpopular = document.getElementById('unpopular_' + menuNo);
+                if (unpopular) unpopular.checked = false;
+            }
+        });
+    });
+    document.querySelectorAll('[id^="unpopular_"]').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            if (this.checked) {
+                var menuNo = this.id.replace('unpopular_', '');
+                var popular = document.getElementById('popular_' + menuNo);
+                if (popular) popular.checked = false;
+            }
+        });
     });
 });
 

@@ -109,6 +109,16 @@ h2.bg-dark {
     margin-left: 10px;
 }
 
+/* 完売行のスタイル */
+tr.sold-out-row {
+    background-color: #e9ecef !important;
+    opacity: 0.7;
+}
+
+tr.sold-out-row input[type="number"] {
+    background-color: #e9ecef;
+}
+
 /* 送信ボタン非表示 */
 .btn-submit-hidden {
     display: none !important;

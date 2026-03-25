@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 {% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
 
 {% block title %}日計表入力{% endblock %}
 
 {% block content %}
 
-  {% load static %}
   <link href="{% static 'css/styles_daily_report.css' %}" rel="stylesheet">
   <div class="container mt-4"
        data-shin-yokohama-url="{% url 'shin_yokohama_users' %}"
@@ -77,7 +78,6 @@
     <button type="submit" id="display-data-btn" name="action" value="display" class="btn btn-primary w-100 py-3">データを表示</button>
 
         {% if item_data %}
-        {% load humanize %}
             <div id="bento-section">
             <h2 class="bg-dark text-white mt-4">お弁当一覧</h2>
             </div>
@@ -138,13 +138,14 @@
                 </tbody>
                 <tfoot>
                   <tr class="total-row">
-                      <td colspan="3" class="fixed-column fixed-column-2 col-total-label" data-label="">合計</td>
+                      <td colspan="3" class="fixed-column fixed-column-2 col-total-label" data-label="">合計
+                        <input type="hidden" name="total_quantity" value="{{ total_quantity|default:'0' }}">
+                        <input type="hidden" name="total_remaining" value="{{ total_remaining|default:'0' }}">
+                        <input type="hidden" name="total_sales_quantity" value="{{ total_sales_quantity|default:'0' }}">
+                      </td>
                       <td class="col-quantity" data-label="持参数" id="total_quantity">0</td>
-                      <input type="hidden" name="total_quantity" value="{{ total_quantity|default:'0' }}">
                       <td class="col-remaining" data-label="残数" id="total_remaining">0</td>
-                      <input type="hidden" name="total_remaining" value="{{ total_remaining|default:'0' }}">
                       <td class="col-sales-qty" data-label="販売数" id="total_sales_quantity">0</td>
-                      <input type="hidden" name="total_sales_quantity" value="{{ total_sales_quantity|default:'0' }}">
                       <td class="col-total-sales" data-label="売上" id="total_total_sales">0</td>
                       <td class="col-sold-out" data-label="全完売">
                         <input type="checkbox" id="sold_out_total" onchange="toggleSoldOutTotal()">
@@ -355,9 +356,10 @@
                       {% elif service.service_style == '割引' %}
                         <div class="col-12 col-md-4 mb-2">
                             <label for="service_name" class="form-label">サービス名:</label>
+                            <input type="hidden" id="service_style" value="{{ service.service_style }}">
                             <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
                                 <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected> {{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円　{% endif %}<input type="hidden" id="service_style" value="{{ service.service_style }}"></input></option>
+                                <option value="{{ service.service_price }}" selected>{{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円{% endif %}</option>
                             </select>
                         </div>
                         <!-- 100円引き -->
@@ -369,9 +371,10 @@
                       {% else %}
                         <div class="col-12 col-md-4 mb-2">
                             <label for="service_name" class="form-label">サービス名:</label>
+                            <input type="hidden" id="service_style" value="{{ service.service_style }}">
                             <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
                                 <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected> {{ service.service_name }} {% if service.service_name != 'なし' %}　{{ service.service_price }}円　{% endif %}<input type="hidden" id="service_style" value="{{ service.service_style }}"></input></option>
+                                <option value="{{ service.service_price }}" selected>{{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円{% endif %}</option>
                             </select>
                         </div>
                         <!-- サービスの割引（600円と700円の個数入力）-->
@@ -546,8 +549,6 @@
 
 
     {% block extra_js %}
-
-    {% load static %}
     <script src="{% static 'js/script.js' %}"></script>
     <script src="{% static 'js/daily_report.js' %}"></script>
     {% endblock %}

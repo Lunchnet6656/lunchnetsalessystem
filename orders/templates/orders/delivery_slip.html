@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+    @font-face {
+        font-family: IPAexGothic;
+        src: url('file://{{ font_dir }}/ipaexg.ttf');
+    }
+    @font-face {
+        font-family: IPAexMincho;
+        src: url('file://{{ font_dir }}/ipaexm.ttf');
+    }
+
+    @page {
+        size: A4;
+        margin: 15mm;
+    }
+
+    body {
+        font-family: IPAexGothic;
+        font-size: 9pt;
+        color: #000;
+        margin: 0;
+        padding: 0;
+    }
+
+    .date {
+        text-align: right;
+        font-size: 10pt;
+        margin-bottom: 10mm;
+    }
+
+    .title {
+        text-align: center;
+        font-size: 22pt;
+        font-weight: bold;
+        margin-bottom: 10mm;
+    }
+
+    .customer-name {
+        font-size: 14pt;
+        font-weight: bold;
+        border-bottom: 1px solid #000;
+        padding-bottom: 2mm;
+        display: inline-block;
+    }
+
+    .company-info {
+        text-align: right;
+        font-size: 9pt;
+        line-height: 1.6;
+    }
+
+    .intro-text {
+        font-size: 10pt;
+        margin-bottom: 5mm;
+    }
+
+    table.items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10mm;
+    }
+
+    table.items th,
+    table.items td {
+        border: 1px solid #000;
+        padding: 2mm;
+        vertical-align: middle;
+        text-align: center;
+        font-size: 9pt;
+    }
+
+    table.items th {
+        font-weight: bold;
+        font-size: 8pt;
+    }
+
+    table.items td {
+        font-family: IPAexMincho;
+    }
+
+    table.items td.name {
+        text-align: left;
+        padding-left: 3mm;
+    }
+
+    table.items td.price,
+    table.items td.amount {
+        text-align: right;
+        padding-right: 3mm;
+    }
+
+    table.items .summary td {
+        font-family: IPAexGothic;
+        font-weight: bold;
+    }
+
+    table.tax {
+        border-collapse: collapse;
+        margin-left: auto;
+        margin-top: 10mm;
+    }
+
+    table.tax th,
+    table.tax td {
+        border: 1px solid #000;
+        padding: 3mm 5mm;
+        text-align: center;
+    }
+
+    table.tax th { font-size: 8pt; font-weight: bold; }
+    table.tax td { font-size: 11pt; font-weight: bold; }
+    table.tax td.big { font-size: 12pt; }
+</style>
+</head>
+<body>
+
+<div class="date">{{ delivery_date }}</div>
+<div class="title">納　品　書</div>
+
+<table style="width:100%; border:none; margin-bottom:5mm;">
+    <tr>
+        <td style="border:none; vertical-align:top; width:50%;">
+            <div class="customer-name">{{ customer_name }}　様</div>
+        </td>
+        <td style="border:none; vertical-align:top;" class="company-info">
+            {{ settings.company_name }}<br>
+            {{ settings.postal_code }}<br>
+            {{ settings.address }}<br>
+            TEL：{{ settings.tel }}<br>
+            FAX：{{ settings.fax }}
+        </td>
+    </tr>
+</table>
+
+<div class="intro-text">下記の通り納品いたしました</div>
+
+<table class="items">
+    <tr>
+        <th>No</th>
+        <th>品　名</th>
+        <th>単価</th>
+        <th>大盛<br>+50円</th>
+        <th>普通盛</th>
+        <th>小盛</th>
+        <th>金額（税込）</th>
+    </tr>
+    {% for item in items %}
+    <tr>
+        <td>{{ forloop.counter }}</td>
+        <td class="name">{{ item.product_name }}</td>
+        <td class="price">¥{{ item.unit_price_formatted }}</td>
+        <td>{% if item.quantity_large %}{{ item.quantity_large }}{% endif %}</td>
+        <td>{% if item.quantity_regular %}{{ item.quantity_regular }}{% endif %}</td>
+        <td>{% if item.quantity_small %}{{ item.quantity_small }}{% endif %}</td>
+        <td class="amount">¥{{ item.subtotal_formatted }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="summary">
+        <td></td>
+        <td>小　計</td>
+        <td></td>
+        <td>{{ sum_large }}</td>
+        <td>{{ sum_regular }}</td>
+        <td>{{ sum_small }}</td>
+        <td class="amount">¥{{ total_formatted }}</td>
+    </tr>
+    <tr class="summary">
+        <td></td>
+        <td>合　計</td>
+        <td></td>
+        <td></td>
+        <td>{{ sum_quantity }}</td>
+        <td></td>
+        <td></td>
+    </tr>
+</table>
+
+<table class="tax">
+    <tr>
+        <th>税率</th>
+        <th>消費税額</th>
+        <th>税込合計金額</th>
+    </tr>
+    <tr>
+        <td>{{ tax_rate }}%</td>
+        <td>¥{{ tax_amount_formatted }}</td>
+        <td class="big">¥{{ total_formatted }}</td>
+    </tr>
+</table>
+
+</body>
+</html>

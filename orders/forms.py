@@ -1,5 +1,11 @@
 from django import forms
-from .models import Customer, Order, OrderItem, PaymentMethod
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod
+
+
+class OrderSettingsForm(forms.ModelForm):
+    class Meta:
+        model = OrderSettings
+        fields = ['tax_rate', 'company_name', 'postal_code', 'address', 'tel', 'fax']
 
 
 class PaymentMethodForm(forms.ModelForm):

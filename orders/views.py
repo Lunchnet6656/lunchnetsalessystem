@@ -4,8 +4,8 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.db.models import Count, Sum, Q
 from django.utils import timezone
-from .models import Customer, Order, OrderItem, PaymentMethod
-from .forms import CustomerForm, OrderForm, OrderItemFormSet, PaymentMethodForm
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod
+from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm
 from sales.models import Product
 from datetime import datetime, timedelta
 
@@ -409,7 +409,7 @@ def payment_method_create(request):
         if form.is_valid():
             form.save()
             messages.success(request, f'支払い方法「{form.instance.name}」を登録しました。')
-            return redirect('orders:payment_method_list')
+            return redirect('orders:order_settings')
     else:
         form = PaymentMethodForm()
     return render(request, 'orders/payment_method_form.html', {'form': form, 'is_edit': False})
@@ -423,7 +423,7 @@ def payment_method_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f'支払い方法「{payment_method.name}」を更新しました。')
-            return redirect('orders:payment_method_list')
+            return redirect('orders:order_settings')
     else:
         form = PaymentMethodForm(instance=payment_method)
     return render(request, 'orders/payment_method_form.html', {'form': form, 'payment_method': payment_method, 'is_edit': True})
@@ -436,5 +436,28 @@ def payment_method_delete(request, pk):
         payment_method.is_active = False
         payment_method.save()
         messages.success(request, f'支払い方法「{payment_method.name}」を無効にしました。')
-        return redirect('orders:payment_method_list')
+        return redirect('orders:order_settings')
     return render(request, 'orders/payment_method_confirm_delete.html', {'payment_method': payment_method})
+
+
+# --- Settings view ---
+
+@login_required
+def order_settings(request):
+    settings_obj = OrderSettings.load()
+    payment_methods = PaymentMethod.objects.all()
+
+    if request.method == 'POST':
+        form = OrderSettingsForm(request.POST, instance=settings_obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, '設定を保存しました。')
+            return redirect('orders:order_settings')
+    else:
+        form = OrderSettingsForm(instance=settings_obj)
+
+    context = {
+        'form': form,
+        'payment_methods': payment_methods,
+    }
+    return render(request, 'orders/order_settings.html', context)

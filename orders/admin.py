@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, Order, OrderItem, PaymentMethod
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod
 
 
 @admin.register(PaymentMethod)
@@ -32,3 +32,8 @@ class OrderAdmin(admin.ModelAdmin):
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
     list_display = ['order', 'product_name', 'quantity', 'unit_price', 'subtotal']
+
+
+@admin.register(OrderSettings)
+class OrderSettingsAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'tax_rate', 'company_name']

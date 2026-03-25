@@ -39,9 +39,9 @@
                    class="px-3 py-1.5 rounded transition {% block nav_customers %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     顧客一覧
                 </a>
-                <a href="{% url 'orders:payment_method_list' %}"
-                   class="px-3 py-1.5 rounded transition {% block nav_payment_methods %}text-gray-300 hover:bg-gray-600{% endblock %}">
-                    支払い方法
+                <a href="{% url 'orders:order_settings' %}"
+                   class="px-3 py-1.5 rounded transition {% block nav_settings %}text-gray-300 hover:bg-gray-600{% endblock %}">
+                    設定
                 </a>
             </div>
         </div>

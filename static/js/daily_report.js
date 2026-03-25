@@ -95,6 +95,29 @@ function updateClosingTimeMessage() {
     messageElement.textContent = closingTimeEl.value ? 'は入力されています。' : 'を入力してください。';
 }
 
+// 時間フィールドの順序チェック
+function validateTimeOrder() {
+    var fields = [
+        {id: 'departure_time', label: '出発時間'},
+        {id: 'arrival_time', label: '到着時間'},
+        {id: 'opening_time', label: '開店時間'},
+        {id: 'closing_time', label: '閉店時間'}
+    ];
+    var prev = null;
+    var prevLabel = '';
+    for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById(fields[i].id);
+        if (!el || !el.value || el.value === '00:00') continue;
+        var current = el.value;
+        if (prev && current < prev) {
+            return fields[i].label + 'が' + prevLabel + 'より前の時間になっています。よろしいですか？';
+        }
+        prev = current;
+        prevLabel = fields[i].label;
+    }
+    return null;
+}
+
 // 送信ボタンの表示切替
 function toggleSubmitButton() {
     var closingTimeEl = document.getElementById('closing_time');
@@ -272,8 +295,33 @@ function setupAutoSave() {
 }
 
 
+// 二重送信防止
+function preventDoubleSubmit() {
+    var form = document.querySelector('form');
+    if (!form) return;
+    form.addEventListener('submit', function() {
+        var buttons = form.querySelectorAll('button[type="submit"]');
+        buttons.forEach(function(btn) {
+            // 送信中はボタンを無効化してスピナー表示
+            if (btn.value === 'send' || btn.value === 'display') {
+                btn.disabled = true;
+                var originalText = btn.textContent;
+                btn.setAttribute('data-original-text', originalText);
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>処理中...';
+                // 5秒後にタイムアウトで復元（ネットワークエラー等に対応）
+                setTimeout(function() {
+                    btn.disabled = false;
+                    btn.textContent = btn.getAttribute('data-original-text') || originalText;
+                }, 5000);
+            }
+        });
+    });
+}
+
 // DOMContentLoadedで初期化
 document.addEventListener('DOMContentLoaded', function() {
+    // 二重送信防止
+    preventDoubleSubmit();
     // 販売所変更時の担当者切替
     var locationEl = document.getElementById('location');
     if (locationEl) {

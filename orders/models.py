@@ -162,3 +162,42 @@ class OrderItem(models.Model):
         if not self.product_name and self.product:
             self.product_name = self.product.name
         super().save(*args, **kwargs)
+
+
+class OrderSettings(models.Model):
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=8,
+        verbose_name="消費税率（%）"
+    )
+    company_name = models.CharField(
+        max_length=200, default="有限会社ランチサービスネットワーク",
+        verbose_name="会社名"
+    )
+    postal_code = models.CharField(
+        max_length=10, default="〒224-0021", verbose_name="郵便番号"
+    )
+    address = models.CharField(
+        max_length=300, default="横浜市都筑区北山田1-1-18", verbose_name="住所"
+    )
+    tel = models.CharField(
+        max_length=20, default="045-593-6656", verbose_name="電話番号"
+    )
+    fax = models.CharField(
+        max_length=20, default="045-592-8424", verbose_name="FAX番号"
+    )
+
+    class Meta:
+        verbose_name = "受注設定"
+        verbose_name_plural = "受注設定"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return "受注設定"
