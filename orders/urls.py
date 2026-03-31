@@ -60,4 +60,5 @@ urlpatterns = [
     path('api/check-duplicate/', views.api_check_duplicate, name='api_check_duplicate'),
     path('api/order-totals/<str:date>/', views.api_order_totals, name='api_order_totals'),
     path('api/extra-products/', views.api_extra_products, name='api_extra_products'),
+    path('api/customers-with-orders/<str:date>/', views.api_customers_with_orders, name='api_customers_with_orders'),
 ]

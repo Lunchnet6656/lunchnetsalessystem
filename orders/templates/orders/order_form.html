@@ -232,7 +232,7 @@
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {% for c in group.list %}
-                        <div class="customer-card cursor-pointer border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all"
+                        <div class="customer-card relative overflow-hidden cursor-pointer border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all"
                              data-customer-id="{{ c.pk }}"
                              data-bento-type="{{ c.bento_type }}"
                              data-search-text="{{ c.company_name }} {{ c.department }} {{ c.contact_person }} {{ c.name }}">
@@ -268,6 +268,9 @@
                                     仕出し
                                 </span>
                                 {% endif %}
+                            </div>
+                            <div class="ordered-overlay hidden absolute inset-0 flex items-center justify-center pointer-events-none" style="background-color: rgba(156,163,175,0.55);">
+                                <span class="font-bold text-sm px-3 py-1 rounded-full shadow" style="color: #1f2937; background-color: rgba(255,255,255,0.88);">注文済み</span>
                             </div>
                         </div>
                         {% endfor %}

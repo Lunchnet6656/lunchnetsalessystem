@@ -92,15 +92,53 @@ document.addEventListener('DOMContentLoaded', function() {
     const customerNoResults = document.getElementById('customer-no-results');
     const customerSelectedInfo = document.getElementById('customer-selected-info');
 
-    function openCustomerModal() {
-        customerModal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-        if (customerSearchInput) {
-            customerSearchInput.value = '';
-            filterCustomerCards('');
-            customerSearchInput.focus();
+    var orderedCustomerIds = [];
+
+    function fetchOrderedCustomers(date, callback) {
+        if (!date) {
+            orderedCustomerIds = [];
+            applyOrderedState();
+            if (callback) callback();
+            return;
         }
-        highlightSelectedCard();
+        var url = '/orders/api/customers-with-orders/' + date + '/';
+        if (excludePk) url += '?exclude_pk=' + excludePk;
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                orderedCustomerIds = (data.customer_ids || []).map(String);
+                applyOrderedState();
+                if (callback) callback();
+            });
+    }
+
+    function applyOrderedState() {
+        document.querySelectorAll('.customer-card').forEach(function(card) {
+            var overlay = card.querySelector('.ordered-overlay');
+            if (!overlay) return;
+            var isOrdered = orderedCustomerIds.indexOf(card.dataset.customerId) !== -1;
+            if (isOrdered) {
+                overlay.classList.remove('hidden');
+                card.classList.add('opacity-70');
+            } else {
+                overlay.classList.add('hidden');
+                card.classList.remove('opacity-70');
+            }
+        });
+    }
+
+    function openCustomerModal() {
+        var date = deliveryDateInput ? deliveryDateInput.value : '';
+        fetchOrderedCustomers(date, function() {
+            customerModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            if (customerSearchInput) {
+                customerSearchInput.value = '';
+                filterCustomerCards('');
+                customerSearchInput.focus();
+            }
+            highlightSelectedCard();
+        });
     }
 
     function closeCustomerModal() {
@@ -274,6 +312,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (deliveryDateInput) {
         deliveryDateInput.addEventListener('change', checkDuplicate);
+        deliveryDateInput.addEventListener('change', function() {
+            fetchOrderedCustomers(deliveryDateInput.value);
+        });
     }
 
     // --- 注文合計カラム ---

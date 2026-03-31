@@ -562,6 +562,21 @@ def api_check_duplicate(request):
 
 
 @login_required
+def api_customers_with_orders(request, date):
+    """指定納品日に注文済みの顧客IDリストを返す"""
+    try:
+        target_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'customer_ids': []})
+    exclude_pk = request.GET.get('exclude_pk')
+    qs = Order.objects.filter(delivery_date=target_date)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    customer_ids = list(qs.values_list('customer_id', flat=True))
+    return JsonResponse({'customer_ids': customer_ids})
+
+
+@login_required
 def api_order_totals(request, date):
     """納品日ごとのメニュー別注文数合計を返すAPI"""
     try:
