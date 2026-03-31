@@ -257,6 +257,7 @@
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">新規<br>受注</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">顧客<br>一覧</th>
                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">設定</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">CSV<br>エクスポート</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -289,6 +290,11 @@
                         <td class="px-4 py-3 text-center">
                             <input type="checkbox" name="perm_{{ item.user.id }}_settings"
                                    {% if item.perm.can_view_settings %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" name="perm_{{ item.user.id }}_csv_export"
+                                   {% if item.perm.can_view_csv_export %}checked{% endif %}
                                    class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
                         </td>
                     </tr>

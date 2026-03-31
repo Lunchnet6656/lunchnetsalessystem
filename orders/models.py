@@ -326,6 +326,7 @@ class OrderUserMenuPermission(models.Model):
     can_view_new_order = models.BooleanField(default=True, verbose_name="新規受注")
     can_view_customers = models.BooleanField(default=True, verbose_name="顧客一覧")
     can_view_settings = models.BooleanField(default=True, verbose_name="設定")
+    can_view_csv_export = models.BooleanField(default=True, verbose_name="CSVエクスポート")
 
     class Meta:
         verbose_name = "受注メニュー表示設定"

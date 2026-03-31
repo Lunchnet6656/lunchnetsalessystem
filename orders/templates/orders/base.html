@@ -58,10 +58,12 @@
                     設定
                 </a>
                 {% endif %}
+                {% if not perm or perm.can_view_csv_export %}
                 <a href="{% url 'orders:order_export' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_export %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     CSV出力
                 </a>
+                {% endif %}
                 {% endwith %}
             </div>
         </div>

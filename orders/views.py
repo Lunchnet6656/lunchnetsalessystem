@@ -669,6 +669,7 @@ def order_settings(request):
                 perm.can_view_new_order = f'perm_{u.id}_new_order' in request.POST
                 perm.can_view_customers = f'perm_{u.id}_customers' in request.POST
                 perm.can_view_settings = f'perm_{u.id}_settings' in request.POST
+                perm.can_view_csv_export = f'perm_{u.id}_csv_export' in request.POST
                 perm.save()
             messages.success(request, 'ユーザーメニュー設定を保存しました。')
             return redirect('orders:order_settings')
