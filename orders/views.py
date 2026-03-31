@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Sum, Q, Case, When, F, Value, IntegerField, CharField, Exists, OuterRef
 from django.utils import timezone
 import csv
 import json
@@ -10,7 +10,7 @@ from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, Ex
 from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm
 from sales.models import Product
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 
 def _get_extra_products_json():
@@ -82,7 +82,35 @@ def order_create(request, customer_id=None):
         formset = OrderItemFormSet(prefix='items')
         extra_formset = OrderExtraItemFormSet(prefix='extra_items')
 
-    customers = Customer.objects.filter(is_active=True)
+    one_month_ago = date.today() - timedelta(days=30)
+    customers = (
+        Customer.objects.filter(is_active=True)
+        .annotate(
+            has_recent_order=Exists(
+                Order.objects.filter(customer=OuterRef('pk'), order_date__gte=one_month_ago)
+            )
+        )
+        .annotate(
+            group_order=Case(
+                When(is_regular=True, then=Value(0)),
+                When(has_recent_order=True, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            ),
+            group_label=Case(
+                When(is_regular=True, then=Value('定期顧客')),
+                When(has_recent_order=True, then=Value('直近1ヶ月')),
+                default=Value('その他'),
+                output_field=CharField(),
+            ),
+            sort_name=Case(
+                When(customer_type='B2B', then=F('company_name')),
+                default=F('name'),
+                output_field=CharField(),
+            ),
+        )
+        .order_by('group_order', 'sort_name')
+    )
     is_catering = False
     if customer_id:
         _c = get_object_or_404(Customer, pk=customer_id, is_active=True)
@@ -138,7 +166,35 @@ def order_edit(request, pk):
         formset = OrderItemFormSet(instance=order, prefix='items')
         extra_formset = OrderExtraItemFormSet(instance=order, prefix='extra_items')
 
-    customers = Customer.objects.filter(is_active=True)
+    one_month_ago = date.today() - timedelta(days=30)
+    customers = (
+        Customer.objects.filter(is_active=True)
+        .annotate(
+            has_recent_order=Exists(
+                Order.objects.filter(customer=OuterRef('pk'), order_date__gte=one_month_ago)
+            )
+        )
+        .annotate(
+            group_order=Case(
+                When(is_regular=True, then=Value(0)),
+                When(has_recent_order=True, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            ),
+            group_label=Case(
+                When(is_regular=True, then=Value('定期顧客')),
+                When(has_recent_order=True, then=Value('直近1ヶ月')),
+                default=Value('その他'),
+                output_field=CharField(),
+            ),
+            sort_name=Case(
+                When(customer_type='B2B', then=F('company_name')),
+                default=F('name'),
+                output_field=CharField(),
+            ),
+        )
+        .order_by('group_order', 'sort_name')
+    )
     context = {
         'form': form,
         'formset': formset,

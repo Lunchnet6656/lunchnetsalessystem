@@ -154,6 +154,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 card.style.display = 'none';
             }
         });
+        document.querySelectorAll('.customer-group-section').forEach(function(section) {
+            var anyVisible = Array.from(section.querySelectorAll('.customer-card')).some(function(card) {
+                return card.style.display !== 'none';
+            });
+            section.style.display = anyVisible ? '' : 'none';
+        });
         if (customerNoResults) {
             customerNoResults.classList.toggle('hidden', visibleCount > 0);
         }

@@ -217,44 +217,60 @@
         </div>
         <!-- カード一覧 -->
         <div class="flex-1 overflow-y-auto px-6 py-4">
-            <div id="customer-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {% for c in customers %}
-                <div class="customer-card cursor-pointer border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all"
-                     data-customer-id="{{ c.pk }}"
-                     data-bento-type="{{ c.bento_type }}"
-                     data-search-text="{{ c.company_name }} {{ c.department }} {{ c.contact_person }} {{ c.name }}">
-                    <div class="flex items-start justify-between mb-2">
-                        <div class="font-bold text-gray-800 text-base leading-tight">
-                            {% if c.customer_type == 'B2B' and c.company_name %}
-                                {{ c.company_name }}
-                                {% if c.department %}<span class="block text-sm text-gray-600 font-normal">{{ c.department }}</span>{% endif %}
-                            {% else %}
-                                {{ c.name }}
-                            {% endif %}
-                        </div>
-                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                            {% if c.price_type == 'A' %}bg-green-100 text-green-700
-                            {% elif c.price_type == 'B' %}bg-yellow-100 text-yellow-700
-                            {% else %}bg-purple-100 text-purple-700{% endif %}">
-                            {{ c.get_price_type_display }}
-                        </span>
-                    </div>
-                    {% if c.customer_type == 'B2B' and c.contact_person %}
-                    <p class="text-sm text-gray-600 mb-1">担当: {{ c.contact_person }}</p>
-                    {% endif %}
-                    {% if c.phone %}
-                    <p class="text-xs text-gray-400">{{ c.phone }}</p>
-                    {% endif %}
-                    <div class="mt-2 flex items-center gap-1 flex-wrap">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                            {% if c.customer_type == 'B2B' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-600{% endif %}">
-                            {{ c.get_customer_type_display }}
-                        </span>
-                        {% if c.bento_type == 'CATERING' %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
-                            仕出し
-                        </span>
+            <div id="customer-cards-grid">
+                {% regroup customers by group_label as customer_groups %}
+                {% for group in customer_groups %}
+                <div class="customer-group-section mb-4">
+                    <div class="customer-group-label flex items-center gap-2 mb-2 pb-1 border-b border-gray-200">
+                        {% if group.grouper == '定期顧客' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">● 定期顧客</span>
+                        {% elif group.grouper == '直近1ヶ月' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">◎ 直近1ヶ月</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-500">その他</span>
                         {% endif %}
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for c in group.list %}
+                        <div class="customer-card cursor-pointer border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all"
+                             data-customer-id="{{ c.pk }}"
+                             data-bento-type="{{ c.bento_type }}"
+                             data-search-text="{{ c.company_name }} {{ c.department }} {{ c.contact_person }} {{ c.name }}">
+                            <div class="flex items-start justify-between mb-2">
+                                <div class="font-bold text-gray-800 text-base leading-tight">
+                                    {% if c.customer_type == 'B2B' and c.company_name %}
+                                        {{ c.company_name }}
+                                        {% if c.department %}<span class="block text-sm text-gray-600 font-normal">{{ c.department }}</span>{% endif %}
+                                    {% else %}
+                                        {{ c.name }}
+                                    {% endif %}
+                                </div>
+                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if c.price_type == 'A' %}bg-green-100 text-green-700
+                                    {% elif c.price_type == 'B' %}bg-yellow-100 text-yellow-700
+                                    {% else %}bg-purple-100 text-purple-700{% endif %}">
+                                    {{ c.get_price_type_display }}
+                                </span>
+                            </div>
+                            {% if c.customer_type == 'B2B' and c.contact_person %}
+                            <p class="text-sm text-gray-600 mb-1">担当: {{ c.contact_person }}</p>
+                            {% endif %}
+                            {% if c.phone %}
+                            <p class="text-xs text-gray-400">{{ c.phone }}</p>
+                            {% endif %}
+                            <div class="mt-2 flex items-center gap-1 flex-wrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                    {% if c.customer_type == 'B2B' %}bg-blue-50 text-blue-600{% else %}bg-gray-100 text-gray-600{% endif %}">
+                                    {{ c.get_customer_type_display }}
+                                </span>
+                                {% if c.bento_type == 'CATERING' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                                    仕出し
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
                 {% endfor %}
