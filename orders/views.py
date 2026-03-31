@@ -82,7 +82,7 @@ def order_create(request, customer_id=None):
         formset = OrderItemFormSet(prefix='items')
         extra_formset = OrderExtraItemFormSet(prefix='extra_items')
 
-    one_month_ago = date.today() - timedelta(days=30)
+    one_month_ago = timezone.now().date() - timedelta(days=30)
     customers = (
         Customer.objects.filter(is_active=True)
         .annotate(
@@ -166,7 +166,7 @@ def order_edit(request, pk):
         formset = OrderItemFormSet(instance=order, prefix='items')
         extra_formset = OrderExtraItemFormSet(instance=order, prefix='extra_items')
 
-    one_month_ago = date.today() - timedelta(days=30)
+    one_month_ago = timezone.now().date() - timedelta(days=30)
     customers = (
         Customer.objects.filter(is_active=True)
         .annotate(
