@@ -27,26 +27,42 @@
         <!-- サブナビ -->
         <div class="bg-gray-700">
             <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-1 text-sm">
+                {% with perm=user.order_menu_permission %}
+                {% if not perm or perm.can_view_dashboard %}
                 <a href="{% url 'orders:regular_dashboard' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_regular %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     受注ダッシュボード
                 </a>
+                {% endif %}
+                {% if not perm or perm.can_view_delivery_list %}
                 <a href="{% url 'orders:delivery_list' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_delivery_list %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     配達リスト
                 </a>
+                {% endif %}
+                {% if not perm or perm.can_view_new_order %}
                 <a href="{% url 'orders:order_create' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_new_order %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     新規受注
                 </a>
+                {% endif %}
+                {% if not perm or perm.can_view_customers %}
                 <a href="{% url 'orders:customer_list' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_customers %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     顧客一覧
                 </a>
+                {% endif %}
+                {% if not perm or perm.can_view_settings %}
                 <a href="{% url 'orders:order_settings' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_settings %}text-gray-300 hover:bg-gray-600{% endblock %}">
                     設定
                 </a>
+                {% endif %}
+                <a href="{% url 'orders:order_export' %}"
+                   class="px-3 py-1.5 rounded transition {% block nav_export %}text-gray-300 hover:bg-gray-600{% endblock %}">
+                    CSV出力
+                </a>
+                {% endwith %}
             </div>
         </div>
     </nav>

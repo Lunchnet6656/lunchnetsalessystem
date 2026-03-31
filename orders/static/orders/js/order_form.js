@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentPriceType = 'A';
     let currentProducts = [];
     let largeExtraPrice = 0; // No.11の単価（大盛り割増）
+    let customPriceNormal = 0; // 独自価格（★なし）
+    let customPriceStar = 0;   // 独自価格（★あり）
+    let customPriceLarge = 0;  // 独自大盛り割増
 
     // 仕出しモード関連
     const orderFormEl = document.getElementById('order-form');
@@ -56,22 +59,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const existingCateringItems = [];
     document.querySelectorAll('.formset-form').forEach(function(el) {
         const productId = el.dataset.productId;
+        const idInput = el.querySelector('input[name$="-id"]');
+        const idValue = idInput ? idInput.value.trim() : '';
         if (productId) {
             existingItems[productId] = {
                 index: parseInt(el.dataset.index),
                 quantityLarge: parseInt(el.dataset.quantityLarge) || 0,
                 quantityRegular: parseInt(el.dataset.quantityRegular) || 0,
                 quantitySmall: parseInt(el.dataset.quantitySmall) || 0,
-                idField: el.querySelector('input[name$="-id"]'),
+                idField: idInput,
             };
-        } else {
+        } else if (idValue) {
+            // PKが存在する仕出しアイテムのみ追加（extra=10 の空行は除外）
             existingCateringItems.push({
                 index: parseInt(el.dataset.index),
                 productName: el.dataset.productName || '',
                 quantityRegular: parseInt(el.dataset.quantityRegular) || 0,
                 unitPrice: parseInt(el.dataset.unitPrice) || 0,
                 subtotal: parseInt(el.dataset.subtotal) || 0,
-                idField: el.querySelector('input[name$="-id"]'),
+                idField: idInput,
             });
         }
     });
@@ -187,7 +193,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const selected = this.options[this.selectedIndex];
             if (selected && selected.value) {
                 currentPriceType = selected.dataset.priceType || 'A';
-                priceTypeDisplay.textContent = '価格タイプ: ' + currentPriceType;
+                customPriceNormal = parseInt(selected.dataset.customPriceNormal) || 0;
+                customPriceStar   = parseInt(selected.dataset.customPriceStar)   || 0;
+                customPriceLarge  = parseInt(selected.dataset.customPriceLarge)  || 0;
+                priceTypeDisplay.textContent = currentPriceType === 'CUSTOM' ? '独自価格' : '価格タイプ: ' + currentPriceType;
                 priceTypeDisplay.classList.remove('hidden');
                 // 仕出しモード切替
                 var newCateringMode = (selected.dataset.bentoType === 'CATERING');
@@ -213,7 +222,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const initSelected = customerSelect.options[customerSelect.selectedIndex];
         if (initSelected && initSelected.value) {
             currentPriceType = initSelected.dataset.priceType || 'A';
-            priceTypeDisplay.textContent = '価格タイプ: ' + currentPriceType;
+            customPriceNormal = parseInt(initSelected.dataset.customPriceNormal) || 0;
+            customPriceStar   = parseInt(initSelected.dataset.customPriceStar)   || 0;
+            customPriceLarge  = parseInt(initSelected.dataset.customPriceLarge)  || 0;
+            priceTypeDisplay.textContent = currentPriceType === 'CUSTOM' ? '独自価格' : '価格タイプ: ' + currentPriceType;
             priceTypeDisplay.classList.remove('hidden');
             isCateringMode = (initSelected.dataset.bentoType === 'CATERING');
             if (isCateringMode) {
@@ -322,12 +334,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- カード生成 ---
     function buildProductCards() {
         // No.11を分離（大盛り割増用）
-        var no11 = currentProducts.find(function(p) { return p.no === 11; });
-        if (no11) {
-            var priceKey = 'price_' + currentPriceType;
-            largeExtraPrice = no11[priceKey] || 0;
+        if (currentPriceType === 'CUSTOM') {
+            largeExtraPrice = customPriceLarge;
         } else {
-            largeExtraPrice = 0;
+            var no11 = currentProducts.find(function(p) { return p.no === 11; });
+            if (no11) {
+                var priceKey = 'price_' + currentPriceType;
+                largeExtraPrice = no11[priceKey] || 0;
+            } else {
+                largeExtraPrice = 0;
+            }
         }
 
         // No.1〜10を取得
@@ -372,8 +388,13 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 idx = newIdx++;
             }
-            var priceKey = 'price_' + currentPriceType;
-            var basePrice = product[priceKey] || 0;
+            var basePrice;
+            if (currentPriceType === 'CUSTOM') {
+                basePrice = product.name.includes('★') ? customPriceStar : customPriceNormal;
+            } else {
+                var priceKey = 'price_' + currentPriceType;
+                basePrice = product[priceKey] || 0;
+            }
             var isIntegrated = (product.container_type === '一体型');
             var largePriceTotal = isIntegrated ? basePrice : basePrice + largeExtraPrice;
 
@@ -423,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
                     '<div style="display:flex;align-items:center;gap:8px;">' +
                         '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#374151;color:#fff;font-size:0.8rem;font-weight:700;">' + product.no + '</span>' +
-                        '<span style="font-weight:700;color:#1f2937;font-size:1rem;">' + escapeHtml(product.name) + '</span>' +
+                        '<span style="font-weight:700;color:#1f2937;font-size:1.125rem;white-space:nowrap;">' + escapeHtml(product.name) + '</span>' +
                     '</div>' +
                     '<span style="font-size:0.875rem;color:#6b7280;">単価 &yen;' + basePrice.toLocaleString() + '</span>' +
                 '</div>' +
@@ -565,11 +586,14 @@ document.addEventListener('DOMContentLoaded', function() {
         var tr = document.createElement('tr');
         tr.className = 'extra-row';
         tr.dataset.rowIdx = idx;
+        tr.dataset.idVal = String(idVal);
 
         tr.innerHTML =
-            '<input type="hidden" name="extra_items-' + idx + '-id" value="' + escapeHtml(String(idVal)) + '">' +
-            '<input type="hidden" name="extra_items-' + idx + '-subtotal" value="' + subtotal + '">' +
-            '<input type="hidden" name="extra_items-' + idx + '-DELETE" value="">' +
+            '<td style="display:none">' +
+                '<input type="hidden" name="extra_items-' + idx + '-id" value="' + escapeHtml(String(idVal)) + '">' +
+                '<input type="hidden" name="extra_items-' + idx + '-subtotal" value="' + subtotal + '">' +
+                '<input type="hidden" name="extra_items-' + idx + '-DELETE" value="">' +
+            '</td>' +
             '<td class="px-2 py-1.5 border-b border-gray-100">' +
                 '<div class="flex gap-1 items-center">' +
                     '<select class="extra-product-select text-sm border border-gray-200 rounded px-1 py-0.5 bg-white max-w-xs">' +
@@ -649,7 +673,21 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!row) return;
             var idx = row.dataset.rowIdx;
             var deleteInput = row.querySelector('[name="extra_items-' + idx + '-DELETE"]');
+            var idInput = row.querySelector('[name="extra_items-' + idx + '-id"]');
             if (deleteInput) deleteInput.value = 'on';
+            // id と DELETE を form 内の永続コンテナへ移動（row.remove() で消えないように）
+            var formEl = document.getElementById('order-form');
+            var deletedArea = document.getElementById('extra-deleted-inputs');
+            if (!deletedArea && formEl) {
+                deletedArea = document.createElement('div');
+                deletedArea.id = 'extra-deleted-inputs';
+                deletedArea.style.display = 'none';
+                formEl.appendChild(deletedArea);
+            }
+            if (deletedArea) {
+                if (idInput) deletedArea.appendChild(idInput);
+                if (deleteInput) deletedArea.appendChild(deleteInput);
+            }
             row.remove();
             if (extraItemsRows.children.length === 0 && extraItemsEmpty) {
                 extraItemsEmpty.classList.remove('hidden');
@@ -684,6 +722,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         // 仕出し行
         document.querySelectorAll('.catering-row').forEach(function(row) {
+            if (row.classList.contains('catering-row--deleted')) return;
             var idx = row.dataset.rowIdx;
             var subInput = row.querySelector('[name="items-' + idx + '-subtotal"]');
             var qtyInput = row.querySelector('[name="items-' + idx + '-quantity"]');
@@ -820,7 +859,8 @@ document.addEventListener('DOMContentLoaded', function() {
             var idx = row.dataset.rowIdx;
             var deleteInput = row.querySelector('[name="items-' + idx + '-DELETE"]');
             if (deleteInput) deleteInput.value = 'on';
-            row.remove();
+            row.classList.add('catering-row--deleted');
+            row.style.display = 'none';
             calcGrandTotal();
         });
     }
@@ -828,12 +868,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- 顧客変更時に全カードの価格を更新 ---
     function updateAllCardPrices() {
         // No.11の価格を再計算
-        var no11 = currentProducts.find(function(p) { return p.no === 11; });
-        if (no11) {
-            var priceKey = 'price_' + currentPriceType;
-            largeExtraPrice = no11[priceKey] || 0;
+        if (currentPriceType === 'CUSTOM') {
+            largeExtraPrice = customPriceLarge;
         } else {
-            largeExtraPrice = 0;
+            var no11 = currentProducts.find(function(p) { return p.no === 11; });
+            if (no11) {
+                var priceKey = 'price_' + currentPriceType;
+                largeExtraPrice = no11[priceKey] || 0;
+            } else {
+                largeExtraPrice = 0;
+            }
         }
 
         document.querySelectorAll('.product-card').forEach(function(card) {
@@ -841,8 +885,13 @@ document.addEventListener('DOMContentLoaded', function() {
             var product = currentProducts.find(function(p) { return String(p.id) === String(productId); });
             if (!product) return;
 
-            var priceKey = 'price_' + currentPriceType;
-            var basePrice = product[priceKey] || 0;
+            var basePrice;
+            if (currentPriceType === 'CUSTOM') {
+                basePrice = product.name.includes('★') ? customPriceStar : customPriceNormal;
+            } else {
+                var priceKey = 'price_' + currentPriceType;
+                basePrice = product[priceKey] || 0;
+            }
             var isIntegrated = (product.container_type === '一体型');
             var largePriceTotal = isIntegrated ? basePrice : basePrice + largeExtraPrice;
             var idx = card.dataset.formIndex;

@@ -4,8 +4,10 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.db.models import Count, Sum, Q
 from django.utils import timezone
+import csv
 import json
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission
+from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm
 from sales.models import Product
 from datetime import datetime, timedelta
@@ -591,25 +593,49 @@ def payment_method_delete(request, pk):
 
 @login_required
 def order_settings(request):
+    User = get_user_model()
     settings_obj = OrderSettings.load()
     payment_methods = PaymentMethod.objects.all()
     extra_products = ExtraProduct.objects.all()
     delivery_bins = DeliveryBin.objects.all()
 
+    orders_users = User.objects.filter(
+        menu_permission__can_view_orders=True,
+        is_active=True
+    ).order_by('last_name', 'first_name')
+
     if request.method == 'POST':
-        form = OrderSettingsForm(request.POST, instance=settings_obj)
-        if form.is_valid():
-            form.save()
-            messages.success(request, '設定を保存しました。')
+        if request.POST.get('action') == 'menu_permissions':
+            for u in orders_users:
+                perm, _ = OrderUserMenuPermission.objects.get_or_create(user=u)
+                perm.can_view_dashboard = f'perm_{u.id}_dashboard' in request.POST
+                perm.can_view_delivery_list = f'perm_{u.id}_delivery_list' in request.POST
+                perm.can_view_new_order = f'perm_{u.id}_new_order' in request.POST
+                perm.can_view_customers = f'perm_{u.id}_customers' in request.POST
+                perm.can_view_settings = f'perm_{u.id}_settings' in request.POST
+                perm.save()
+            messages.success(request, 'ユーザーメニュー設定を保存しました。')
             return redirect('orders:order_settings')
+        else:
+            form = OrderSettingsForm(request.POST, instance=settings_obj)
+            if form.is_valid():
+                form.save()
+                messages.success(request, '設定を保存しました。')
+                return redirect('orders:order_settings')
     else:
         form = OrderSettingsForm(instance=settings_obj)
+
+    user_perms = []
+    for u in orders_users:
+        perm, _ = OrderUserMenuPermission.objects.get_or_create(user=u)
+        user_perms.append({'user': u, 'perm': perm})
 
     context = {
         'form': form,
         'payment_methods': payment_methods,
         'extra_products': extra_products,
         'delivery_bins': delivery_bins,
+        'user_perms': user_perms,
     }
     return render(request, 'orders/order_settings.html', context)
 
@@ -737,6 +763,95 @@ def _parse_target_date(request):
 
 
 @login_required
+def order_export_page(request):
+    """CSV出力の専用ページ（日付範囲フォーム表示）"""
+    today = timezone.now().date()
+    default_from = today.replace(day=1)
+    date_from = request.GET.get('date_from', default_from.strftime('%Y-%m-%d'))
+    date_to   = request.GET.get('date_to',   today.strftime('%Y-%m-%d'))
+    return render(request, 'orders/order_export.html', {
+        'date_from': date_from,
+        'date_to': date_to,
+    })
+
+
+@login_required
+def order_csv_export(request):
+    """売上データCSVファイルをダウンロードする"""
+    today = timezone.now().date()
+    date_from_str = request.GET.get('date_from')
+    date_to_str   = request.GET.get('date_to')
+
+    try:
+        date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date() if date_from_str else today.replace(day=1)
+    except ValueError:
+        date_from = today.replace(day=1)
+
+    try:
+        date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date() if date_to_str else today
+    except ValueError:
+        date_to = today
+
+    orders = (
+        Order.objects
+        .filter(delivery_date__gte=date_from, delivery_date__lte=date_to)
+        .select_related('customer', 'customer__payment_method', 'customer__delivery_bin')
+        .prefetch_related('items', 'extra_items')
+        .order_by('delivery_date', 'order_number')
+    )
+
+    filename = f"orders_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.csv"
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write('\ufeff')  # UTF-8 BOM（Excel日本語対応）
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'ORID', '日付', '顧客種別', '顧客名', '配達便', 'お弁当種別',
+        '支払い方法', '価格タイプ',
+        '★お弁当注文数', 'お弁当注文数', '大盛りご飯数', 'お弁当合計金額',
+        '追加商品注文数', '追加商品合計金額', '総計金額',
+    ])
+
+    for order in orders:
+        c = order.customer
+        customer_name = c.company_name if c.customer_type == 'B2B' else c.name
+        delivery_bin  = c.delivery_bin.name if c.delivery_bin else ''
+        payment_name  = c.payment_method.name if c.payment_method else ''
+
+        # order.bento_total / order.total プロパティは内部で items.all() を
+        # 再発行するため prefetch キャッシュが効かない。直接ループで集計する。
+        items = list(order.items.all())
+        bento_qty_star   = sum(item.quantity for item in items if '★' in item.product_name)
+        bento_qty_normal = sum(item.quantity for item in items if '★' not in item.product_name)
+        bento_qty_large  = sum(item.quantity_large for item in items)
+        bento_total = sum(item.subtotal for item in items)
+        extra_qty   = sum(ei.quantity for ei in order.extra_items.all())
+        extra_total = sum(ei.subtotal for ei in order.extra_items.all())
+        grand_total = bento_total + extra_total
+
+        writer.writerow([
+            order.order_number,
+            order.delivery_date.strftime('%Y-%m-%d'),
+            c.customer_type,
+            customer_name,
+            delivery_bin,
+            c.bento_type,
+            payment_name,
+            c.price_type,
+            bento_qty_star,
+            bento_qty_normal,
+            bento_qty_large,
+            int(bento_total),
+            extra_qty,
+            int(extra_total),
+            int(grand_total),
+        ])
+
+    return response
+
+
+@login_required
 def delivery_list(request):
     """配達便一覧インデックスページ（管理者向け）"""
     target_date, today = _parse_target_date(request)
@@ -848,6 +963,9 @@ def delivery_list_by_bin(request, pk):
         pm_map[key]['total'] += row['order'].total
     payment_method_totals = sorted(pm_map.values(), key=lambda x: x['sort_order'])
 
+    public_url = request.build_absolute_uri(
+        f"/orders/public/delivery/{pk}/"
+    )
     context = {
         'delivery_bin': delivery_bin,
         'target_date': target_date,
@@ -858,5 +976,74 @@ def delivery_list_by_bin(request, pk):
         'not_ordered_count': len(rows) - ordered_count,
         'payment_method_totals': payment_method_totals,
         'today': today,
+        'public_url': public_url,
     }
     return render(request, 'orders/delivery_list_by_bin.html', context)
+
+
+def delivery_list_by_bin_public(request, pk):
+    """特定便の配達リスト（公開版・ログイン不要・QRコードアクセス対応）"""
+    delivery_bin = get_object_or_404(DeliveryBin, pk=pk, is_active=True)
+    target_date, today = _parse_target_date(request)
+    weekday = target_date.weekday()
+    WEEKDAY_LABELS = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日', '日曜日']
+
+    scheduled_customer_ids = _get_scheduled_customer_ids(target_date)
+    orders_for_date = Order.objects.filter(
+        delivery_date=target_date,
+        customer__delivery_bin=delivery_bin
+    ).select_related('customer', 'customer__payment_method').prefetch_related(
+        'items', 'extra_items'
+    )
+    order_map = {o.customer_id: o for o in orders_for_date}
+
+    all_customer_ids = (
+        scheduled_customer_ids | set(order_map.keys())
+    )
+    bin_customers = Customer.objects.filter(
+        pk__in=all_customer_ids,
+        is_active=True,
+        delivery_bin=delivery_bin
+    ).select_related('payment_method').order_by('company_name', 'name')
+
+    rows = []
+    for customer in bin_customers:
+        order = order_map.get(customer.pk)
+        rows.append({
+            'customer': customer,
+            'order': order,
+            'has_order': order is not None,
+            'total_quantity': order.total_quantity if order else 0,
+            'notes': order.notes if order else customer.notes,
+            'order_items': list(order.items.all()) if order else [],
+            'extra_items': list(order.extra_items.all()) if order else [],
+        })
+
+    ordered_count = sum(1 for r in rows if r['has_order'])
+
+    pm_map = {}
+    for row in rows:
+        if not row['has_order']:
+            continue
+        pm = row['customer'].payment_method
+        key = pm.pk if pm else 0
+        if key not in pm_map:
+            pm_map[key] = {
+                'name': pm.name if pm else 'その他',
+                'total': 0,
+                'sort_order': pm.sort_order if pm else 999,
+            }
+        pm_map[key]['total'] += row['order'].total
+    payment_method_totals = sorted(pm_map.values(), key=lambda x: x['sort_order'])
+
+    context = {
+        'delivery_bin': delivery_bin,
+        'target_date': target_date,
+        'target_date_str': target_date.strftime('%Y-%m-%d'),
+        'weekday_label': WEEKDAY_LABELS[weekday],
+        'rows': rows,
+        'ordered_count': ordered_count,
+        'not_ordered_count': len(rows) - ordered_count,
+        'payment_method_totals': payment_method_totals,
+    }
+    return render(request, 'orders/delivery_list_by_bin_public.html', context)

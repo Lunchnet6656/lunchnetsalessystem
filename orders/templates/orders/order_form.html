@@ -11,7 +11,7 @@
     <form method="post" id="order-form" class="space-y-6" {% if is_edit %}data-order-pk="{{ order.pk }}"{% endif %} data-is-catering="{% if is_catering %}true{% else %}false{% endif %}" data-extra-products="{{ extra_products_json }}">
         {% csrf_token %}
 
-        {% if form.errors or formset.errors %}
+        {% if form.errors or formset.errors or extra_formset.errors %}
         <div class="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-sm">
             入力内容にエラーがあります。確認してください。
             {% for error in form.non_field_errors %}
@@ -33,6 +33,9 @@
                         {% for c in customers %}
                         <option value="{{ c.pk }}" data-price-type="{{ c.price_type }}"
                                 data-bento-type="{{ c.bento_type }}"
+                                data-custom-price-normal="{{ c.custom_price_normal|default:0 }}"
+                                data-custom-price-star="{{ c.custom_price_star|default:0 }}"
+                                data-custom-price-large="{{ c.custom_price_large|default:0 }}"
                                 {% if form.customer.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>
                             {{ c }}
                         </option>

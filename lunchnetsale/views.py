@@ -8,6 +8,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
 import pandas as pd
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission
+from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
 from django.utils.dateparse import parse_date
@@ -1644,6 +1645,85 @@ def item_quantity_update_view(request, pk):
 
 
 
+def _aggregate_daily_performance(current_date, daily_reports, daily_orders):
+    """1日分の販売(DailyReport)+受注(Order)データを合算して返す"""
+    # DailyReport集計
+    dr_total_quantity = daily_reports.aggregate(v=Sum('total_quantity'))['v'] or 0
+    dr_total_sales = daily_reports.aggregate(v=Sum('total_sales_quantity'))['v'] or 0
+    dr_total_remaining = daily_reports.aggregate(v=Sum('total_remaining'))['v'] or 0
+    dr_total_revenue = daily_reports.aggregate(v=Sum('total_revenue'))['v'] or 0
+    dr_cash = daily_reports.aggregate(v=Sum('cash'))['v'] or 0
+    dr_paypay = daily_reports.aggregate(v=Sum('paypay'))['v'] or 0
+    dr_digital = daily_reports.aggregate(v=Sum('digital_payment'))['v'] or 0
+
+    # Order集計
+    order_item_agg = OrderItem.objects.filter(order__in=daily_orders).aggregate(
+        total_qty=Sum('quantity'),
+        total_subtotal=Sum('subtotal'),
+    )
+    order_quantity = order_item_agg['total_qty'] or 0
+    order_item_revenue = float(order_item_agg['total_subtotal'] or 0)
+
+    order_extra_revenue = float(
+        OrderExtraItem.objects.filter(order__in=daily_orders)
+        .aggregate(total=Sum('subtotal'))['total'] or 0
+    )
+    order_revenue = order_item_revenue + order_extra_revenue
+
+    # Order決済方法別集計
+    order_cash = 0
+    order_paypay = 0
+    order_invoice = 0
+
+    order_pay_items = (
+        OrderItem.objects.filter(order__in=daily_orders)
+        .values('order__customer__payment_method__name')
+        .annotate(revenue=Sum('subtotal'))
+    )
+    order_pay_extras = (
+        OrderExtraItem.objects.filter(order__in=daily_orders)
+        .values('order__customer__payment_method__name')
+        .annotate(revenue=Sum('subtotal'))
+    )
+
+    for entry in list(order_pay_items) + list(order_pay_extras):
+        name = entry['order__customer__payment_method__name'] or ''
+        rev = float(entry['revenue'] or 0)
+        if '現金' in name:
+            order_cash += rev
+        elif 'PayPay' in name or 'paypay' in name.lower():
+            order_paypay += rev
+        elif '請求書' in name:
+            order_invoice += rev
+
+    # 合算
+    combined_quantity = float(dr_total_quantity) + order_quantity
+    combined_sales = float(dr_total_sales) + order_quantity
+    combined_remaining = float(dr_total_remaining)
+    combined_revenue = float(dr_total_revenue) + order_revenue
+    combined_cash = float(dr_cash) + order_cash
+    combined_paypay = float(dr_paypay) + order_paypay
+    combined_digital = float(dr_digital)
+    combined_invoice = order_invoice
+
+    # 廃棄率: DailyReport残数 / (DailyReport持参数 + Order数量) × 100
+    waste_denominator = float(dr_total_quantity) + order_quantity
+    waste_rate = 0 if waste_denominator == 0 else (float(dr_total_remaining) / waste_denominator) * 100
+
+    return {
+        'date': current_date,
+        'total_quantity': combined_quantity,
+        'total_sales_quantity': combined_sales,
+        'total_remaining': combined_remaining,
+        'total_revenue': combined_revenue,
+        'cash': combined_cash,
+        'paypay': combined_paypay,
+        'digital_payment': combined_digital,
+        'invoice_payment': combined_invoice,
+        'waste_rate': waste_rate,
+    }
+
+
 # 実績データ確認ビュー
 @login_required
 def performance_data_view(request):
@@ -1656,6 +1736,9 @@ def performance_data_view(request):
     search_date_start = request.GET.get('search_date_start')
     search_date_end = request.GET.get('search_date_end')
     date_range_option = request.GET.get('range')
+
+    # GETリクエストから月パラメータを取得
+    month_param = request.GET.get('month')  # e.g. '2026-03'
 
     # ボタンで選択された範囲に基づいて日付を設定
     if date_range_option == 'this_month':
@@ -1674,10 +1757,16 @@ def performance_data_view(request):
         two_years_ago = current_year if current_month > 2 else current_year - 1
         start_date = make_aware(datetime(two_years_ago, two_months_ago, 1))
         end_date = make_aware(datetime(two_years_ago, two_months_ago, (today.replace(day=1) - timedelta(days=1)).day))
-    elif search_date_start and search_date_end:
-        # ユーザーが指定した日付範囲
-        start_date = make_aware(datetime.strptime(search_date_start, '%Y-%m-%d'))
-        end_date = make_aware(datetime.strptime(search_date_end, '%Y-%m-%d')) + timedelta(days=1)
+    elif month_param:
+        # 月選択セレクターから
+        try:
+            m_year, m_month = map(int, month_param.split('-'))
+            start_date = make_aware(datetime(m_year, m_month, 1))
+            last_day = calendar.monthrange(m_year, m_month)[1]
+            end_date = make_aware(datetime(m_year, m_month, last_day)) + timedelta(days=1)
+        except (ValueError, AttributeError):
+            start_date = make_aware(today.replace(day=1))
+            end_date = make_aware(today + timedelta(days=1))
     else:
         # デフォルトは今月
         start_date = make_aware(today.replace(day=1))
@@ -1685,6 +1774,7 @@ def performance_data_view(request):
 
     # 日付範囲に基づいてレポートを取得
     reports = DailyReport.objects.filter(date__range=[start_date, end_date])
+    orders = Order.objects.filter(delivery_date__range=[start_date, end_date])
 
     # 日付ごとに集計データを取得
     date_range = (end_date - start_date).days
@@ -1697,51 +1787,40 @@ def performance_data_view(request):
     cash = 0
     paypay = 0
     digital_payment = 0
+    invoice_payment = 0
 
     for i in range(date_range):
         current_date = start_date + timedelta(days=i)
         daily_reports = reports.filter(date=current_date)
+        daily_orders = orders.filter(delivery_date=current_date)
 
-        daily_total_quantity = daily_reports.aggregate(total_quantity=Sum('total_quantity'))['total_quantity'] or 0
-        daily_total_sales_quantity = daily_reports.aggregate(total_sales_quantity=Sum('total_sales_quantity'))['total_sales_quantity'] or 0
-        daily_total_remaining = daily_reports.aggregate(total_remaining=Sum('total_remaining'))['total_remaining'] or 0
-        daily_total_revenue = daily_reports.aggregate(total_revenue=Sum('total_revenue'))['total_revenue'] or 0
-        daily_cash = daily_reports.aggregate(cash=Sum('cash'))['cash'] or 0
-        daily_paypay = daily_reports.aggregate(paypay=Sum('paypay'))['paypay'] or 0
-        daily_digital_payment = daily_reports.aggregate(digital_payment=Sum('digital_payment'))['digital_payment'] or 0
-
-        # 日ごとの廃棄率計算
-        waste_rate = 0 if daily_total_quantity == 0 else (daily_total_remaining / daily_total_quantity) * 100
-
-        summary_data.append({
-            'date': current_date,
-            'total_quantity': daily_total_quantity,
-            'total_sales_quantity': daily_total_sales_quantity,
-            'total_remaining': daily_total_remaining,
-            'total_revenue': daily_total_revenue,
-            'cash': daily_cash,
-            'paypay': daily_paypay,
-            'digital_payment': daily_digital_payment,
-            'waste_rate': waste_rate,
-        })
+        day_data = _aggregate_daily_performance(current_date, daily_reports, daily_orders)
+        summary_data.append(day_data)
 
         # 合計値の計算
-        total_quantity += daily_total_quantity
-        total_sales_quantity += daily_total_sales_quantity
-        total_remaining += daily_total_remaining
-        total_revenue += daily_total_revenue
-        cash += daily_cash
-        paypay += daily_paypay
-        digital_payment += daily_digital_payment
+        total_quantity += day_data['total_quantity']
+        total_sales_quantity += day_data['total_sales_quantity']
+        total_remaining += day_data['total_remaining']
+        total_revenue += day_data['total_revenue']
+        cash += day_data['cash']
+        paypay += day_data['paypay']
+        digital_payment += day_data['digital_payment']
+        invoice_payment += day_data['invoice_payment']
 
     # 全体の廃棄率計算
     total_waste_rate = 0 if total_quantity == 0 else (total_remaining / total_quantity) * 100
 
+    # CSV用・テンプレート用に計算済み日付文字列を生成
+    computed_start = start_date.strftime('%Y-%m-%d')
+    computed_end = (end_date - timedelta(days=1)).strftime('%Y-%m-%d')
+    current_month_str = start_date.strftime('%Y-%m')
+
     # テンプレートにデータを渡す
     context = {
         'summary_data': summary_data,
-        'search_date_start': search_date_start,
-        'search_date_end': search_date_end,
+        'search_date_start': computed_start,
+        'search_date_end': computed_end,
+        'current_month': current_month_str,
         'total_quantity': total_quantity,
         'total_sales_quantity': total_sales_quantity,
         'total_remaining': total_remaining,
@@ -1749,6 +1828,7 @@ def performance_data_view(request):
         'cash': cash,
         'paypay': paypay,
         'digital_payment': digital_payment,
+        'invoice_payment': invoice_payment,
         'total_waste_rate': total_waste_rate,
     }
 
@@ -2024,6 +2104,7 @@ def download_csv(request):
 
     # 日付範囲に基づいてレポートを取得
     reports = DailyReport.objects.filter(date__range=[start_date, end_date])
+    orders = Order.objects.filter(delivery_date__range=[start_date, end_date])
 
     # レスポンスをCSV形式で作成（Shift-JISエンコーディングを指定）
     response = HttpResponse(content_type='text/csv; charset=shift-jis')
@@ -2033,9 +2114,9 @@ def download_csv(request):
 
     # Shift-JIS用のCSVライターを作成
     writer = csv.writer(response)
-    
+
     # ヘッダーをShift-JISでエンコード
-    header = ['日付', '総持参数', '総販売数', '総残数', '売上総額(¥)', '現金(¥)', 'PayPay(¥)', '電子決済(¥)', '廃棄率(%)']
+    header = ['日付', '総持参数', '総販売数', '総残数', '売上総額(¥)', '現金(¥)', 'PayPay(¥)', '電子決済(¥)', '請求書払い(¥)', '廃棄率(%)']
     writer.writerow([h.encode('shift-jis', 'ignore').decode('shift-jis') for h in header])
 
     # 日付ごとに集計データを取得してCSVに書き込む
@@ -2044,30 +2125,25 @@ def download_csv(request):
     for i in range(date_range):
         current_date = start_date + timedelta(days=i)
         daily_reports = reports.filter(date=current_date)
+        daily_orders = orders.filter(delivery_date=current_date)
 
-        total_quantity = daily_reports.aggregate(total_quantity=Sum('total_quantity'))['total_quantity'] or 0
-        total_sales_quantity = daily_reports.aggregate(total_sales_quantity=Sum('total_sales_quantity'))['total_sales_quantity'] or 0
-        total_remaining = daily_reports.aggregate(total_remaining=Sum('total_remaining'))['total_remaining'] or 0
-        total_revenue = daily_reports.aggregate(total_revenue=Sum('total_revenue'))['total_revenue'] or 0
-        cash = daily_reports.aggregate(cash=Sum('cash'))['cash'] or 0
-        paypay = daily_reports.aggregate(paypay=Sum('paypay'))['paypay'] or 0
-        digital_payment = daily_reports.aggregate(digital_payment=Sum('digital_payment'))['digital_payment'] or 0
-        waste_rate = 0 if total_quantity == 0 else (total_remaining / total_quantity) * 100
+        day_data = _aggregate_daily_performance(current_date, daily_reports, daily_orders)
 
         # 日付を文字列に変換
         date_str = current_date.strftime('%Y-%m-%d')
-        
+
         # データ行を作成してShift-JISでエンコード
         row = [
             date_str,
-            str(total_quantity),
-            str(total_sales_quantity),
-            str(total_remaining),
-            str(total_revenue),
-            str(cash),
-            str(paypay),
-            str(digital_payment),
-            f"{waste_rate:.1f}"
+            str(day_data['total_quantity']),
+            str(day_data['total_sales_quantity']),
+            str(day_data['total_remaining']),
+            str(day_data['total_revenue']),
+            str(day_data['cash']),
+            str(day_data['paypay']),
+            str(day_data['digital_payment']),
+            str(day_data['invoice_payment']),
+            f"{day_data['waste_rate']:.1f}"
         ]
         writer.writerow([str(item).encode('shift-jis', 'ignore').decode('shift-jis') for item in row])
 
@@ -2357,3 +2433,196 @@ def get_shin_yokohama_users(request):
         for perm in users
     ]
     return JsonResponse(data, safe=False)
+
+
+@login_required
+def sales_dashboard_view(request):
+    """売上実績ダッシュボード - sales + orders 統合"""
+    import json
+
+    today = date.today()
+    year = int(request.GET.get('year', today.year))
+    month = int(request.GET.get('month', today.month))
+
+    # 月の日付範囲
+    start_date = date(year, month, 1)
+    _, last_day = monthrange(year, month)
+    end_date = date(year, month, last_day)
+
+    # 月の全日付リスト
+    all_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+
+    # ===== チャート1: 売上推移（積み上げ棒グラフ） =====
+    # DailyReport: 日別売上
+    dr_by_date = dict(
+        DailyReport.objects.filter(date__range=(start_date, end_date))
+        .values('date')
+        .annotate(revenue=Sum('total_revenue'))
+        .values_list('date', 'revenue')
+    )
+
+    # Orders: 日別売上（OrderItem + OrderExtraItem を別クエリ）
+    order_item_by_date = dict(
+        OrderItem.objects.filter(order__delivery_date__range=(start_date, end_date))
+        .values('order__delivery_date')
+        .annotate(revenue=Sum('subtotal'))
+        .values_list('order__delivery_date', 'revenue')
+    )
+    order_extra_by_date = dict(
+        OrderExtraItem.objects.filter(order__delivery_date__range=(start_date, end_date))
+        .values('order__delivery_date')
+        .annotate(revenue=Sum('subtotal'))
+        .values_list('order__delivery_date', 'revenue')
+    )
+
+    trend_labels = []
+    trend_dr_data = []
+    trend_order_data = []
+    for d in all_dates:
+        trend_labels.append(f"{d.month}/{d.day}")
+        trend_dr_data.append(float(dr_by_date.get(d, 0) or 0))
+        order_rev = float(order_item_by_date.get(d, 0) or 0) + float(order_extra_by_date.get(d, 0) or 0)
+        trend_order_data.append(order_rev)
+
+    # ===== チャート2: 販売場所別売上（横棒グラフ） =====
+    dr_by_location = list(
+        DailyReport.objects.filter(date__range=(start_date, end_date))
+        .values('location_no', 'location')
+        .annotate(revenue=Sum('total_revenue'))
+        .order_by('-revenue')
+    )
+
+    # Orders合計を「受注」カテゴリとして追加
+    order_total_items = OrderItem.objects.filter(
+        order__delivery_date__range=(start_date, end_date)
+    ).aggregate(revenue=Sum('subtotal'))['revenue'] or 0
+    order_total_extras = OrderExtraItem.objects.filter(
+        order__delivery_date__range=(start_date, end_date)
+    ).aggregate(revenue=Sum('subtotal'))['revenue'] or 0
+    order_total = float(order_total_items) + float(order_total_extras)
+
+    location_data = []
+    for loc in dr_by_location:
+        location_data.append({
+            'label': loc['location'] or f"場所{loc['location_no']}",
+            'revenue': float(loc['revenue'] or 0),
+        })
+    if order_total > 0:
+        location_data.append({'label': '受注', 'revenue': order_total})
+    location_data.sort(key=lambda x: x['revenue'], reverse=True)
+
+    location_labels = json.dumps([d['label'] for d in location_data], ensure_ascii=False)
+    location_revenues = json.dumps([d['revenue'] for d in location_data])
+
+    # ===== チャート3: 決済方法別（ドーナツチャート） =====
+    dr_payments = DailyReport.objects.filter(
+        date__range=(start_date, end_date)
+    ).aggregate(
+        cash=Sum('cash'),
+        paypay=Sum('paypay'),
+        digital_payment=Sum('digital_payment'),
+    )
+
+    payment_dict = defaultdict(float)
+    payment_dict['現金'] = float(dr_payments['cash'] or 0)
+    payment_dict['PayPay'] = float(dr_payments['paypay'] or 0)
+    payment_dict['電子決済'] = float(dr_payments['digital_payment'] or 0)
+
+    # Orders: 決済方法別（OrderItem, OrderExtraItem別クエリ）
+    order_pay_items = (
+        OrderItem.objects.filter(order__delivery_date__range=(start_date, end_date))
+        .values('order__customer__payment_method__name')
+        .annotate(revenue=Sum('subtotal'))
+    )
+    order_pay_extras = (
+        OrderExtraItem.objects.filter(order__delivery_date__range=(start_date, end_date))
+        .values('order__customer__payment_method__name')
+        .annotate(revenue=Sum('subtotal'))
+    )
+
+    for entry in order_pay_items:
+        name = entry['order__customer__payment_method__name'] or '未設定'
+        payment_dict[name] += float(entry['revenue'] or 0)
+    for entry in order_pay_extras:
+        name = entry['order__customer__payment_method__name'] or '未設定'
+        payment_dict[name] += float(entry['revenue'] or 0)
+
+    # 0円の決済方法を除外
+    payment_dict = {k: v for k, v in payment_dict.items() if v > 0}
+    payment_labels = json.dumps(list(payment_dict.keys()), ensure_ascii=False)
+    payment_data = json.dumps(list(payment_dict.values()))
+
+    # ===== チャート4: 商品別販売数・廃棄率 =====
+    dr_products = list(
+        DailyReportEntry.objects.filter(report__date__range=(start_date, end_date))
+        .values('product_no', 'product')
+        .annotate(
+            total_quantity=Sum('quantity'),
+            total_sales=Sum('sales_quantity'),
+            total_remaining=Sum('remaining_number'),
+        )
+        .filter(product_no__gte=1, product_no__lte=10)
+        .order_by('product_no')
+    )
+
+    order_products = dict(
+        OrderItem.objects.filter(order__delivery_date__range=(start_date, end_date))
+        .exclude(product_name='')
+        .values('product_name')
+        .annotate(total_qty=Sum('quantity'))
+        .values_list('product_name', 'total_qty')
+    )
+
+    product_labels = []
+    product_dr_sales = []
+    product_order_sales = []
+    product_waste_rates = []
+
+    for p in dr_products:
+        name = p['product'] or f"商品{p['product_no']}"
+        product_labels.append(name)
+        product_dr_sales.append(int(p['total_sales'] or 0))
+        product_order_sales.append(int(order_products.get(name, 0) or 0))
+        total_qty = int(p['total_quantity'] or 0)
+        remaining = int(p['total_remaining'] or 0)
+        waste_rate = round(remaining / total_qty * 100, 1) if total_qty > 0 else 0
+        product_waste_rates.append(waste_rate)
+
+    # 前月・翌月リンク用
+    prev_month = start_date - timedelta(days=1)
+    next_month = end_date + timedelta(days=1)
+
+    # 合計サマリー
+    total_dr_revenue = sum(trend_dr_data)
+    total_order_revenue = sum(trend_order_data)
+    total_revenue = total_dr_revenue + total_order_revenue
+
+    context = {
+        'year': year,
+        'month': month,
+        'prev_year': prev_month.year,
+        'prev_month': prev_month.month,
+        'next_year': next_month.year,
+        'next_month': next_month.month,
+        # サマリー
+        'total_revenue': total_revenue,
+        'total_dr_revenue': total_dr_revenue,
+        'total_order_revenue': total_order_revenue,
+        # チャート1: 売上推移
+        'trend_labels': json.dumps(trend_labels, ensure_ascii=False),
+        'trend_dr_data': json.dumps(trend_dr_data),
+        'trend_order_data': json.dumps(trend_order_data),
+        # チャート2: 販売場所別
+        'location_labels': location_labels,
+        'location_data': location_revenues,
+        # チャート3: 決済方法
+        'payment_labels': payment_labels,
+        'payment_data': payment_data,
+        # チャート4: 商品別
+        'product_labels': json.dumps(product_labels, ensure_ascii=False),
+        'product_dr_sales': json.dumps(product_dr_sales),
+        'product_order_sales': json.dumps(product_order_sales),
+        'product_waste_rates': json.dumps(product_waste_rates),
+    }
+
+    return render(request, 'sales_dashboard.html', context)

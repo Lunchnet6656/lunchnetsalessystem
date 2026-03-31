@@ -119,9 +119,14 @@
                     {% endif %}
 
                     <!-- 実績管理セクション（管理者用） -->
-                    {% if user.menu_permission.can_view_daily_report_list or user.menu_permission.can_view_performance_data or user.menu_permission.can_view_performance_by_location or user.menu_permission.can_view_menu_history %}
+                    {% if user.menu_permission.can_view_dashboard or user.menu_permission.can_view_daily_report_list or user.menu_permission.can_view_performance_data or user.menu_permission.can_view_performance_by_location or user.menu_permission.can_view_menu_history %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">実績管理</h6>
+                        {% if user.menu_permission.can_view_dashboard %}
+                        <a href="{% url 'sales_dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-bar"></i> 売上ダッシュボード
+                        </a>
+                        {% endif %}
                         {% if user.menu_permission.can_view_daily_report_list %}
                         <a href="{% url 'daily_report_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> 日計表 送信結果（管理者用）

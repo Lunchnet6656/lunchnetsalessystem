@@ -96,12 +96,40 @@
         <!-- 価格タイプ -->
         <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.price_type.label }}</label>
-            <select name="price_type"
+            <select name="price_type" id="id_price_type"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 {% for value, label in form.fields.price_type.choices %}
                 <option value="{{ value }}" {% if form.price_type.value == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
+        </div>
+
+        <!-- 独自価格設定（価格タイプ=CUSTOMのときのみ表示） -->
+        <div id="custom-price-section" class="{% if form.price_type.value != 'CUSTOM' %}hidden{% endif %} bg-yellow-50 border border-yellow-300 rounded-lg p-4 space-y-3">
+            <p class="text-sm font-semibold text-yellow-800">独自価格設定</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">★なし商品の価格（円）</label>
+                    <input type="number" name="custom_price_normal" id="id_custom_price_normal"
+                           value="{{ form.custom_price_normal.value|default:'' }}" min="0" step="1"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
+                    {% if form.custom_price_normal.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_normal.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">★あり商品の価格（円）</label>
+                    <input type="number" name="custom_price_star" id="id_custom_price_star"
+                           value="{{ form.custom_price_star.value|default:'' }}" min="0" step="1"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
+                    {% if form.custom_price_star.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_star.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">大盛り割増（円）</label>
+                    <input type="number" name="custom_price_large" id="id_custom_price_large"
+                           value="{{ form.custom_price_large.value|default:'' }}" min="0" step="1"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
+                    {% if form.custom_price_large.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_large.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
         </div>
 
         <!-- 支払い方法 -->
@@ -239,6 +267,14 @@ document.addEventListener('DOMContentLoaded', function() {
     isRegularCheck.addEventListener('change', toggleSchedule);
     regularTypeRadios.forEach(r => r.addEventListener('change', toggleCustomDays));
     toggleCustomDays();
+
+    // 独自価格セクションのトグル
+    const priceTypeSelect = document.getElementById('id_price_type');
+    const customPriceSection = document.getElementById('custom-price-section');
+    function toggleCustomPrice() {
+        customPriceSection.classList.toggle('hidden', priceTypeSelect.value !== 'CUSTOM');
+    }
+    priceTypeSelect.addEventListener('change', toggleCustomPrice);
 });
 </script>
 {% endblock %}

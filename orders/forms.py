@@ -26,7 +26,8 @@ class CustomerForm(forms.ModelForm):
         fields = [
             'customer_type', 'company_name', 'department', 'contact_person', 'name',
             'postal_code', 'address', 'phone', 'fax', 'email',
-            'price_type', 'payment_method', 'delivery_bin', 'bento_type', 'is_regular',
+            'price_type', 'custom_price_normal', 'custom_price_star', 'custom_price_large',
+            'payment_method', 'delivery_bin', 'bento_type', 'is_regular',
             'regular_type',
             'schedule_mon', 'schedule_tue', 'schedule_wed', 'schedule_thu',
             'schedule_fri', 'schedule_sat', 'schedule_sun',
@@ -99,6 +100,10 @@ class OrderItemForm(forms.ModelForm):
         self.fields['product'].required = False
         self.fields['quantity'].required = False
         self.fields['subtotal'].required = False
+        self.fields['quantity_large'].required = False
+        self.fields['quantity_regular'].required = False
+        self.fields['quantity_small'].required = False
+        self.fields['unit_price'].required = False
 
 
 OrderItemFormSet = forms.inlineformset_factory(

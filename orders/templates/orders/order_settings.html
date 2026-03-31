@@ -238,4 +238,73 @@
     <p class="text-gray-500 text-sm">配達便が登録されていません。</p>
     {% endif %}
 </div>
+
+<!-- ユーザー別メニュー表示設定 -->
+<div class="bg-white rounded-lg shadow-sm p-6 mt-8">
+    <h2 class="text-lg font-semibold text-gray-700 mb-2">ユーザー別メニュー表示設定</h2>
+    <p class="text-xs text-gray-500 mb-4">受注管理が有効なユーザーに対して、表示するメニューを設定します。</p>
+    {% if user_perms %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="menu_permissions">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">ユーザー名</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">受注<br>ダッシュボード</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">配達<br>リスト</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">新規<br>受注</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">顧客<br>一覧</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">設定</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for item in user_perms %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-4 py-3 text-sm font-medium text-gray-800">
+                            {{ item.user.last_name }} {{ item.user.first_name }}
+                            <span class="text-xs text-gray-400 ml-1">({{ item.user.username }})</span>
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" name="perm_{{ item.user.id }}_dashboard"
+                                   {% if item.perm.can_view_dashboard %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" name="perm_{{ item.user.id }}_delivery_list"
+                                   {% if item.perm.can_view_delivery_list %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" name="perm_{{ item.user.id }}_new_order"
+                                   {% if item.perm.can_view_new_order %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" name="perm_{{ item.user.id }}_customers"
+                                   {% if item.perm.can_view_customers %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" name="perm_{{ item.user.id }}_settings"
+                                   {% if item.perm.can_view_settings %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4">
+            <button type="submit"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                メニュー設定を保存
+            </button>
+        </div>
+    </form>
+    {% else %}
+    <p class="text-gray-500 text-sm">受注管理が有効なユーザーが存在しません。</p>
+    {% endif %}
+</div>
 {% endblock %}

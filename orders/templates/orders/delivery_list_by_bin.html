@@ -24,11 +24,39 @@
                     {{ target_date|date:"Y年m月d日" }}（{{ weekday_label }}）
                 </p>
             </div>
-            <form method="get">
-                <input type="date" name="date" value="{{ target_date_str }}"
-                       onchange="this.form.submit()"
-                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            </form>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="document.getElementById('qr-modal').classList.remove('hidden')"
+                        class="text-sm bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition font-medium flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4 4h4v4H4V4zm12 0h4v4h-4V4zM4 16h4v4H4v-4z"/>
+                    </svg>
+                    QRコード
+                </button>
+                <form method="get">
+                    <input type="date" name="date" value="{{ target_date_str }}"
+                           onchange="this.form.submit()"
+                           class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- QRコードモーダル -->
+    <div id="qr-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-gray-800">配達リスト QRコード</h2>
+                <button type="button" onclick="document.getElementById('qr-modal').classList.add('hidden')"
+                        class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">配達員はこのQRコードをスキャンしてアクセスできます（ログイン不要）。</p>
+            <div id="qrcode" class="flex justify-center mb-4"></div>
+            <p class="text-xs text-gray-400 break-all text-center">{{ public_url }}</p>
         </div>
     </div>
 
@@ -196,4 +224,18 @@
     {% endif %}
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+    new QRCode(document.getElementById("qrcode"), {
+        text: "{{ public_url }}",
+        width: 200,
+        height: 200,
+        colorDark: "#1f2937",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+    });
+</script>
 {% endblock %}

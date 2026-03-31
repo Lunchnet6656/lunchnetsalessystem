@@ -10,7 +10,7 @@
     }
     @page {
         size: A5 landscape;
-        margin: 8mm 10mm;
+        margin: 10mm;
     }
     * { box-sizing: border-box; }
     body {
@@ -20,12 +20,17 @@
         margin: 0;
         padding: 0;
     }
+    .page-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 128mm;
+    }
+    .spacer { flex: 1; }
 
     /* ===== ヘッダー行（タイトル＋日付） ===== */
     .header {
         display: table;
         width: 100%;
-        margin-bottom: 3mm;
     }
     .header-left {
         display: table-cell;
@@ -49,7 +54,6 @@
     .customer-row {
         display: table;
         width: 100%;
-        margin-bottom: 3mm;
     }
     .customer-name-wrap {
         display: table-cell;
@@ -63,6 +67,7 @@
         display: inline-block;
         min-width: 70mm;
         white-space: nowrap;
+        text-align: center;
     }
     .sama {
         font-size: 13pt;
@@ -74,29 +79,31 @@
     .amount-box {
         border: 3px solid #000;
         text-align: center;
-        padding: 3mm 0;
-        margin: 0 auto 3mm;
-        width: 80%;
-        font-size: 26pt;
+        padding: 5mm 0;
+        margin: 0 auto;
+        width: 85%;
+        font-size: 32pt;
         font-weight: bold;
         letter-spacing: 0.05em;
     }
 
     /* ===== 但し書き・領収文 ===== */
+    .tadashi-block {
+        text-align: center;
+    }
     .tadashi-row {
         text-align: center;
-        font-size: 10pt;
-        margin-bottom: 1.5mm;
+        font-size: 11pt;
+        margin-bottom: 2mm;
     }
     .tadashi-item {
         font-weight: bold;
-        font-size: 11pt;
+        font-size: 12pt;
         margin: 0 4mm;
     }
     .received-text {
         text-align: center;
-        font-size: 9pt;
-        margin-bottom: 3mm;
+        font-size: 10pt;
     }
 
     /* ===== 区切り線 ===== */
@@ -118,67 +125,70 @@
     }
 
     /* 収入印紙セル */
-    .stamp-col { width: 16mm; }
+    .stamp-col { width: 18mm; }
     .stamp-outer {
         border: 1px solid #000;
         text-align: center;
-        height: 22mm;
+        height: 24mm;
         display: table;
         width: 100%;
     }
     .stamp-inner {
         display: table-cell;
         vertical-align: middle;
-        font-size: 8pt;
-        line-height: 2;
+        font-size: 9pt;
+        line-height: 2.2;
     }
     .stamp-top {
         border-bottom: 1px solid #000;
         display: block;
-        padding: 1mm 0;
+        padding: 1.5mm 0;
     }
     .stamp-bottom {
         display: block;
-        padding: 1mm 0;
+        padding: 1.5mm 0;
     }
 
     /* 内訳セル */
-    .breakdown-col { width: 62mm; padding-left: 2mm; padding-right: 2mm; }
+    .breakdown-col { width: 66mm; padding-left: 2mm; padding-right: 3mm; }
     .breakdown-outer {
         border: 1px solid #000;
     }
     .breakdown-header {
         border-bottom: 1px solid #000;
-        padding: 1mm 3mm;
+        padding: 1.5mm 3mm;
         font-weight: bold;
-        font-size: 8.5pt;
+        font-size: 9pt;
     }
     .breakdown-row {
         display: table;
         width: 100%;
-        padding: 1.5mm 3mm;
-        font-size: 9pt;
+        padding: 2mm 3mm;
+        font-size: 9.5pt;
         border-bottom: 1px solid #ccc;
     }
     .breakdown-row:last-child { border-bottom: none; }
-    .breakdown-label { display: table-cell; }
-    .breakdown-amount { display: table-cell; text-align: right; }
+    .breakdown-label { display: table-cell; white-space: nowrap; }
+    .breakdown-amount { display: table-cell; text-align: right; white-space: nowrap; }
 
     /* 自社情報セル */
-    .company-col { padding-left: 4mm; }
+    .company-col { padding-left: 20mm; }
     .company-name-text {
-        font-size: 10pt;
+        font-size: 11pt;
         font-weight: bold;
         display: block;
-        margin-bottom: 1.5mm;
+        margin-bottom: 2mm;
+        white-space: nowrap;
     }
     .company-info {
-        font-size: 8.5pt;
-        line-height: 1.9;
+        font-size: 9pt;
+        line-height: 2.0;
+        white-space: nowrap;
     }
 </style>
 </head>
 <body>
+<div class="page-wrapper">
 
 <!-- ヘッダー：タイトル＋日付 -->
 <div class="header">
@@ -188,6 +198,8 @@
     <div class="header-right">{{ issue_date }}</div>
 </div>
 
+<div class="spacer" style="flex: 0.5;"></div>
+
 <!-- 宛名 -->
 <div class="customer-row">
     <div class="customer-name-wrap">
@@ -195,16 +207,20 @@
     </div>
 </div>
 
+<div class="spacer"></div>
+
 <!-- 金額 -->
 <div class="amount-box">¥{{ total_formatted }}</div>
 
-<!-- 但し書き -->
-<div class="tadashi-row">
-    但し<span class="tadashi-item">お弁当代</span>として
+<div class="spacer" style="flex: 0.5;"></div>
+
+<!-- 但し書き・領収文 -->
+<div class="tadashi-block">
+    <div class="tadashi-row">但し<span class="tadashi-item">お弁当代</span>として</div>
+    <div class="received-text">上記、正に領収いたしました</div>
 </div>
 
-<!-- 領収文 -->
-<div class="received-text">上記、正に領収いたしました</div>
+<div class="spacer"></div>
 
 <div class="divider"></div>
 
@@ -248,5 +264,6 @@
     </tr>
 </table>
 
+</div><!-- /.page-wrapper -->
 </body>
 </html>

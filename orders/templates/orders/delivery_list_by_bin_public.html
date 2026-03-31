@@ -1,0 +1,177 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ delivery_bin.name }} 配達リスト</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+<div class="max-w-3xl mx-auto px-4 py-6">
+
+    <!-- ヘッダー -->
+    <div class="mb-5">
+        <h1 class="text-2xl font-bold text-gray-800">{{ delivery_bin.name }}</h1>
+        <p class="text-base text-gray-500 mt-0.5">
+            {{ target_date|date:"Y年m月d日" }}（{{ weekday_label }}）
+        </p>
+    </div>
+
+    <!-- サマリーバー -->
+    <div class="space-y-3 mb-5">
+        <div class="bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100 flex items-center gap-3 w-full">
+            <p class="text-sm text-gray-400">合計件数</p>
+            <p class="text-2xl font-bold text-gray-700">{{ rows|length }}</p>
+            <span class="text-sm text-gray-400 ml-2">（注文済み {{ ordered_count }}件）</span>
+        </div>
+        {% if payment_method_totals %}
+        <div class="flex gap-3 w-full">
+            {% for pm in payment_method_totals %}
+            <div class="flex-1 bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100">
+                <p class="text-sm text-gray-400">{{ pm.name }}</p>
+                <p class="text-2xl font-bold text-gray-700">¥{{ pm.total|intcomma }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 注文済み -->
+    {% if ordered_count > 0 %}
+    <div class="mb-5">
+        <p class="text-xs font-semibold text-green-600 uppercase tracking-wide px-1 mb-2">注文済み {{ ordered_count }}件</p>
+
+        <!-- カード表示（md未満） -->
+        <div class="space-y-2 md:hidden">
+            {% for row in rows %}{% if row.has_order %}
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                        <p class="font-bold text-gray-800 text-base leading-tight">{{ row.customer.display_name }}</p>
+                        {% if row.customer.department %}
+                        <p class="text-sm text-gray-500 mt-0.5">{{ row.customer.department }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-1 rounded-full">注文済み</span>
+                        <span class="text-sm font-bold text-blue-600">{{ row.total_quantity }}食</span>
+                    </div>
+                </div>
+                {% if row.notes %}
+                <p class="text-sm text-gray-500 mb-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">{{ row.notes }}</p>
+                {% endif %}
+                <!-- 注文明細 -->
+                {% if row.order_items %}
+                <div class="mt-2 border-t border-gray-100 pt-2 space-y-1">
+                    {% for item in row.order_items %}
+                    <div class="flex justify-between text-sm text-gray-700">
+                        <span>{{ item.product_name }}</span>
+                        <span class="font-semibold">{{ item.quantity }}食</span>
+                    </div>
+                    {% endfor %}
+                    {% for item in row.extra_items %}
+                    <div class="flex justify-between text-sm text-gray-500">
+                        <span>{{ item.product_name }}</span>
+                        <span>{{ item.quantity }}個</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+
+        <!-- テーブル表示（md以上） -->
+        <div class="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">部署</th>
+                        <th class="text-right px-4 py-3 font-semibold text-gray-600">食数</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">備考</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">注文明細</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for row in rows %}{% if row.has_order %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-4 py-3 font-medium text-gray-800">{{ row.customer.display_name }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.customer.department|default:"-" }}</td>
+                        <td class="px-4 py-3 text-right font-bold text-blue-600">{{ row.total_quantity }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.notes|default:"" }}</td>
+                        <td class="px-4 py-3 text-gray-700">
+                            {% for item in row.order_items %}
+                            <span class="inline-block mr-2">{{ item.product_name }} <strong>{{ item.quantity }}</strong></span>
+                            {% endfor %}
+                            {% for item in row.extra_items %}
+                            <span class="inline-block mr-2 text-gray-400">{{ item.product_name }} {{ item.quantity }}</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endif %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 未注文 -->
+    {% if not_ordered_count > 0 %}
+    <div class="mb-5">
+        <p class="text-xs font-semibold text-red-500 uppercase tracking-wide px-1 mb-2">未注文 {{ not_ordered_count }}件</p>
+
+        <!-- カード表示（md未満） -->
+        <div class="space-y-2 md:hidden">
+            {% for row in rows %}{% if not row.has_order %}
+            <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <p class="font-bold text-gray-800 text-base leading-tight">{{ row.customer.display_name }}</p>
+                        {% if row.customer.department %}
+                        <p class="text-sm text-gray-500 mt-0.5">{{ row.customer.department }}</p>
+                        {% endif %}
+                    </div>
+                    <span class="shrink-0 text-xs bg-red-100 text-red-600 font-medium px-2 py-1 rounded-full mt-0.5">未注文</span>
+                </div>
+                {% if row.notes %}
+                <p class="text-sm text-gray-600 bg-white rounded-lg px-3 py-2 mt-2 border border-gray-100">{{ row.notes }}</p>
+                {% endif %}
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+
+        <!-- テーブル表示（md以上） -->
+        <div class="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden border border-red-100">
+            <table class="w-full text-sm">
+                <thead class="bg-red-50 border-b border-red-100">
+                    <tr>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">部署</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">備考</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for row in rows %}{% if not row.has_order %}
+                    <tr class="bg-red-50 hover:bg-red-100 transition">
+                        <td class="px-4 py-3 font-medium text-gray-800">{{ row.customer.display_name }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.customer.department|default:"-" }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ row.notes|default:"" }}</td>
+                    </tr>
+                    {% endif %}{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not rows %}
+    <div class="bg-white rounded-xl shadow-sm p-10 text-center text-gray-400">
+        この日の対象顧客はいません。
+    </div>
+    {% endif %}
+
+</div>
+</body>
+</html>

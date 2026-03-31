@@ -42,6 +42,7 @@ class Customer(models.Model):
         ('A', '価格A'),
         ('B', '価格B'),
         ('C', '価格C'),
+        ('CUSTOM', '独自価格'),
     ]
     BENTO_TYPE_CHOICES = [
         ('REGULAR', '通常弁当'),
@@ -62,8 +63,20 @@ class Customer(models.Model):
     fax = models.CharField(max_length=20, blank=True, verbose_name="FAX番号")
     email = models.EmailField(blank=True, verbose_name="メールアドレス")
     price_type = models.CharField(
-        max_length=1, choices=PRICE_TYPE_CHOICES, default='A',
+        max_length=6, choices=PRICE_TYPE_CHOICES, default='A',
         verbose_name="価格タイプ"
+    )
+    custom_price_normal = models.DecimalField(
+        max_digits=10, decimal_places=0, null=True, blank=True,
+        verbose_name="独自価格（★なし）"
+    )
+    custom_price_star = models.DecimalField(
+        max_digits=10, decimal_places=0, null=True, blank=True,
+        verbose_name="独自価格（★あり）"
+    )
+    custom_price_large = models.DecimalField(
+        max_digits=10, decimal_places=0, null=True, blank=True,
+        verbose_name="独自大盛り割増"
     )
     payment_method = models.ForeignKey(
         PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True,
@@ -167,20 +180,20 @@ class Order(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.order_number:
-            self.order_number = self._generate_order_number()
+            self.order_number = self._generate_order_number(self.delivery_date)
         super().save(*args, **kwargs)
 
     @staticmethod
-    def _generate_order_number():
-        today = timezone.now().strftime('%Y%m%d')
+    def _generate_order_number(delivery_date):
+        date_str = delivery_date.strftime('%Y%m%d')
         last = Order.objects.filter(
-            order_number__startswith=f'ORD-{today}'
+            order_number__startswith=f'ORD-{date_str}'
         ).order_by('-order_number').first()
         if last:
             seq = int(last.order_number.split('-')[-1]) + 1
         else:
             seq = 1
-        return f"ORD-{today}-{seq:04d}"
+        return f"ORD-{date_str}-{seq:04d}"
 
 
 class OrderItem(models.Model):
@@ -300,3 +313,23 @@ class OrderSettings(models.Model):
 
     def __str__(self):
         return "受注設定"
+
+
+class OrderUserMenuPermission(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='order_menu_permission'
+    )
+    can_view_dashboard = models.BooleanField(default=True, verbose_name="受注ダッシュボード")
+    can_view_delivery_list = models.BooleanField(default=True, verbose_name="配達リスト")
+    can_view_new_order = models.BooleanField(default=True, verbose_name="新規受注")
+    can_view_customers = models.BooleanField(default=True, verbose_name="顧客一覧")
+    can_view_settings = models.BooleanField(default=True, verbose_name="設定")
+
+    class Meta:
+        verbose_name = "受注メニュー表示設定"
+        verbose_name_plural = "受注メニュー表示設定"
+
+    def __str__(self):
+        return f"OrderMenuPermission({self.user})"

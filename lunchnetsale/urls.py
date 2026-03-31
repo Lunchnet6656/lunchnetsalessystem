@@ -78,6 +78,7 @@ urlpatterns = [
     path('location/<int:location_id>/performance/<int:search_year>/<int:search_month>/', views.performance_by_location_calender_view, name='performance_by_location_calender'),
 
     path('menu-history/', views.menu_history_view, name='menu_history'),
+    path('sales_dashboard/', views.sales_dashboard_view, name='sales_dashboard'),
 
     path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),
 

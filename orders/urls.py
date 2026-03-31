@@ -19,9 +19,14 @@ urlpatterns = [
     # Regular order dashboard
     path('regular/', views.regular_order_dashboard, name='regular_dashboard'),
 
+    # CSV Export
+    path('export/', views.order_export_page, name='order_export'),
+    path('export/csv/', views.order_csv_export, name='order_csv_export'),
+
     # Delivery list
     path('delivery-list/', views.delivery_list, name='delivery_list'),
     path('delivery-list/<int:pk>/', views.delivery_list_by_bin, name='delivery_list_by_bin'),
+    path('public/delivery/<int:pk>/', views.delivery_list_by_bin_public, name='delivery_list_by_bin_public'),
 
     # Customers
     path('customers/', views.customer_list, name='customer_list'),
