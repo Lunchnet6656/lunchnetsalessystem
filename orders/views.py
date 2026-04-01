@@ -28,7 +28,7 @@ def order_list(request):
 
 @login_required
 def order_create(request, customer_id=None):
-    today = timezone.now().date()
+    today = timezone.localdate()
     initial = {'order_date': today, 'delivery_date': today}
     delivery_date_str = request.GET.get('delivery_date')
     if delivery_date_str:
@@ -82,7 +82,7 @@ def order_create(request, customer_id=None):
         formset = OrderItemFormSet(prefix='items')
         extra_formset = OrderExtraItemFormSet(prefix='extra_items')
 
-    one_month_ago = timezone.now().date() - timedelta(days=30)
+    one_month_ago = timezone.localdate() - timedelta(days=30)
     customers = (
         Customer.objects.filter(is_active=True)
         .annotate(
@@ -166,7 +166,7 @@ def order_edit(request, pk):
         formset = OrderItemFormSet(instance=order, prefix='items')
         extra_formset = OrderExtraItemFormSet(instance=order, prefix='extra_items')
 
-    one_month_ago = timezone.now().date() - timedelta(days=30)
+    one_month_ago = timezone.localdate() - timedelta(days=30)
     customers = (
         Customer.objects.filter(is_active=True)
         .annotate(
@@ -398,7 +398,7 @@ def api_products(request, date):
 
 @login_required
 def regular_order_dashboard(request):
-    today = timezone.now().date()
+    today = timezone.localdate()
     target_date_str = request.GET.get('date')
     if target_date_str:
         try:
@@ -824,7 +824,7 @@ def _get_scheduled_customer_ids(target_date):
 
 
 def _parse_target_date(request):
-    today = timezone.now().date()
+    today = timezone.localdate()
     date_str = request.GET.get('date')
     if date_str:
         try:
@@ -837,7 +837,7 @@ def _parse_target_date(request):
 @login_required
 def order_export_page(request):
     """CSV出力の専用ページ（日付範囲フォーム表示）"""
-    today = timezone.now().date()
+    today = timezone.localdate()
     default_from = today.replace(day=1)
     date_from = request.GET.get('date_from', default_from.strftime('%Y-%m-%d'))
     date_to   = request.GET.get('date_to',   today.strftime('%Y-%m-%d'))
@@ -850,7 +850,7 @@ def order_export_page(request):
 @login_required
 def order_csv_export(request):
     """売上データCSVファイルをダウンロードする"""
-    today = timezone.now().date()
+    today = timezone.localdate()
     date_from_str = request.GET.get('date_from')
     date_to_str   = request.GET.get('date_to')
 

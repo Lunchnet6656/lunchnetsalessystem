@@ -488,12 +488,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 '<input type="hidden" name="items-' + idx + '-DELETE" value="">' +
 
                 '<!-- Card header -->' +
-                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
-                    '<div style="display:flex;align-items:center;gap:8px;">' +
-                        '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#374151;color:#fff;font-size:0.8rem;font-weight:700;">' + product.no + '</span>' +
-                        '<span style="font-weight:700;color:#1f2937;font-size:1.125rem;white-space:nowrap;">' + escapeHtml(product.name) + '</span>' +
+                '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;gap:4px;flex-wrap:wrap;">' +
+                    '<div style="display:flex;align-items:center;gap:8px;min-width:0;">' +
+                        '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#374151;color:#fff;font-size:0.8rem;font-weight:700;flex-shrink:0;">' + product.no + '</span>' +
+                        '<span style="font-weight:700;color:#1f2937;font-size:1rem;overflow-wrap:break-word;word-break:break-all;">' + escapeHtml(product.name) + '</span>' +
                     '</div>' +
-                    '<span style="font-size:0.875rem;color:#6b7280;">単価 &yen;' + basePrice.toLocaleString() + '</span>' +
+                    '<span style="font-size:0.875rem;color:#6b7280;white-space:nowrap;">単価 &yen;' + basePrice.toLocaleString() + '</span>' +
                 '</div>' +
 
                 '<!-- 1行目: ラベル -->' +
@@ -513,16 +513,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 '<!-- 3行目: +-ボタン -->' +
                 '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">' +
                     '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="large" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#fecaca;color:#cc0000;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="large" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#ff0000;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
+                        '<button type="button" class="qty-minus" data-size="large" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#fecaca;color:#cc0000;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
+                        '<button type="button" class="qty-plus" data-size="large" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#ff0000;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
                     '</div>' +
                     '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="regular" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#fde68a;color:#92400e;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="regular" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#b45309;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
+                        '<button type="button" class="qty-minus" data-size="regular" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#fde68a;color:#92400e;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
+                        '<button type="button" class="qty-plus" data-size="regular" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#b45309;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
                     '</div>' +
                     '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="small" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#bbf7d0;color:#15803d;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="small" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
+                        '<button type="button" class="qty-minus" data-size="small" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#bbf7d0;color:#15803d;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
+                        '<button type="button" class="qty-plus" data-size="small" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
                     '</div>' +
                 '</div>' +
 

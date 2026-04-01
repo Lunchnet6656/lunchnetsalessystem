@@ -46,7 +46,7 @@
                 <tr>
                     <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">受注番号</th>
                     <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">顧客</th>
-                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600">納品日</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 hidden sm:table-cell">納品日</th>
                     <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600 hidden sm:table-cell">食数</th>
                     <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">合計</th>
                     <th class="px-4 py-3 text-right text-sm font-semibold text-gray-600">操作</th>
@@ -56,16 +56,16 @@
                 {% for order in orders %}
                 <tr class="hover:bg-gray-50 transition">
                     <td class="px-4 py-3 text-sm">
-                        <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium">
+                        <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
                             {{ order.order_number }}
                         </a>
                     </td>
                     <td class="px-4 py-3 text-sm">{{ order.customer }}</td>
-                    <td class="px-4 py-3 text-sm">{{ order.delivery_date|date:"Y/m/d" }}</td>
+                    <td class="px-4 py-3 text-sm hidden sm:table-cell">{{ order.delivery_date|date:"Y/m/d" }}</td>
                     <td class="px-4 py-3 text-sm text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
                     <td class="px-4 py-3 text-sm text-right font-medium">&yen;{{ order.total|floatformat:0 }}</td>
                     <td class="px-4 py-3 text-right">
-                        <div class="flex justify-end gap-1">
+                        <div class="flex justify-end gap-1 flex-wrap">
                             <a href="{% url 'orders:order_pdf' order.pk %}" target="_blank"
                                class="text-xs {% if order.pdf_printed_at %}bg-green-500{% else %}bg-purple-500{% endif %} text-white px-2 py-1 rounded hover:opacity-80">PDF{% if order.pdf_printed_at %} ✓{% endif %}</a>
                             <a href="{% url 'orders:order_edit' order.pk %}"

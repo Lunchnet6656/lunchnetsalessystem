@@ -69,9 +69,9 @@
         </div>
         <!-- 2行目：支払い方法別金額合計（1行目と同幅で均等分割） -->
         {% if payment_method_totals %}
-        <div class="flex gap-3 w-full">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full">
             {% for pm in payment_method_totals %}
-            <div class="flex-1 bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100">
+            <div class="bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100">
                 <p class="text-sm text-gray-400">{{ pm.name }}</p>
                 <p class="text-2xl font-bold text-gray-700">¥{{ pm.total|intcomma }}</p>
             </div>

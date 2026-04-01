@@ -84,7 +84,7 @@
         <div class="bg-white rounded-lg shadow-sm p-6">
             <div class="flex items-center mb-4">
                 <h2 class="text-lg font-semibold text-gray-700 flex-1">注文明細</h2>
-                <div id="order-totals-header" class="text-sm font-semibold text-gray-500 hidden" style="width:10rem;text-align:center;">全体注文数</div>
+                <div id="order-totals-header" class="text-sm font-semibold text-gray-500 hidden sm:hidden" style="width:10rem;text-align:center;">全体注文数</div>
             </div>
 
             {{ formset.management_form }}
@@ -126,7 +126,7 @@
                 <p id="cards-placeholder" class="text-center text-gray-400 py-8">
                     納品日を選択すると商品カードが表示されます
                 </p>
-                <div id="product-cards-grid" class="grid gap-3 hidden" style="grid-template-columns: 1fr 10rem;"></div>
+                <div id="product-cards-grid" class="grid gap-3 hidden grid-cols-1 sm:grid-cols-[1fr_10rem]"></div>
             </div>
 
             <!-- 仕出し弁当入力テーブル（仕出し顧客のみ表示） -->
@@ -178,11 +178,11 @@
             </div>
 
             <!-- 合計 -->
-            <div class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg px-5 py-4 flex justify-between items-center shadow-md">
-                <span class="text-xl font-bold text-gray-800">合計</span>
-                <div class="flex items-center gap-8">
-                    <span id="grand-total-meals" class="text-3xl font-bold text-orange-600">0食</span>
-                    <span id="grand-total" class="text-3xl font-bold text-blue-700">&yen;0</span>
+            <div class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-md">
+                <span class="text-lg sm:text-xl font-bold text-gray-800">合計</span>
+                <div class="flex items-center gap-4 sm:gap-8">
+                    <span id="grand-total-meals" class="text-2xl sm:text-3xl font-bold text-orange-600">0食</span>
+                    <span id="grand-total" class="text-2xl sm:text-3xl font-bold text-blue-700">&yen;0</span>
                 </div>
             </div>
         </div>

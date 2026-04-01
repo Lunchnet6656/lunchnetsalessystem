@@ -7,21 +7,21 @@
     <!-- ヘッダー -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800 mb-3 sm:mb-0">{{ order.order_number }}</h1>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
             <a href="{% url 'orders:order_print' order.pk %}" target="_blank"
-               class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition font-bold flex items-center gap-1">
+               class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition font-bold flex items-center justify-center gap-1 flex-1 sm:flex-none">
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2H8v2h4v-2h-4z" clip-rule="evenodd"/></svg>
                 納品書 印刷
             </a>
             <a href="{% url 'orders:receipt_print' order.pk %}" target="_blank"
-               class="text-white px-5 py-2 rounded-lg transition font-bold flex items-center gap-1" style="background-color:#7c3aed;">
+               class="text-white px-5 py-2 rounded-lg transition font-bold flex items-center justify-center gap-1 flex-1 sm:flex-none" style="background-color:#7c3aed;">
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2H8v2h4v-2h-4z" clip-rule="evenodd"/></svg>
                 領収書 印刷
             </a>
             <a href="{% url 'orders:order_edit' order.pk %}"
-               class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm">編集</a>
+               class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm text-center flex-1 sm:flex-none">編集</a>
             <a href="{% url 'orders:order_delete' order.pk %}"
-               class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm">削除</a>
+               class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm text-center flex-1 sm:flex-none">削除</a>
         </div>
     </div>
 
@@ -137,9 +137,9 @@
     {% endif %}
 
     <!-- 合計 -->
-    <div class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg px-5 py-4 flex justify-between items-center shadow-md">
-        <span class="text-xl font-bold text-gray-800">合計（税込）</span>
-        <span class="text-3xl font-bold text-blue-700">&yen;{{ order.total|floatformat:0 }}</span>
+    <div class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-md">
+        <span class="text-lg sm:text-xl font-bold text-gray-800">合計（税込）</span>
+        <span class="text-2xl sm:text-3xl font-bold text-blue-700">&yen;{{ order.total|floatformat:0 }}</span>
     </div>
 </div>
 {% endblock %}

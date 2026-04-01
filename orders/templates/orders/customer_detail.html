@@ -113,21 +113,21 @@
                     <tr>
                         <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">受注番号</th>
                         <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">納品日</th>
-                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">食数</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600 hidden sm:table-cell">食数</th>
                         <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">合計金額</th>
-                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">操作</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600 hidden sm:table-cell">操作</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {% for order in recent_orders %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-sm">
-                            <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline">{{ order.order_number }}</a>
+                            <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline break-all">{{ order.order_number }}</a>
                         </td>
                         <td class="px-4 py-2 text-sm">{{ order.delivery_date|date:"Y/m/d" }}</td>
-                        <td class="px-4 py-2 text-sm text-right">{{ order.total_quantity }}</td>
+                        <td class="px-4 py-2 text-sm text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
                         <td class="px-4 py-2 text-sm text-right">&yen;{{ order.total|floatformat:0 }}</td>
-                        <td class="px-4 py-2 text-right">
+                        <td class="px-4 py-2 text-right hidden sm:table-cell">
                             <a href="{% url 'orders:order_pdf' order.pk %}" class="text-xs bg-purple-500 text-white px-2 py-1 rounded hover:bg-purple-600">PDF</a>
                         </td>
                     </tr>

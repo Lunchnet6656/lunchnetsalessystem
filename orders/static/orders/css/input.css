@@ -1,2 +1,9 @@
 @import "tailwindcss";
 @source "../../../../templates/orders/";
+@source "../../js/";
+
+@layer components {
+    @media (max-width: 639px) {
+        #order-totals-header { display: none !important; }
+    }
+}

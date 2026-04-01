@@ -247,7 +247,59 @@
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="menu_permissions">
-        <div class="overflow-x-auto">
+
+        <!-- カード表示（md未満） -->
+        <div class="space-y-3 md:hidden">
+            {% for item in user_perms %}
+            <div class="border border-gray-200 rounded-lg p-4">
+                <p class="font-medium text-gray-800 mb-3">
+                    {{ item.user.last_name }} {{ item.user.first_name }}
+                    <span class="text-xs text-gray-400 ml-1">({{ item.user.username }})</span>
+                </p>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_dashboard"
+                               {% if item.perm.can_view_dashboard %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        ダッシュボード
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_delivery_list"
+                               {% if item.perm.can_view_delivery_list %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        配達リスト
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_new_order"
+                               {% if item.perm.can_view_new_order %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        新規受注
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_customers"
+                               {% if item.perm.can_view_customers %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        顧客一覧
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_settings"
+                               {% if item.perm.can_view_settings %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        設定
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_csv_export"
+                               {% if item.perm.can_view_csv_export %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        CSV出力
+                    </label>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- テーブル表示（md以上） -->
+        <div class="overflow-x-auto hidden md:block">
             <table class="min-w-full">
                 <thead class="bg-gray-50">
                     <tr>
@@ -313,4 +365,28 @@
     <p class="text-gray-500 text-sm">受注管理が有効なユーザーが存在しません。</p>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// モバイル/デスクトップ切替時に非表示側のチェックボックスを無効化
+(function() {
+    var mobilePerms = document.querySelector('.space-y-3.md\\:hidden');
+    var desktopPerms = document.querySelector('.overflow-x-auto.hidden.md\\:block');
+    if (!mobilePerms || !desktopPerms) return;
+
+    var mq = window.matchMedia('(min-width: 768px)');
+    function syncLayout() {
+        if (mq.matches) {
+            mobilePerms.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+            desktopPerms.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = false; });
+        } else {
+            mobilePerms.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = false; });
+            desktopPerms.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.disabled = true; });
+        }
+    }
+    syncLayout();
+    mq.addEventListener('change', syncLayout);
+})();
+</script>
 {% endblock %}

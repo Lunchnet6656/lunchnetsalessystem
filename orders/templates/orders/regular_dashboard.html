@@ -73,9 +73,9 @@
                     <tr>
                         <th class="text-center px-3 py-3 font-semibold text-gray-600 w-12">No</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">メニュー</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600">大盛り</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600">普通盛り</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600">小盛り</th>
+                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">大盛り</th>
+                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">普通盛り</th>
+                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">小盛り</th>
                         <th class="text-right px-4 py-3 font-semibold text-gray-600">合計</th>
                     </tr>
                 </thead>
@@ -84,9 +84,9 @@
                     <tr class="hover:bg-gray-50">
                         <td class="px-3 py-3 text-center text-gray-500">{{ item.no }}</td>
                         <td class="px-4 py-3 font-medium">{{ item.product_name }}</td>
-                        <td class="px-4 py-3 text-right">{{ item.total_large }}</td>
-                        <td class="px-4 py-3 text-right">{{ item.total_regular }}</td>
-                        <td class="px-4 py-3 text-right">{{ item.total_small }}</td>
+                        <td class="px-4 py-3 text-right hidden sm:table-cell">{{ item.total_large }}</td>
+                        <td class="px-4 py-3 text-right hidden sm:table-cell">{{ item.total_regular }}</td>
+                        <td class="px-4 py-3 text-right hidden sm:table-cell">{{ item.total_small }}</td>
                         <td class="px-4 py-3 text-right font-bold">{{ item.total_quantity }}</td>
                     </tr>
                     {% endfor %}
@@ -95,9 +95,9 @@
                     <tr>
                         <td class="px-3 py-3"></td>
                         <td class="px-4 py-3 font-bold text-gray-700">合計</td>
-                        <td class="px-4 py-3 text-right font-bold">{{ menu_totals.large }}</td>
-                        <td class="px-4 py-3 text-right font-bold">{{ menu_totals.regular }}</td>
-                        <td class="px-4 py-3 text-right font-bold">{{ menu_totals.small }}</td>
+                        <td class="px-4 py-3 text-right font-bold hidden sm:table-cell">{{ menu_totals.large }}</td>
+                        <td class="px-4 py-3 text-right font-bold hidden sm:table-cell">{{ menu_totals.regular }}</td>
+                        <td class="px-4 py-3 text-right font-bold hidden sm:table-cell">{{ menu_totals.small }}</td>
                         <td class="px-4 py-3 text-right font-bold text-blue-600">{{ menu_totals.quantity }}</td>
                     </tr>
                 </tfoot>
@@ -114,10 +114,10 @@
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 border-b">
                     <tr>
-                        <th class="text-left px-4 py-3 font-semibold text-gray-600">受注番号</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">受注番号</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
                         <th class="text-center px-4 py-3 font-semibold text-gray-600">注文状況</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600">PDF</th>
+                        <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
                         <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
                         <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
                         <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
@@ -126,9 +126,9 @@
                 <tbody class="divide-y divide-gray-100">
                     {% for row in dashboard_rows %}
                     <tr class="hover:bg-gray-50 {% if not row.has_order %}bg-red-50{% endif %}">
-                        <td class="px-4 py-3">
+                        <td class="px-4 py-3 hidden sm:table-cell">
                             {% if row.has_order %}
-                            <a href="{% url 'orders:order_detail' row.order.pk %}" class="text-blue-600 hover:underline font-medium">
+                            <a href="{% url 'orders:order_detail' row.order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
                                 {{ row.order.order_number }}
                             </a>
                             {% else %}-{% endif %}
@@ -157,7 +157,7 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-4 py-3 text-center hidden md:table-cell">
                             {% if row.pdf_printed %}
                             <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
                                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
@@ -179,7 +179,7 @@
                         </td>
                         <td class="px-4 py-3 text-center">
                             {% if row.has_order %}
-                            <div class="flex items-center justify-center gap-1">
+                            <div class="flex items-center justify-center gap-1 flex-wrap">
                                 <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
                                    class="text-xs {% if row.pdf_printed %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
                                     納品書{% if row.pdf_printed %} ✓{% endif %}
@@ -221,9 +221,9 @@
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 border-b">
                     <tr>
-                        <th class="text-left px-4 py-3 font-semibold text-gray-600">受注番号</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">受注番号</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600">PDF</th>
+                        <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
                         <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
                         <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
                         <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
@@ -232,13 +232,13 @@
                 <tbody class="divide-y divide-gray-100">
                     {% for order in other_orders %}
                     <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3">
-                            <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium">
+                        <td class="px-4 py-3 hidden sm:table-cell">
+                            <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
                                 {{ order.order_number }}
                             </a>
                         </td>
                         <td class="px-4 py-3">{{ order.customer }}</td>
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-4 py-3 text-center hidden md:table-cell">
                             {% if order.pdf_printed_at %}
                             <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
                                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
@@ -253,7 +253,7 @@
                         <td class="px-4 py-3 text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
                         <td class="px-4 py-3 text-right hidden sm:table-cell">&yen;{{ order.total|floatformat:0|intcomma }}</td>
                         <td class="px-4 py-3 text-center">
-                            <div class="flex items-center justify-center gap-1">
+                            <div class="flex items-center justify-center gap-1 flex-wrap">
                                 <a href="{% url 'orders:order_print' order.pk %}" target="_blank"
                                    class="text-xs {% if order.pdf_printed_at %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
                                     納品書{% if order.pdf_printed_at %} ✓{% endif %}
