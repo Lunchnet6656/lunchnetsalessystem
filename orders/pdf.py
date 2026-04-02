@@ -124,6 +124,7 @@ def build_receipt_context(order):
         'tax_excluded_formatted': f'{tax_excluded:,}',
         'tax_amount_formatted': f'{tax_amount:,}',
         'tax_rate': tax_rate,
+        'receipt_memo': order.receipt_memo,
         'font_dir': FONTS_DIR,
     }
 

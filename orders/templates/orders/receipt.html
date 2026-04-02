@@ -93,17 +93,20 @@
     }
     .tadashi-row {
         text-align: center;
-        font-size: 11pt;
+        font-size: 13pt;
         margin-bottom: 2mm;
     }
     .tadashi-item {
         font-weight: bold;
-        font-size: 12pt;
-        margin: 0 4mm;
+        font-size: 14pt;
+        margin: 0 2mm;
+        display: inline-block;
+        border-bottom: 1.5px solid #000;
+        padding: 0 4mm;
     }
     .received-text {
         text-align: center;
-        font-size: 10pt;
+        font-size: 13pt;
     }
 
     /* ===== 区切り線 ===== */
@@ -216,7 +219,7 @@
 
 <!-- 但し書き・領収文 -->
 <div class="tadashi-block">
-    <div class="tadashi-row">但し<span class="tadashi-item">お弁当代</span>として</div>
+    <div class="tadashi-row">但し<span class="tadashi-item">{{ receipt_memo }}</span>として</div>
     <div class="received-text">上記、正に領収いたしました</div>
 </div>
 

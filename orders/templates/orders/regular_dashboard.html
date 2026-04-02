@@ -147,6 +147,7 @@
                             <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
                             <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
                             <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">支払い</th>
                             <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
                         </tr>
                     </thead>
@@ -210,6 +211,9 @@
                             <td class="px-4 py-3 text-right hidden sm:table-cell">
                                 {% if row.has_order %}&yen;{{ row.total|floatformat:0|intcomma }}{% else %}-{% endif %}
                             </td>
+                            <td class="px-4 py-3 hidden sm:table-cell">
+                                {% if row.customer.payment_method %}{{ row.customer.payment_method.name }}{% else %}-{% endif %}
+                            </td>
                             <td class="px-4 py-3 text-center">
                                 {% if row.has_order %}
                                 <div class="flex items-center justify-center gap-1 flex-wrap">
@@ -264,6 +268,7 @@
                             <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
                             <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
                             <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">支払い</th>
                             <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
                         </tr>
                     </thead>
@@ -294,6 +299,9 @@
                             </td>
                             <td class="px-4 py-3 text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
                             <td class="px-4 py-3 text-right hidden sm:table-cell">&yen;{{ order.total|floatformat:0|intcomma }}</td>
+                            <td class="px-4 py-3 hidden sm:table-cell">
+                                {% if order.customer.payment_method %}{{ order.customer.payment_method.name }}{% else %}-{% endif %}
+                            </td>
                             <td class="px-4 py-3 text-center">
                                 <div class="flex items-center justify-center gap-1 flex-wrap">
                                     <a href="{% url 'orders:order_print' order.pk %}" target="_blank"

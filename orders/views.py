@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.contrib import messages
@@ -140,6 +141,8 @@ def order_edit(request, pk):
             for item in items:
                 total_qty = item.quantity_large + item.quantity_regular + item.quantity_small
                 if total_qty == 0:
+                    if item.pk:
+                        item.delete()
                     continue
                 if item.product and not item.product_name:
                     item.product_name = item.product.name
@@ -264,6 +267,16 @@ def receipt_print_preview(request, pk):
     from .pdf import build_receipt_context
     context = build_receipt_context(order)
     return render(request, 'orders/receipt_preview.html', context)
+
+
+@login_required
+def update_receipt_memo(request, pk):
+    if request.method != 'POST':
+        return HttpResponseBadRequest()
+    order = get_object_or_404(Order, pk=pk)
+    memo = request.POST.get('receipt_memo', 'お弁当代').strip() or 'お弁当代'
+    Order.objects.filter(pk=pk).update(receipt_memo=memo)
+    return redirect(reverse('orders:receipt_print', kwargs={'pk': pk}) + '?updated=1')
 
 
 @login_required

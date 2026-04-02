@@ -1,4 +1,4 @@
-{% load humanize %}
+{% load humanize order_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -26,12 +26,19 @@
             <span class="text-sm text-gray-400 ml-2">（注文済み {{ ordered_count }}件）</span>
         </div>
         {% if payment_method_totals %}
-        <div class="flex gap-3 w-full">
+        <div class="flex gap-3 w-full overflow-x-auto pb-1">
             {% for pm in payment_method_totals %}
-            <div class="flex-1 bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100">
+            {% if "現金" in pm.name %}
+            <div class="flex-1 min-w-[120px] bg-emerald-50 rounded-xl shadow-sm px-5 py-3 border border-emerald-200">
+                <p class="text-sm text-emerald-600 font-medium">{{ pm.name }}</p>
+                <p class="text-2xl font-bold text-emerald-700">¥{{ pm.total|intcomma }}</p>
+            </div>
+            {% else %}
+            <div class="flex-1 min-w-[120px] bg-white rounded-xl shadow-sm px-5 py-3 border border-gray-100">
                 <p class="text-sm text-gray-400">{{ pm.name }}</p>
                 <p class="text-2xl font-bold text-gray-700">¥{{ pm.total|intcomma }}</p>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}
@@ -45,17 +52,25 @@
         <!-- カード表示（md未満） -->
         <div class="space-y-2 md:hidden">
             {% for row in rows %}{% if row.has_order %}
+            {% if row.customer.payment_method and "現金" in row.customer.payment_method.name %}
+            <div class="bg-white border border-gray-200 border-l-4 border-l-emerald-400 rounded-xl p-4">
+            {% else %}
             <div class="bg-white border border-gray-200 rounded-xl p-4">
+            {% endif %}
                 <div class="flex items-start justify-between gap-2 mb-2">
                     <div>
                         <p class="font-bold text-gray-800 text-base leading-tight">{{ row.customer.display_name }}</p>
                         {% if row.customer.department %}
                         <p class="text-sm text-gray-500 mt-0.5">{{ row.customer.department }}</p>
                         {% endif %}
+                        <span class="text-xs font-medium px-2 py-1 rounded-full mt-1 inline-block {{ row.customer.payment_method|payment_badge_color }}">{{ row.customer.payment_method.name|default:"未設定" }}</span>
                     </div>
                     <div class="shrink-0 flex flex-col items-end gap-1">
                         <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-1 rounded-full">注文済み</span>
                         <span class="text-sm font-bold text-blue-600">{{ row.total_quantity }}食</span>
+                        {% if row.customer.payment_method and "現金" in row.customer.payment_method.name %}
+                        <span class="text-base font-bold text-emerald-600">¥{{ row.order.total|intcomma }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 {% if row.notes %}
@@ -90,7 +105,9 @@
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">部署</th>
                         <th class="text-right px-4 py-3 font-semibold text-gray-600">食数</th>
+                        <th class="text-right px-4 py-3 font-semibold text-gray-600">金額</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">備考</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">支払い方法</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">注文明細</th>
                     </tr>
                 </thead>
@@ -100,7 +117,15 @@
                         <td class="px-4 py-3 font-medium text-gray-800">{{ row.customer.display_name }}</td>
                         <td class="px-4 py-3 text-gray-500">{{ row.customer.department|default:"-" }}</td>
                         <td class="px-4 py-3 text-right font-bold text-blue-600">{{ row.total_quantity }}</td>
+                        <td class="px-4 py-3 text-right">
+                            {% if row.customer.payment_method and "現金" in row.customer.payment_method.name %}
+                            <span class="font-bold text-emerald-600">¥{{ row.order.total|intcomma }}</span>
+                            {% else %}<span class="text-gray-300">—</span>{% endif %}
+                        </td>
                         <td class="px-4 py-3 text-gray-500">{{ row.notes|default:"" }}</td>
+                        <td class="px-4 py-3">
+                            <span class="text-xs font-medium px-2 py-1 rounded-full {{ row.customer.payment_method|payment_badge_color }}">{{ row.customer.payment_method.name|default:"未設定" }}</span>
+                        </td>
                         <td class="px-4 py-3 text-gray-700">
                             {% for item in row.order_items %}
                             <span class="inline-block mr-2">{{ item.product_name }} <strong>{{ item.quantity }}</strong></span>
@@ -133,7 +158,10 @@
                         <p class="text-sm text-gray-500 mt-0.5">{{ row.customer.department }}</p>
                         {% endif %}
                     </div>
-                    <span class="shrink-0 text-xs bg-red-100 text-red-600 font-medium px-2 py-1 rounded-full mt-0.5">未注文</span>
+                    <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="text-xs bg-red-100 text-red-600 font-medium px-2 py-1 rounded-full">未注文</span>
+                        <span class="text-xs font-medium px-2 py-1 rounded-full {{ row.customer.payment_method|payment_badge_color }}">{{ row.customer.payment_method.name|default:"未設定" }}</span>
+                    </div>
                 </div>
                 {% if row.notes %}
                 <p class="text-sm text-gray-600 bg-white rounded-lg px-3 py-2 mt-2 border border-gray-100">{{ row.notes }}</p>
@@ -149,6 +177,7 @@
                     <tr>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">部署</th>
+                        <th class="text-left px-4 py-3 font-semibold text-gray-600">支払い方法</th>
                         <th class="text-left px-4 py-3 font-semibold text-gray-600">備考</th>
                     </tr>
                 </thead>
@@ -157,6 +186,9 @@
                     <tr class="bg-red-50 hover:bg-red-100 transition">
                         <td class="px-4 py-3 font-medium text-gray-800">{{ row.customer.display_name }}</td>
                         <td class="px-4 py-3 text-gray-500">{{ row.customer.department|default:"-" }}</td>
+                        <td class="px-4 py-3">
+                            <span class="text-xs font-medium px-2 py-1 rounded-full {{ row.customer.payment_method|payment_badge_color }}">{{ row.customer.payment_method.name|default:"未設定" }}</span>
+                        </td>
                         <td class="px-4 py-3 text-gray-500">{{ row.notes|default:"" }}</td>
                     </tr>
                     {% endif %}{% endfor %}

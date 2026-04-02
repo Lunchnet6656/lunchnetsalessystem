@@ -99,8 +99,9 @@
                 </tbody>
                 <tfoot>
                     <tr class="bg-gray-50">
-                        <td colspan="2" class="px-4 py-3"></td>
+                        <td colspan="1" class="px-4 py-3"></td>
                         <td class="px-4 py-3 text-right font-bold text-gray-700">弁当小計</td>
+                        <td class="px-4 py-3 text-right text-lg font-bold text-gray-600">{{ order.total_quantity }}食</td>
                         <td class="px-4 py-3 text-right text-lg font-bold text-gray-600">&yen;{{ order.bento_total|floatformat:0|intcomma }}</td>
                     </tr>
                 </tfoot>

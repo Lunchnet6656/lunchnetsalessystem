@@ -141,6 +141,7 @@ class Order(models.Model):
     order_date = models.DateField(verbose_name="受注日")
     delivery_date = models.DateField(db_index=True, verbose_name="納品日")
     notes = models.TextField(blank=True, verbose_name="備考")
+    receipt_memo = models.CharField(max_length=100, default='お弁当代', verbose_name="但し書き")
     pdf_printed_at = models.DateTimeField(null=True, blank=True, verbose_name="PDF出力日時")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
