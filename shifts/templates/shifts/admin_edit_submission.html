@@ -1,0 +1,139 @@
+{% extends "shifts/base.html" %}
+{% block title %}提出内容編集{% endblock %}
+{% block nav_dashboard %}bg-gray-600{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">提出内容編集</h1>
+        <a href="{% url 'shifts:admin_review_submissions' period.id %}" class="text-sm text-blue-600 hover:underline">&larr; 提出状況確認へ戻る</a>
+    </div>
+
+    <div class="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 rounded mb-4">
+        <strong>管理者編集モード:</strong> {{ target_user.last_name }} {{ target_user.first_name }} さんの提出内容を編集中
+    </div>
+
+    <div class="bg-white rounded shadow p-4 mb-4">
+        <p class="text-sm text-gray-600">対象期間: <strong>{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</strong></p>
+        {% if submission.status == 'RETURNED' and submission.admin_note %}
+        <p class="text-sm text-orange-700 mt-1"><strong>差戻メモ:</strong> {{ submission.admin_note }}</p>
+        {% endif %}
+    </div>
+
+    <form method="post" id="edit-form">
+        {% csrf_token %}
+        <div class="space-y-2">
+            {% for info in date_info %}
+            <div class="rounded shadow p-3 {% if info.is_holiday %}bg-white opacity-60{% else %}bg-white{% endif %}"
+                 id="row-{{ info.date|date:'Y-m-d' }}">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 min-w-0">
+                        <span class="font-mono text-sm w-24">{{ info.date|date:"n/j" }}({{ info.weekday }})</span>
+                        {% if info.is_holiday %}
+                            <span class="text-xs text-red-500">{{ info.holiday_name }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if info.is_holiday %}
+                        <span class="text-sm text-gray-400">休日 (OFF固定)</span>
+                        <input type="hidden" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF">
+                    {% else %}
+                        <div class="flex items-center space-x-2">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="WORK"
+                                    {% if info.availability == 'WORK' %}checked{% endif %}
+                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}">
+                                <span class="ml-1 text-sm text-green-700">出勤</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF"
+                                    {% if info.availability == 'OFF' %}checked{% endif %}
+                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}">
+                                <span class="ml-1 text-sm text-red-600">休み</span>
+                            </label>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if not info.is_holiday %}
+                <div class="off-details mt-2 pl-4 space-y-1 {% if info.availability != 'OFF' %}hidden{% endif %}"
+                     id="off-{{ info.date|date:'Y-m-d' }}">
+                    <div>
+                        <label class="text-xs text-gray-500">理由:</label>
+                        <select name="absence_{{ info.date|date:'Y-m-d' }}"
+                                class="text-sm border rounded px-2 py-1 absence-select"
+                                data-date="{{ info.date|date:'Y-m-d' }}">
+                            <option value="">選択してください</option>
+                            <option value="PERSONAL" {% if info.absence_category == 'PERSONAL' %}selected{% endif %}>私用</option>
+                            <option value="SICK" {% if info.absence_category == 'SICK' %}selected{% endif %}>収入調整</option>
+                            <option value="SUBSTITUTE" {% if info.absence_category == 'SUBSTITUTE' %}selected{% endif %}>代理休み</option>
+                            <option value="OTHER" {% if info.absence_category == 'OTHER' %}selected{% endif %}>冠婚葬祭・療養入院</option>
+                        </select>
+                    </div>
+                    <div class="substitute-row {% if info.absence_category != 'SUBSTITUTE' %}hidden{% endif %}"
+                         id="sub-{{ info.date|date:'Y-m-d' }}">
+                        <label class="text-xs text-gray-500">代替者:</label>
+                        <select name="substitute_{{ info.date|date:'Y-m-d' }}" class="text-sm border rounded px-2 py-1">
+                            <option value="">選択してください</option>
+                            {% for u in all_users %}
+                                <option value="{{ u.id }}">{{ u.last_name }} {{ u.first_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500">コメント:</label>
+                        <input type="text" name="comment_{{ info.date|date:'Y-m-d' }}" value="{{ info.comment }}"
+                               class="text-sm border rounded px-2 py-1 w-full" placeholder="任意">
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="bg-white rounded shadow p-4 mt-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">備考</label>
+            <textarea name="remarks" rows="3" class="w-full border rounded px-3 py-2 text-sm"
+                      placeholder="全体的な連絡事項があればご記入ください">{{ submission.remarks }}</textarea>
+        </div>
+
+        <div class="mt-6 flex justify-center gap-4">
+            <a href="{% url 'shifts:admin_review_submissions' period.id %}"
+               class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-300">
+                キャンセル
+            </a>
+            <button type="submit" class="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700">
+                提出済として保存
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.avail-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var date = this.dataset.date;
+        var offDiv = document.getElementById('off-' + date);
+        if (this.value === 'OFF') {
+            offDiv.classList.remove('hidden');
+        } else {
+            offDiv.classList.add('hidden');
+        }
+    });
+});
+
+document.querySelectorAll('.absence-select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+        var date = this.dataset.date;
+        var subDiv = document.getElementById('sub-' + date);
+        if (this.value === 'SUBSTITUTE') {
+            subDiv.classList.remove('hidden');
+        } else {
+            subDiv.classList.add('hidden');
+        }
+    });
+});
+</script>
+{% endblock %}

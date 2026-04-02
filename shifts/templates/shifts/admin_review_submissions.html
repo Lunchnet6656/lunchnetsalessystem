@@ -55,44 +55,59 @@
                 {% for item in submission_data %}
                 <tr class="border-b border-gray-100">
                     <td class="px-4 py-2">
-                        {% if item.submission.status == 'SUBMITTED' %}
+                        {% if item.submission and item.submission.status == 'SUBMITTED' %}
                         <input type="checkbox" name="submission_ids" value="{{ item.submission.id }}" class="sub-check">
                         {% endif %}
                     </td>
                     <td class="px-4 py-2">
-                        <a href="javascript:void(0)" onclick="document.getElementById('detail-{{ item.submission.id }}').classList.toggle('hidden')" class="cursor-pointer text-blue-600 hover:underline">{{ item.submission.user.last_name }} {{ item.submission.user.first_name }}</a>
+                        {% if item.days %}
+                        <a href="javascript:void(0)" onclick="document.getElementById('detail-user-{{ item.user.id }}').classList.toggle('hidden')" class="cursor-pointer text-blue-600 hover:underline">{{ item.user.last_name }} {{ item.user.first_name }}</a>
+                        {% else %}
+                        <span>{{ item.user.last_name }} {{ item.user.first_name }}</span>
+                        {% endif %}
                     </td>
                     <td class="px-4 py-2">
                         <span class="text-xs px-2 py-1 rounded
-                            {% if item.submission.status == 'APPROVED' %}bg-blue-100 text-blue-700
-                            {% elif item.submission.status == 'SUBMITTED' %}bg-green-100 text-green-700
-                            {% elif item.submission.status == 'RETURNED' %}bg-red-100 text-red-700
-                            {% else %}bg-gray-100 text-gray-600{% endif %}">
-                            {{ item.submission.get_status_display }}
+                            {% if item.display_status == 'APPROVED' %}bg-green-100 text-green-700
+                            {% elif item.display_status == 'SUBMITTED' %}bg-blue-100 text-blue-700
+                            {% elif item.display_status == 'RETURNED' %}bg-orange-100 text-orange-700
+                            {% else %}bg-gray-100 text-gray-500{% endif %}">
+                            {% if item.display_status == 'APPROVED' %}承認済
+                            {% elif item.display_status == 'SUBMITTED' %}提出済
+                            {% elif item.display_status == 'RETURNED' %}差戻
+                            {% else %}未提出{% endif %}
                         </span>
                     </td>
                     <td class="px-4 py-2 text-xs text-gray-500">
-                        {% if item.submission.submitted_at %}{{ item.submission.submitted_at|date:"n/j H:i" }}{% else %}-{% endif %}
+                        {% if item.submission and item.submission.submitted_at %}{{ item.submission.submitted_at|date:"n/j H:i" }}{% else %}-{% endif %}
                     </td>
                     <td class="px-4 py-2">{{ item.work_count }}日</td>
                     <td class="px-4 py-2">{{ item.off_count }}日</td>
-                    <td class="px-4 py-2 text-xs text-gray-500 max-w-xs truncate">{{ item.submission.remarks }}</td>
+                    <td class="px-4 py-2 text-xs text-gray-500 max-w-xs truncate">{% if item.submission %}{{ item.submission.remarks }}{% endif %}</td>
                     <td class="px-4 py-2">
-                        {% if item.submission.status == 'SUBMITTED' %}
-                        <button type="button" class="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-1 rounded reject-btn"
-                                data-id="{{ item.submission.id }}"
-                                data-name="{{ item.submission.user.last_name }} {{ item.submission.user.first_name }}">
-                            却下
-                        </button>
-                        {% elif item.submission.status == 'RETURNED' %}
-                        <span class="text-xs text-gray-400">差戻済</span>
-                        {% elif item.submission.status == 'APPROVED' %}
-                        <span class="text-xs text-gray-400">承認済</span>
-                        {% endif %}
+                        <div class="flex gap-1 items-center flex-wrap">
+                            {% if item.submission and item.submission.status == 'SUBMITTED' %}
+                            <button type="button" class="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-1 rounded reject-btn"
+                                    data-id="{{ item.submission.id }}"
+                                    data-name="{{ item.user.last_name }} {{ item.user.first_name }}">
+                                却下
+                            </button>
+                            {% endif %}
+                            <a href="{% url 'shifts:admin_edit_submission' period.id item.user.id %}"
+                               class="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 px-2 py-1 rounded">
+                                編集
+                            </a>
+                        </div>
                     </td>
                 </tr>
-                <tr class="hidden" id="detail-{{ item.submission.id }}">
+                {% if item.days %}
+                <tr class="hidden" id="detail-user-{{ item.user.id }}">
                     <td colspan="8" class="px-4 py-2 bg-gray-50">
+                        {% if item.submission and item.submission.status == 'RETURNED' and item.submission.admin_note %}
+                        <div class="mb-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-3 py-2">
+                            <strong>差戻メモ:</strong> {{ item.submission.admin_note }}
+                        </div>
+                        {% endif %}
                         <table class="w-full text-xs">
                             <thead>
                                 <tr class="text-left text-gray-500">
@@ -117,6 +132,7 @@
                         </table>
                     </td>
                 </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
@@ -146,7 +162,7 @@
 </div>
 
 {% else %}
-<p class="text-gray-500">この期間の提出はありません。</p>
+<p class="text-gray-500">対象ユーザーが見つかりません。</p>
 {% endif %}
 {% endblock %}
 

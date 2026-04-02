@@ -15,6 +15,8 @@ urlpatterns = [
     path('<int:pk>/print/', views.order_print_preview, name='order_print'),
     path('<int:pk>/receipt/print/', views.receipt_print_preview, name='receipt_print'),
     path('<int:pk>/receipt/pdf/', views.receipt_pdf, name='receipt_pdf'),
+    path('batch/delivery-slip/', views.batch_delivery_slip_pdf, name='batch_delivery_slip'),
+    path('batch/receipt/', views.batch_receipt_pdf, name='batch_receipt'),
 
     # Regular order dashboard
     path('regular/', views.regular_order_dashboard, name='regular_dashboard'),

@@ -20,6 +20,7 @@ urlpatterns = [
     path('admin/assign/<str:target_date>/', views.admin_daily_assignment, name='admin_daily_assignment'),
 
     path('admin/submissions/<int:period_id>/', views.admin_review_submissions, name='admin_review_submissions'),
+    path('admin/submissions/<int:period_id>/edit/<int:user_id>/', views.admin_edit_submission, name='admin_edit_submission'),
     path('admin/periods/<int:period_id>/export-csv/', views.admin_export_submissions_csv, name='admin_export_submissions_csv'),
 
     # 管理者 代理提出

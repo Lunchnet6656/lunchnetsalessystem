@@ -82,6 +82,19 @@
 - フォント: IPAexGothic（本文）/ IPAexMincho（テーブル内商品名）
 - 生成ロジック: `orders/pdf.py` の `generate_delivery_slip()` / `generate_receipt()`
 
+## プレビュー印刷時の倍率（zoom）制御
+
+`delivery_slip_preview.html` の `@media print` ブロック内 `body` に適用される。
+
+| 条件 | zoom値 | 理由 |
+|------|--------|------|
+| `customer_notes` あり **かつ** `has_extra_items` あり | 0.97（97%） | 備考欄＋追加商品テーブルの両方が入るとページが溢れるため縮小 |
+| それ以外 | 1（100%） | 縮小不要 |
+
+- `customer_notes`: 発注備考テキスト（空でなければ備考ボックスが出現）
+- `has_extra_items`: 追加商品テーブルの有無フラグ
+- zoom は印刷メディア (`@media print`) 限定。画面プレビューには影響しない。
+
 ## 修正時のルール
 納品書・領収書を修正するときは必ず両方のpreviewテンプレートも修正すること。
 - 納品書: `delivery_slip.html` ↔ `delivery_slip_preview.html`

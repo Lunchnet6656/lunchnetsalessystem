@@ -106,174 +106,252 @@
     </div>
     {% endif %}
 
-    <!-- 定期顧客テーブル -->
-    <h2 class="text-lg font-bold text-gray-700 mb-3">定期顧客</h2>
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
-        {% if dashboard_rows %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 border-b">
-                    <tr>
-                        <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">受注番号</th>
-                        <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600">注文状況</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    {% for row in dashboard_rows %}
-                    <tr class="hover:bg-gray-50 {% if not row.has_order %}bg-red-50{% endif %}">
-                        <td class="px-4 py-3 hidden sm:table-cell">
-                            {% if row.has_order %}
-                            <a href="{% url 'orders:order_detail' row.order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
-                                {{ row.order.order_number }}
-                            </a>
-                            {% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3">
-                            <a href="{% url 'orders:customer_detail' row.customer.pk %}"
-                               class="text-blue-600 hover:underline font-medium">
-                                {{ row.customer.display_name }}
-                            </a>
-                            {% if row.customer.department %}
-                            <span class="text-xs text-gray-500 ml-1">{{ row.customer.department }}</span>
-                            {% endif %}
-                            {% if row.customer.contact_person %}
-                            <span class="text-xs text-gray-400 ml-1">（{{ row.customer.contact_person }}）</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-center">
-                            {% if row.has_order %}
-                            <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
-                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                注文済み
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center bg-red-100 text-red-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
-                                未注文
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-center hidden md:table-cell">
-                            {% if row.pdf_printed %}
-                            <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
-                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                印刷済
-                            </span>
-                            {% elif row.has_order %}
-                            <span class="inline-flex items-center bg-gray-100 text-gray-500 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
-                                未印刷
-                            </span>
-                            {% else %}
-                            <span class="text-gray-300">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-right hidden sm:table-cell">
-                            {% if row.has_order %}{{ row.total_quantity }}{% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-right hidden sm:table-cell">
-                            {% if row.has_order %}&yen;{{ row.total|floatformat:0|intcomma }}{% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-center">
-                            {% if row.has_order %}
-                            <div class="flex items-center justify-center gap-1 flex-wrap">
-                                <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
-                                   class="text-xs {% if row.pdf_printed %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
-                                    納品書{% if row.pdf_printed %} ✓{% endif %}
-                                </a>
-                                <a href="{% url 'orders:receipt_print' row.order.pk %}" target="_blank"
-                                   class="text-xs text-white px-2 py-1 rounded hover:opacity-80 font-bold" style="background-color:#7c3aed;">
-                                    領収書
-                                </a>
-                                <a href="{% url 'orders:order_edit' row.order.pk %}"
-                                   class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:opacity-80">
-                                    編集
-                                </a>
-                            </div>
-                            {% else %}
-                            <a href="{% url 'orders:order_create_for_customer' row.customer.pk %}?delivery_date={{ target_date_str }}"
-                               class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
-                                新規受注
-                            </a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- 一括印刷フォーム -->
+    <form id="batch-print-form" method="POST">
+        {% csrf_token %}
+
+        <!-- 一括印刷ボタンバー -->
+        <div class="flex items-center gap-3 mb-4 p-3 bg-white rounded-lg shadow-sm border border-gray-200">
+            <span class="text-sm text-gray-600 font-medium"><span id="selected-count">0</span>件選択中</span>
+            <button type="button" id="btn-batch-delivery"
+                    onclick="submitBatch('{% url 'orders:batch_delivery_slip' %}')"
+                    disabled
+                    class="text-sm bg-blue-600 text-white px-4 py-2 rounded font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700">
+                納品書 一括印刷
+            </button>
+            <button type="button" id="btn-batch-receipt"
+                    onclick="submitBatch('{% url 'orders:batch_receipt' %}')"
+                    disabled
+                    class="text-sm text-white px-4 py-2 rounded font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-80"
+                    style="background-color:#7c3aed;">
+                領収書 一括印刷
+            </button>
         </div>
-        {% else %}
-        <div class="p-8 text-center text-gray-500">
-            定期注文の顧客が登録されていません。<br>
-            <a href="{% url 'orders:customer_list' %}" class="text-blue-600 hover:underline">顧客一覧</a>から顧客を編集し「定期注文」にチェックを入れてください。
+
+        <!-- 定期顧客テーブル -->
+        <h2 class="text-lg font-bold text-gray-700 mb-3">定期顧客</h2>
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
+            {% if dashboard_rows %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-3 py-3 w-8">
+                                <input type="checkbox" id="select-all-regular"
+                                       class="rounded border-gray-300 cursor-pointer"
+                                       title="定期顧客を全選択/解除">
+                            </th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">受注番号</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                            <th class="text-center px-4 py-3 font-semibold text-gray-600">注文状況</th>
+                            <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
+                            <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
+                            <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
+                            <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for row in dashboard_rows %}
+                        <tr class="hover:bg-gray-50 {% if not row.has_order %}bg-red-50{% endif %}">
+                            <td class="px-3 py-3 text-center">
+                                {% if row.has_order %}
+                                <input type="checkbox" name="order_pks" value="{{ row.order.pk }}"
+                                       class="order-checkbox regular-checkbox rounded border-gray-300 cursor-pointer">
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 hidden sm:table-cell">
+                                {% if row.has_order %}
+                                <a href="{% url 'orders:order_detail' row.order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
+                                    {{ row.order.order_number }}
+                                </a>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                <a href="{% url 'orders:customer_detail' row.customer.pk %}"
+                                   class="text-blue-600 hover:underline font-medium">
+                                    {{ row.customer.display_name }}
+                                </a>
+                                {% if row.customer.department %}
+                                <span class="text-xs text-gray-500 ml-1">{{ row.customer.department }}</span>
+                                {% endif %}
+                                {% if row.customer.contact_person %}
+                                <span class="text-xs text-gray-400 ml-1">（{{ row.customer.contact_person }}）</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                {% if row.has_order %}
+                                <span class="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                    注文済み
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center bg-red-100 text-red-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                    未注文
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-center hidden md:table-cell">
+                                {% if row.pdf_printed %}
+                                <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                    印刷済
+                                </span>
+                                {% elif row.has_order %}
+                                <span class="inline-flex items-center bg-gray-100 text-gray-500 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                    未印刷
+                                </span>
+                                {% else %}
+                                <span class="text-gray-300">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right hidden sm:table-cell">
+                                {% if row.has_order %}{{ row.total_quantity }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right hidden sm:table-cell">
+                                {% if row.has_order %}&yen;{{ row.total|floatformat:0|intcomma }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                {% if row.has_order %}
+                                <div class="flex items-center justify-center gap-1 flex-wrap">
+                                    <a href="{% url 'orders:order_print' row.order.pk %}" target="_blank"
+                                       class="text-xs {% if row.pdf_printed %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
+                                        納品書{% if row.pdf_printed %} ✓{% endif %}
+                                    </a>
+                                    <a href="{% url 'orders:receipt_print' row.order.pk %}" target="_blank"
+                                       class="text-xs text-white px-2 py-1 rounded hover:opacity-80 font-bold" style="background-color:#7c3aed;">
+                                        領収書
+                                    </a>
+                                    <a href="{% url 'orders:order_edit' row.order.pk %}"
+                                       class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:opacity-80">
+                                        編集
+                                    </a>
+                                </div>
+                                {% else %}
+                                <a href="{% url 'orders:order_create_for_customer' row.customer.pk %}?delivery_date={{ target_date_str }}"
+                                   class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                                    新規受注
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-gray-500">
+                定期注文の顧客が登録されていません。<br>
+                <a href="{% url 'orders:customer_list' %}" class="text-blue-600 hover:underline">顧客一覧</a>から顧客を編集し「定期注文」にチェックを入れてください。
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- その他の注文テーブル -->
+        {% if other_orders %}
+        <h2 class="text-lg font-bold text-gray-700 mb-3">その他の注文</h2>
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-3 py-3 w-8">
+                                <input type="checkbox" id="select-all-other"
+                                       class="rounded border-gray-300 cursor-pointer"
+                                       title="その他の注文を全選択/解除">
+                            </th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">受注番号</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
+                            <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
+                            <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
+                            <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
+                            <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for order in other_orders %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox" name="order_pks" value="{{ order.pk }}"
+                                       class="order-checkbox other-checkbox rounded border-gray-300 cursor-pointer">
+                            </td>
+                            <td class="px-4 py-3 hidden sm:table-cell">
+                                <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
+                                    {{ order.order_number }}
+                                </a>
+                            </td>
+                            <td class="px-4 py-3">{{ order.customer }}</td>
+                            <td class="px-4 py-3 text-center hidden md:table-cell">
+                                {% if order.pdf_printed_at %}
+                                <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                    印刷済
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center bg-gray-100 text-gray-500 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                    未印刷
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
+                            <td class="px-4 py-3 text-right hidden sm:table-cell">&yen;{{ order.total|floatformat:0|intcomma }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-1 flex-wrap">
+                                    <a href="{% url 'orders:order_print' order.pk %}" target="_blank"
+                                       class="text-xs {% if order.pdf_printed_at %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
+                                        納品書{% if order.pdf_printed_at %} ✓{% endif %}
+                                    </a>
+                                    <a href="{% url 'orders:receipt_print' order.pk %}" target="_blank"
+                                       class="text-xs text-white px-2 py-1 rounded hover:opacity-80 font-bold" style="background-color:#7c3aed;">
+                                        領収書
+                                    </a>
+                                    <a href="{% url 'orders:order_edit' order.pk %}"
+                                       class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:opacity-80">
+                                        編集
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         {% endif %}
-    </div>
-
-    <!-- その他の注文テーブル -->
-    {% if other_orders %}
-    <h2 class="text-lg font-bold text-gray-700 mb-3">その他の注文</h2>
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 border-b">
-                    <tr>
-                        <th class="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">受注番号</th>
-                        <th class="text-left px-4 py-3 font-semibold text-gray-600">顧客名</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">PDF</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">食数</th>
-                        <th class="text-right px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">合計</th>
-                        <th class="text-center px-4 py-3 font-semibold text-gray-600">操作</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    {% for order in other_orders %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 hidden sm:table-cell">
-                            <a href="{% url 'orders:order_detail' order.pk %}" class="text-blue-600 hover:underline font-medium break-all">
-                                {{ order.order_number }}
-                            </a>
-                        </td>
-                        <td class="px-4 py-3">{{ order.customer }}</td>
-                        <td class="px-4 py-3 text-center hidden md:table-cell">
-                            {% if order.pdf_printed_at %}
-                            <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
-                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                印刷済
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center bg-gray-100 text-gray-500 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
-                                未印刷
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-right hidden sm:table-cell">{{ order.total_quantity }}</td>
-                        <td class="px-4 py-3 text-right hidden sm:table-cell">&yen;{{ order.total|floatformat:0|intcomma }}</td>
-                        <td class="px-4 py-3 text-center">
-                            <div class="flex items-center justify-center gap-1 flex-wrap">
-                                <a href="{% url 'orders:order_print' order.pk %}" target="_blank"
-                                   class="text-xs {% if order.pdf_printed_at %}bg-green-600{% else %}bg-blue-600{% endif %} text-white px-2 py-1 rounded hover:opacity-80 font-bold">
-                                    納品書{% if order.pdf_printed_at %} ✓{% endif %}
-                                </a>
-                                <a href="{% url 'orders:receipt_print' order.pk %}" target="_blank"
-                                   class="text-xs text-white px-2 py-1 rounded hover:opacity-80 font-bold" style="background-color:#7c3aed;">
-                                    領収書
-                                </a>
-                                <a href="{% url 'orders:order_edit' order.pk %}"
-                                   class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:opacity-80">
-                                    編集
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
+    </form>
 </div>
+
+<script>
+document.getElementById('select-all-regular').addEventListener('change', function() {
+    document.querySelectorAll('.regular-checkbox').forEach(cb => cb.checked = this.checked);
+    updateCount();
+});
+
+const selectAllOther = document.getElementById('select-all-other');
+if (selectAllOther) {
+    selectAllOther.addEventListener('change', function() {
+        document.querySelectorAll('.other-checkbox').forEach(cb => cb.checked = this.checked);
+        updateCount();
+    });
+}
+
+document.getElementById('batch-print-form').addEventListener('change', updateCount);
+
+function updateCount() {
+    const n = document.querySelectorAll('.order-checkbox:checked').length;
+    document.getElementById('selected-count').textContent = n;
+    document.getElementById('btn-batch-delivery').disabled = n === 0;
+    document.getElementById('btn-batch-receipt').disabled = n === 0;
+}
+
+function submitBatch(actionUrl) {
+    const n = document.querySelectorAll('.order-checkbox:checked').length;
+    if (n === 0) { alert('印刷する注文を選択してください。'); return; }
+    const form = document.getElementById('batch-print-form');
+    form.action = actionUrl;
+    form.target = '_blank';
+    form.submit();
+    form.target = '';
+}
+</script>
+
 {% endblock %}

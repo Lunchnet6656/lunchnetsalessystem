@@ -703,9 +703,6 @@ def admin_dashboard(request):
 @staff_member_required
 def admin_review_submissions(request, period_id):
     period = get_object_or_404(SchedulePeriod, pk=period_id)
-    submissions = AvailabilitySubmission.objects.filter(
-        period=period,
-    ).select_related('user').prefetch_related('days').order_by(F('submitted_at').desc(nulls_last=True))
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -727,21 +724,42 @@ def admin_review_submissions(request, period_id):
                 messages.success(request, f'{sub.user.get_full_name() or sub.user.username} の提出を差戻しました。')
         return redirect('shifts:admin_review_submissions', period_id=period_id)
 
-    # 各提出に出勤/休み日数を集計
+    # 全アクティブユーザー（uses_app=True）
+    all_users = User.objects.filter(
+        is_active=True, profile__uses_app=True
+    ).order_by('last_name', 'first_name')
+
+    # 提出物を user_id キーでマッピング
+    submissions_map = {
+        sub.user_id: sub for sub in
+        AvailabilitySubmission.objects.filter(period=period)
+            .select_related('user').prefetch_related('days')
+    }
+
     submission_data = []
-    for sub in submissions:
-        days = sub.days.all()
-        work_count = sum(1 for d in days if d.availability == 'WORK')
-        off_count = sum(1 for d in days if d.availability == 'OFF')
-        days_with_weekday = []
-        for d in days:
-            d.weekday_name = WEEKDAY_NAMES[d.date.weekday()]
-            days_with_weekday.append(d)
+    for user in all_users:
+        sub = submissions_map.get(user.id)
+        if sub:
+            days = sub.days.all()
+            work_count = sum(1 for d in days if d.availability == 'WORK')
+            off_count = sum(1 for d in days if d.availability == 'OFF')
+            days_with_weekday = []
+            for d in days:
+                d.weekday_name = WEEKDAY_NAMES[d.date.weekday()]
+                days_with_weekday.append(d)
+            status = sub.status
+        else:
+            work_count = off_count = 0
+            days_with_weekday = []
+            status = 'NOT_SUBMITTED'
+
         submission_data.append({
+            'user': user,
             'submission': sub,
             'work_count': work_count,
             'off_count': off_count,
             'days': days_with_weekday,
+            'display_status': status,  # NOT_SUBMITTED / DRAFT / RETURNED / SUBMITTED / APPROVED
         })
 
     context = {
@@ -749,6 +767,92 @@ def admin_review_submissions(request, period_id):
         'submission_data': submission_data,
     }
     return render(request, 'shifts/admin_review_submissions.html', context)
+
+
+# ---------- 6-6c: 管理者による提出内容編集 ----------
+
+@staff_member_required
+def admin_edit_submission(request, period_id, user_id):
+    period = get_object_or_404(SchedulePeriod, pk=period_id)
+    target_user = get_object_or_404(User, pk=user_id, is_active=True)
+
+    submission, _ = AvailabilitySubmission.objects.get_or_create(
+        user=target_user, period=period,
+    )
+
+    dates = list(generate_date_range(period.start_date, period.end_date))
+    existing_days = {day.date: day for day in submission.days.all()}
+
+    date_info = []
+    for d in dates:
+        holiday = is_holiday(d)
+        holiday_name = get_holiday_name(d) if holiday else ''
+        day = existing_days.get(d)
+        if day:
+            availability = day.availability
+            absence_category = day.absence_category
+            comment = day.comment
+        else:
+            availability = 'OFF' if holiday else 'WORK'
+            absence_category = ''
+            comment = ''
+        date_info.append({
+            'date': d,
+            'weekday': WEEKDAY_NAMES[d.weekday()],
+            'is_holiday': holiday,
+            'holiday_name': holiday_name,
+            'availability': availability,
+            'absence_category': absence_category,
+            'comment': comment,
+        })
+
+    all_users = User.objects.filter(is_active=True).order_by('last_name', 'first_name')
+
+    if request.method == 'POST':
+        now = timezone.now()
+        for d in dates:
+            date_str = d.strftime('%Y-%m-%d')
+            if is_holiday(d):
+                avail = 'OFF'
+            else:
+                avail = request.POST.get(f'avail_{date_str}', 'WORK')
+            absence_cat = ''
+            sub_user_id = None
+            comment = ''
+            if avail == 'OFF' and not is_holiday(d):
+                absence_cat = request.POST.get(f'absence_{date_str}', '')
+                if absence_cat == 'SUBSTITUTE':
+                    raw_sub = request.POST.get(f'substitute_{date_str}')
+                    if raw_sub:
+                        sub_user_id = int(raw_sub)
+                comment = request.POST.get(f'comment_{date_str}', '')
+
+            AvailabilityDay.objects.update_or_create(
+                submission=submission, date=d,
+                defaults={
+                    'availability': avail,
+                    'absence_category': absence_cat,
+                    'substitute_user_id': sub_user_id,
+                    'comment': comment,
+                },
+            )
+
+        submission.remarks = request.POST.get('remarks', '')
+        submission.status = 'SUBMITTED'
+        submission.submitted_at = now
+        submission.submitted_by_admin = True
+        submission.save()
+        messages.success(request, f'{target_user.get_full_name() or target_user.username} の提出内容を保存しました。')
+        return redirect('shifts:admin_review_submissions', period_id=period_id)
+
+    context = {
+        'period': period,
+        'target_user': target_user,
+        'submission': submission,
+        'date_info': date_info,
+        'all_users': all_users,
+    }
+    return render(request, 'shifts/admin_edit_submission.html', context)
 
 
 # ---------- 6-7: 日別割当 ----------

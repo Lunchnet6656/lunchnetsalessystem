@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.contrib import messages
 from django.db.models import Count, Sum, Q, Case, When, F, Value, IntegerField, CharField, Exists, OuterRef
 from django.utils import timezone
@@ -274,6 +274,44 @@ def receipt_pdf(request, pk):
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="receipt_{order.order_number}.pdf"'
     return response
+
+
+@login_required
+def batch_delivery_slip_pdf(request):
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    pks = [int(v) for v in request.POST.getlist('order_pks') if v.strip().isdigit()]
+    if not pks:
+        return HttpResponseBadRequest('注文が選択されていません')
+    orders = (Order.objects
+              .filter(pk__in=pks)
+              .select_related('customer')
+              .prefetch_related('items', 'extra_items')
+              .order_by('customer__company_name', 'customer__name'))
+    from .pdf import build_delivery_slip_context
+    contexts = [build_delivery_slip_context(order) for order in orders]
+    needs_zoom = any(ctx.get('customer_notes') and ctx.get('has_extra_items') for ctx in contexts)
+    orders.filter(pdf_printed_at__isnull=True).update(pdf_printed_at=timezone.now())
+    return render(request, 'orders/batch_delivery_slip_preview.html', {
+        'orders_contexts': contexts,
+        'needs_zoom': needs_zoom,
+    })
+
+
+@login_required
+def batch_receipt_pdf(request):
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    pks = [int(v) for v in request.POST.getlist('order_pks') if v.strip().isdigit()]
+    if not pks:
+        return HttpResponseBadRequest('注文が選択されていません')
+    orders = (Order.objects
+              .filter(pk__in=pks)
+              .select_related('customer')
+              .order_by('customer__company_name', 'customer__name'))
+    from .pdf import build_receipt_context
+    contexts = [build_receipt_context(order) for order in orders]
+    return render(request, 'orders/batch_receipt_preview.html', {'orders_contexts': contexts})
 
 
 # --- Customer views ---

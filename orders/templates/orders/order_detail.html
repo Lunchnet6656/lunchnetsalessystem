@@ -1,4 +1,5 @@
 {% extends "orders/base.html" %}
+{% load humanize %}
 {% block title %}{{ order.order_number }} - 受注管理{% endblock %}
 {% block nav_regular %}bg-gray-600 text-white{% endblock %}
 
@@ -92,7 +93,7 @@
                                 {% if item.quantity_small %}小盛り:{{ item.quantity_small }}{% endif %}
                             </div>
                         </td>
-                        <td class="px-4 py-2 text-right">&yen;{{ item.subtotal|floatformat:0 }}</td>
+                        <td class="px-4 py-2 text-right">&yen;{{ item.subtotal|floatformat:0|intcomma }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -100,7 +101,7 @@
                     <tr class="bg-gray-50">
                         <td colspan="2" class="px-4 py-3"></td>
                         <td class="px-4 py-3 text-right font-bold text-gray-700">弁当小計</td>
-                        <td class="px-4 py-3 text-right text-lg font-bold text-gray-600">&yen;{{ order.bento_total|floatformat:0 }}</td>
+                        <td class="px-4 py-3 text-right text-lg font-bold text-gray-600">&yen;{{ order.bento_total|floatformat:0|intcomma }}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -125,9 +126,9 @@
                     {% for ei in order.extra_items.all %}
                     <tr>
                         <td class="px-4 py-2">{{ ei.product_name }}</td>
-                        <td class="px-4 py-2 text-right">&yen;{{ ei.unit_price|floatformat:0 }}</td>
+                        <td class="px-4 py-2 text-right">&yen;{{ ei.unit_price|floatformat:0|intcomma }}</td>
                         <td class="px-4 py-2 text-right">{{ ei.quantity }}</td>
-                        <td class="px-4 py-2 text-right">&yen;{{ ei.subtotal|floatformat:0 }}</td>
+                        <td class="px-4 py-2 text-right">&yen;{{ ei.subtotal|floatformat:0|intcomma }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -139,7 +140,7 @@
     <!-- 合計 -->
     <div class="mt-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-md">
         <span class="text-lg sm:text-xl font-bold text-gray-800">合計（税込）</span>
-        <span class="text-2xl sm:text-3xl font-bold text-blue-700">&yen;{{ order.total|floatformat:0 }}</span>
+        <span class="text-2xl sm:text-3xl font-bold text-blue-700">&yen;{{ order.total|floatformat:0|intcomma }}</span>
     </div>
 </div>
 {% endblock %}
