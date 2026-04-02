@@ -19,7 +19,7 @@
 
         <!-- 顧客種別 -->
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.customer_type.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.customer_type.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
             <select name="customer_type" id="id_customer_type"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 {% for value, label in form.fields.customer_type.choices %}
@@ -32,19 +32,19 @@
         <div id="b2b-fields">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.company_name.label }}</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.company_name.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
                     <input type="text" name="company_name" value="{{ form.company_name.value|default:'' }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                     {% if form.company_name.errors %}<p class="text-red-600 text-xs mt-1">{{ form.company_name.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.contact_person.label }}</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.contact_person.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                     <input type="text" name="contact_person" value="{{ form.contact_person.value|default:'' }}"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
             </div>
             <div class="mt-4">
-                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.department.label }}</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.department.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                 <input type="text" name="department" value="{{ form.department.value|default:'' }}"
                        placeholder="例：総務部、営業部"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
@@ -53,7 +53,7 @@
 
         <!-- 顧客名（個人のみ） -->
         <div id="individual-name-field">
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.name.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.name.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
             <input type="text" name="name" value="{{ form.name.value|default:'' }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
             {% if form.name.errors %}<p class="text-red-600 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
@@ -62,19 +62,19 @@
         <!-- 連絡先 -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.phone.label }}</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.phone.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                 <input type="tel" name="phone" value="{{ form.phone.value|default:'' }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.fax.label }}</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.fax.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                 <input type="tel" name="fax" value="{{ form.fax.value|default:'' }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
         </div>
 
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.email.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.email.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
             <input type="email" name="email" value="{{ form.email.value|default:'' }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
         </div>
@@ -82,12 +82,12 @@
         <!-- 住所 -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.postal_code.label }}</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.postal_code.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                 <input type="text" name="postal_code" value="{{ form.postal_code.value|default:'' }}" placeholder="000-0000"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.address.label }}</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.address.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                 <input type="text" name="address" value="{{ form.address.value|default:'' }}"
                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
@@ -95,7 +95,7 @@
 
         <!-- 価格タイプ -->
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.price_type.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.price_type.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
             <select name="price_type" id="id_price_type"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 {% for value, label in form.fields.price_type.choices %}
@@ -109,21 +109,21 @@
             <p class="text-sm font-semibold text-yellow-800">独自価格設定</p>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">★なし商品の価格（円）</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">★なし商品の価格（円）<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                     <input type="number" name="custom_price_normal" id="id_custom_price_normal"
                            value="{{ form.custom_price_normal.value|default:'' }}" min="0" step="1"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
                     {% if form.custom_price_normal.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_normal.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">★あり商品の価格（円）</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">★あり商品の価格（円）<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                     <input type="number" name="custom_price_star" id="id_custom_price_star"
                            value="{{ form.custom_price_star.value|default:'' }}" min="0" step="1"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
                     {% if form.custom_price_star.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_star.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">大盛り割増（円）</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">大盛り割増（円）<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
                     <input type="number" name="custom_price_large" id="id_custom_price_large"
                            value="{{ form.custom_price_large.value|default:'' }}" min="0" step="1"
                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
@@ -134,7 +134,7 @@
 
         <!-- 支払い方法 -->
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.payment_method.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.payment_method.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
             <select name="payment_method"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">---------</option>
@@ -146,7 +146,7 @@
 
         <!-- 配達便 -->
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.delivery_bin.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.delivery_bin.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
             <select name="delivery_bin"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">---------</option>
@@ -158,7 +158,7 @@
 
         <!-- 弁当種別 -->
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.bento_type.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.bento_type.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
             <select name="bento_type"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 {% for value, label in form.fields.bento_type.choices %}
@@ -172,12 +172,12 @@
             <input type="checkbox" name="is_regular" id="id_is_regular"
                    {% if form.is_regular.value %}checked{% endif %}
                    class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-            <label for="id_is_regular" class="text-sm font-semibold text-gray-700">定期注文の顧客</label>
+            <label for="id_is_regular" class="text-sm font-semibold text-gray-700">定期注文の顧客<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
         </div>
 
         <!-- 定期スケジュール（is_regularがtrueの時のみ表示） -->
         <div id="regular-schedule-section" class="{% if not form.is_regular.value %}hidden{% endif %} bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-            <p class="text-sm font-semibold text-blue-700">定期スケジュール</p>
+            <p class="text-sm font-semibold text-blue-700">定期スケジュール<span class="text-red-500 text-xs font-normal ml-1">※必須</span></p>
             <div class="flex gap-4">
                 <label class="flex items-center gap-2 text-sm text-gray-700">
                     <input type="radio" name="regular_type" value="WEEKDAY"
@@ -213,7 +213,7 @@
 
         <!-- 備考 -->
         <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.notes.label }}</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.notes.label }}<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
             <textarea name="notes" rows="3"
                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">{{ form.notes.value|default:'' }}</textarea>
         </div>

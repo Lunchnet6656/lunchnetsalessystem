@@ -762,6 +762,14 @@ def admin_review_submissions(request, period_id):
             'display_status': status,  # NOT_SUBMITTED / DRAFT / RETURNED / SUBMITTED / APPROVED
         })
 
+    # 提出日時の新しい順にソート（未提出は末尾）
+    submission_data.sort(
+        key=lambda item: item['submission'].submitted_at
+            if item['submission'] and item['submission'].submitted_at
+            else datetime.datetime.min.replace(tzinfo=datetime.timezone.utc),
+        reverse=True,
+    )
+
     context = {
         'period': period,
         'submission_data': submission_data,
