@@ -27,7 +27,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800">{{ section.bin.name }}</h2>
-                    <div class="flex items-center gap-3 mt-2 text-sm">
+                    <div class="flex items-center gap-3 mt-2 text-sm flex-wrap">
                         <span class="text-gray-500">
                             注文済み
                             <span class="font-bold text-green-600 text-base ml-1">{{ section.ordered_count }}</span>
@@ -38,11 +38,23 @@
                             食数
                             <span class="font-bold text-blue-600 text-base ml-1">{{ section.total_quantity }}</span>
                         </span>
+                        {% if section.completed_count > 0 %}
+                        <span class="text-gray-400">|</span>
+                        <span class="text-gray-500">
+                            配達完了
+                            <span class="font-bold text-green-600 text-base ml-1">{{ section.completed_count }}</span>
+                            <span class="text-gray-400">/ {{ section.total_customers }}</span>
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    {% if section.ordered_count == section.total_customers and section.total_customers > 0 %}
-                    <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-1 rounded-full">完了</span>
+                    {% if section.completed_count == section.total_customers and section.total_customers > 0 %}
+                    <span class="text-xs bg-green-500 text-white font-medium px-2 py-1 rounded-full">配達完了</span>
+                    {% elif section.completed_count > 0 %}
+                    <span class="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-1 rounded-full">配達中</span>
+                    {% elif section.ordered_count == section.total_customers and section.total_customers > 0 %}
+                    <span class="text-xs bg-green-100 text-green-700 font-medium px-2 py-1 rounded-full">受注完了</span>
                     {% elif section.ordered_count > 0 %}
                     <span class="text-xs bg-yellow-100 text-yellow-700 font-medium px-2 py-1 rounded-full">対応中</span>
                     {% else %}

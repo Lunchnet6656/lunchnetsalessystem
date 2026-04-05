@@ -316,6 +316,21 @@ class OrderSettings(models.Model):
         return "受注設定"
 
 
+class DeliveryCompletion(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, verbose_name="顧客")
+    delivery_date = models.DateField(verbose_name="配達日", db_index=True)
+    delivery_bin = models.ForeignKey(DeliveryBin, on_delete=models.CASCADE, verbose_name="配達便")
+    completed_at = models.DateTimeField(auto_now_add=True, verbose_name="完了日時")
+
+    class Meta:
+        unique_together = [('customer', 'delivery_date')]
+        verbose_name = "配達完了"
+        verbose_name_plural = "配達完了"
+
+    def __str__(self):
+        return f"{self.customer} - {self.delivery_date}"
+
+
 class OrderUserMenuPermission(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

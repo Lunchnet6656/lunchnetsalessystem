@@ -58,6 +58,7 @@ urlpatterns = [
     path('delivery-bins/<int:pk>/delete/', views.delivery_bin_delete, name='delivery_bin_delete'),
 
     # API
+    path('api/delivery-complete/toggle/', views.api_toggle_delivery_complete, name='api_delivery_complete_toggle'),
     path('api/customer/<int:pk>/info/', views.api_customer_info, name='api_customer_info'),
     path('api/products/<str:date>/', views.api_products, name='api_products'),
     path('api/check-duplicate/', views.api_check_duplicate, name='api_check_duplicate'),

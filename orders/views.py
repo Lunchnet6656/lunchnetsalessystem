@@ -1,13 +1,14 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.contrib import messages
 from django.db.models import Count, Sum, Q, Case, When, F, Value, IntegerField, CharField, Exists, OuterRef
 from django.utils import timezone
 import csv
 import json
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion
 from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm
 from sales.models import Product
@@ -995,6 +996,11 @@ def delivery_list(request):
     bins = DeliveryBin.objects.filter(is_active=True)
     assigned_bin_ids = {db.pk for db in bins}
 
+    completed_set = set(
+        DeliveryCompletion.objects.filter(delivery_date=target_date)
+        .values_list('customer_id', flat=True)
+    )
+
     bin_sections = []
     for db in bins:
         bin_customers = [c for c in all_customers if c.delivery_bin_id == db.pk]
@@ -1007,6 +1013,7 @@ def delivery_list(request):
             'total_customers': len(bin_customers),
             'ordered_count': ordered,
             'total_quantity': total_qty,
+            'completed_count': sum(1 for c in bin_customers if c.pk in completed_set),
         })
 
     unassigned_customers = [
@@ -1057,6 +1064,13 @@ def delivery_list_by_bin(request, pk):
         delivery_bin=delivery_bin
     ).select_related('payment_method').order_by('company_name', 'name')
 
+    completed_ids_bin = set(
+        DeliveryCompletion.objects.filter(
+            delivery_date=target_date,
+            delivery_bin=delivery_bin
+        ).values_list('customer_id', flat=True)
+    )
+
     rows = []
     for customer in bin_customers:
         order = order_map.get(customer.pk)
@@ -1066,6 +1080,7 @@ def delivery_list_by_bin(request, pk):
             'has_order': order is not None,
             'total_quantity': order.total_quantity if order else 0,
             'notes': order.notes if order else customer.notes,
+            'is_completed': customer.pk in completed_ids_bin,
         })
 
     ordered_count = sum(1 for r in rows if r['has_order'])
@@ -1129,6 +1144,13 @@ def delivery_list_by_bin_public(request, pk):
         delivery_bin=delivery_bin
     ).select_related('payment_method').order_by('company_name', 'name')
 
+    completed_ids = set(
+        DeliveryCompletion.objects.filter(
+            delivery_date=target_date,
+            delivery_bin=delivery_bin
+        ).values_list('customer_id', flat=True)
+    )
+
     rows = []
     for customer in bin_customers:
         order = order_map.get(customer.pk)
@@ -1140,6 +1162,7 @@ def delivery_list_by_bin_public(request, pk):
             'notes': order.notes if order else customer.notes,
             'order_items': list(order.items.all()) if order else [],
             'extra_items': list(order.extra_items.all()) if order else [],
+            'is_completed': customer.pk in completed_ids,
         })
 
     ordered_count = sum(1 for r in rows if r['has_order'])
@@ -1170,3 +1193,33 @@ def delivery_list_by_bin_public(request, pk):
         'payment_method_totals': payment_method_totals,
     }
     return render(request, 'orders/delivery_list_by_bin_public.html', context)
+
+
+@csrf_exempt
+def api_toggle_delivery_complete(request):
+    """配達完了トグルAPI（公開・認証不要・QRコードアクセス対応）"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    try:
+        data = json.loads(request.body)
+        customer_id = int(data['customer_id'])
+        delivery_date_str = data['delivery_date']
+        bin_pk = int(data['bin_pk'])
+        delivery_date = datetime.strptime(delivery_date_str, '%Y-%m-%d').date()
+    except (KeyError, ValueError, TypeError):
+        return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+    customer = get_object_or_404(Customer, pk=customer_id)
+    delivery_bin = get_object_or_404(DeliveryBin, pk=bin_pk)
+
+    obj, created = DeliveryCompletion.objects.get_or_create(
+        customer=customer,
+        delivery_date=delivery_date,
+        defaults={'delivery_bin': delivery_bin}
+    )
+    if not created:
+        obj.delete()
+        return JsonResponse({'completed': False})
+    from django.utils import timezone as tz
+    local_time = tz.localtime(obj.completed_at)
+    return JsonResponse({'completed': True, 'completed_at': local_time.strftime('%H:%M')})
