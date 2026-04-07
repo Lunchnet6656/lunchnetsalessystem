@@ -57,6 +57,9 @@
                         {% if customer.is_regular %}
                         <span class="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded ml-1">定期</span>
                         {% endif %}
+                        {% if not customer.include_in_total %}
+                        <span class="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded ml-1">集計除外</span>
+                        {% endif %}
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-600 hidden sm:table-cell">{{ customer.phone }}</td>
                     <td class="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{{ customer.get_price_type_display }}</td>

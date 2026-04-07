@@ -636,7 +636,11 @@ def api_order_totals(request, date):
     except ValueError:
         return JsonResponse({'totals': []})
 
-    qs = OrderItem.objects.filter(order__delivery_date=target_date, product__isnull=False)
+    qs = OrderItem.objects.filter(
+        order__delivery_date=target_date,
+        product__isnull=False,
+        order__customer__include_in_total=True,
+    )
 
     exclude_order_pk = request.GET.get('exclude_order_pk')
     if exclude_order_pk:

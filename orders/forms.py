@@ -32,6 +32,7 @@ class CustomerForm(forms.ModelForm):
             'schedule_mon', 'schedule_tue', 'schedule_wed', 'schedule_thu',
             'schedule_fri', 'schedule_sat', 'schedule_sun',
             'notes',
+            'include_in_total',
         ]
 
     def __init__(self, *args, **kwargs):

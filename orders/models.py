@@ -108,6 +108,7 @@ class Customer(models.Model):
     schedule_sat = models.BooleanField(default=False, verbose_name="土")
     schedule_sun = models.BooleanField(default=False, verbose_name="日")
     is_active = models.BooleanField(default=True, verbose_name="有効")
+    include_in_total = models.BooleanField(default=True, verbose_name="全体注文数に含める")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

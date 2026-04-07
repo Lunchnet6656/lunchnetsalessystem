@@ -100,6 +100,16 @@
                 <dd class="font-medium">{{ customer.notes }}</dd>
             </div>
             {% endif %}
+            <div>
+                <dt class="text-sm text-gray-500">全体注文数</dt>
+                <dd class="font-medium">
+                    {% if customer.include_in_total %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">集計に含める</span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">集計から除外</span>
+                    {% endif %}
+                </dd>
+            </div>
         </dl>
     </div>
 
