@@ -2,7 +2,7 @@
   "name": "ランチネット販売実績管理システム",
   "short_name": "LSSログイン",
   "description": "弁当の販売管理・シフト管理・受注管理システム",
-  "start_url": "/",
+  "start_url": "/login/",
   "display": "standalone",
   "background_color": "#212529",
   "theme_color": "#212529",
