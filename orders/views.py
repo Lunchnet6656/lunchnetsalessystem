@@ -8,6 +8,9 @@ from django.db.models import Count, Sum, Q, Case, When, F, Value, IntegerField, 
 from django.utils import timezone
 import csv
 import json
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion
 from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm
@@ -905,7 +908,7 @@ def order_export_page(request):
 
 @login_required
 def order_csv_export(request):
-    """売上データCSVファイルをダウンロードする"""
+    """売上データExcelファイルをダウンロードする（シート1: 売上データ、シート2: 顧客別価格表）"""
     today = timezone.localdate()
     date_from_str = request.GET.get('date_from')
     date_to_str   = request.GET.get('date_to')
@@ -928,18 +931,26 @@ def order_csv_export(request):
         .order_by('delivery_date', 'order_number')
     )
 
-    filename = f"orders_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.csv"
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    response.write('\ufeff')  # UTF-8 BOM（Excel日本語対応）
+    wb = openpyxl.Workbook()
 
-    writer = csv.writer(response)
-    writer.writerow([
-        'ORID', '日付', '顧客種別', '顧客名', '配達便', 'お弁当種別',
+    # ---- シート1: 売上データ ----
+    ws1 = wb.active
+    ws1.title = '売上データ'
+
+    header_fill = PatternFill(fill_type='solid', fgColor='4CAF50')
+    header_font = Font(bold=True, color='FFFFFF')
+
+    headers1 = [
+        'ORID', '日付', '顧客種別', '顧客名', '部署名', '配達便', 'お弁当種別',
         '支払い方法', '価格タイプ',
         '★お弁当注文数', 'お弁当注文数', '大盛りご飯数', 'お弁当合計金額',
         '追加商品注文数', '追加商品合計金額', '総計金額',
-    ])
+    ]
+    ws1.append(headers1)
+    for cell in ws1[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
 
     for order in orders:
         c = order.customer
@@ -947,8 +958,6 @@ def order_csv_export(request):
         delivery_bin  = c.delivery_bin.name if c.delivery_bin else ''
         payment_name  = c.payment_method.name if c.payment_method else ''
 
-        # order.bento_total / order.total プロパティは内部で items.all() を
-        # 再発行するため prefetch キャッシュが効かない。直接ループで集計する。
         items = list(order.items.all())
         bento_qty_star   = sum(item.quantity for item in items if '★' in item.product_name)
         bento_qty_normal = sum(item.quantity for item in items if '★' not in item.product_name)
@@ -958,11 +967,12 @@ def order_csv_export(request):
         extra_total = sum(ei.subtotal for ei in order.extra_items.all())
         grand_total = bento_total + extra_total
 
-        writer.writerow([
+        ws1.append([
             order.order_number,
             order.delivery_date.strftime('%Y-%m-%d'),
             c.customer_type,
             customer_name,
+            c.department,
             delivery_bin,
             c.bento_type,
             payment_name,
@@ -976,6 +986,111 @@ def order_csv_export(request):
             int(grand_total),
         ])
 
+    # 列幅の自動調整（シート1）
+    for col in ws1.columns:
+        max_len = max((len(str(cell.value)) if cell.value is not None else 0) for cell in col)
+        ws1.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    # ---- シート2: 顧客別価格表 ----
+    ws2 = wb.create_sheet(title='顧客別価格表')
+
+    # 期間内の最新週のProductから A/B/C 価格を取得
+    # product_prices[価格タイプ]['star'|'normal'|'large'] = 単価（円）
+    product_prices = {
+        'A': {'star': None, 'normal': None, 'large': None},
+        'B': {'star': None, 'normal': None, 'large': None},
+        'C': {'star': None, 'normal': None, 'large': None},
+    }
+    latest_week = (
+        Product.objects
+        .filter(week__lte=date_to.strftime('%Y%m%d'))
+        .order_by('-week')
+        .values_list('week', flat=True)
+        .first()
+    )
+    if latest_week:
+        for prod in Product.objects.filter(week=latest_week):
+            if '大盛りごはん' in prod.name:
+                key = 'large'
+            elif '★' in prod.name:
+                key = 'star'
+            else:
+                key = 'normal'
+            for pt in ('A', 'B', 'C'):
+                if product_prices[pt][key] is None:
+                    val = getattr(prod, f'price_{pt}')
+                    product_prices[pt][key] = int(val) if val else None
+
+    week_label = f"（{latest_week[:4]}/{latest_week[4:6]}/{latest_week[6:]}週）" if latest_week else ''
+
+    header_fill2 = PatternFill(fill_type='solid', fgColor='1565C0')
+    headers2 = [
+        '顧客名', '顧客種別', '配達便', 'お弁当種別', '価格タイプ',
+        f'★あり単価{week_label}', f'★なし単価{week_label}', '大盛り割増',
+    ]
+    ws2.append(headers2)
+    for cell in ws2[1]:
+        cell.font = header_font
+        cell.fill = header_fill2
+        cell.alignment = Alignment(horizontal='center')
+
+    customers = (
+        Customer.objects
+        .filter(is_active=True)
+        .select_related('delivery_bin')
+        .order_by('delivery_bin__name', 'company_name', 'name')
+    )
+
+    custom_fill = PatternFill(fill_type='solid', fgColor='FFF9C4')  # 独自価格行を薄黄色でハイライト
+
+    for c in customers:
+        customer_name = c.company_name if c.customer_type == 'B2B' else c.name
+        delivery_bin  = c.delivery_bin.name if c.delivery_bin else ''
+        price_type_label = dict(Customer.PRICE_TYPE_CHOICES).get(c.price_type, c.price_type)
+        customer_type_label = dict(Customer.CUSTOMER_TYPE_CHOICES).get(c.customer_type, c.customer_type)
+        bento_type_label = dict(Customer.BENTO_TYPE_CHOICES).get(c.bento_type, c.bento_type)
+
+        if c.price_type == 'CUSTOM':
+            price_star   = int(c.custom_price_star)   if c.custom_price_star   is not None else ''
+            price_normal = int(c.custom_price_normal) if c.custom_price_normal is not None else ''
+            price_large  = int(c.custom_price_large)  if c.custom_price_large  is not None else ''
+        else:
+            pt = c.price_type  # 'A', 'B', or 'C'
+            price_star   = product_prices[pt]['star']   if pt in product_prices else ''
+            price_normal = product_prices[pt]['normal'] if pt in product_prices else ''
+            price_large  = product_prices[pt]['large']  if pt in product_prices else ''
+
+        row = ws2.max_row + 1
+        ws2.append([
+            customer_name,
+            customer_type_label,
+            delivery_bin,
+            bento_type_label,
+            price_type_label,
+            price_star if price_star is not None else '',
+            price_normal if price_normal is not None else '',
+            price_large,
+        ])
+        if c.price_type == 'CUSTOM':
+            for cell in ws2[row]:
+                cell.fill = custom_fill
+
+    # 列幅の自動調整（シート2）
+    for col in ws2.columns:
+        max_len = max((len(str(cell.value)) if cell.value is not None else 0) for cell in col)
+        ws2.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    # レスポンス出力
+    filename = f"orders_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.xlsx"
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    response = HttpResponse(
+        buffer.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 
 

@@ -21,14 +21,17 @@
             <p class="text-xs text-gray-400 mb-5">※ デフォルトは今月（{{ date_from }} 〜 {{ date_to }}）</p>
             <button type="submit"
                     class="w-full bg-green-600 text-white px-4 py-3 rounded-lg text-sm font-medium hover:bg-green-700 transition">
-                CSV ダウンロード
+                Excel ダウンロード (.xlsx)
             </button>
         </form>
     </div>
 
-    <p class="mt-4 text-xs text-gray-400 text-center">
-        出力列: ORID / 日付 / 顧客種別 / 顧客名 / 配達便 / お弁当種別 / 支払い方法 /
-        価格タイプ / ★お弁当注文数 / お弁当注文数 / 大盛りご飯数 / お弁当合計 / 追加商品注文数 / 追加商品合計 / 総計
-    </p>
+    <div class="mt-4 text-xs text-gray-400 space-y-1">
+        <p class="font-medium text-gray-500">シート1「売上データ」出力列:</p>
+        <p>ORID / 日付 / 顧客種別 / 顧客名 / 部署名 / 配達便 / お弁当種別 / 支払い方法 /
+        価格タイプ / ★お弁当注文数 / お弁当注文数 / 大盛りご飯数 / お弁当合計 / 追加商品注文数 / 追加商品合計 / 総計</p>
+        <p class="font-medium text-gray-500 mt-2">シート2「顧客別価格表」:</p>
+        <p>有効な全顧客の価格タイプと独自価格設定を一覧表示（独自価格設定の顧客は黄色ハイライト）</p>
+    </div>
 </div>
 {% endblock %}
