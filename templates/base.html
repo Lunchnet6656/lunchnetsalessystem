@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     {% load static %}
     <link href="{% static 'css/styles_base.css' %}" rel="stylesheet">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/icon-192.png' %}">
+    <meta name="theme-color" content="#212529">
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -193,6 +196,16 @@
                         <h6 class="text-uppercase">シフトリンク</h6>
                         <a href="{% url 'shifts:submit_availability' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-alt"></i> シフトアプリ
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- ランチクエストセクション -->
+                    {% if user.menu_permission.can_view_quest %}
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">ランチクエスト</h6>
+                        <a href="{% url 'quest:dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-dragon"></i> ランチクエスト
                         </a>
                     </li>
                     {% endif %}
