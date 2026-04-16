@@ -881,12 +881,13 @@ def daily_report_view(request):
                 }
             )
             # DailyReportEntryの作成または更新
+            processed_product_nos = []
             for item in item_data:
                 DailyReportEntry.objects.update_or_create(
                     report=report,
-                    product=item.get('menu_name', ''),
-                    product_no=item.get('menu_no', ''),
+                    product_no=item.get('menu_no', 0),
                     defaults={
+                        'product': item.get('menu_name', ''),
                         'quantity': request.POST.get(f'quantity_{item["menu_no"]}', 0),
                         'sales_quantity': request.POST.get(f'sales_quantity_{item["menu_no"]}', 0),
                         'remaining_number': request.POST.get(f'remaining_{item["menu_no"]}', 0),
@@ -896,6 +897,9 @@ def daily_report_view(request):
                         'unpopular': request.POST.get(f'unpopular_{item["menu_no"]}', 'off') == 'on'
                     }
                 )
+                processed_product_nos.append(item.get('menu_no', 0))
+            # 現在のitem_dataに存在しない古いエントリを削除
+            report.entries.exclude(product_no__in=processed_product_nos).delete()
         else:
             context = {
                 'dates': dates,
@@ -917,7 +921,17 @@ def daily_report_view(request):
             # 保存処理やバリデーションなどの処理をここに記述
             return render(request, 'daily_report.html', context)
 
-        return redirect('submission_complete') # 完了ページにリダイレクト
+        # クエスト演出キューに未読データがあれば演出ページへ、なければ完了ページへ
+        if request.user.is_authenticated:
+            from quest.models import CelebrationQueue
+            has_celebration = CelebrationQueue.objects.filter(
+                user=request.user,
+                is_read=False,
+            ).exists()
+            if has_celebration:
+                from django.urls import reverse as url_reverse
+                return redirect(url_reverse('quest:celebration'))
+        return redirect('submission_complete')  # 完了ページにリダイレクト
 
     return render(request, 'daily_report.html', {
         'dates': dates,
@@ -1018,7 +1032,7 @@ def daily_report_detail_rol(request):
 @login_required
 def daily_report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
-    entries = report.entries.all()  # 関連するエントリを取得
+    entries = report.entries.all().order_by('product_no')  # 関連するエントリを取得
     locations = SalesLocation.objects.all()
 
     # locationの中から、report.locationと一致するものを探す
@@ -1149,7 +1163,7 @@ def daily_report_edit(request, pk):
 def daily_report_edit_rol(request, pk):
     print("=== daily_report_edit_rol 開始 ===")
     report = get_object_or_404(DailyReport, pk=pk)
-    entries = report.entries.all()  # 関連するエントリを取得
+    entries = report.entries.all().order_by('product_no')  # 関連するエントリを取得
     locations = SalesLocation.objects.all()
 
     # locationの中から、report.locationと一致するものを探す

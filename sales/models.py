@@ -161,6 +161,10 @@ class DailyReportEntry(models.Model):
     popular = models.BooleanField(default=False)  # 人気商品かどうか
     unpopular = models.BooleanField(default=False)  # 不人気商品かどうか
 
+    class Meta:
+        ordering = ['product_no']
+        unique_together = [('report', 'product_no')]
+
     def __str__(self):
         return f"{self.report.date}"
 
@@ -219,6 +223,7 @@ class UserMenuPermission(models.Model):
     can_view_shift_app = models.BooleanField(default=True, verbose_name="シフトアプリ")
     can_view_orders = models.BooleanField(default=False, verbose_name="受注管理")
     can_view_dashboard = models.BooleanField(default=False, verbose_name="売上ダッシュボード")
+    can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
     shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
 
