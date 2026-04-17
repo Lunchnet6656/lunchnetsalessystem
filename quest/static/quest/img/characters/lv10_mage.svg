@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 魔法の帽子 -->
+  <rect x="24" y="0" width="16" height="6" fill="#4a148c"/>
+  <rect x="22" y="4" width="20" height="4" fill="#6a1b9a"/>
+  <rect x="18" y="6" width="28" height="4" fill="#7b1fa2"/>
+  <!-- 帽子の星 -->
+  <rect x="30" y="2" width="4" height="4" fill="#ffd700"/>
+  <rect x="28" y="4" width="8" height="2" fill="#ffd700"/>
+  <!-- 頭 -->
+  <rect x="20" y="10" width="24" height="18" fill="#f5c89a"/>
+  <!-- 目（鋭い） -->
+  <rect x="24" y="16" width="4" height="3" fill="#7c4dff"/>
+  <rect x="36" y="16" width="4" height="3" fill="#7c4dff"/>
+  <!-- 長いひげ -->
+  <rect x="24" y="24" width="16" height="4" fill="#e0e0e0"/>
+  <rect x="26" y="28" width="6" height="6" fill="#e0e0e0"/>
+  <rect x="32" y="28" width="6" height="6" fill="#e0e0e0"/>
+  <!-- ローブ -->
+  <rect x="14" y="28" width="36" height="24" fill="#4a148c"/>
+  <rect x="18" y="28" width="28" height="24" fill="#6a1b9a"/>
+  <!-- ローブの紋様 -->
+  <rect x="22" y="32" width="20" height="2" fill="#ffd700" opacity="0.8"/>
+  <rect x="22" y="36" width="20" height="2" fill="#ffd700" opacity="0.5"/>
+  <!-- 腕（ローブ） -->
+  <rect x="8" y="28" width="8" height="20" fill="#4a148c"/>
+  <rect x="48" y="28" width="8" height="20" fill="#4a148c"/>
+  <!-- 手 -->
+  <rect x="8" y="46" width="8" height="6" fill="#f5c89a"/>
+  <rect x="48" y="46" width="8" height="6" fill="#f5c89a"/>
+  <!-- 魔法の杖（先端に弁当箱） -->
+  <rect x="52" y="20" width="3" height="28" fill="#5d4037"/>
+  <!-- 弁当箱（先端） -->
+  <rect x="48" y="12" width="11" height="10" fill="#ffd700"/>
+  <rect x="50" y="14" width="7" height="6" fill="#f57f17"/>
+  <rect x="50" y="15" width="7" height="1" fill="#ffd700"/>
+  <rect x="50" y="17" width="7" height="1" fill="#ffd700"/>
+  <!-- 魔法オーラ -->
+  <rect x="46" y="10" width="3" height="3" fill="#7c4dff" opacity="0.7"/>
+  <rect x="61" y="10" width="3" height="3" fill="#7c4dff" opacity="0.7"/>
+  <rect x="50" y="6" width="3" height="3" fill="#e040fb" opacity="0.7"/>
+  <!-- 足 -->
+  <rect x="20" y="52" width="10" height="8" fill="#38006b"/>
+  <rect x="34" y="52" width="10" height="8" fill="#38006b"/>
+  <rect x="18" y="57" width="14" height="4" fill="#1a1a2e"/>
+  <rect x="32" y="57" width="14" height="4" fill="#1a1a2e"/>
+</svg>

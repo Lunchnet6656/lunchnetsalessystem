@@ -1,0 +1,115 @@
+{% extends 'quest/base.html' %}
+{% load static %}
+
+{% block title %}実績バッジ - ランチクエスト{% endblock %}
+
+{% block nav_achievements_drawer %}is-active{% endblock %}
+{% block page_title %}実績バッジ{% endblock %}
+
+{% block content %}
+
+<!-- ヘッダー -->
+<section class="mb-6">
+  <div class="dq-dialog">
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div>
+        <h1 class="font-pixel text-xl" style="color: #e8a830;">実績バッジ</h1>
+        <p class="text-sm mt-1" style="color: #b8a090;">
+          収集した実績を確認しよう
+        </p>
+      </div>
+      <div class="text-center">
+        <p class="font-pixel text-3xl font-bold" style="color: #e8a830;">
+          {{ earned_count }}<span class="text-lg" style="color: #b8a090;">/{{ total }}</span>
+        </p>
+        <p class="text-sm" style="color: #b8a090;">取得済み</p>
+      </div>
+    </div>
+
+    <!-- 取得率バー -->
+    {% if total > 0 %}
+    <div class="mt-4">
+      <div class="xp-bar-bg">
+        {% widthratio earned_count total 100 as earn_pct %}
+        <div class="xp-bar-fill" style="width: {{ earn_pct }}%;"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- カテゴリ別実績 -->
+{% for key, cat in categories.items %}
+{% if cat.items %}
+<section class="mb-8">
+  <h2 class="font-pixel text-base mb-3" style="color: #e8a830;">
+    &#9670; {{ cat.label }}
+  </h2>
+
+  <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
+    {% for item in cat.items %}
+    <div class="dq-dialog flex flex-col items-center text-center py-4 px-2 relative
+                {% if item.earned %}badge-earned{% else %}{% endif %}"
+         style="
+           {% if item.earned %}
+             border-color: #e8a830;
+             box-shadow: 0 0 8px rgba(232,168,48,0.4), inset 0 0 10px rgba(200,149,108,0.1);
+           {% else %}
+             border-color: rgba(200,149,108,0.2);
+             opacity: 0.5;
+           {% endif %}
+         ">
+
+      <!-- バッジ画像 -->
+      <div class="w-12 h-12 mb-2 {% if not item.earned %}badge-locked{% endif %}">
+        {% if item.achievement.icon %}
+        <img src="{% static item.achievement.icon %}"
+             alt="{{ item.achievement.name }}"
+             class="w-full h-full">
+        {% else %}
+        <div class="w-full h-full rounded-full flex items-center justify-center"
+             style="background-color: rgba(232,168,48,0.2); border: 2px solid rgba(232,168,48,0.4);">
+          <span style="color: #e8a830; font-size: 20px;">&#9670;</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- バッジ名 -->
+      {% if item.earned %}
+      <p class="font-pixel text-xs leading-snug" style="color: #e8a830;">
+        {{ item.achievement.name }}
+      </p>
+      {% if item.earned_at %}
+      <p class="text-xs mt-1" style="color: #b8a090;">
+        {{ item.earned_at|date:"n/j" }}
+      </p>
+      {% endif %}
+      {% else %}
+      <p class="font-pixel text-xs" style="color: #5a4535;">???</p>
+      <div class="mt-1 flex items-center justify-center">
+        <span style="color: #5a4535; font-size: 14px;">&#128274;</span>
+      </div>
+      {% endif %}
+
+      <!-- XP報酬（取得済み） -->
+      {% if item.earned %}
+      <span class="absolute top-1 right-1 text-xs font-pixel px-1 rounded"
+            style="background-color: rgba(232,168,48,0.2); color: #e8a830; font-size: 10px;">
+        +{{ item.achievement.xp_reward }}XP
+      </span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endfor %}
+
+{% if not categories.streak.items and not categories.cumulative.items and not categories.special.items %}
+<div class="dq-dialog text-center py-16">
+  <p class="font-pixel text-lg" style="color: #b8a090;">実績データがありません</p>
+  <p class="text-sm mt-2" style="color: #7a6a5a;">管理者に実績バッジの設定を依頼してください</p>
+</div>
+{% endif %}
+
+{% endblock %}

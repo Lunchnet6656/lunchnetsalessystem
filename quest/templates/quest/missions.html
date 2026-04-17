@@ -1,0 +1,149 @@
+{% extends 'quest/base.html' %}
+{% load static %}
+
+{% block title %}ミッション履歴 - ランチクエスト{% endblock %}
+
+{% block nav_missions_drawer %}is-active{% endblock %}
+{% block page_title %}ミッション履歴{% endblock %}
+
+{% block content %}
+
+<!-- ヘッダー + 月ナビゲーション -->
+<section class="mb-6">
+  <div class="dq-dialog">
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <!-- 月ナビゲーション -->
+      <div class="flex items-center gap-3">
+        <a href="?year={{ prev_month.year }}&month={{ prev_month.month }}"
+           class="w-10 h-10 flex items-center justify-center rounded transition font-bold min-h-[44px] min-w-[44px]"
+           style="background-color: rgba(232,168,48,0.15); color: #e8a830; border: 1px solid rgba(232,168,48,0.4);"
+           onmouseover="this.style.backgroundColor='rgba(232,168,48,0.3)'"
+           onmouseout="this.style.backgroundColor='rgba(232,168,48,0.15)'">
+          &larr;
+        </a>
+        <h1 class="font-pixel text-xl" style="color: #e8a830;">
+          {{ current_month|date:"Y年n月" }}
+        </h1>
+        <a href="?year={{ next_month.year }}&month={{ next_month.month }}"
+           class="w-10 h-10 flex items-center justify-center rounded transition font-bold min-h-[44px] min-w-[44px]"
+           style="background-color: rgba(232,168,48,0.15); color: #e8a830; border: 1px solid rgba(232,168,48,0.4);"
+           onmouseover="this.style.backgroundColor='rgba(232,168,48,0.3)'"
+           onmouseout="this.style.backgroundColor='rgba(232,168,48,0.15)'">
+          &rarr;
+        </a>
+      </div>
+
+      <!-- 月サマリー -->
+      <div class="flex items-center gap-4 text-sm">
+        <div class="text-center">
+          <p class="font-pixel text-2xl font-bold" style="color: #e8a830;">{{ completion_rate }}%</p>
+          <p style="color: #b8a090;">達成率</p>
+        </div>
+        <div class="text-center" style="border-left: 1px solid rgba(200,149,108,0.3); padding-left: 16px;">
+          <p class="font-pixel text-2xl font-bold" style="color: #f5e6d0;">
+            {{ completed_missions }}<span style="color: #b8a090; font-size: 14px;">/{{ total_missions }}</span>
+          </p>
+          <p style="color: #b8a090;">達成数</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 達成率バー -->
+    {% if total_missions > 0 %}
+    <div class="mt-4">
+      <div class="xp-bar-bg">
+        <div class="xp-bar-fill" style="width: {{ completion_rate }}%;"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- ミッション一覧（日付別） -->
+{% if missions_by_date %}
+<div class="space-y-4">
+  {% for date, missions in missions_by_date.items %}
+  <section>
+    <!-- 日付ヘッダー -->
+    <div class="flex items-center gap-3 mb-2">
+      <h2 class="font-pixel text-base" style="color: #e8a830;">
+        {{ date|date:"n月j日（D）" }}
+      </h2>
+      <div class="flex-1" style="border-top: 1px solid rgba(232,168,48,0.3);"></div>
+      <!-- 当日の達成数 -->
+      {% with day_completed=0 %}
+      <span class="text-xs font-pixel px-2 py-0.5 rounded"
+            style="background-color: rgba(232,168,48,0.1); color: #e8a830; border: 1px solid rgba(232,168,48,0.3);">
+        {% for m in missions %}{% if m.status == 'completed' %}&#10003; {% endif %}{% endfor %}
+      </span>
+      {% endwith %}
+    </div>
+
+    <!-- ミッションカード -->
+    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {% for mission in missions %}
+      <div class="dq-dialog py-3 px-4"
+           style="
+             {% if mission.status == 'completed' %}
+               border-color: #5ec87a; background-color: rgba(22,163,74,0.12);
+             {% elif mission.status == 'failed' %}
+               border-color: #5a4535; background-color: rgba(70,50,35,0.3);
+             {% else %}
+               border-color: rgba(200,149,108,0.6);
+             {% endif %}
+           ">
+        <div class="flex items-start gap-2">
+          <!-- ステータスアイコン -->
+          <span class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full text-xs font-bold mt-0.5"
+                style="
+                  {% if mission.status == 'completed' %}
+                    background-color: #5ec87a; color: #1a3a28;
+                  {% elif mission.status == 'failed' %}
+                    background-color: #5a4535; color: #9a8878;
+                  {% else %}
+                    background-color: rgba(232,168,48,0.2); color: #e8a830; border: 1px solid #e8a830;
+                  {% endif %}
+                ">
+            {% if mission.status == 'completed' %}&#10003;
+            {% elif mission.status == 'failed' %}&times;
+            {% else %}...{% endif %}
+          </span>
+
+          <!-- ミッション情報 -->
+          <div class="flex-1 min-w-0">
+            <p class="font-pixel text-xs leading-snug"
+               style="color: {% if mission.status == 'failed' %}#7a6a5a{% else %}#f5e6d0{% endif %};">
+              {{ mission.title }}
+            </p>
+            {% if mission.actual_value is not None %}
+            <p class="text-xs mt-1" style="color: #b8a090;">
+              実績: {{ mission.actual_value|floatformat:"0" }}
+            </p>
+            {% endif %}
+          </div>
+
+          <!-- XP -->
+          <span class="text-xs font-pixel shrink-0"
+                style="color: {% if mission.status == 'completed' %}#5ec87a{% else %}#7a6a5a{% endif %};">
+            +{{ mission.xp_reward }}XP
+          </span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="dq-dialog text-center py-16">
+  <p class="font-pixel text-lg mb-3" style="color: #b8a090;">この月のミッションはありません</p>
+  <p class="text-sm" style="color: #7a6a5a;">販売実績を登録するとミッションが自動生成されます</p>
+  <div class="mt-6">
+    <a href="{% url 'quest:dashboard' %}" class="dq-btn-primary">
+      ダッシュボードへ
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

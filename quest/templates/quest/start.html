@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ランチクエスト - 冒険のはじまり</title>
+  {% load static %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+  <link href="{% static 'quest/css/tailwind.css' %}" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      min-height: 100vh;
+      background-color: #1a0e07;
+      color: #f5e6d0;
+      overflow-x: hidden;
+    }
+
+    /* 光の粒子 */
+    .starfield { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .star {
+      position: absolute; border-radius: 50%; background: #e8a830;
+      animation: twinkle var(--duration, 3s) ease-in-out infinite;
+      animation-delay: var(--delay, 0s);
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.1; transform: scale(1); }
+      50%       { opacity: 0.6; transform: scale(1.4); }
+    }
+
+    /* シーン共通フェード */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .anim-title  { animation: fadeInDown 1.0s ease-out forwards; }
+    .anim-char   { animation: fadeIn    0.8s ease-out 0.3s forwards; opacity: 0; }
+    .anim-dialog { animation: fadeInUp  0.7s ease-out 0.6s forwards; opacity: 0; }
+    .anim-btn    { animation: fadeInUp  0.7s ease-out 1.0s forwards; opacity: 0; }
+
+    /* キャラクター浮遊 */
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-7px); }
+    }
+    .char-float { animation: float 3s ease-in-out infinite; }
+
+    /* タイトルグロウ */
+    @keyframes textGoldenGlow {
+      0%, 100% { text-shadow: 0 0 8px #e8a830, 0 0 16px #e8a830; }
+      50%       { text-shadow: 0 0 22px #e8a830, 0 0 44px #e8a830, 0 0 66px rgba(232,168,48,0.5); }
+    }
+    .title-glow { animation: textGoldenGlow 2s ease-in-out infinite; }
+
+    /* ボタングロウ */
+    @keyframes goldenGlow {
+      0%, 100% { box-shadow: 0 0 10px #c4862a, 0 0 20px #c4862a; }
+      50%       { box-shadow: 0 0 30px #e8a830, 0 0 60px #e8a830, 0 0 90px rgba(232,168,48,0.6); }
+    }
+    .btn-glow { animation: goldenGlow 1.5s ease-in-out infinite; }
+
+    /* タイプライターカーソル */
+    .tw-cursor {
+      display: inline-block; width: 10px; height: 1em;
+      background: #f5e6d0; margin-left: 2px;
+      vertical-align: middle;
+      animation: blink 0.7s step-end infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* 次へ矢印 */
+    @keyframes arrowBounce {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(4px); }
+    }
+    .next-arrow {
+      display: inline-block; width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-top: 10px solid #e8a830;
+      animation: arrowBounce 0.8s ease-in-out infinite;
+      cursor: pointer;
+    }
+
+    /* 装飾ライン */
+    .deco-line { border: none; border-top: 1px solid rgba(232,168,48,0.4); }
+
+    /* シーン：表示/非表示 */
+    .scene { display: none; }
+    .scene.active { display: flex; }
+
+    /* ミッションカード */
+    .mission-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(232,168,48,0.2);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .mission-icon { font-size: 1.2em; flex-shrink: 0; }
+
+    /* 称号バッジ */
+    .title-badge {
+      border: 2px solid #e8a830;
+      border-radius: 8px;
+      padding: 16px;
+      background: rgba(232,168,48,0.08);
+      text-align: center;
+    }
+
+    /* プログレスドット */
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(232,168,48,0.25);
+      transition: background 0.3s;
+    }
+    .dot.active { background: #e8a830; }
+  </style>
+</head>
+<body>
+
+  <div class="starfield" id="starfield" aria-hidden="true"></div>
+
+  <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-10">
+
+    <!-- ========== SCENE 0: ウェルカム ========== -->
+    <div class="scene active flex-col items-center w-full max-w-sm" id="scene-0">
+
+      <header class="text-center mb-6 anim-title">
+        <p class="font-pixel text-xs mb-2" style="color: #b8a090; letter-spacing: 0.2em;">ようこそ</p>
+        <h1 class="font-pixel title-glow"
+            style="color: #e8a830; font-size: clamp(2rem, 8vw, 3.2rem); line-height: 1.2;">
+          ランチクエスト
+        </h1>
+        <hr class="deco-line mt-3 w-40 mx-auto">
+      </header>
+
+      <div class="mb-6 char-float" aria-hidden="true">
+        <img src="{% static 'quest/img/characters/lv001_minarai.png' %}"
+             alt="見習い販売員" width="110" height="110"
+             style="image-rendering: pixelated; filter: drop-shadow(0 0 12px rgba(232,168,48,0.5));">
+      </div>
+
+      <div class="dq-dialog anim-dialog w-full" role="region" aria-label="ナレーター">
+        <div class="flex items-center gap-2 mb-3">
+          <span style="color: #e8a830; font-size: 10px;">&#9670;</span>
+          <span class="font-pixel text-xs" style="color: #b8a090;">ナレーター</span>
+        </div>
+        <div class="font-pixel leading-loose" style="font-size: clamp(0.85rem, 3vw, 0.95rem); min-height: 4.5em;">
+          <p id="s0-line1" class="mb-1" aria-live="polite"></p>
+          <p id="s0-line2" aria-live="polite"></p>
+          <span class="tw-cursor" id="s0-cursor" aria-hidden="true"></span>
+        </div>
+        <div class="flex justify-end mt-3" id="s0-next" style="opacity:0;">
+          <span class="next-arrow" id="s0-arrow" role="button" aria-label="次へ" tabindex="0"></span>
+        </div>
+      </div>
+
+    </div><!-- /scene-0 -->
+
+    <!-- ========== SCENE 1: アプリ説明 ========== -->
+    <div class="scene flex-col items-center w-full max-w-sm" id="scene-1">
+
+      <header class="text-center mb-5 anim-title">
+        <h2 class="font-pixel" style="color: #e8a830; font-size: 1.3rem;">ランチクエストとは？</h2>
+        <hr class="deco-line mt-2 w-32 mx-auto">
+      </header>
+
+      <div class="dq-dialog anim-dialog w-full" role="region" aria-label="アプリ説明">
+        <div class="flex items-center gap-2 mb-3">
+          <span style="color: #e8a830; font-size: 10px;">&#9670;</span>
+          <span class="font-pixel text-xs" style="color: #b8a090;">システム</span>
+        </div>
+
+        <!-- 説明テキスト（タイプライターなし、即表示） -->
+        <p class="font-pixel leading-loose mb-4"
+           style="font-size: clamp(0.82rem, 2.8vw, 0.92rem); color: #f5e6d0;">
+          毎日のランチ販売を<br>
+          <span style="color: #e8a830;">ゲーム</span>として楽しもう！<br>
+          ミッションをクリアして<br>
+          <span style="color: #e8a830;">XP</span>を獲得し、レベルアップ。
+        </p>
+
+        <!-- ミッション一覧 -->
+        <p class="font-pixel text-xs mb-2" style="color: #b8a090; letter-spacing: 0.1em;">
+          ▶ デイリーミッション（例）
+        </p>
+        <div class="flex flex-col gap-2 mb-4">
+          <div class="mission-card flex items-start gap-3">
+            <span class="mission-icon">🍱</span>
+            <div>
+              <p class="font-pixel text-xs font-bold" style="color: #f5e6d0;">販売数達成</p>
+              <p class="font-pixel text-xs" style="color: #b8a090;">目標数以上のお弁当を販売する</p>
+            </div>
+          </div>
+          <div class="mission-card flex items-start gap-3">
+            <span class="mission-icon">🌟</span>
+            <div>
+              <p class="font-pixel text-xs font-bold" style="color: #f5e6d0;">完売達成</p>
+              <p class="font-pixel text-xs" style="color: #b8a090;">お弁当を1個も残さず完売する</p>
+            </div>
+          </div>
+          <div class="mission-card flex items-start gap-3">
+            <span class="mission-icon">♻️</span>
+            <div>
+              <p class="font-pixel text-xs font-bold" style="color: #f5e6d0;">廃棄ゼロ</p>
+              <p class="font-pixel text-xs" style="color: #b8a090;">廃棄なしで販売を終える</p>
+            </div>
+          </div>
+          <div class="mission-card flex items-start gap-3">
+            <span class="mission-icon">💰</span>
+            <div>
+              <p class="font-pixel text-xs font-bold" style="color: #f5e6d0;">売上達成</p>
+              <p class="font-pixel text-xs" style="color: #b8a090;">目標売上金額を超える</p>
+            </div>
+          </div>
+        </div>
+
+        <p class="font-pixel text-xs leading-loose" style="color: #b8a090;">
+          ミッション達成で<span style="color: #e8a830;">XP</span>獲得 →
+          レベルアップで<span style="color: #e8a830;">称号</span>が解放される！
+        </p>
+
+        <div class="flex justify-end mt-4">
+          <span class="next-arrow" id="s1-arrow" role="button" aria-label="次へ" tabindex="0"></span>
+        </div>
+      </div>
+
+    </div><!-- /scene-1 -->
+
+    <!-- ========== SCENE 2: 最初の称号 ========== -->
+    <div class="scene flex-col items-center w-full max-w-sm" id="scene-2">
+
+      <header class="text-center mb-5 anim-title">
+        <h2 class="font-pixel" style="color: #e8a830; font-size: 1.3rem;">最初の称号</h2>
+        <hr class="deco-line mt-2 w-32 mx-auto">
+      </header>
+
+      <div class="dq-dialog anim-dialog w-full" role="region" aria-label="称号説明">
+        <div class="flex items-center gap-2 mb-4">
+          <span style="color: #e8a830; font-size: 10px;">&#9670;</span>
+          <span class="font-pixel text-xs" style="color: #b8a090;">称号ガイド</span>
+        </div>
+
+        <!-- 称号バッジ -->
+        <div class="title-badge mb-4">
+          <div class="flex justify-center mb-3">
+            <div class="char-float">
+              <img src="{% static 'quest/img/characters/lv001_minarai.png' %}"
+                   alt="見習い販売員" width="80" height="80"
+                   style="image-rendering: pixelated; filter: drop-shadow(0 0 8px rgba(232,168,48,0.6));">
+            </div>
+          </div>
+          <p class="font-pixel text-xs mb-1" style="color: #b8a090;">Lv. 1 ─ 最初の称号</p>
+          <p class="font-pixel font-bold mb-1" style="color: #e8a830; font-size: 1.1rem;">見習い販売員</p>
+          <hr class="deco-line my-2 w-24 mx-auto">
+          <p class="font-pixel leading-loose"
+             style="font-size: 0.78rem; color: #d4c4b0; text-align: left; margin-top: 8px;">
+            ランチ販売の世界に足を踏み入れたばかりの新人。<br>
+            笑顔と元気を武器に、今日も一歩ずつ成長中。
+          </p>
+        </div>
+
+        <!-- 称号ロードマップ（ミニ版） -->
+        <p class="font-pixel text-xs mb-2" style="color: #b8a090; letter-spacing: 0.1em;">
+          ▶ 称号アップの道のり（抜粋）
+        </p>
+        <div class="flex flex-col gap-1.5 mb-4">
+          {% for lv, title_name, color in title_roadmap %}
+          <div class="flex items-center gap-2">
+            <span class="font-pixel text-xs shrink-0" style="color: #b8a090; width: 40px;">Lv.{{ lv }}</span>
+            <span class="flex-1 h-px" style="background: rgba(232,168,48,0.2);"></span>
+            <span class="font-pixel text-xs" style="color: {{ color }};">{{ title_name }}</span>
+          </div>
+          {% empty %}
+          <div class="flex items-center gap-2">
+            <span class="font-pixel text-xs" style="color: #b8a090; width: 40px;">Lv.1</span>
+            <span class="flex-1 h-px" style="background: rgba(232,168,48,0.2);"></span>
+            <span class="font-pixel text-xs" style="color: #e8a830;">見習い販売員</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-pixel text-xs" style="color: #b8a090; width: 40px;">Lv.5</span>
+            <span class="flex-1 h-px" style="background: rgba(232,168,48,0.2);"></span>
+            <span class="font-pixel text-xs" style="color: #f5e6d0;">販売スタッフ</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-pixel text-xs" style="color: #b8a090; width: 40px;">Lv.10</span>
+            <span class="flex-1 h-px" style="background: rgba(232,168,48,0.2);"></span>
+            <span class="font-pixel text-xs" style="color: #f5e6d0;">ひとり立ち販売員</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-pixel text-xs" style="color: #b8a090; width: 40px;">Lv.50</span>
+            <span class="flex-1 h-px" style="background: rgba(232,168,48,0.2);"></span>
+            <span class="font-pixel text-xs" style="color: #f5e6d0;">ランチのエース</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-pixel text-xs shrink-0" style="color: #b8a090; width: 40px;">Lv.100</span>
+            <span class="flex-1 h-px" style="background: rgba(232,168,48,0.2);"></span>
+            <span class="font-pixel text-xs" style="color: #e8a830;">👑 ランチクイーン</span>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="flex justify-end mt-2">
+          <span class="next-arrow" id="s2-arrow" role="button" aria-label="次へ" tabindex="0"></span>
+        </div>
+      </div>
+
+    </div><!-- /scene-2 -->
+
+    <!-- ========== SCENE 3: 参加確認 ========== -->
+    <div class="scene flex-col items-center w-full max-w-sm" id="scene-3">
+
+      <header class="text-center mb-6 anim-title">
+        <p class="font-pixel text-xs mb-2" style="color: #b8a090; letter-spacing: 0.2em;">準備はいいですか？</p>
+        <h2 class="font-pixel title-glow"
+            style="color: #e8a830; font-size: clamp(1.4rem, 6vw, 2rem); line-height: 1.3;">
+          冒険の準備完了！
+        </h2>
+        <hr class="deco-line mt-3 w-40 mx-auto">
+      </header>
+
+      <div class="mb-5 char-float" aria-hidden="true">
+        <img src="{% static 'quest/img/characters/lv001_minarai.png' %}"
+             alt="見習い販売員" width="100" height="100"
+             style="image-rendering: pixelated; filter: drop-shadow(0 0 12px rgba(232,168,48,0.5));">
+      </div>
+
+      <div class="dq-dialog anim-dialog w-full" role="region" aria-label="参加確認">
+        <div class="flex items-center gap-2 mb-3">
+          <span style="color: #e8a830; font-size: 10px;">&#9670;</span>
+          <span class="font-pixel text-xs" style="color: #b8a090;">ナレーター</span>
+        </div>
+        <div class="font-pixel leading-loose mb-4"
+             style="font-size: clamp(0.85rem, 3vw, 0.95rem);">
+          <p id="s3-line1" aria-live="polite"></p>
+          <p id="s3-line2" aria-live="polite"></p>
+          <span class="tw-cursor" id="s3-cursor" aria-hidden="true"></span>
+        </div>
+      </div>
+
+      <div class="anim-btn w-full mt-5 flex flex-col items-center gap-3">
+        <form method="post" action="{% url 'quest:join' %}" class="w-full" id="join-form">
+          {% csrf_token %}
+          <button type="submit" id="join-btn"
+                  class="btn-glow w-full font-pixel font-bold cursor-pointer"
+                  style="font-size: 1.05rem; padding: 14px 20px; border-radius: 6px;
+                         background-color: #e8a830; color: #2a1810;
+                         border: 2px solid #c4862a; transition: background-color 0.2s, transform 0.1s;"
+                  onmouseover="this.style.backgroundColor='#f0b840'"
+                  onmouseout="this.style.backgroundColor='#e8a830'"
+                  onmousedown="this.style.transform='scale(0.97)'"
+                  onmouseup="this.style.transform='scale(1)'"
+                  aria-label="ランチクエストに参加して冒険を始める">
+            ⚔ 冒険に出る
+          </button>
+        </form>
+        <a href="{% url 'dashboard' %}"
+           class="font-pixel text-sm transition-colors"
+           style="color: #b8a090;"
+           onmouseover="this.style.color='#f5e6d0'"
+           onmouseout="this.style.color='#b8a090'"
+           aria-label="クエストには参加せずメインページへ戻る">
+          &larr; メインへ戻る
+        </a>
+      </div>
+
+    </div><!-- /scene-3 -->
+
+    <!-- プログレスドット -->
+    <div class="flex gap-2 mt-6" id="progress-dots" role="navigation" aria-label="ページ進捗">
+      <span class="dot active" data-scene="0"></span>
+      <span class="dot"        data-scene="1"></span>
+      <span class="dot"        data-scene="2"></span>
+      <span class="dot"        data-scene="3"></span>
+    </div>
+
+  </div><!-- /メインコンテンツ -->
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ---- 光の粒子 ----
+    var starfield = document.getElementById('starfield');
+    var count = window.innerWidth < 640 ? 40 : 80;
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < count; i++) {
+      var s = document.createElement('div');
+      var size = Math.random() < 0.7 ? 1 : (Math.random() < 0.5 ? 2 : 3);
+      s.className = 'star';
+      s.style.cssText = [
+        'width:' + size + 'px', 'height:' + size + 'px',
+        'top:' + (Math.random() * 100) + '%',
+        'left:' + (Math.random() * 100) + '%',
+        '--duration:' + (2 + Math.random() * 4).toFixed(1) + 's',
+        '--delay:' + (Math.random() * 4).toFixed(1) + 's',
+        'opacity:' + (Math.random() * 0.3 + 0.05)
+      ].join(';');
+      frag.appendChild(s);
+    }
+    starfield.appendChild(frag);
+
+    // ---- シーン管理 ----
+    var currentScene = 0;
+    var totalScenes  = 4;
+    var scenes = [];
+    var dots   = [];
+    for (var j = 0; j < totalScenes; j++) {
+      scenes.push(document.getElementById('scene-' + j));
+      dots.push(document.querySelector('[data-scene="' + j + '"]'));
+    }
+
+    function restartSceneAnims(sc) {
+      sc.querySelectorAll('.anim-char, .anim-dialog, .anim-title, .anim-btn').forEach(function(el) {
+        el.style.animation = 'none';
+        void el.offsetWidth; // reflow でアニメーション再起動を強制
+        el.style.animation = '';
+      });
+    }
+
+    function showScene(n) {
+      if (n < 0 || n >= totalScenes) return;
+      scenes[currentScene].classList.remove('active');
+      dots[currentScene].classList.remove('active');
+      currentScene = n;
+      scenes[currentScene].classList.add('active');
+      dots[currentScene].classList.add('active');
+      restartSceneAnims(scenes[currentScene]);
+
+      // シーン別の初期化
+      if (n === 0) initScene0();
+      if (n === 3) initScene3();
+      // シーン1/2 はアニメーションCSS任せ
+    }
+
+    // ---- タイプライター汎用 ----
+    function typeLines(config, onDone) {
+      var CHAR_MS   = 75;
+      var LINE_WAIT = 400;
+      var cursor    = document.getElementById(config.cursorId);
+      var nextEl    = config.nextId ? document.getElementById(config.nextId) : null;
+
+      function typeLine(li, ci) {
+        if (li >= config.lines.length) {
+          if (cursor.parentElement) cursor.parentElement.appendChild(cursor);
+          if (nextEl) { nextEl.style.opacity = '1'; nextEl.style.transition = 'opacity 0.3s'; }
+          if (onDone) onDone();
+          return;
+        }
+        var line = config.lines[li];
+        var el   = document.getElementById(line.id);
+        if (ci === 0) el.appendChild(cursor);
+        if (ci < line.text.length) {
+          el.insertBefore(document.createTextNode(line.text[ci]), cursor);
+          setTimeout(function () { typeLine(li, ci + 1); }, CHAR_MS);
+        } else {
+          setTimeout(function () { typeLine(li + 1, 0); }, LINE_WAIT);
+        }
+      }
+      typeLine(0, 0);
+    }
+
+    // ---- シーン0 初期化 ----
+    function initScene0() {
+      var line1 = document.getElementById('s0-line1');
+      var line2 = document.getElementById('s0-line2');
+      var cursor = document.getElementById('s0-cursor');
+      // リセット
+      line1.textContent = ''; line2.textContent = '';
+      line1.appendChild(cursor);
+
+      setTimeout(function () {
+        typeLines({
+          lines: [
+            { id: 's0-line1', text: 'あなたも ランチクエストの 冒険者に なりますか？' },
+            { id: 's0-line2', text: '日々のミッションを クリアして レベルアップしよう！' }
+          ],
+          cursorId: 's0-cursor',
+          nextId:   's0-next'
+        });
+      }, 2000); // フェードイン後
+    }
+
+    // ---- シーン3 初期化 ----
+    function initScene3() {
+      var line1 = document.getElementById('s3-line1');
+      var line2 = document.getElementById('s3-line2');
+      var cursor = document.getElementById('s3-cursor');
+      line1.textContent = ''; line2.textContent = '';
+      line1.appendChild(cursor);
+
+      setTimeout(function () {
+        typeLines({
+          lines: [
+            { id: 's3-line1', text: 'さあ、「見習い販売員」として' },
+            { id: 's3-line2', text: 'ランチクエストの旅に出よう！' }
+          ],
+          cursorId: 's3-cursor'
+        });
+      }, 1200);
+    }
+
+    // ---- 次へボタン連結 ----
+    function bindNext(elId, targetScene) {
+      var el = document.getElementById(elId);
+      if (!el) return;
+      function go() { showScene(targetScene); }
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      });
+    }
+    bindNext('s0-arrow', 1);
+    bindNext('s1-arrow', 2);
+    bindNext('s2-arrow', 3);
+
+    // ドットクリックでもシーン移動
+    dots.forEach(function (dot, idx) {
+      dot.style.cursor = 'pointer';
+      dot.addEventListener('click', function () { showScene(idx); });
+    });
+
+    // ---- 参加ボタン二重送信防止 ----
+    var joinForm = document.getElementById('join-form');
+    if (joinForm) {
+      joinForm.addEventListener('submit', function () {
+        var btn = document.getElementById('join-btn');
+        btn.disabled = true;
+        btn.textContent = '... 準備中 ...';
+        btn.style.animation = 'none';
+        btn.style.opacity = '0.7';
+      });
+    }
+
+    // ---- 初期シーン起動 ----
+    restartSceneAnims(scenes[0]);
+    initScene0();
+
+  })();
+  </script>
+
+</body>
+</html>

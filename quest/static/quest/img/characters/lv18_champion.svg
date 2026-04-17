@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 覇者 -->
+  <!-- 頭 -->
+  <rect x="20" y="8" width="24" height="18" fill="#f5c89a"/>
+  <!-- 目 -->
+  <rect x="24" y="14" width="4" height="4" fill="#ef9a9a"/>
+  <rect x="36" y="14" width="4" height="4" fill="#ef9a9a"/>
+  <!-- ヘルメット -->
+  <rect x="18" y="4" width="28" height="8" fill="#c62828"/>
+  <rect x="16" y="8" width="4" height="8" fill="#c62828"/>
+  <rect x="44" y="8" width="4" height="8" fill="#c62828"/>
+  <!-- 飾り -->
+  <rect x="18" y="4" width="28" height="2" fill="#ef9a9a"/>
+  <!-- 鎧 -->
+  <rect x="12" y="26" width="40" height="22" fill="#b71c1c"/>
+  <rect x="16" y="26" width="32" height="22" fill="#c62828"/>
+  <!-- 胸紋様 -->
+  <rect x="24" y="30" width="16" height="14" fill="#b71c1c"/>
+  <rect x="27" y="33" width="10" height="8" fill="#ef9a9a" opacity="0.7"/>
+  <!-- 腕 -->
+  <rect x="6" y="26" width="8" height="22" fill="#b71c1c"/>
+  <rect x="50" y="26" width="8" height="22" fill="#b71c1c"/>
+  <!-- 手 -->
+  <rect x="6" y="46" width="8" height="5" fill="#f5c89a"/>
+  <rect x="50" y="46" width="8" height="5" fill="#f5c89a"/>
+  <!-- 武器 -->
+  <rect x="52" y="16" width="4" height="32" fill="#c62828"/>
+  <rect x="48" y="24" width="12" height="4" fill="#ef9a9a"/>
+  <rect x="52" y="12" width="4" height="6" fill="#e0e0e0"/>
+  <!-- 足 -->
+  <rect x="18" y="48" width="12" height="12" fill="#b71c1c"/>
+  <rect x="34" y="48" width="12" height="12" fill="#b71c1c"/>
+  <rect x="16" y="57" width="16" height="4" fill="#212121"/>
+  <rect x="32" y="57" width="16" height="4" fill="#212121"/>
+</svg>

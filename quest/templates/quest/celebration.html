@@ -1,0 +1,1038 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ミッション達成！ - ランチクエスト</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+  <link href="{% static 'quest/css/tailwind.css' %}" rel="stylesheet">
+
+  <style>
+    /* ============================================================
+       リセット・基盤
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --dq-bg:      #0d0600;
+      --dq-window:  #2d1a00;
+      --dq-border:  #c8a000;
+      --dq-text:    #fffde0;
+      --dq-accent:  #ffd700;
+      --dq-blue:    #4080ff;
+      --dq-purple:  #9040ff;
+      --dq-green:   #40c070;
+    }
+
+    html, body {
+      height: 100%;
+      background-color: var(--dq-bg);
+      color: var(--dq-text);
+      font-family: "DotGothic16", monospace;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       シーン共通レイアウト
+    ============================================================ */
+    .cel-stage {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 10;
+    }
+
+    .cel-scene {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      animation: scene-fade-in 0.4s ease-out forwards;
+    }
+    .cel-scene.is-active { display: flex; flex-direction: column; align-items: center; }
+
+    /* ============================================================
+       ドラクエ風ウィンドウ枠
+    ============================================================ */
+    .dq-window {
+      background-color: var(--dq-window);
+      border: 3px solid var(--dq-border);
+      border-radius: 4px;
+      box-shadow:
+        0 0 0 1px #7a5a00,
+        0 0 20px rgba(200,160,0,0.3),
+        inset 0 1px 0 rgba(255,220,100,0.15);
+      padding: 24px 20px;
+      width: 100%;
+      position: relative;
+    }
+
+    /* 角飾り */
+    .dq-window::before,
+    .dq-window::after {
+      content: '◆';
+      position: absolute;
+      color: var(--dq-border);
+      font-size: 10px;
+      line-height: 1;
+    }
+    .dq-window::before { top: 6px; left: 8px; }
+    .dq-window::after  { top: 6px; right: 8px; }
+
+    /* ============================================================
+       汎用ボタン
+    ============================================================ */
+    .cel-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 52px;
+      padding: 0 28px;
+      font-family: "DotGothic16", monospace;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: 2px solid var(--dq-border);
+      background: linear-gradient(180deg, #5a3800 0%, #2d1a00 100%);
+      color: var(--dq-accent);
+      box-shadow: 0 4px 0 #7a5000, 0 6px 12px rgba(0,0,0,0.5);
+      transition: transform 0.1s, box-shadow 0.1s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cel-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #7a5000, 0 3px 6px rgba(0,0,0,0.5);
+    }
+    .cel-btn--primary {
+      background: linear-gradient(180deg, #c8a000 0%, #7a5a00 100%);
+      color: #1a0800;
+      border-color: #ffe060;
+    }
+    .cel-btn--dashboard {
+      background: linear-gradient(180deg, #4060c8 0%, #1a2a7a 100%);
+      color: #e0eaff;
+      border-color: #80a0ff;
+      box-shadow: 0 4px 0 #0a1850, 0 6px 12px rgba(0,0,0,0.5);
+    }
+    .cel-btn--dashboard:active {
+      box-shadow: 0 2px 0 #0a1850, 0 3px 6px rgba(0,0,0,0.5);
+    }
+
+    /* ============================================================
+       シーン1: ミッション達成一覧
+    ============================================================ */
+    .mission-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(200,160,0,0.2);
+      opacity: 0;
+    }
+    .mission-item:last-child { border-bottom: none; }
+
+    .mission-check {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--dq-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: 0 0 8px rgba(64,192,112,0.6);
+    }
+
+    .mission-xp-badge {
+      margin-left: auto;
+      padding: 3px 8px;
+      border-radius: 10px;
+      background: rgba(255,215,0,0.15);
+      border: 1px solid rgba(255,215,0,0.5);
+      color: var(--dq-accent);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    /* ============================================================
+       シーン2: XPバー
+    ============================================================ */
+    .xp-bar-container {
+      width: 100%;
+      height: 20px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid var(--dq-border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .xp-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #e8a000, #ffd700, #ffe880);
+      border-radius: 8px;
+      box-shadow: 0 0 12px #ffd700;
+      transition: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .xp-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      animation: xp-shine 1s ease-in-out 0.5s infinite;
+    }
+
+    @keyframes xp-shine {
+      0%   { left: -60%; }
+      100% { left: 120%; }
+    }
+
+    /* ============================================================
+       シーン3: レベルアップ
+    ============================================================ */
+    .levelup-text {
+      font-size: clamp(28px, 8vw, 42px);
+      color: var(--dq-accent);
+      text-shadow: 0 0 16px #ffd700, 0 0 32px #ff8800;
+      letter-spacing: 0.1em;
+      opacity: 0;
+    }
+
+    .level-number {
+      font-size: clamp(52px, 16vw, 80px);
+      color: var(--dq-accent);
+      text-shadow: 0 0 20px #ffd700, 0 0 40px #ff8800;
+      line-height: 1;
+      opacity: 0;
+    }
+
+    .level-old {
+      font-size: clamp(22px, 6vw, 32px);
+      color: #b8a090;
+    }
+
+    /* 光の放射 */
+    .ray-container {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .ray {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100%;
+      height: 100%;
+      transform-origin: 0 0;
+      background: conic-gradient(
+        rgba(255,215,0,0.12) 0deg,
+        transparent 10deg,
+        rgba(255,215,0,0.08) 20deg,
+        transparent 30deg,
+        rgba(255,215,0,0.12) 40deg,
+        transparent 50deg,
+        rgba(255,215,0,0.08) 60deg,
+        transparent 70deg,
+        rgba(255,215,0,0.12) 80deg,
+        transparent 90deg,
+        rgba(255,215,0,0.08) 100deg,
+        transparent 110deg,
+        rgba(255,215,0,0.12) 120deg,
+        transparent 130deg,
+        rgba(255,215,0,0.08) 140deg,
+        transparent 150deg,
+        rgba(255,215,0,0.12) 160deg,
+        transparent 170deg,
+        rgba(255,215,0,0.08) 180deg,
+        transparent 190deg,
+        rgba(255,215,0,0.12) 200deg,
+        transparent 210deg,
+        rgba(255,215,0,0.08) 220deg,
+        transparent 230deg,
+        rgba(255,215,0,0.12) 240deg,
+        transparent 250deg,
+        rgba(255,215,0,0.08) 260deg,
+        transparent 270deg,
+        rgba(255,215,0,0.12) 280deg,
+        transparent 290deg,
+        rgba(255,215,0,0.08) 300deg,
+        transparent 310deg,
+        rgba(255,215,0,0.12) 320deg,
+        transparent 330deg,
+        rgba(255,215,0,0.08) 340deg,
+        transparent 350deg,
+        rgba(255,215,0,0.12) 360deg
+      );
+      animation: ray-spin 6s linear infinite;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+
+    .ray.is-visible { opacity: 1; }
+
+    /* 画面フラッシュ */
+    .screen-flash {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: white;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    /* ============================================================
+       シーン4: 称号アップ
+    ============================================================ */
+    .title-old-text {
+      font-size: clamp(18px, 5vw, 26px);
+      color: #b8a090;
+    }
+
+    .title-new-text {
+      font-size: clamp(22px, 6.5vw, 36px);
+      color: var(--dq-accent);
+      text-shadow: 0 0 20px #ffd700, 0 0 40px #ff8800;
+      letter-spacing: 0.05em;
+    }
+
+    .title-star {
+      color: var(--dq-accent);
+      text-shadow: 0 0 12px #ffd700;
+      font-size: 24px;
+      animation: sparkle 1s ease-in-out infinite;
+    }
+
+    @keyframes sparkle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(1.4); }
+    }
+
+    /* キャラ画像コンテナ */
+    .char-frame {
+      width: 120px;
+      height: 120px;
+      border: 3px solid var(--dq-border);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 24px rgba(200,160,0,0.5);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 紫の称号オーラ */
+    .title-aura {
+      position: absolute;
+      inset: -20px;
+      background: radial-gradient(ellipse at center, rgba(144,64,255,0.4) 0%, transparent 70%);
+      animation: aura-pulse 2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes aura-pulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%       { opacity: 1;   transform: scale(1.15); }
+    }
+
+    /* ============================================================
+       パーティクル Canvas
+    ============================================================ */
+    #particle-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* ============================================================
+       アニメーション定義
+    ============================================================ */
+    @keyframes scene-fade-in {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes rise-in {
+      0%   { opacity: 0; transform: translateY(40px) scale(0.8); }
+      60%  { opacity: 1; transform: translateY(-6px) scale(1.05); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { text-shadow: 0 0 8px #ffd700, 0 0 16px #ffd700; }
+      50%       { text-shadow: 0 0 24px #ffd700, 0 0 48px #ff8800, 0 0 80px #ffdd00; }
+    }
+
+    @keyframes ray-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    @keyframes mission-pop {
+      from { opacity: 0; transform: translateX(-20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes count-up-anim {
+      from { opacity: 0; transform: scale(0.6); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes title-new-in {
+      0%   { opacity: 0; transform: scale(1.4) translateY(20px); }
+      60%  { opacity: 1; transform: scale(0.95) translateY(-4px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes char-change {
+      0%   { opacity: 0; transform: scale(0.5) rotate(-5deg); }
+      60%  { opacity: 1; transform: scale(1.08) rotate(2deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0); }
+    }
+
+    @keyframes flash-white {
+      0%   { opacity: 0; }
+      15%  { opacity: 0.9; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes border-shimmer {
+      0%   { box-shadow: 0 0 8px  rgba(200,160,0,0.4); }
+      50%  { box-shadow: 0 0 24px rgba(255,215,0,0.9), 0 0 48px rgba(255,140,0,0.5); }
+      100% { box-shadow: 0 0 8px  rgba(200,160,0,0.4); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- パーティクルcanvas -->
+<canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+<!-- 画面フラッシュ -->
+<div id="screen-flash" class="screen-flash" aria-hidden="true"></div>
+
+<!-- 光の放射（背景レイヤー） -->
+<div id="ray-bg" style="position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:1;">
+  <div id="main-ray" class="ray"></div>
+</div>
+
+<!-- ステージ -->
+<div class="cel-stage">
+
+  <!-- ======================================================
+       シーン1: ミッション達成一覧
+  ====================================================== -->
+  <div id="scene-1" class="cel-scene is-active" role="region" aria-label="ミッション達成結果">
+    <div style="margin-bottom:20px;text-align:center;">
+      <p style="font-size:12px;color:#b8a090;letter-spacing:0.15em;">MISSION COMPLETE</p>
+      <h1 style="font-size:clamp(22px,6vw,30px);color:var(--dq-accent);margin-top:4px;">
+        ミッション達成！
+      </h1>
+    </div>
+
+    <div class="dq-window" style="margin-bottom:20px;">
+      <div id="mission-list">
+        {% if completed_missions %}
+          {% for m in completed_missions %}
+          <div class="mission-item" style="animation-delay: {{ forloop.counter0 }}00ms;">
+            <div class="mission-check" aria-hidden="true">&#10003;</div>
+            <span style="font-size:13px;color:var(--dq-text);flex:1;line-height:1.4;">{{ m.title }}</span>
+            <span class="mission-xp-badge">+{{ m.xp_reward }}XP</span>
+          </div>
+          {% endfor %}
+          {% for a in new_achievements %}
+          <div class="mission-item" style="animation-delay: {{ forloop.counter }}50ms;">
+            <div class="mission-check" style="background:#9040ff;box-shadow:0 0 8px rgba(144,64,255,0.6);" aria-hidden="true">&#9733;</div>
+            <span style="font-size:13px;color:#d0b0ff;flex:1;line-height:1.4;">実績：{{ a.name }}</span>
+            <span class="mission-xp-badge" style="border-color:rgba(144,64,255,0.5);color:#c080ff;">+{{ a.xp_reward }}XP</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="text-align:center;color:#b8a090;padding:20px 0;">ミッションの達成はありませんでした</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 獲得XP合計 -->
+    {% if xp_gained %}
+    <div style="text-align:center;margin-bottom:20px;">
+      <span style="font-size:14px;color:#b8a090;">合計獲得 XP：</span>
+      <span id="xp-total-count" style="font-size:clamp(28px,8vw,40px);color:var(--dq-accent);text-shadow:0 0 12px #ffd700;">+{{ xp_gained }}</span>
+      <span style="font-size:16px;color:var(--dq-accent);">XP</span>
+    </div>
+    {% endif %}
+
+    {% if leveled_up %}
+    <button class="cel-btn cel-btn--primary" id="btn-scene1" onclick="goToScene(2)" aria-label="次のシーンへ">
+      &#9654; つぎへ
+    </button>
+    {% else %}
+    <a href="{% url 'quest:dashboard' %}" class="cel-btn cel-btn--dashboard" style="text-decoration:none;" aria-label="ダッシュボードへ">
+      &#9650; ダッシュボードへ
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- ======================================================
+       シーン2: XP獲得アニメーション（レベルアップ時のみ）
+  ====================================================== -->
+  {% if leveled_up %}
+  <div id="scene-2" class="cel-scene" role="region" aria-label="XP獲得アニメーション">
+    <div style="margin-bottom:20px;text-align:center;">
+      <p style="font-size:12px;color:#b8a090;letter-spacing:0.15em;">EXPERIENCE POINTS</p>
+      <h2 style="font-size:clamp(20px,5.5vw,28px);color:var(--dq-accent);margin-top:4px;">
+        けいけんちを かくとく！
+      </h2>
+    </div>
+
+    <div class="dq-window" style="margin-bottom:28px;">
+      <div style="text-align:center;margin-bottom:16px;">
+        <span style="font-size:13px;color:#b8a090;">XP獲得量</span><br>
+        <span id="xp-anim-number" style="font-size:clamp(36px,10vw,56px);color:var(--dq-accent);text-shadow:0 0 16px #ffd700;">0</span>
+        <span style="font-size:18px;color:var(--dq-accent);">XP</span>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div class="flex justify-between" style="font-size:11px;color:#b8a090;display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span>Lv.{{ prev_level }}</span>
+          <span>Lv.{{ new_level }}</span>
+        </div>
+        <div class="xp-bar-container">
+          <div id="xp-bar-scene2" class="xp-bar-fill" style="--xp-target:100%;"></div>
+        </div>
+      </div>
+
+      <p style="text-align:center;font-size:12px;color:#b8a090;margin-top:8px;">
+        Lv.{{ prev_level }} &#8594; Lv.{{ new_level }}
+      </p>
+    </div>
+
+    <button class="cel-btn cel-btn--primary" id="btn-scene2" onclick="goToScene(3)" aria-label="レベルアップ演出へ">
+      &#9654; つぎへ
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- ======================================================
+       シーン3: レベルアップ演出（レベルアップ時のみ）
+  ====================================================== -->
+  {% if leveled_up %}
+  <div id="scene-3" class="cel-scene" role="region" aria-label="レベルアップ演出">
+    <!-- 背景の光放射はray-bgが使用される -->
+
+    <div style="text-align:center;margin-bottom:16px;position:relative;z-index:2;">
+      <div id="levelup-label" class="levelup-text" style="margin-bottom:8px;">
+        レベルが　あがった！
+      </div>
+
+      <div style="display:flex;align-items:baseline;justify-content:center;gap:12px;margin-bottom:8px;">
+        <span id="old-level-num" class="level-old" style="opacity:0;">Lv.{{ prev_level }}</span>
+        <span style="font-size:24px;color:#b8a090;opacity:0;" id="arrow-lv">&#8594;</span>
+      </div>
+
+      <div id="new-level-num" class="level-number" style="margin-bottom:4px;">
+        Lv.{{ new_level }}
+      </div>
+    </div>
+
+    <div class="dq-window" style="margin-bottom:20px;position:relative;z-index:2;">
+      <p style="text-align:center;font-size:14px;color:#b8a090;margin-bottom:4px;">
+        げんざいのレベル
+      </p>
+      <p style="text-align:center;font-size:clamp(28px,8vw,40px);color:var(--dq-accent);">
+        {{ new_level }}
+      </p>
+    </div>
+
+    {% if title_changed %}
+    <button class="cel-btn cel-btn--primary" id="btn-scene3" onclick="goToScene(4)" style="position:relative;z-index:2;" aria-label="称号アップ演出へ">
+      &#9654; つぎへ
+    </button>
+    {% else %}
+    <a href="{% url 'quest:dashboard' %}" class="cel-btn cel-btn--dashboard" style="text-decoration:none;position:relative;z-index:2;" aria-label="ダッシュボードへ">
+      &#9650; ダッシュボードへ
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ======================================================
+       シーン4: 称号アップ演出（称号変化時のみ）
+  ====================================================== -->
+  {% if title_changed %}
+  <div id="scene-4" class="cel-scene" role="region" aria-label="称号アップ演出">
+    <div style="text-align:center;margin-bottom:12px;position:relative;z-index:2;">
+      <p style="font-size:12px;color:#b8a090;letter-spacing:0.15em;">TITLE CHANGE</p>
+      <h2 style="font-size:clamp(20px,5.5vw,26px);color:#c080ff;margin-top:4px;
+                 text-shadow:0 0 12px rgba(144,64,255,0.8);">
+        称号が　かわった！
+      </h2>
+    </div>
+
+    <!-- 旧称号 / 新称号 -->
+    <div style="text-align:center;margin-bottom:16px;position:relative;z-index:2;">
+      <div id="old-title-wrap" style="margin-bottom:8px;">
+        <span class="title-old-text" style="text-decoration:line-through;color:#7a6a5a;">
+          {{ prev_title }}
+        </span>
+      </div>
+      <div style="font-size:20px;color:#b8a090;margin-bottom:8px;">&#8595;</div>
+      <div id="new-title-wrap" style="display:flex;align-items:center;justify-content:center;gap:8px;opacity:0;">
+        <span class="title-star" aria-hidden="true">&#10022;</span>
+        <span class="title-new-text">{{ new_title }}</span>
+        <span class="title-star" aria-hidden="true">&#10022;</span>
+      </div>
+    </div>
+
+    <!-- キャラクター画像 -->
+    <div style="display:flex;justify-content:center;margin-bottom:20px;position:relative;z-index:2;">
+      <div class="char-frame" id="char-frame">
+        <div class="title-aura" aria-hidden="true"></div>
+        <img id="char-img"
+             src="{% static new_character_image %}"
+             alt="新しい称号のキャラクター"
+             style="width:100px;height:100px;image-rendering:pixelated;position:relative;z-index:1;opacity:0;">
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;position:relative;z-index:2;width:100%;max-width:320px;">
+      <a href="{% url 'quest:title_detail' new_level %}"
+         class="cel-btn"
+         style="text-decoration:none;width:100%;justify-content:center;
+                background:linear-gradient(180deg,#4a1a7a 0%,#2a0a4a 100%);
+                border-color:rgba(144,64,255,0.7);color:#d0a0ff;
+                box-shadow:0 4px 0 #1a0030,0 6px 12px rgba(0,0,0,0.5);"
+         aria-label="称号詳細を見る">
+        &#10022; 称号の説明を見る
+      </a>
+      <a href="{% url 'quest:dashboard' %}"
+         class="cel-btn cel-btn--dashboard"
+         style="text-decoration:none;width:100%;justify-content:center;"
+         aria-label="ダッシュボードへ">
+        &#9650; ダッシュボードへ
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+</div><!-- .cel-stage -->
+
+<script>
+/* ============================================================
+   データ（Djangoからの受け渡し）
+============================================================ */
+var CEL = {
+  leveled_up:    {{ leveled_up|yesno:"true,false" }},
+  title_changed: {{ title_changed|yesno:"true,false" }},
+  prev_level:    {{ prev_level }},
+  new_level:     {{ new_level }},
+  xp_gained:     {{ xp_gained|default:0 }},
+};
+
+/* ============================================================
+   Web Audio API サウンドエンジン
+============================================================ */
+var AudioCtx = (function() {
+  var ctx = null;
+  function getCtx() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return ctx;
+  }
+
+  function playTone(freq, startTime, duration, type, gainVal) {
+    var c = getCtx();
+    var osc  = c.createOscillator();
+    var gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(gainVal || 0.18, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.02);
+  }
+
+  /* レベルアップ音: 上昇アルペジオ C4-E4-G4-C5 */
+  function playLevelUp() {
+    var c = getCtx();
+    var t = c.currentTime;
+    var notes = [261.63, 329.63, 392.00, 523.25];
+    notes.forEach(function(f, i) {
+      playTone(f, t + i * 0.12, 0.35, 'square', 0.18);
+    });
+    /* 最後に全和音 */
+    setTimeout(function() {
+      var t2 = c.currentTime;
+      notes.forEach(function(f) {
+        playTone(f, t2, 0.6, 'square', 0.10);
+      });
+    }, 560);
+  }
+
+  /* 称号アップ音: ファンファーレ風 */
+  function playTitleUp() {
+    var c = getCtx();
+    var t = c.currentTime;
+    /* 主旋律 */
+    var melody = [
+      [392.00, 0.00, 0.18],
+      [523.25, 0.18, 0.18],
+      [659.25, 0.36, 0.18],
+      [783.99, 0.54, 0.28],
+      [1046.5, 0.82, 0.50],
+    ];
+    melody.forEach(function(m) {
+      playTone(m[0], t + m[1], m[2], 'square', 0.15);
+    });
+    /* 和音追加 */
+    var chords = [
+      [261.63, 0.00, 0.18],
+      [329.63, 0.18, 0.18],
+      [415.30, 0.36, 0.28],
+      [523.25, 0.82, 0.50],
+    ];
+    chords.forEach(function(m) {
+      playTone(m[0], t + m[1], m[2], 'triangle', 0.10);
+    });
+  }
+
+  /* ミッション達成SE */
+  function playMission() {
+    var c = getCtx();
+    var t = c.currentTime;
+    playTone(523.25, t,        0.12, 'square', 0.14);
+    playTone(659.25, t + 0.13, 0.12, 'square', 0.14);
+    playTone(783.99, t + 0.26, 0.20, 'square', 0.14);
+  }
+
+  /* XPゲージ上昇音 */
+  function playXpRise() {
+    var c = getCtx();
+    var t = c.currentTime;
+    for (var i = 0; i < 8; i++) {
+      playTone(200 + i * 60, t + i * 0.12, 0.10, 'triangle', 0.08);
+    }
+  }
+
+  return { playLevelUp: playLevelUp, playTitleUp: playTitleUp, playMission: playMission, playXpRise: playXpRise };
+}());
+
+/* ============================================================
+   パーティクル / 紙吹雪エンジン
+============================================================ */
+var Particles = (function() {
+  var canvas  = document.getElementById('particle-canvas');
+  var ctx     = null;
+  var particles = [];
+  var raf     = null;
+
+  function init() {
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+  }
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  function burst(count, colors, xCenter, yCenter, spread) {
+    xCenter = xCenter !== undefined ? xCenter : canvas.width  / 2;
+    yCenter = yCenter !== undefined ? yCenter : canvas.height / 3;
+    spread  = spread  !== undefined ? spread  : 1;
+    for (var i = 0; i < count; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var speed = (2 + Math.random() * 6) * spread;
+      particles.push({
+        x:  xCenter,
+        y:  yCenter,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size:  3 + Math.random() * 5,
+        life:  1,
+        decay: 0.012 + Math.random() * 0.018,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.2,
+        shape: Math.random() > 0.4 ? 'rect' : 'circle',
+      });
+    }
+    if (!raf) loop();
+  }
+
+  function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var alive = [];
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.vy += 0.15;  /* 重力 */
+      p.vx *= 0.98;  /* 空気抵抗 */
+      p.life -= p.decay;
+      p.rotation += p.rotSpeed;
+      if (p.life > 0) {
+        ctx.save();
+        ctx.globalAlpha = p.life;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        if (p.shape === 'rect') {
+          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        alive.push(p);
+      }
+    }
+    particles = alive;
+    if (particles.length > 0) {
+      raf = requestAnimationFrame(loop);
+    } else {
+      raf = null;
+    }
+  }
+
+  /* レベルアップ: ゴールド系パーティクル */
+  function burstLevelUp() {
+    var colors = ['#ffd700','#ffaa00','#ffe880','#ffffff','#ff8800'];
+    burst(80, colors, canvas.width / 2, canvas.height / 3, 1.2);
+    setTimeout(function() { burst(60, colors, canvas.width / 2, canvas.height / 2, 0.9); }, 300);
+  }
+
+  /* 称号アップ: 紫+ゴールド豪華パーティクル */
+  function burstTitleUp() {
+    var colors = ['#9040ff','#c080ff','#ffd700','#ff40ff','#80ffff','#ffffff'];
+    burst(120, colors, canvas.width / 2, canvas.height / 2, 1.5);
+    setTimeout(function() { burst(80, colors, canvas.width / 4, canvas.height / 4, 1); }, 200);
+    setTimeout(function() { burst(80, colors, canvas.width * 3/4, canvas.height / 4, 1); }, 400);
+    setTimeout(function() { burst(100, colors, canvas.width / 2, canvas.height * 2/3, 1.2); }, 600);
+  }
+
+  /* ミッション達成: 緑系 */
+  function burstMission() {
+    var colors = ['#40c070','#60e090','#ffd700','#a0ffc0'];
+    burst(30, colors, canvas.width / 2, canvas.height * 0.6, 0.8);
+  }
+
+  return { init: init, burstLevelUp: burstLevelUp, burstTitleUp: burstTitleUp, burstMission: burstMission };
+}());
+
+/* ============================================================
+   シーン管理
+============================================================ */
+var currentScene = 1;
+
+function goToScene(n) {
+  /* 現在のシーンを非表示 */
+  var prev = document.getElementById('scene-' + currentScene);
+  if (prev) {
+    prev.classList.remove('is-active');
+  }
+
+  currentScene = n;
+  var next = document.getElementById('scene-' + n);
+  if (!next) { return; }
+
+  /* 次のシーンを表示 */
+  next.classList.add('is-active');
+
+  /* シーン別の演出を起動 */
+  if (n === 2) { startScene2(); }
+  if (n === 3) { startScene3(); }
+  if (n === 4) { startScene4(); }
+}
+
+/* ============================================================
+   シーン1 入場演出（ページロード時）
+============================================================ */
+function startScene1() {
+  var items = document.querySelectorAll('.mission-item');
+  items.forEach(function(el, i) {
+    setTimeout(function() {
+      el.style.animation = 'mission-pop 0.4s ease-out forwards';
+      el.style.animationDelay = '0s';
+    }, 100 + i * 120);
+  });
+  /* 最後のミッション後にSE */
+  setTimeout(function() {
+    AudioCtx.playMission();
+    Particles.burstMission();
+  }, 100 + items.length * 120);
+}
+
+/* ============================================================
+   シーン2: XPバー上昇アニメーション
+============================================================ */
+function startScene2() {
+  AudioCtx.playXpRise();
+
+  /* 数値カウントアップ */
+  var target  = CEL.xp_gained;
+  var el      = document.getElementById('xp-anim-number');
+  var start   = performance.now();
+  var duration = 1400;
+
+  function tick(now) {
+    var elapsed = now - start;
+    var progress = Math.min(elapsed / duration, 1);
+    /* ease-out cubic */
+    var eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.floor(eased * target);
+    if (progress < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      el.textContent = target;
+    }
+  }
+  requestAnimationFrame(tick);
+
+  /* バーアニメーション */
+  var bar = document.getElementById('xp-bar-scene2');
+  bar.style.transition = 'width 1.5s cubic-bezier(0.22,1,0.36,1)';
+  setTimeout(function() { bar.style.width = '100%'; }, 50);
+
+  /* バー満タン後にフラッシュ */
+  setTimeout(function() {
+    triggerFlash();
+    Particles.burstLevelUp();
+  }, 1700);
+}
+
+/* ============================================================
+   シーン3: レベルアップ演出
+============================================================ */
+function startScene3() {
+  /* 光線を表示 */
+  var ray = document.getElementById('main-ray');
+  ray.classList.add('is-visible');
+
+  /* レベルアップ音 */
+  AudioCtx.playLevelUp();
+
+  /* 旧レベル表示 */
+  var oldLv   = document.getElementById('old-level-num');
+  var arrow   = document.getElementById('arrow-lv');
+  var newLv   = document.getElementById('new-level-num');
+  var label   = document.getElementById('levelup-label');
+
+  /* ラベルを上から降ろす */
+  label.style.animation = 'rise-in 0.7s cubic-bezier(0.22,1,0.36,1) forwards';
+
+  setTimeout(function() {
+    oldLv.style.opacity = '1';
+    oldLv.style.transition = 'opacity 0.3s';
+    arrow.style.opacity = '1';
+    arrow.style.transition = 'opacity 0.3s';
+  }, 500);
+
+  /* 新レベルをカウントアップ演出 */
+  setTimeout(function() {
+    triggerFlash();
+    Particles.burstLevelUp();
+    newLv.style.animation = 'rise-in 0.7s cubic-bezier(0.22,1,0.36,1) forwards';
+    newLv.style.animationFillMode = 'forwards';
+    /* glow-pulse ループ */
+    newLv.style.animation = 'rise-in 0.7s cubic-bezier(0.22,1,0.36,1) forwards, glow-pulse 1.8s 0.7s ease-in-out infinite';
+  }, 900);
+
+  /* ウィンドウ枠をシマー */
+  setTimeout(function() {
+    var win = document.querySelector('#scene-3 .dq-window');
+    if (win) win.style.animation = 'border-shimmer 2s ease-in-out infinite';
+  }, 1200);
+}
+
+/* ============================================================
+   シーン4: 称号アップ演出
+============================================================ */
+function startScene4() {
+  /* 光線をより明るく */
+  var ray = document.getElementById('main-ray');
+  ray.classList.add('is-visible');
+  ray.style.background = ray.style.background || '';
+
+  /* 称号音 */
+  AudioCtx.playTitleUp();
+
+  /* 旧称号をフェードアウト */
+  var oldWrap = document.getElementById('old-title-wrap');
+  oldWrap.style.animation = 'title-old-out 0.5s ease-in forwards';
+
+  /* 新称号を出現 */
+  var newWrap = document.getElementById('new-title-wrap');
+  setTimeout(function() {
+    newWrap.style.opacity = '1';
+    newWrap.style.animation = 'title-new-in 0.8s cubic-bezier(0.22,1,0.36,1) forwards';
+  }, 600);
+
+  /* キャラクター画像 */
+  var charImg = document.getElementById('char-img');
+  setTimeout(function() {
+    triggerFlash();
+    Particles.burstTitleUp();
+    charImg.style.animation = 'char-change 0.9s cubic-bezier(0.22,1,0.36,1) forwards';
+    /* 枠をシマー */
+    var frame = document.getElementById('char-frame');
+    frame.style.animation = 'border-shimmer 2s ease-in-out infinite';
+  }, 1000);
+}
+
+/* ============================================================
+   ユーティリティ
+============================================================ */
+function triggerFlash() {
+  var el = document.getElementById('screen-flash');
+  el.style.animation = 'none';
+  /* reflow trick */
+  void el.offsetWidth;
+  el.style.animation = 'flash-white 0.8s ease-out forwards';
+}
+
+/* ============================================================
+   初期化
+============================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+  Particles.init();
+  startScene1();
+});
+
+/* タッチデバイス対応: AudioContextのアンロック */
+document.addEventListener('touchstart', function unlockAudio() {
+  var tmp = new (window.AudioContext || window.webkitAudioContext)();
+  tmp.resume();
+  document.removeEventListener('touchstart', unlockAudio);
+}, { once: true });
+
+/* ============================================================
+   glow-pulseをCSSアニメーションとして参照できるよう確認
+   （インラインスタイルでkeyframeを参照）
+============================================================ */
+</script>
+</body>
+</html>

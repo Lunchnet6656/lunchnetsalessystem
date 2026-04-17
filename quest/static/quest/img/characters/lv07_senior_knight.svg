@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 頭 -->
+  <rect x="20" y="8" width="24" height="18" fill="#f5c89a"/>
+  <!-- 金装飾ヘルメット -->
+  <rect x="18" y="2" width="28" height="10" fill="#1a237e"/>
+  <rect x="16" y="6" width="4" height="12" fill="#1a237e"/>
+  <rect x="44" y="6" width="4" height="12" fill="#1a237e"/>
+  <!-- 金の縁取り -->
+  <rect x="18" y="2" width="28" height="3" fill="#ffd700"/>
+  <rect x="18" y="10" width="28" height="2" fill="#ffd700"/>
+  <!-- 目 -->
+  <rect x="24" y="12" width="4" height="3" fill="#4fc3f7"/>
+  <rect x="36" y="12" width="4" height="3" fill="#4fc3f7"/>
+  <!-- 鎧（金装飾付き） -->
+  <rect x="12" y="26" width="40" height="22" fill="#1a237e"/>
+  <!-- 金の鎧縁 -->
+  <rect x="12" y="26" width="40" height="3" fill="#ffd700"/>
+  <rect x="12" y="45" width="40" height="3" fill="#ffd700"/>
+  <rect x="12" y="26" width="3" height="22" fill="#ffd700"/>
+  <rect x="49" y="26" width="3" height="22" fill="#ffd700"/>
+  <!-- 胸の紋章 -->
+  <rect x="24" y="30" width="16" height="14" fill="#0d47a1"/>
+  <rect x="26" y="32" width="12" height="10" fill="#1565c0"/>
+  <!-- 星紋章 -->
+  <rect x="30" y="34" width="4" height="6" fill="#ffd700"/>
+  <rect x="28" y="36" width="8" height="2" fill="#ffd700"/>
+  <!-- 腕（金装飾） -->
+  <rect x="6" y="26" width="8" height="22" fill="#1a237e"/>
+  <rect x="6" y="26" width="8" height="3" fill="#ffd700"/>
+  <rect x="50" y="26" width="8" height="22" fill="#1a237e"/>
+  <rect x="50" y="26" width="8" height="3" fill="#ffd700"/>
+  <!-- 手 -->
+  <rect x="6" y="46" width="8" height="4" fill="#f5c89a"/>
+  <rect x="50" y="46" width="8" height="4" fill="#f5c89a"/>
+  <!-- 長剣（金） -->
+  <rect x="54" y="14" width="4" height="32" fill="#ffd700"/>
+  <rect x="50" y="28" width="12" height="3" fill="#c5a600"/>
+  <rect x="54" y="10" width="4" height="6" fill="#e0e0e0"/>
+  <!-- 足（金鎧） -->
+  <rect x="18" y="48" width="12" height="12" fill="#1a237e"/>
+  <rect x="34" y="48" width="12" height="12" fill="#1a237e"/>
+  <rect x="16" y="55" width="16" height="5" fill="#212121"/>
+  <rect x="32" y="55" width="16" height="5" fill="#212121"/>
+  <!-- 金の靴飾り -->
+  <rect x="18" y="55" width="12" height="2" fill="#ffd700"/>
+  <rect x="34" y="55" width="12" height="2" fill="#ffd700"/>
+</svg>

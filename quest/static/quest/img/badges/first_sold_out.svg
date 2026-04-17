@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" shape-rendering="crispEdges">
+  <!-- 完売の星 -->
+  <!-- 星の形（ピクセル） -->
+  <!-- 中央 -->
+  <rect x="20" y="4" width="8" height="6" fill="#ffd700"/>
+  <!-- 上腕 -->
+  <rect x="18" y="8" width="12" height="4" fill="#ffd700"/>
+  <!-- 横腕 -->
+  <rect x="4" y="18" width="40" height="8" fill="#ffd700"/>
+  <!-- 斜め（左上） -->
+  <rect x="8" y="12" width="8" height="8" fill="#ffd700"/>
+  <rect x="12" y="10" width="8" height="4" fill="#ffd700"/>
+  <!-- 斜め（右上） -->
+  <rect x="32" y="12" width="8" height="8" fill="#ffd700"/>
+  <rect x="28" y="10" width="8" height="4" fill="#ffd700"/>
+  <!-- 下部 -->
+  <rect x="16" y="24" width="16" height="6" fill="#ffd700"/>
+  <!-- 左下 -->
+  <rect x="8" y="28" width="12" height="8" fill="#ffd700"/>
+  <rect x="6" y="32" width="10" height="6" fill="#ffd700"/>
+  <!-- 右下 -->
+  <rect x="28" y="28" width="12" height="8" fill="#ffd700"/>
+  <rect x="32" y="32" width="10" height="6" fill="#ffd700"/>
+  <!-- 下先端 -->
+  <rect x="18" y="38" width="12" height="6" fill="#ffd700"/>
+  <rect x="20" y="42" width="8" height="4" fill="#ffd700"/>
+  <!-- 内部（輝き） -->
+  <rect x="20" y="16" width="8" height="14" fill="#ffed4a"/>
+  <rect x="16" y="18" width="16" height="10" fill="#ffed4a"/>
+  <!-- 中心輝き -->
+  <rect x="22" y="20" width="4" height="6" fill="#ffffff" opacity="0.6"/>
+  <!-- 「完売」テキスト代わりの縁取り -->
+  <rect x="20" y="4" width="8" height="3" fill="#c5a600"/>
+  <rect x="4" y="18" width="40" height="2" fill="#c5a600"/>
+</svg>

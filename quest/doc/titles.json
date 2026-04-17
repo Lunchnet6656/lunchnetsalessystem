@@ -1,0 +1,107 @@
+[
+  {
+    "level_required": 1,
+    "key": "minarai",
+    "name": "見習い販売員",
+    "description": "ランチ販売の世界に足を踏み入れたばかりの新人。笑顔と元気を武器に、今日も一歩ずつ成長中。",
+    "image_filename": "lv001_minarai.png"
+  },
+  {
+    "level_required": 5,
+    "key": "hanbai_staff",
+    "name": "販売スタッフ",
+    "description": "売場の流れを少しずつ覚えはじめた販売員。お弁当を手に、お客様への声かけにも慣れてきた。",
+    "image_filename": "lv005_hanbai_staff.png"
+  },
+  {
+    "level_required": 10,
+    "key": "hitoridachi",
+    "name": "ひとり立ち販売員",
+    "description": "自分の力で売場をまわせるようになった販売員。落ち着いた接客で、安心感のある存在へ。",
+    "image_filename": "lv010_hitoridachi.png"
+  },
+  {
+    "level_required": 15,
+    "key": "tayoreru",
+    "name": "頼れる販売員",
+    "description": "周りからも信頼される、売場の頼れる存在。忙しい時間でも笑顔を忘れず、お客様を迎える。",
+    "image_filename": "lv015_tayoreru.png"
+  },
+  {
+    "level_required": 20,
+    "key": "ninki",
+    "name": "人気販売員",
+    "description": "親しみやすい接客で、多くのお客様に覚えられる存在。思わずまた会いに来たくなる販売員。",
+    "image_filename": "lv020_ninki.png"
+  },
+  {
+    "level_required": 30,
+    "key": "veteran",
+    "name": "ランチのベテラン",
+    "description": "経験を重ね、売場の空気を読む力を身につけた実力派。落ち着きと安定感でランチ時間を支える。",
+    "image_filename": "lv030_veteran.png"
+  },
+  {
+    "level_required": 40,
+    "key": "kanban",
+    "name": "ランチの看板娘",
+    "description": "明るさと華やかさで売場を彩る人気者。その場にいるだけで、ランチの時間が少し楽しくなる。",
+    "image_filename": "lv040_kanban.png"
+  },
+  {
+    "level_required": 50,
+    "key": "ace",
+    "name": "ランチのエース",
+    "description": "売上も接客も頼りになる、売場の中心的存在。ここぞという場面で力を発揮する実力者。",
+    "image_filename": "lv050_ace.png"
+  },
+  {
+    "level_required": 60,
+    "key": "idol",
+    "name": "ランチのアイドル",
+    "description": "多くのお客様に愛され、自然と人を惹きつける存在。笑顔ひとつで売場の雰囲気を明るく変える。",
+    "image_filename": "lv060_idol.png"
+  },
+  {
+    "level_required": 70,
+    "key": "magician",
+    "name": "ランチの魔術師",
+    "description": "お客様の心をつかむ接客で、次々と笑顔を生み出す特別な販売員。その手腕はまるで魔法のよう。",
+    "image_filename": "lv070_magician.png"
+  },
+  {
+    "level_required": 80,
+    "key": "takumi",
+    "name": "ランチの匠",
+    "description": "接客、気配り、売場づくり、そのすべてを高いレベルで極めた職人級の存在。まさにランチ販売の匠。",
+    "image_filename": "lv080_takumi.png"
+  },
+  {
+    "level_required": 90,
+    "key": "legend",
+    "name": "伝説の販売員",
+    "description": "長年の経験と圧倒的な実力で語り継がれる存在。その姿を見た誰もが、一流と認める販売員。",
+    "image_filename": "lv090_legend.png"
+  },
+  {
+    "level_required": 95,
+    "key": "supreme",
+    "name": "至高の販売員",
+    "description": "技術も魅力も磨き上げられた、まさに最高峰の販売員。たどり着ける人はほんのひと握り。",
+    "image_filename": "lv095_supreme.png"
+  },
+  {
+    "level_required": 99,
+    "key": "ultimate",
+    "name": "究極の販売員",
+    "description": "販売員としての力を極限まで高めた究極の存在。接客も売場づくりも、すべてが完成の域にある。",
+    "image_filename": "lv099_ultimate.png"
+  },
+  {
+    "level_required": 100,
+    "key": "queen",
+    "name": "ランチクイーン",
+    "description": "ランチ販売の頂点に立つ、気品と実力を兼ね備えた特別な存在。誰もが憧れる、最高称号の販売員。",
+    "image_filename": "lv100_queen.png"
+  }
+]

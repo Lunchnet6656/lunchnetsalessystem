@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 勇者の兜 -->
+  <rect x="18" y="2" width="28" height="10" fill="#ffd700"/>
+  <rect x="16" y="6" width="4" height="12" fill="#ffd700"/>
+  <rect x="44" y="6" width="4" height="12" fill="#ffd700"/>
+  <!-- 兜の飾り -->
+  <rect x="28" y="0" width="8" height="4" fill="#e53935"/>
+  <rect x="18" y="2" width="28" height="2" fill="#c5a600"/>
+  <!-- 頭 -->
+  <rect x="20" y="12" width="24" height="16" fill="#f5c89a"/>
+  <!-- 目（勇者の目） -->
+  <rect x="24" y="17" width="5" height="4" fill="#1565c0"/>
+  <rect x="35" y="17" width="5" height="4" fill="#1565c0"/>
+  <!-- 勇者の鎧（黄金） -->
+  <rect x="12" y="28" width="40" height="22" fill="#ffd700"/>
+  <!-- 胸の勇者マーク -->
+  <rect x="16" y="28" width="32" height="22" fill="#f57f17"/>
+  <rect x="22" y="30" width="20" height="18" fill="#ffd700"/>
+  <!-- 星マーク -->
+  <rect x="29" y="32" width="6" height="14" fill="#e53935"/>
+  <rect x="24" y="37" width="16" height="4" fill="#e53935"/>
+  <!-- 鎧の金縁 -->
+  <rect x="12" y="28" width="40" height="3" fill="#c5a600"/>
+  <rect x="12" y="47" width="40" height="3" fill="#c5a600"/>
+  <!-- 腕（黄金鎧） -->
+  <rect x="6" y="28" width="8" height="22" fill="#ffd700"/>
+  <rect x="50" y="28" width="8" height="22" fill="#ffd700"/>
+  <!-- 手 -->
+  <rect x="6" y="48" width="8" height="4" fill="#f5c89a"/>
+  <rect x="50" y="48" width="8" height="4" fill="#f5c89a"/>
+  <!-- 黄金の剣 -->
+  <rect x="52" y="8" width="4" height="36" fill="#ffd700"/>
+  <rect x="48" y="22" width="12" height="4" fill="#c5a600"/>
+  <rect x="52" y="4" width="4" height="6" fill="#e0e0e0"/>
+  <!-- 剣の輝き -->
+  <rect x="58" y="8" width="3" height="3" fill="#ffd700" opacity="0.6"/>
+  <rect x="56" y="4" width="3" height="3" fill="#ffffff" opacity="0.8"/>
+  <!-- 足（黄金鎧） -->
+  <rect x="18" y="50" width="12" height="10" fill="#ffd700"/>
+  <rect x="34" y="50" width="12" height="10" fill="#ffd700"/>
+  <rect x="16" y="57" width="16" height="4" fill="#c5a600"/>
+  <rect x="32" y="57" width="16" height="4" fill="#c5a600"/>
+  <!-- 光のオーラ -->
+  <rect x="10" y="12" width="4" height="4" fill="#ffd700" opacity="0.4"/>
+  <rect x="50" y="10" width="4" height="4" fill="#ffd700" opacity="0.4"/>
+  <rect x="8" y="38" width="4" height="4" fill="#ffd700" opacity="0.3"/>
+</svg>

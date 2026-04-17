@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" shape-rendering="crispEdges">
+  <!-- 金の盾 -->
+  <!-- 盾外形 -->
+  <rect x="8" y="6" width="32" height="30" fill="#c5a600"/>
+  <rect x="6" y="8" width="36" height="26" fill="#c5a600"/>
+  <rect x="10" y="36" width="28" height="4" fill="#c5a600"/>
+  <rect x="14" y="40" width="20" height="4" fill="#c5a600"/>
+  <rect x="18" y="44" width="12" height="3" fill="#c5a600"/>
+  <rect x="22" y="47" width="4" height="1" fill="#c5a600"/>
+  <!-- 盾内側（金） -->
+  <rect x="10" y="8" width="28" height="26" fill="#ffd700"/>
+  <rect x="12" y="10" width="24" height="22" fill="#ffed4a"/>
+  <!-- 縁取り（濃金） -->
+  <rect x="8" y="6" width="32" height="3" fill="#c5a600"/>
+  <rect x="8" y="6" width="3" height="30" fill="#c5a600"/>
+  <rect x="37" y="6" width="3" height="30" fill="#c5a600"/>
+  <!-- 「100」 -->
+  <rect x="12" y="15" width="2" height="12" fill="#7f6700"/>
+  <rect x="18" y="13" width="8" height="2" fill="#7f6700"/>
+  <rect x="18" y="25" width="8" height="2" fill="#7f6700"/>
+  <rect x="18" y="13" width="2" height="14" fill="#7f6700"/>
+  <rect x="24" y="13" width="2" height="14" fill="#7f6700"/>
+  <rect x="28" y="13" width="8" height="2" fill="#7f6700"/>
+  <rect x="28" y="25" width="8" height="2" fill="#7f6700"/>
+  <rect x="28" y="13" width="2" height="14" fill="#7f6700"/>
+  <rect x="34" y="13" width="2" height="14" fill="#7f6700"/>
+  <!-- ハイライト（金光沢） -->
+  <rect x="12" y="10" width="8" height="10" fill="#ffffff" opacity="0.35"/>
+  <!-- 装飾星 -->
+  <rect x="22" y="34" width="4" height="4" fill="#c5a600"/>
+  <rect x="20" y="36" width="8" height="2" fill="#c5a600"/>
+</svg>

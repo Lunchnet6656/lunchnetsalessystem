@@ -1,0 +1,96 @@
+{% extends 'quest/base.html' %}
+{% load static %}
+
+{% block title %}称号：{{ title_name }} - ランチクエスト{% endblock %}
+
+{% block page_title %}称号詳細{% endblock %}
+
+{% block content %}
+
+<section class="mb-6">
+  <div class="dq-dialog p-0 overflow-hidden">
+
+    <!-- ヘッダー：称号名 -->
+    <div class="p-5 text-center"
+         style="background: linear-gradient(180deg, rgba(144,64,255,0.15) 0%, rgba(42,24,16,0) 100%);
+                border-bottom: 1px solid rgba(144,64,255,0.25);">
+      <p class="text-xs mb-1" style="color: #b8a090; letter-spacing: 0.15em;">TITLE</p>
+      <h1 class="font-pixel text-2xl font-bold" style="color: #e8a830;
+          text-shadow: 0 0 16px rgba(232,168,48,0.5);">
+        {{ title_name }}
+      </h1>
+      <p class="font-pixel text-sm mt-2" style="color: #9060c0;">
+        Lv.{{ title_level }} 到達称号
+      </p>
+    </div>
+
+    <!-- キャラクター画像 -->
+    <div class="flex justify-center py-8"
+         style="background-color: rgba(42,24,16,0.6);">
+      <div style="position: relative; width: 160px; height: 160px;">
+        <!-- 紫オーラ -->
+        <div style="position: absolute; inset: -24px;
+                    background: radial-gradient(ellipse at center, rgba(144,64,255,0.35) 0%, transparent 70%);
+                    border-radius: 50%;
+                    animation: aura-pulse 2.4s ease-in-out infinite;"
+             aria-hidden="true"></div>
+        <!-- フレーム -->
+        <div style="position: absolute; inset: 0;
+                    border: 3px solid rgba(144,64,255,0.6);
+                    border-radius: 10px;
+                    box-shadow: 0 0 20px rgba(144,64,255,0.4), inset 0 0 12px rgba(144,64,255,0.1);"
+             aria-hidden="true"></div>
+        <img src="{% static title_image %}"
+             alt="{{ title_name }}"
+             style="width: 100%; height: 100%; border-radius: 8px;
+                    object-fit: contain; image-rendering: pixelated;
+                    background-color: rgba(20,10,4,0.85);
+                    position: relative; z-index: 1;">
+      </div>
+    </div>
+
+    <!-- 説明文 -->
+    <div class="p-5">
+      <div class="dq-dialog" style="background-color: rgba(20,10,4,0.5);
+                                     border-color: rgba(144,64,255,0.3);">
+        <p class="font-pixel text-sm leading-relaxed" style="color: #f5e6d0; line-height: 2;">
+          {{ title_description }}
+        </p>
+      </div>
+
+      <!-- 解放条件 -->
+      <div class="mt-4 flex items-center justify-center gap-2">
+        <span class="text-xs" style="color: #b8a090;">解放条件</span>
+        <span class="font-pixel text-sm" style="color: #5ec87a;">
+          Lv.{{ title_level }} 到達
+          {% if required_xp > 0 %}
+          （累計 {{ required_xp }} XP）
+          {% endif %}
+        </span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 戻るボタン -->
+<div class="flex justify-center">
+  <a href="{% url 'quest:profile' %}"
+     class="font-pixel text-sm px-6 py-3 rounded"
+     style="background: linear-gradient(180deg, #2a1800 0%, #1a0e00 100%);
+            border: 2px solid rgba(200,149,108,0.4);
+            color: #e8a830;
+            text-decoration: none;
+            box-shadow: 0 3px 0 #0d0600;">
+    &#9664; プロフィールへ戻る
+  </a>
+</div>
+
+<style>
+  @keyframes aura-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.1); }
+  }
+</style>
+
+{% endblock %}

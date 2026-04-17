@@ -1,0 +1,235 @@
+{% extends 'quest/base.html' %}
+{% load static %}
+
+{% block title %}プロフィール - ランチクエスト{% endblock %}
+
+{% block nav_profile_drawer %}is-active{% endblock %}
+{% block page_title %}プロフィール{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* キャラクターヒーローカードのグロー演出 */
+  .character-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 20px;
+  }
+
+  .character-glow-ring {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    flex-shrink: 0;
+  }
+
+  /* 外側のゴールドグロー */
+  .character-glow-ring::before {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    border-radius: 12px;
+    background: radial-gradient(circle, rgba(232,168,48,0.35) 0%, rgba(232,168,48,0.12) 50%, transparent 70%);
+    animation: hero-pulse 2.8s ease-in-out infinite;
+  }
+
+  /* 内側のフレーム */
+  .character-glow-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    border: 3px solid rgba(232,168,48,0.7);
+    box-shadow: 0 0 20px rgba(232,168,48,0.5), inset 0 0 20px rgba(200,149,108,0.15);
+  }
+
+  .character-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    object-fit: contain;
+    background-color: rgba(42,24,16,0.9);
+    image-rendering: pixelated;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 足元の光エフェクト */
+  .character-shadow {
+    width: 120px;
+    height: 16px;
+    margin-top: 4px;
+    background: radial-gradient(ellipse, rgba(232,168,48,0.3) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  @keyframes hero-pulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.04); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- キャラクター大表示 + ステータスウィンドウ -->
+<section class="mb-6">
+  <div class="dq-dialog p-0 overflow-hidden">
+
+    <!-- ヒーローエリア（上部：キャラクター + 名前） -->
+    <div class="character-hero"
+         style="background: linear-gradient(180deg, rgba(200,149,108,0.08) 0%, rgba(42,24,16,0) 100%);
+                border-bottom: 1px solid rgba(200,149,108,0.2);">
+
+      <!-- キャラクター画像（大） -->
+      <div class="character-glow-ring mb-3">
+        <img src="{% static profile.character_image %}"
+             alt="キャラクター"
+             class="character-img">
+      </div>
+      <!-- 足元の光 -->
+      <div class="character-shadow"></div>
+
+      <!-- 名前・称号 -->
+      <h1 class="font-pixel text-2xl font-bold mt-3 whitespace-nowrap" style="color: #e8a830;">
+        {{ request.user.last_name }} {{ request.user.first_name }}
+      </h1>
+      <p class="font-pixel text-lg mt-1 whitespace-nowrap" style="color: #f5e6d0;">
+        Lv.{{ profile.level }}&nbsp;{{ profile.title }}
+      </p>
+    </div>
+
+    <!-- ステータスエリア（下部） -->
+    <div class="p-4">
+
+      <!-- XPバー -->
+      <div class="mb-4">
+        <div class="flex justify-between text-sm mb-2">
+          <span class="whitespace-nowrap" style="color: #b8a090;">経験値</span>
+          <span class="font-pixel whitespace-nowrap" style="color: #e8a830;">{{ profile.total_xp }}&thinsp;XP</span>
+        </div>
+        <div class="xp-bar-bg">
+          <div class="xp-bar-fill"
+               id="xp-bar"
+               style="width: 0%;"
+               data-target="{{ xp_progress }}">
+          </div>
+        </div>
+        {% if next_level %}
+        <p class="text-xs mt-1 text-right whitespace-nowrap" style="color: #b8a090;">
+          Lv.{{ next_level.0 }}&nbsp;{{ next_level.2 }}&nbsp;まで&nbsp;(残り&nbsp;{{ next_level.1 }}&thinsp;XP)
+        </p>
+        {% else %}
+        <p class="text-xs mt-1 text-right whitespace-nowrap" style="color: #e8a830;">最大レベル到達！</p>
+        {% endif %}
+      </div>
+
+      <!-- ストリーク情報 -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="text-center p-3 rounded"
+             style="background-color: rgba(200,149,108,0.08); border: 1px solid rgba(200,149,108,0.2);">
+          <p class="font-pixel text-3xl font-bold" style="color: #e8a830;">{{ profile.current_streak }}</p>
+          <p class="text-xs whitespace-nowrap" style="color: #b8a090;">現在の連続達成</p>
+        </div>
+        <div class="text-center p-3 rounded"
+             style="background-color: rgba(200,149,108,0.08); border: 1px solid rgba(200,149,108,0.2);">
+          <p class="font-pixel text-3xl font-bold" style="color: #e8a830;">{{ profile.longest_streak }}</p>
+          <p class="text-xs whitespace-nowrap" style="color: #b8a090;">最長連続達成</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- 統計カード -->
+<section class="mb-6">
+  <h2 class="font-pixel text-base mb-3 whitespace-nowrap" style="color: #e8a830;">&#9651; 冒険の記録</h2>
+  <div class="grid grid-cols-2 gap-3">
+    <div class="dq-dialog text-center py-4">
+      <p class="font-pixel text-3xl font-bold" style="color: #5ec87a;">{{ total_completed }}</p>
+      <p class="text-xs mt-1 whitespace-nowrap" style="color: #b8a090;">総ミッション達成</p>
+    </div>
+    <div class="dq-dialog text-center py-4">
+      <p class="font-pixel text-3xl font-bold" style="color: #e8a830;">{{ total_achievements }}</p>
+      <p class="text-xs mt-1 whitespace-nowrap" style="color: #b8a090;">
+        実績&nbsp;<span style="color: #7a6a5a;">/{{ total_possible_achievements }}</span>
+      </p>
+    </div>
+    <div class="dq-dialog text-center py-4">
+      <p class="font-pixel text-3xl font-bold" style="color: #82b4e0;">{{ profile.longest_streak }}</p>
+      <p class="text-xs mt-1 whitespace-nowrap" style="color: #b8a090;">最長ストリーク（日）</p>
+    </div>
+    <div class="dq-dialog text-center py-4">
+      <p class="font-pixel text-3xl font-bold" style="color: #e08ab0;">{{ recent_rate }}%</p>
+      <p class="text-xs mt-1 whitespace-nowrap" style="color: #b8a090;">直近7日 達成率</p>
+    </div>
+  </div>
+</section>
+
+<!-- レベルテーブル -->
+<section>
+  <h2 class="font-pixel text-base mb-3 whitespace-nowrap" style="color: #e8a830;">&#9670; レベル一覧</h2>
+  <div class="dq-dialog overflow-x-auto">
+    <table class="w-full text-sm min-w-[320px]">
+      <thead>
+        <tr style="border-bottom: 1px solid rgba(200,149,108,0.3);">
+          <th class="py-2 px-2 text-left font-pixel whitespace-nowrap" style="color: #b8a090;">Lv.</th>
+          <th class="py-2 px-2 text-left font-pixel whitespace-nowrap" style="color: #b8a090;">称号</th>
+          <th class="py-2 px-2 text-right font-pixel whitespace-nowrap" style="color: #b8a090;">必要XP</th>
+          <th class="py-2 px-2 text-center font-pixel whitespace-nowrap" style="color: #b8a090;">キャラ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in level_table %}
+        <tr class="transition"
+            style="
+              border-bottom: 1px solid rgba(200,149,108,0.1);
+              {% if entry.0 == profile.level %}
+                background-color: rgba(232,168,48,0.12);
+              {% endif %}
+            ">
+          <td class="py-2 px-2">
+            <span class="font-pixel font-bold whitespace-nowrap"
+                  style="color: {% if entry.0 == profile.level %}#e8a830{% elif entry.0 < profile.level %}#5ec87a{% else %}#7a6a5a{% endif %};">
+              Lv.{{ entry.0 }}
+            </span>
+            {% if entry.0 == profile.level %}
+            <span class="text-xs ml-1 font-pixel whitespace-nowrap" style="color: #e8a830;">&#9654; あなた</span>
+            {% endif %}
+          </td>
+          <td class="py-2 px-2 font-pixel whitespace-nowrap"
+              style="color: {% if entry.0 <= profile.level %}#f5e6d0{% else %}#7a6a5a{% endif %};">
+            {% if entry.0 <= profile.level %}
+            <a href="{% url 'quest:title_detail' entry.0 %}"
+               style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(232,168,48,0.35);">
+              {{ entry.2 }}
+            </a>
+            {% else %}
+            {{ entry.2 }}
+            {% endif %}
+          </td>
+          <td class="py-2 px-2 text-right font-pixel whitespace-nowrap"
+              style="color: {% if entry.0 <= profile.level %}#5ec87a{% else %}#7a6a5a{% endif %};">
+            {{ entry.1 }}&thinsp;XP
+          </td>
+          <td class="py-2 px-2 text-center">
+            {% if entry.0 > profile.level %}
+            <span class="font-pixel text-xl w-8 h-8 mx-auto flex items-center justify-center rounded"
+                  style="background-color: #1a1008; color: #7a6a5a; border: 1px solid rgba(200,149,108,0.2);">？</span>
+            {% else %}
+            <img src="{% static entry.3 %}"
+                 alt="{{ entry.2 }}"
+                 class="w-8 h-8 mx-auto"
+                 style="image-rendering: pixelated;">
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% endblock %}

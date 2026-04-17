@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 最強オーラ -->
+  <rect x="0" y="0" width="64" height="64" fill="#ffd700" opacity="0.04"/>
+  <rect x="2" y="8" width="6" height="6" fill="#ffd700" opacity="0.5"/>
+  <rect x="56" y="8" width="6" height="6" fill="#ffd700" opacity="0.5"/>
+  <rect x="0" y="32" width="6" height="6" fill="#ffd700" opacity="0.4"/>
+  <rect x="58" y="32" width="6" height="6" fill="#ffd700" opacity="0.4"/>
+  <rect x="4" y="52" width="6" height="6" fill="#ffd700" opacity="0.3"/>
+  <rect x="54" y="52" width="6" height="6" fill="#ffd700" opacity="0.3"/>
+  <!-- ロトの兜（フル金装飾） -->
+  <rect x="18" y="2" width="28" height="12" fill="#ffd700"/>
+  <rect x="16" y="6" width="4" height="14" fill="#ffd700"/>
+  <rect x="44" y="6" width="4" height="14" fill="#ffd700"/>
+  <!-- 兜の翼飾り -->
+  <rect x="10" y="4" width="8" height="6" fill="#ffd700"/>
+  <rect x="8" y="6" width="4" height="4" fill="#ffd700"/>
+  <rect x="46" y="4" width="8" height="6" fill="#ffd700"/>
+  <rect x="52" y="6" width="4" height="4" fill="#ffd700"/>
+  <!-- 兜の宝石 -->
+  <rect x="28" y="3" width="8" height="6" fill="#e53935"/>
+  <rect x="30" y="4" width="4" height="4" fill="#ff1744"/>
+  <!-- 兜縁の金 -->
+  <rect x="18" y="12" width="28" height="3" fill="#c5a600"/>
+  <!-- 頭 -->
+  <rect x="20" y="14" width="24" height="14" fill="#f5c89a"/>
+  <!-- 目（伝説の目、輝く） -->
+  <rect x="23" y="19" width="5" height="4" fill="#ffd700"/>
+  <rect x="36" y="19" width="5" height="4" fill="#ffd700"/>
+  <rect x="24" y="20" width="3" height="2" fill="#ffffff"/>
+  <rect x="37" y="20" width="3" height="2" fill="#ffffff"/>
+  <!-- ロトの紋章（胸） -->
+  <rect x="10" y="28" width="44" height="24" fill="#ffd700"/>
+  <rect x="14" y="28" width="36" height="24" fill="#c5a600"/>
+  <rect x="18" y="30" width="28" height="20" fill="#ffd700"/>
+  <!-- 紋章デザイン -->
+  <rect x="24" y="32" width="16" height="16" fill="#c5a600"/>
+  <rect x="27" y="34" width="10" height="12" fill="#ffd700"/>
+  <rect x="30" y="31" width="4" height="18" fill="#e53935"/>
+  <rect x="25" y="38" width="14" height="4" fill="#e53935"/>
+  <!-- 肩当て（豪華） -->
+  <rect x="6" y="26" width="10" height="8" fill="#ffd700"/>
+  <rect x="48" y="26" width="10" height="8" fill="#ffd700"/>
+  <!-- 腕（フル黄金鎧） -->
+  <rect x="6" y="32" width="10" height="20" fill="#ffd700"/>
+  <rect x="48" y="32" width="10" height="20" fill="#ffd700"/>
+  <rect x="8" y="34" width="6" height="16" fill="#c5a600"/>
+  <rect x="50" y="34" width="6" height="16" fill="#c5a600"/>
+  <!-- 手 -->
+  <rect x="6" y="50" width="10" height="5" fill="#f5c89a"/>
+  <rect x="48" y="50" width="10" height="5" fill="#f5c89a"/>
+  <!-- ロトの剣（伝説の黄金剣） -->
+  <rect x="54" y="2" width="5" height="44" fill="#ffd700"/>
+  <rect x="48" y="18" width="17" height="5" fill="#c5a600"/>
+  <rect x="54" y="0" width="5" height="4" fill="#e0e0e0"/>
+  <!-- 剣の宝石 -->
+  <rect x="55" y="17" width="3" height="3" fill="#e53935"/>
+  <!-- 剣の輝き -->
+  <rect x="61" y="2" width="3" height="3" fill="#ffffff" opacity="0.9"/>
+  <rect x="58" y="0" width="3" height="3" fill="#ffd700" opacity="0.8"/>
+  <rect x="62" y="8" width="2" height="2" fill="#ffffff" opacity="0.7"/>
+  <!-- 足（最強フル鎧） -->
+  <rect x="16" y="52" width="14" height="8" fill="#ffd700"/>
+  <rect x="34" y="52" width="14" height="8" fill="#ffd700"/>
+  <rect x="18" y="54" width="10" height="6" fill="#c5a600"/>
+  <rect x="36" y="54" width="10" height="6" fill="#c5a600"/>
+  <!-- 黄金の靴 -->
+  <rect x="14" y="57" width="18" height="4" fill="#c5a600"/>
+  <rect x="32" y="57" width="18" height="4" fill="#c5a600"/>
+  <rect x="14" y="57" width="18" height="2" fill="#ffd700"/>
+  <rect x="32" y="57" width="18" height="2" fill="#ffd700"/>
+</svg>
