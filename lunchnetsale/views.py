@@ -2779,7 +2779,7 @@ def report_message_reply(request, message_pk):
     msg = ReportMessage.objects.create(
         report=report, admin_user=parent.admin_user, sender=user,
         sender_role='employee', field_target=parent.field_target,
-        message_type='text', body=body, parent=parent, is_read=True
+        message_type='text', body=body, parent=parent, is_read=False
     )
     return JsonResponse({
         'ok': True,
