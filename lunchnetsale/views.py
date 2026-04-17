@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
 import pandas as pd
-from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission
+from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
@@ -18,6 +18,7 @@ from collections import defaultdict
 from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST
 import csv
 import calendar
 from calendar import monthrange
@@ -877,7 +878,8 @@ def daily_report_view(request):
                     'part': part,
                     'others': others,
                     'comments': comment,
-                    'food_count_setting': food_count_setting
+                    'food_count_setting': food_count_setting,
+                    'submitted_by': request.user,
                 }
             )
             # DailyReportEntryの作成または更新
@@ -995,7 +997,16 @@ def daily_report_detail(request, date):
     # 文字列の日付をdatetimeオブジェクトに変換
     date = datetime.strptime(date, '%Y-%m-%d').date()  # 例: '2024-10-05'の形式
 
-    reports_by_location = DailyReport.objects.filter(date=date).order_by('location_no')
+    reports_by_location = DailyReport.objects.filter(date=date).annotate(
+        unread_count=Count(
+            'messages',
+            filter=Q(
+                messages__admin_user=request.user,
+                messages__sender_role='employee',
+                messages__is_read=False
+            )
+        )
+    ).order_by('location_no')
 
     # 送信されたデータを取得
     submitted_locations = reports_by_location.values_list('location', flat=True).distinct()
@@ -1020,9 +1031,14 @@ def daily_report_detail_rol(request):
     current_user = f"{request.user.last_name} {request.user.first_name}"  # スペースで区切る
 
 
-    # ログインユーザーのデータに絞り込む
-    reports_by_location = DailyReport.objects.filter(person_in_charge=current_user).order_by('-date')
-
+    reports_by_location = DailyReport.objects.filter(
+        person_in_charge=current_user
+    ).annotate(
+        unread_count=Count(
+            'messages',
+            filter=Q(messages__sender_role='admin', messages__is_read=False)
+        )
+    ).order_by('-date')
 
     context = {
         'reports_by_location': reports_by_location,
@@ -1150,12 +1166,32 @@ def daily_report_edit(request, pk):
             unique_prices.add(entry.derived_price)
     unique_prices = sorted(list(unique_prices), reverse=True)
 
+    # 管理者がページを開いたとき、自分宛の従業員返信を既読にする
+    ReportMessage.objects.filter(
+        report=report, admin_user=request.user, sender_role='employee', is_read=False
+    ).update(is_read=True)
+
+    admin_text_qs = ReportMessage.objects.filter(
+        report=report, admin_user=request.user, parent__isnull=True, message_type='text'
+    ).prefetch_related('replies').select_related('sender')
+    admin_reaction_qs = ReportMessage.objects.filter(
+        report=report, admin_user=request.user, message_type='reaction'
+    ).select_related('sender')
+    field_thread_pairs = []
+    for _fk, _fl in [('comments', 'コメント'), ('food_count_setting', '明日の食数設定')]:
+        _texts = list(admin_text_qs.filter(field_target=_fk))
+        _reactions = list(admin_reaction_qs.filter(field_target=_fk))
+        _reacted = {r.emoji for r in _reactions}
+        field_thread_pairs.append((_fk, _fl, _texts, _reactions, _reacted))
+
     return render(request, 'daily_report_edit.html', {
         'form': form,
         'time_form': time_form,
         'report': report,
         'entries': entries,
-        'unique_prices': unique_prices
+        'unique_prices': unique_prices,
+        'field_thread_pairs': field_thread_pairs,
+        'emoji_choices': ['👍', '❤️', '😊', '👏', '🎉'],
     })
 
 # 編集ビュー
@@ -1300,12 +1336,33 @@ def daily_report_edit_rol(request, pk):
             unique_prices.add(entry.derived_price)
     unique_prices = sorted(list(unique_prices), reverse=True)
 
+    user = request.user
+    full_name = f"{user.last_name} {user.first_name}".strip()
+    _msg_base = ReportMessage.objects.filter(
+        report=report
+    ).filter(
+        Q(report__submitted_by=user) |
+        Q(report__submitted_by__isnull=True, report__person_in_charge=full_name)
+    ).select_related('sender', 'admin_user').order_by('created_at')
+    _msg_base.filter(sender_role='admin', is_read=False).update(is_read=True)
+    text_messages = _msg_base.filter(message_type='text', parent__isnull=True).prefetch_related('replies')
+
+    def _rsummary(field_key):
+        summary = {}
+        for r in _msg_base.filter(message_type='reaction', field_target=field_key):
+            name = f"{r.sender.last_name} {r.sender.first_name}".strip()
+            summary.setdefault(r.emoji, []).append(name)
+        return summary
+
     context = {
         'form': form,
         'time_form': time_form,
         'report': report,
         'entries': entries,
         'unique_prices': unique_prices,
+        'text_messages': text_messages,
+        'reactions_comments': _rsummary('comments'),
+        'reactions_food': _rsummary('food_count_setting'),
     }
     print("=== レンダリング開始 ===")
     return render(request, 'daily_report_edit_rol.html', context)
@@ -2640,3 +2697,136 @@ def sales_dashboard_view(request):
     }
 
     return render(request, 'sales_dashboard.html', context)
+
+# ===== メッセージ/リアクション AJAX ビュー =====
+
+@login_required
+@require_POST
+def report_message_send(request, report_pk):
+    """管理者が日計表コメントへテキスト返信またはリアクションを送る"""
+    report = get_object_or_404(DailyReport, pk=report_pk)
+    try:
+        if not request.user.menu_permission.can_view_daily_report_list:
+            return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+
+    field_target = request.POST.get('field_target', 'comments')
+    if field_target not in ('comments', 'food_count_setting'):
+        return JsonResponse({'ok': False, 'error': '不正なフィールドです'}, status=400)
+
+    message_type = request.POST.get('message_type', 'text')
+
+    if message_type == 'reaction':
+        emoji = request.POST.get('emoji', '')
+        allowed = ['👍', '❤️', '😊', '👏', '🎉']
+        if emoji not in allowed:
+            return JsonResponse({'ok': False, 'error': '不正な絵文字です'}, status=400)
+        existing = ReportMessage.objects.filter(
+            report=report, admin_user=request.user, field_target=field_target,
+            message_type='reaction', emoji=emoji, parent__isnull=True
+        ).first()
+        if existing:
+            existing.delete()
+            return JsonResponse({'ok': True, 'action': 'deleted'})
+        msg = ReportMessage.objects.create(
+            report=report, admin_user=request.user, sender=request.user,
+            sender_role='admin', field_target=field_target,
+            message_type='reaction', emoji=emoji, is_read=False
+        )
+        return JsonResponse({'ok': True, 'action': 'created', 'message_id': msg.pk})
+    else:
+        body = request.POST.get('body', '').strip()
+        if not body:
+            return JsonResponse({'ok': False, 'error': 'メッセージが空です'}, status=400)
+        msg = ReportMessage.objects.create(
+            report=report, admin_user=request.user, sender=request.user,
+            sender_role='admin', field_target=field_target,
+            message_type='text', body=body, is_read=False
+        )
+        return JsonResponse({
+            'ok': True,
+            'action': 'created',
+            'message_id': msg.pk,
+            'body': msg.body,
+            'sender_name': f"{request.user.last_name} {request.user.first_name}",
+            'created_at': msg.created_at.strftime('%m/%d %H:%M'),
+        })
+
+
+@login_required
+@require_POST
+def report_message_reply(request, message_pk):
+    """従業員が管理者のメッセージへ返信する"""
+    parent = get_object_or_404(ReportMessage, pk=message_pk)
+    user = request.user
+    full_name = f"{user.last_name} {user.first_name}".strip()
+    report = parent.report
+
+    is_owner = (
+        (report.submitted_by is not None and report.submitted_by == user) or
+        (report.submitted_by is None and report.person_in_charge == full_name)
+    )
+    if not is_owner:
+        return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+    if parent.parent_id is not None:
+        return JsonResponse({'ok': False, 'error': '返信の返信はできません'}, status=400)
+
+    body = request.POST.get('body', '').strip()
+    if not body:
+        return JsonResponse({'ok': False, 'error': 'メッセージが空です'}, status=400)
+
+    msg = ReportMessage.objects.create(
+        report=report, admin_user=parent.admin_user, sender=user,
+        sender_role='employee', field_target=parent.field_target,
+        message_type='text', body=body, parent=parent, is_read=True
+    )
+    return JsonResponse({
+        'ok': True,
+        'message_id': msg.pk,
+        'body': msg.body,
+        'sender_name': full_name,
+        'created_at': msg.created_at.strftime('%m/%d %H:%M'),
+    })
+
+
+@login_required
+@require_POST
+def report_messages_mark_read(request, report_pk):
+    """従業員が自分の日計表への管理者メッセージを既読にする"""
+    report = get_object_or_404(DailyReport, pk=report_pk)
+    user = request.user
+    full_name = f"{user.last_name} {user.first_name}".strip()
+    is_owner = (
+        (report.submitted_by is not None and report.submitted_by == user) or
+        (report.submitted_by is None and report.person_in_charge == full_name)
+    )
+    if not is_owner:
+        return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+    count = ReportMessage.objects.filter(
+        report=report, sender_role='admin', is_read=False
+    ).update(is_read=True)
+    return JsonResponse({'ok': True, 'count': count})
+
+
+@login_required
+@require_POST
+def messages_mark_all_read(request):
+    """ダッシュボードの通知バナーを閉じたときに全未読を既読にする"""
+    user = request.user
+    try:
+        is_admin = user.menu_permission.can_view_daily_report_list
+    except Exception:
+        is_admin = False
+    if is_admin:
+        ReportMessage.objects.filter(
+            admin_user=user, sender_role='employee', is_read=False
+        ).update(is_read=True)
+    else:
+        full_name = f"{user.last_name} {user.first_name}".strip()
+        ReportMessage.objects.filter(
+            Q(report__submitted_by=user) |
+            Q(report__submitted_by__isnull=True, report__person_in_charge=full_name),
+            sender_role='admin', is_read=False
+        ).update(is_read=True)
+    return JsonResponse({'ok': True})

@@ -11,6 +11,28 @@
     <h1 class="mb-1">ようこそ、 {{ user.last_name }} {{ user.first_name }}さん</h1>
     <h1 class="mb-1">本日の販売実績 {{ today|japanese_date }}</h1>
     <hr class="my-4">
+    {% if unread_employee_replies > 0 or unread_admin_replies > 0 %}
+    <div class="alert alert-info d-flex align-items-center mb-3" id="msg-notification-banner" role="alert">
+      <i class="fas fa-envelope-open-text me-2 fs-5"></i>
+      {% if unread_employee_replies > 0 %}
+      <div>スタッフから <strong>{{ unread_employee_replies }}件</strong> の新しい返信があります。
+        <a href="{% url 'daily_report_list' %}" class="alert-link">確認する</a></div>
+      {% else %}
+      <div>管理者から <strong>{{ unread_admin_replies }}件</strong> の新しいメッセージがあります。
+        <a href="{% url 'daily_report_detail_rol' %}" class="alert-link">確認する</a></div>
+      {% endif %}
+      <button type="button" class="btn-close ms-auto" id="msg-dismiss-btn" aria-label="閉じる"></button>
+    </div>
+    <script>
+    document.getElementById('msg-dismiss-btn').addEventListener('click', function() {
+      document.getElementById('msg-notification-banner').remove();
+      fetch('{% url "messages_mark_all_read" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'}
+      });
+    });
+    </script>
+    {% endif %}
         <div class="row">
             <div class="col-md-9 mb-2">
                 <div class="card">

@@ -131,8 +131,11 @@
                         </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_daily_report_list %}
-                        <a href="{% url 'daily_report_list' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-list"></i> 日計表 送信結果（管理者用）
+                        <a href="{% url 'daily_report_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-list"></i> 日計表 送信結果（管理者用）</span>
+                            {% if unread_employee_replies > 0 %}
+                            <span class="badge bg-danger rounded-pill">{{ unread_employee_replies }}</span>
+                            {% endif %}
                         </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_performance_data %}
@@ -158,8 +161,11 @@
                     <li class="list-group-item">
                         <h6 class="text-uppercase">データ</h6>
                         {% if user.menu_permission.can_view_daily_report_rol %}
-                        <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-list"></i> 日計表 送信結果（一般用）
+                        <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-list"></i> 日計表 送信結果（一般用）</span>
+                            {% if unread_admin_replies > 0 %}
+                            <span class="badge bg-danger rounded-pill">{{ unread_admin_replies }}</span>
+                            {% endif %}
                         </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_performance_by_location_rol %}

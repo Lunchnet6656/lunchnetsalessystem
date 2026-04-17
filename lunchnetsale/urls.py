@@ -24,6 +24,7 @@ urlpatterns = [
     path('secure-admin/', admin.site.urls),
     path('shifts/', include('shifts.urls')),
     path('orders/', include('orders.urls')),
+    path('quest/', include('quest.urls')),
     path('login/', views.login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
@@ -83,4 +84,10 @@ urlpatterns = [
     path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),
 
     path('api/shin_yokohama_users/', views.get_shin_yokohama_users, name='shin_yokohama_users'),
+
+    # メッセージ/リアクション
+    path('report/<int:report_pk>/messages/send/', views.report_message_send, name='report_message_send'),
+    path('report/messages/<int:message_pk>/reply/', views.report_message_reply, name='report_message_reply'),
+    path('report/<int:report_pk>/messages/mark_read/', views.report_messages_mark_read, name='report_messages_mark_read'),
+    path('messages/mark-all-read/', views.messages_mark_all_read, name='messages_mark_all_read'),
 ]

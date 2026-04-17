@@ -46,6 +46,9 @@
               <td>{{ report.sales_difference|yen_format }}</td>-->
               <td>
                   <a href="{% url 'daily_report_edit_rol' report.pk %}" class="btn btn-primary btn-sm">明細</a>
+                  {% if report.unread_count > 0 %}
+                  <span class="badge bg-danger ms-1">{{ report.unread_count }}</span>
+                  {% endif %}
               </td>
           </tr>
           {% empty %}

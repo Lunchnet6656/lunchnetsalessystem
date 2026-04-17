@@ -143,6 +143,12 @@ class DailyReport(models.Model):
     comments = models.TextField(blank=True)  # コメント
     food_count_setting = models.TextField(blank=True)  # 明日の食数設定
     confirmed = models.BooleanField(default=False)  # 確認済みかどうか
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='submitted_reports'
+    )
     updated_at = models.DateTimeField(auto_now=True) # 自動で更新日時を記録
 
     def __str__(self):
@@ -229,3 +235,52 @@ class UserMenuPermission(models.Model):
 
     def __str__(self):
         return f"MenuPermission({self.user})"
+
+
+class ReportMessage(models.Model):
+    FIELD_CHOICES = [
+        ('comments', 'コメント'),
+        ('food_count_setting', '明日の食数設定'),
+    ]
+    TYPE_CHOICES = [
+        ('text', 'テキスト'),
+        ('reaction', 'リアクション'),
+    ]
+    EMOJI_CHOICES = ['👍', '❤️', '😊', '👏', '🎉']
+
+    report = models.ForeignKey(
+        'DailyReport', on_delete=models.CASCADE, related_name='messages'
+    )
+    admin_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='admin_messages'
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='sent_report_messages'
+    )
+    sender_role = models.CharField(
+        max_length=10, choices=[('admin', '管理者'), ('employee', 'スタッフ')]
+    )
+    field_target = models.CharField(
+        max_length=30, choices=FIELD_CHOICES, default='comments'
+    )
+    message_type = models.CharField(
+        max_length=10, choices=TYPE_CHOICES, default='text'
+    )
+    body = models.TextField(blank=True)
+    emoji = models.CharField(max_length=10, blank=True)
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='replies'
+    )
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'レポートメッセージ'
+        verbose_name_plural = 'レポートメッセージ'
+
+    def __str__(self):
+        return f"[{self.sender_role}] {self.report} / {self.field_target} ({self.created_at:%Y-%m-%d %H:%M})"

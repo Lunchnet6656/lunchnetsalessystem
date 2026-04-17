@@ -45,6 +45,9 @@
               <td>{{ report.updated_at|date:"Y/m/d H:i" }}</td>
               <td>
                   <a href="{% url 'daily_report_edit' report.pk %}" class="btn btn-primary">明細</a>
+                  {% if report.unread_count > 0 %}
+                  <span class="badge bg-danger ms-1">{{ report.unread_count }}</span>
+                  {% endif %}
                   <form action="{% url 'daily_report_delete' report.pk %}" method="post" style="display:inline;" onsubmit="return confirmDelete('{{ report.location }}');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">削除</button>

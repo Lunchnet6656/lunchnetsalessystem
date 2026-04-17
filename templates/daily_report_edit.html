@@ -436,4 +436,146 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('sold_out_total').checked = allSoldOut;
 });
 </script>
+
+{# ===== メッセージスレッドセクション (管理者用) ===== #}
+<div class="container mt-5 mb-5" id="dr-thread-section">
+  <h2 class="bg-dark text-white px-3 py-2"><i class="fas fa-comments me-2"></i>コメントへの返信スレッド</h2>
+  <p class="text-muted small"><i class="fas fa-lock me-1"></i>このやりとりはあなたと担当者のみ表示されます</p>
+
+  {% for field_key, field_label, threads, reactions, reacted_emojis in field_thread_pairs %}
+  <div class="card mb-4 border-secondary">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-comment-dots me-1"></i>{{ field_label }}</span>
+    </div>
+    <div class="card-body bg-light">
+      <div class="d-flex gap-2">
+        <div class="dr-avatar" style="width:40px;height:40px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">{{ report.person_in_charge|slice:":1" }}</div>
+        <div class="flex-grow-1">
+          <div class="mb-1"><strong>{{ report.person_in_charge }}</strong> <span class="badge bg-secondary ms-1">スタッフ</span> <small class="text-muted ms-2">{{ report.updated_at|timesince }}前</small></div>
+          <p class="mb-2" style="white-space:pre-wrap;">{% if field_key == 'comments' %}{{ report.comments|default:"（コメントなし）" }}{% else %}{{ report.food_count_setting|default:"（設定なし）" }}{% endif %}</p>
+          <div class="d-flex gap-1 flex-wrap align-items-center">
+            <span class="text-muted small me-1">リアクション:</span>
+            {% for emoji in emoji_choices %}
+            <button class="btn btn-sm dr-emoji-btn {% if emoji in reacted_emojis %}btn-primary dr-emoji-active{% else %}btn-outline-secondary{% endif %}"
+                    data-field="{{ field_key }}" data-report="{{ report.pk }}" data-emoji="{{ emoji }}" style="font-size:16px; line-height:1.2;">{{ emoji }}</button>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="list-group list-group-flush" id="dr-thread-{{ field_key }}">
+      {% for msg in threads %}
+        <li class="list-group-item px-4">
+          <div class="d-flex gap-2 py-1">
+            <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ msg.sender.last_name|slice:":1" }}</div>
+            <div class="flex-grow-1">
+              <div class="mb-1"><strong>{{ msg.sender.last_name }} {{ msg.sender.first_name }}</strong> <span class="badge bg-primary ms-1">管理者</span> <small class="text-muted ms-2">{{ msg.created_at|date:"m/d H:i" }}</small></div>
+              <p class="mb-1" style="white-space:pre-wrap;">{{ msg.body }}</p>
+            </div>
+          </div>
+          {% for reply in msg.replies.all %}
+          <div class="ms-5 mt-1 border-start border-2 ps-3">
+            <div class="d-flex gap-2 py-1">
+              <div style="width:30px;height:30px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0;">{{ reply.sender.last_name|slice:":1" }}</div>
+              <div class="flex-grow-1">
+                <div class="mb-1"><strong>{{ reply.sender.last_name }} {{ reply.sender.first_name }}</strong> <small class="text-muted ms-2">{{ reply.created_at|date:"m/d H:i" }}</small></div>
+                <p class="mb-0" style="white-space:pre-wrap;">{{ reply.body }}</p>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </li>
+      {% empty %}
+        <li class="list-group-item text-muted text-center py-3">まだメッセージはありません</li>
+      {% endfor %}
+    </ul>
+    <div class="card-footer bg-white">
+      <div class="d-flex align-items-start gap-2">
+        <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ request.user.last_name|slice:":1" }}</div>
+        <div class="flex-grow-1">
+          <textarea class="form-control mb-2 dr-msg-input" rows="2" placeholder="返信を入力..." data-field="{{ field_key }}" data-report="{{ report.pk }}" style="font-size:14px;" maxlength="1000"></textarea>
+          <button class="btn btn-primary btn-sm dr-send-btn" data-field="{{ field_key }}" data-report="{{ report.pk }}"><i class="fas fa-paper-plane me-1"></i>送信</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+(function() {
+  const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+  async function sendMessage(reportPk, field, messageType, bodyOrEmoji) {
+    const params = new URLSearchParams({field_target: field, message_type: messageType});
+    if (messageType === 'reaction') params.set('emoji', bodyOrEmoji);
+    else params.set('body', bodyOrEmoji);
+    const res = await fetch(`/report/${reportPk}/messages/send/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+      body: params
+    });
+    return res.json();
+  }
+
+  function appendMessage(field, data) {
+    const ul = document.getElementById(`dr-thread-${field}`);
+    const empty = ul.querySelector('.text-muted.text-center');
+    if (empty) empty.closest('li').remove();
+    const li = document.createElement('li');
+    li.className = 'list-group-item px-4';
+    li.innerHTML = `
+      <div class="d-flex gap-2 py-1">
+        <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${escHtml(data.sender_name.slice(0,1))}</div>
+        <div class="flex-grow-1">
+          <div class="mb-1"><strong>${escHtml(data.sender_name)}</strong> <span class="badge bg-primary ms-1">管理者</span> <small class="text-muted ms-2">${data.created_at}</small></div>
+          <p class="mb-1" style="white-space:pre-wrap;">${escHtml(data.body)}</p>
+        </div>
+      </div>`;
+    ul.appendChild(li);
+    li.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.querySelectorAll('.dr-send-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const field = btn.dataset.field;
+      const report = btn.dataset.report;
+      const textarea = document.querySelector(`.dr-msg-input[data-field="${field}"][data-report="${report}"]`);
+      const body = textarea.value.trim();
+      if (!body) { textarea.focus(); return; }
+      btn.disabled = true;
+      try {
+        const data = await sendMessage(report, field, 'text', body);
+        if (data.ok) { appendMessage(field, data); textarea.value = ''; }
+        else alert(data.error || '送信に失敗しました');
+      } finally { btn.disabled = false; }
+    });
+  });
+
+  document.querySelectorAll('.dr-emoji-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const field = btn.dataset.field;
+      const report = btn.dataset.report;
+      const emoji = btn.dataset.emoji;
+      btn.disabled = true;
+      try {
+        const data = await sendMessage(report, field, 'reaction', emoji);
+        if (data.ok) {
+          if (data.action === 'created') {
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-primary', 'dr-emoji-active');
+          } else {
+            btn.classList.remove('btn-primary', 'dr-emoji-active');
+            btn.classList.add('btn-outline-secondary');
+          }
+        }
+      } finally { btn.disabled = false; }
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday
+from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, ReportMessage
 from django.contrib.auth.admin import UserAdmin
 
 class CustomUserAdmin(UserAdmin):
@@ -44,6 +44,29 @@ class HolidayAdmin(admin.ModelAdmin):
     list_display = ('date', 'description')
 
 
+class ReportMessageInline(admin.TabularInline):
+    model = ReportMessage
+    fk_name = 'report'
+    extra = 0
+    readonly_fields = ('admin_user', 'field_target', 'message_type', 'body', 'emoji',
+                       'sender_role', 'parent', 'is_read', 'created_at')
+    can_delete = False
+
+
+class ReportMessageAdmin(admin.ModelAdmin):
+    list_display = ('report', 'admin_user', 'field_target', 'message_type', 'sender_role',
+                    'is_read', 'created_at', 'body_preview')
+    list_filter = ('message_type', 'sender_role', 'is_read', 'field_target')
+    search_fields = ('body', 'report__location', 'admin_user__last_name', 'admin_user__first_name')
+    readonly_fields = ('created_at',)
+    raw_id_fields = ('report', 'admin_user', 'sender', 'parent')
+
+    def body_preview(self, obj):
+        if obj.message_type == 'reaction':
+            return obj.emoji
+        return (obj.body or '')[:50]
+    body_preview.short_description = '内容'
+
 
 # 管理画面にモデルを登録
 admin.site.register(ItemQuantity, ItemQuantityAdmin)
@@ -55,3 +78,4 @@ admin.site.register(CustomUser)
 admin.site.register(OthersItem, OthersItemAdmin)
 admin.site.register(ShiftRequest, ShiftRequestAdmin)
 admin.site.register(Holiday, HolidayAdmin)
+admin.site.register(ReportMessage, ReportMessageAdmin)
