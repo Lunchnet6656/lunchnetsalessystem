@@ -1182,7 +1182,11 @@ def daily_report_edit(request, pk):
         _texts = list(admin_text_qs.filter(field_target=_fk))
         _reactions = list(admin_reaction_qs.filter(field_target=_fk))
         _reacted = {r.emoji for r in _reactions}
-        field_thread_pairs.append((_fk, _fl, _texts, _reactions, _reacted))
+        _reaction_pks = [r.pk for r in _reactions]
+        _reaction_replies = list(ReportMessage.objects.filter(
+            parent_id__in=_reaction_pks
+        ).select_related('sender').order_by('created_at')) if _reaction_pks else []
+        field_thread_pairs.append((_fk, _fl, _texts, _reactions, _reacted, _reaction_replies))
 
     return render(request, 'daily_report_edit.html', {
         'form': form,
@@ -1347,12 +1351,25 @@ def daily_report_edit_rol(request, pk):
     _msg_base.filter(sender_role='admin', is_read=False).update(is_read=True)
     text_messages = _msg_base.filter(message_type='text', parent__isnull=True).prefetch_related('replies')
 
-    def _rsummary(field_key):
+    def _reaction_data(field_key):
+        field_reactions = _msg_base.filter(message_type='reaction', field_target=field_key)
         summary = {}
-        for r in _msg_base.filter(message_type='reaction', field_target=field_key):
+        first_pk = None
+        reaction_pks = []
+        for r in field_reactions:
             name = f"{r.sender.last_name} {r.sender.first_name}".strip()
             summary.setdefault(r.emoji, []).append(name)
-        return summary
+            reaction_pks.append(r.pk)
+            if first_pk is None:
+                first_pk = r.pk
+        replies = list(
+            _msg_base.filter(parent_id__in=reaction_pks, message_type='text')
+            .order_by('created_at').select_related('sender')
+        ) if reaction_pks else []
+        return summary, first_pk, replies
+
+    reactions_comments, reactions_comments_parent_pk, reactions_comments_replies = _reaction_data('comments')
+    reactions_food, reactions_food_parent_pk, reactions_food_replies = _reaction_data('food_count_setting')
 
     context = {
         'form': form,
@@ -1361,8 +1378,12 @@ def daily_report_edit_rol(request, pk):
         'entries': entries,
         'unique_prices': unique_prices,
         'text_messages': text_messages,
-        'reactions_comments': _rsummary('comments'),
-        'reactions_food': _rsummary('food_count_setting'),
+        'reactions_comments': reactions_comments,
+        'reactions_comments_parent_pk': reactions_comments_parent_pk,
+        'reactions_comments_replies': reactions_comments_replies,
+        'reactions_food': reactions_food,
+        'reactions_food_parent_pk': reactions_food_parent_pk,
+        'reactions_food_replies': reactions_food_replies,
     }
     print("=== レンダリング開始 ===")
     return render(request, 'daily_report_edit_rol.html', context)
