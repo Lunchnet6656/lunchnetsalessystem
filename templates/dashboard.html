@@ -16,7 +16,12 @@
       <i class="fas fa-envelope-open-text me-2 fs-5"></i>
       {% if unread_employee_replies > 0 %}
       <div>スタッフから <strong>{{ unread_employee_replies }}件</strong> の新しい返信があります。
-        <a href="{% url 'daily_report_list' %}" class="alert-link">確認する</a></div>
+        {% if unread_employee_reply_report_pk %}
+        <a href="{% url 'daily_report_edit' unread_employee_reply_report_pk %}" class="alert-link">確認する</a>
+        {% else %}
+        <a href="{% url 'daily_report_list' %}" class="alert-link">確認する</a>
+        {% endif %}
+      </div>
       {% else %}
       <div>管理者から <strong>{{ unread_admin_replies }}件</strong> の新しいメッセージがあります。
         <a href="{% url 'daily_report_detail_rol' %}" class="alert-link">確認する</a></div>

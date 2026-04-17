@@ -11,10 +11,17 @@ def unread_message_count(request):
         is_admin = False
 
     if is_admin:
-        count = ReportMessage.objects.filter(
+        unread_qs = ReportMessage.objects.filter(
             admin_user=request.user, sender_role='employee', is_read=False
-        ).count()
-        return {'unread_admin_replies': 0, 'unread_employee_replies': count}
+        )
+        count = unread_qs.count()
+        first_msg = unread_qs.select_related('report').order_by('-created_at').first()
+        first_report_pk = first_msg.report_id if first_msg else None
+        return {
+            'unread_admin_replies': 0,
+            'unread_employee_replies': count,
+            'unread_employee_reply_report_pk': first_report_pk,
+        }
 
     full_name = f"{request.user.last_name} {request.user.first_name}".strip()
     count = ReportMessage.objects.filter(
