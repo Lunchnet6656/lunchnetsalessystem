@@ -31,7 +31,7 @@
       </thead>
       <tbody>
           {% for report in reports_by_location %}
-          <tr>
+          <tr {% if report.unread_count > 0 %}class="table-warning"{% endif %}>
               <td>{{ report.location_no }}</td>
               <td>{{ report.location }}</td>
               <td>{{ report.person_in_charge }}</td>
@@ -73,7 +73,7 @@
 
   <div class="d-md-none">
     {% for report in reports_by_location %}
-    <div class="card mb-2 report-mobile-card">
+    <div class="card mb-2 report-mobile-card {% if report.unread_count > 0 %}report-mobile-card--unread{% endif %}">
       <div class="card-body py-2 px-3">
         <div class="d-flex justify-content-between align-items-start mb-1">
           <h6 class="mb-0 fw-bold">{{ report.location_no }}. {{ report.location }}</h6>
@@ -239,6 +239,11 @@ th span {
 
 .report-mobile-card {
     border-left: 4px solid #0d6efd;
+}
+
+.report-mobile-card--unread {
+    border-left: 4px solid #ffc107;
+    background-color: #fff8e1;
 }
 
 </style>
