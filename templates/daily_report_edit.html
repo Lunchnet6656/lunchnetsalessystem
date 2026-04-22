@@ -439,7 +439,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {# ===== メッセージスレッドセクション (管理者用) ===== #}
 <div class="container mt-5 mb-5" id="dr-thread-section">
-  <h2 class="bg-dark text-white px-3 py-2"><i class="fas fa-comments me-2"></i>コメントへの返信スレッド</h2>
+  <h2 class="bg-dark text-white px-3 py-2 d-flex justify-content-between align-items-center">
+    <span><i class="fas fa-comments me-2"></i>コメントへの返信スレッド</span>
+    <a href="{% url 'stamp_manage' %}" class="btn btn-outline-light btn-sm" target="_blank"><i class="fas fa-stamp me-1"></i>スタンプ管理</a>
+  </h2>
   <p class="text-muted small"><i class="fas fa-lock me-1"></i>このやりとりはあなたと担当者のみ表示されます</p>
 
   {% for field_key, field_label, threads, reactions, reacted_emojis, reaction_replies in field_thread_pairs %}
@@ -484,7 +487,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ msg.sender.last_name|slice:":1" }}</div>
             <div class="flex-grow-1">
               <div class="mb-1"><strong>{{ msg.sender.last_name }} {{ msg.sender.first_name }}</strong> <span class="badge bg-primary ms-1">管理者</span> <small class="text-muted ms-2">{{ msg.created_at|date:"m/d H:i" }}</small></div>
+              {% if msg.message_type == 'stamp' and msg.stamp %}
+              <img src="{{ msg.stamp.image_data }}" alt="{{ msg.stamp.name }}" style="max-width:130px;max-height:110px;object-fit:contain;">
+              {% else %}
               <p class="mb-1" style="white-space:pre-wrap;">{{ msg.body }}</p>
+              {% endif %}
             </div>
           </div>
           {% for reply in msg.replies.all %}
@@ -508,7 +515,20 @@ document.addEventListener('DOMContentLoaded', function() {
         <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ request.user.last_name|slice:":1" }}</div>
         <div class="flex-grow-1">
           <textarea class="form-control mb-2 dr-msg-input" rows="2" placeholder="返信を入力..." data-field="{{ field_key }}" data-report="{{ report.pk }}" style="font-size:14px;" maxlength="1000"></textarea>
-          <button class="btn btn-primary btn-sm dr-send-btn" data-field="{{ field_key }}" data-report="{{ report.pk }}"><i class="fas fa-paper-plane me-1"></i>送信</button>
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <button class="btn btn-primary btn-sm dr-send-btn" data-field="{{ field_key }}" data-report="{{ report.pk }}"><i class="fas fa-paper-plane me-1"></i>送信</button>
+            <button class="btn btn-outline-secondary btn-sm dr-stamp-btn" data-field="{{ field_key }}" data-report="{{ report.pk }}" title="スタンプを送る"><i class="fas fa-stamp me-1"></i>スタンプ</button>
+          </div>
+          {# スタンプピッカー（各フィールドに1つ） #}
+          <div class="dr-stamp-picker border rounded p-2 mt-2 d-none" data-field="{{ field_key }}" style="background:#f8f9fa;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="small fw-bold text-muted">スタンプを選択</span>
+              <button type="button" class="btn-close dr-stamp-picker-close" aria-label="閉じる"></button>
+            </div>
+            <div class="dr-stamp-grid d-flex flex-wrap gap-2" data-field="{{ field_key }}" data-report="{{ report.pk }}">
+              <span class="text-muted small dr-stamp-loading">読み込み中...</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -519,11 +539,22 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 (function() {
   const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  let cachedStamps = null;
 
   async function sendMessage(reportPk, field, messageType, bodyOrEmoji) {
     const params = new URLSearchParams({field_target: field, message_type: messageType});
     if (messageType === 'reaction') params.set('emoji', bodyOrEmoji);
     else params.set('body', bodyOrEmoji);
+    const res = await fetch(`/report/${reportPk}/messages/send/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+      body: params
+    });
+    return res.json();
+  }
+
+  async function sendStamp(reportPk, field, stampId) {
+    const params = new URLSearchParams({field_target: field, message_type: 'stamp', stamp_id: stampId});
     const res = await fetch(`/report/${reportPk}/messages/send/`, {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
@@ -538,12 +569,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (empty) empty.closest('li').remove();
     const li = document.createElement('li');
     li.className = 'list-group-item px-4';
+    const bodyHtml = data.message_type === 'stamp'
+      ? `<img src="${escHtml(data.stamp_image)}" alt="${escHtml(data.stamp_name)}" style="max-width:130px;max-height:110px;object-fit:contain;">`
+      : `<p class="mb-1" style="white-space:pre-wrap;">${escHtml(data.body)}</p>`;
     li.innerHTML = `
       <div class="d-flex gap-2 py-1">
         <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${escHtml(data.sender_name.slice(0,1))}</div>
         <div class="flex-grow-1">
           <div class="mb-1"><strong>${escHtml(data.sender_name)}</strong> <span class="badge bg-primary ms-1">管理者</span> <small class="text-muted ms-2">${data.created_at}</small></div>
-          <p class="mb-1" style="white-space:pre-wrap;">${escHtml(data.body)}</p>
+          ${bodyHtml}
         </div>
       </div>`;
     ul.appendChild(li);
@@ -551,7 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   document.querySelectorAll('.dr-send-btn').forEach(btn => {
@@ -588,6 +622,75 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
       } finally { btn.disabled = false; }
+    });
+  });
+
+  // ===== スタンプピッカー =====
+  async function loadStamps() {
+    if (cachedStamps) return cachedStamps;
+    const res = await fetch('/stamps/list/');
+    const data = await res.json();
+    cachedStamps = data.ok ? data.stamps : [];
+    return cachedStamps;
+  }
+
+  function renderStampGrid(grid, reportPk, field) {
+    grid.innerHTML = '';
+    loadStamps().then(stamps => {
+      if (!stamps.length) {
+        grid.innerHTML = '<span class="text-muted small">スタンプがありません。<a href="/stamps/" target="_blank">スタンプ管理</a>で登録してください。</span>';
+        return;
+      }
+      stamps.forEach(stamp => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn p-1 border rounded dr-stamp-item';
+        btn.style.cssText = 'width:70px;height:60px;overflow:hidden;background:#fff;';
+        btn.title = stamp.name;
+        btn.dataset.stampId = stamp.id;
+        btn.innerHTML = `<img src="${escHtml(stamp.image_data)}" alt="${escHtml(stamp.name)}" style="max-width:60px;max-height:52px;object-fit:contain;">`;
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            const data = await sendStamp(reportPk, field, stamp.id);
+            if (data.ok) {
+              appendMessage(field, data);
+              closePicker(field);
+            } else {
+              alert(data.error || 'スタンプ送信に失敗しました');
+            }
+          } finally { btn.disabled = false; }
+        });
+        grid.appendChild(btn);
+      });
+    });
+  }
+
+  function closePicker(field) {
+    const picker = document.querySelector(`.dr-stamp-picker[data-field="${field}"]`);
+    if (picker) picker.classList.add('d-none');
+  }
+
+  document.querySelectorAll('.dr-stamp-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const field = btn.dataset.field;
+      const report = btn.dataset.report;
+      const picker = document.querySelector(`.dr-stamp-picker[data-field="${field}"]`);
+      if (!picker) return;
+      const isOpen = !picker.classList.contains('d-none');
+      // 全picker閉じる
+      document.querySelectorAll('.dr-stamp-picker').forEach(p => p.classList.add('d-none'));
+      if (!isOpen) {
+        picker.classList.remove('d-none');
+        const grid = picker.querySelector('.dr-stamp-grid');
+        renderStampGrid(grid, report, field);
+      }
+    });
+  });
+
+  document.querySelectorAll('.dr-stamp-picker-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.dr-stamp-picker').classList.add('d-none');
     });
   });
 })();

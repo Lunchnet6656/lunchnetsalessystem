@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% block title %}スタンプ管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width:760px;">
+  <h1><i class="fas fa-stamp me-2"></i>マイスタンプ管理</h1>
+  <p class="text-muted">日計表のメッセージスレッドで使えるオリジナルスタンプを登録できます。スタンプは自分だけが使用できます。</p>
+
+  {# ===== 登録ガイド ===== #}
+  <div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white"><i class="fas fa-lightbulb me-1"></i>ChatGPTでスタンプを作る方法</div>
+    <div class="card-body">
+      <h6 class="fw-bold">推奨サイズ・形式</h6>
+      <ul class="mb-3">
+        <li>サイズ: <strong>370 × 320 px</strong>（LINEスタンプ標準）または <strong>240 × 240 px</strong> の正方形</li>
+        <li>形式: <strong>PNG（透過背景推奨）</strong> または WebP</li>
+        <li>ファイルサイズ: <strong>300KB以内</strong></li>
+        <li>1人最大 <strong>30枚</strong> まで登録可能</li>
+      </ul>
+      <h6 class="fw-bold">ChatGPT プロンプト例</h6>
+      <div class="bg-light rounded p-3 mb-2" style="font-size:13px; font-family:monospace; white-space:pre-wrap;">「かわいいキャラクター（丸い体型のシンプルなマスコット）が両手を挙げて喜んでいるスタンプ画像を作ってください。
+背景は透明で、LINEスタンプ風のシンプルなアニメ調イラストにしてください。
+サイズは 370×320 px、PNG形式でお願いします。」</div>
+      <div class="bg-light rounded p-3 mb-2" style="font-size:13px; font-family:monospace; white-space:pre-wrap;">「お弁当屋さんのマスコットキャラクターが笑顔でお辞儀しているスタンプ画像。
+透過PNG、370×320px、シンプルなイラスト調。」</div>
+    </div>
+  </div>
+
+  {# ===== アップロードフォーム ===== #}
+  <div class="card mb-4">
+    <div class="card-header bg-dark text-white"><i class="fas fa-upload me-1"></i>新しいスタンプを登録</div>
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label fw-bold">スタンプ名 <span class="text-danger">*</span></label>
+          <input type="text" id="stamp-name-input" class="form-control" placeholder="例: よろしく！" maxlength="50">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-bold">画像ファイル <span class="text-danger">*</span></label>
+          <input type="file" id="stamp-file-input" class="form-control" accept="image/png,image/jpeg,image/gif,image/webp">
+          <div class="form-text">PNG/JPEG/GIF/WebP・300KB以内</div>
+        </div>
+        <div class="col-md-3">
+          <button id="stamp-upload-btn" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-1"></i>登録する
+          </button>
+        </div>
+      </div>
+      <div id="upload-preview" class="mt-3 d-none text-center">
+        <p class="small text-muted mb-1">プレビュー</p>
+        <img id="preview-img" src="" alt="preview" style="max-width:160px;max-height:140px;border:1px solid #dee2e6;border-radius:8px;padding:4px;">
+      </div>
+      <div id="upload-success" class="alert alert-success mt-2 d-none"></div>
+      <div id="upload-error" class="alert alert-danger mt-2 d-none"></div>
+    </div>
+  </div>
+
+  {# ===== スタンプ一覧 ===== #}
+  <div class="card">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-images me-1"></i>登録済みスタンプ</span>
+      <span class="badge bg-light text-dark" id="stamp-count">{{ stamps|length }} / 30</span>
+    </div>
+    <div class="card-body">
+      <div id="stamp-grid" class="d-flex flex-wrap gap-3">
+        {% for stamp in stamps %}
+        <div class="stamp-card text-center position-relative" data-id="{{ stamp.id }}" style="width:120px;">
+          <img src="{{ stamp.image_data }}" alt="{{ stamp.name }}"
+               style="width:110px;height:95px;object-fit:contain;border:1px solid #dee2e6;border-radius:8px;padding:4px;background:#f8f9fa;">
+          <p class="small mt-1 mb-0 text-truncate" title="{{ stamp.name }}">{{ stamp.name }}</p>
+          <button class="btn btn-danger btn-sm stamp-delete-btn position-absolute top-0 end-0"
+                  data-id="{{ stamp.id }}" style="font-size:10px;padding:2px 5px;line-height:1.2;" title="削除">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        {% empty %}
+        <p class="text-muted" id="empty-msg">まだスタンプが登録されていません。</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+  // プレビュー
+  document.getElementById('stamp-file-input').addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('preview-img').src = e.target.result;
+      document.getElementById('upload-preview').classList.remove('d-none');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // アップロード
+  document.getElementById('stamp-upload-btn').addEventListener('click', async function() {
+    const name = document.getElementById('stamp-name-input').value.trim();
+    const fileInput = document.getElementById('stamp-file-input');
+    const errEl = document.getElementById('upload-error');
+    errEl.classList.add('d-none');
+
+    if (!name) { showErr('スタンプ名を入力してください'); return; }
+    if (!fileInput.files[0]) { showErr('画像ファイルを選択してください'); return; }
+
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('image', fileInput.files[0]);
+
+    this.disabled = true;
+    try {
+      const res = await fetch('/stamps/upload/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': CSRF},
+        body: fd,
+      });
+      const data = await res.json();
+      if (!data.ok) { showErr(data.error || '登録に失敗しました'); return; }
+      addStampCard(data);
+      document.getElementById('stamp-name-input').value = '';
+      fileInput.value = '';
+      document.getElementById('upload-preview').classList.add('d-none');
+      updateCount(1);
+      showSuccess(`「${data.name}」を登録しました`);
+    } finally { this.disabled = false; }
+  });
+
+  function showErr(msg) {
+    const el = document.getElementById('upload-error');
+    el.textContent = msg;
+    el.classList.remove('d-none');
+  }
+
+  function showSuccess(msg) {
+    const el = document.getElementById('upload-success');
+    el.textContent = msg;
+    el.classList.remove('d-none');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.add('d-none'), 3000);
+  }
+
+  function addStampCard(stamp) {
+    const empty = document.getElementById('empty-msg');
+    if (empty) empty.remove();
+    const grid = document.getElementById('stamp-grid');
+    const div = document.createElement('div');
+    div.className = 'stamp-card text-center position-relative';
+    div.dataset.id = stamp.id;
+    div.style.width = '120px';
+    div.innerHTML = `
+      <img src="${escHtml(stamp.image)}" alt="${escHtml(stamp.name)}"
+           style="width:110px;height:95px;object-fit:contain;border:1px solid #dee2e6;border-radius:8px;padding:4px;background:#f8f9fa;">
+      <p class="small mt-1 mb-0 text-truncate" title="${escHtml(stamp.name)}">${escHtml(stamp.name)}</p>
+      <button class="btn btn-danger btn-sm stamp-delete-btn position-absolute top-0 end-0"
+              data-id="${stamp.id}" style="font-size:10px;padding:2px 5px;line-height:1.2;" title="削除">
+        <i class="fas fa-times"></i>
+      </button>`;
+    grid.appendChild(div);
+    div.querySelector('.stamp-delete-btn').addEventListener('click', handleDelete);
+  }
+
+  function updateCount(delta) {
+    const el = document.getElementById('stamp-count');
+    const m = el.textContent.match(/(\d+)/);
+    if (m) el.textContent = `${parseInt(m[1]) + delta} / 30`;
+  }
+
+  async function handleDelete(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!confirm('このスタンプを削除しますか？')) return;
+    const res = await fetch(`/stamps/${id}/delete/`, {
+      method: 'POST',
+      headers: {'X-CSRFToken': CSRF},
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.querySelector(`.stamp-card[data-id="${id}"]`)?.remove();
+      updateCount(-1);
+      if (!document.querySelector('.stamp-card')) {
+        const p = document.createElement('p');
+        p.className = 'text-muted';
+        p.id = 'empty-msg';
+        p.textContent = 'まだスタンプが登録されていません。';
+        document.getElementById('stamp-grid').appendChild(p);
+      }
+    }
+  }
+
+  document.querySelectorAll('.stamp-delete-btn').forEach(btn => {
+    btn.addEventListener('click', handleDelete);
+  });
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
+{% endblock %}

@@ -90,4 +90,10 @@ urlpatterns = [
     path('report/messages/<int:message_pk>/reply/', views.report_message_reply, name='report_message_reply'),
     path('report/<int:report_pk>/messages/mark_read/', views.report_messages_mark_read, name='report_messages_mark_read'),
     path('messages/mark-all-read/', views.messages_mark_all_read, name='messages_mark_all_read'),
+
+    # カスタムスタンプ
+    path('stamps/', views.stamp_manage, name='stamp_manage'),
+    path('stamps/upload/', views.stamp_upload, name='stamp_upload'),
+    path('stamps/<int:stamp_id>/delete/', views.stamp_delete, name='stamp_delete'),
+    path('stamps/list/', views.stamp_list_api, name='stamp_list_api'),
 ]

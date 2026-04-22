@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
 import pandas as pd
-from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage
+from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
@@ -1172,8 +1172,8 @@ def daily_report_edit(request, pk):
     ).update(is_read=True)
 
     admin_text_qs = ReportMessage.objects.filter(
-        report=report, admin_user=request.user, parent__isnull=True, message_type='text'
-    ).prefetch_related('replies').select_related('sender')
+        report=report, admin_user=request.user, parent__isnull=True, message_type__in=('text', 'stamp')
+    ).prefetch_related('replies').select_related('sender', 'stamp')
     admin_reaction_qs = ReportMessage.objects.filter(
         report=report, admin_user=request.user, message_type='reaction'
     ).select_related('sender')
@@ -1349,7 +1349,14 @@ def daily_report_edit_rol(request, pk):
         Q(report__submitted_by__isnull=True, report__person_in_charge=full_name)
     ).select_related('sender', 'admin_user').order_by('created_at')
     _msg_base.filter(sender_role='admin', is_read=False).update(is_read=True)
-    text_messages = _msg_base.filter(message_type='text', parent__isnull=True).prefetch_related('replies')
+    def _thread_messages(field_key):
+        return list(_msg_base.filter(
+            message_type__in=('text', 'stamp'), parent__isnull=True, field_target=field_key
+        ).prefetch_related('replies').select_related('stamp'))
+
+    text_messages = _msg_base.filter(message_type__in=('text', 'stamp'), parent__isnull=True).prefetch_related('replies').select_related('stamp')
+    text_messages_comments = _thread_messages('comments')
+    text_messages_food = _thread_messages('food_count_setting')
 
     def _reaction_data(field_key):
         field_reactions = _msg_base.filter(message_type='reaction', field_target=field_key)
@@ -1378,6 +1385,10 @@ def daily_report_edit_rol(request, pk):
         'entries': entries,
         'unique_prices': unique_prices,
         'text_messages': text_messages,
+        'field_thread_pairs': [
+            ('comments', 'コメント', text_messages_comments),
+            ('food_count_setting', '明日の食数設定', text_messages_food),
+        ],
         'reactions_comments': reactions_comments,
         'reactions_comments_parent_pk': reactions_comments_parent_pk,
         'reactions_comments_replies': reactions_comments_replies,
@@ -2756,6 +2767,27 @@ def report_message_send(request, report_pk):
             message_type='reaction', emoji=emoji, is_read=False
         )
         return JsonResponse({'ok': True, 'action': 'created', 'message_id': msg.pk})
+    elif message_type == 'stamp':
+        stamp_id = request.POST.get('stamp_id')
+        try:
+            stamp = CustomStamp.objects.get(pk=stamp_id, owner=request.user)
+        except CustomStamp.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'スタンプが見つかりません'}, status=400)
+        msg = ReportMessage.objects.create(
+            report=report, admin_user=request.user, sender=request.user,
+            sender_role='admin', field_target=field_target,
+            message_type='stamp', stamp=stamp, is_read=False
+        )
+        return JsonResponse({
+            'ok': True,
+            'action': 'created',
+            'message_id': msg.pk,
+            'message_type': 'stamp',
+            'stamp_image': stamp.image_data,
+            'stamp_name': stamp.name,
+            'sender_name': f"{request.user.last_name} {request.user.first_name}",
+            'created_at': msg.created_at.strftime('%m/%d %H:%M'),
+        })
     else:
         body = request.POST.get('body', '').strip()
         if not body:
@@ -2851,3 +2883,83 @@ def messages_mark_all_read(request):
             sender_role='admin', is_read=False
         ).update(is_read=True)
     return JsonResponse({'ok': True})
+
+
+# ===== カスタムスタンプ管理 =====
+
+@login_required
+def stamp_manage(request):
+    """スタンプ管理ページ（管理者のみ自分のスタンプを管理）"""
+    try:
+        if not request.user.menu_permission.can_view_daily_report_list:
+            return redirect('dashboard')
+    except Exception:
+        return redirect('dashboard')
+    stamps = CustomStamp.objects.filter(owner=request.user)
+    return render(request, 'stamp_manage.html', {'stamps': stamps})
+
+
+@login_required
+@require_POST
+def stamp_upload(request):
+    """スタンプ画像をアップロード（base64でDB保存）"""
+    try:
+        if not request.user.menu_permission.can_view_daily_report_list:
+            return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+
+    name = request.POST.get('name', '').strip()
+    if not name:
+        return JsonResponse({'ok': False, 'error': 'スタンプ名を入力してください'}, status=400)
+    if len(name) > 50:
+        return JsonResponse({'ok': False, 'error': 'スタンプ名は50文字以内にしてください'}, status=400)
+
+    img_file = request.FILES.get('image')
+    if not img_file:
+        return JsonResponse({'ok': False, 'error': '画像ファイルを選択してください'}, status=400)
+
+    allowed_types = ('image/png', 'image/jpeg', 'image/gif', 'image/webp')
+    if img_file.content_type not in allowed_types:
+        return JsonResponse({'ok': False, 'error': 'PNG/JPEG/GIF/WebP形式のみ対応しています'}, status=400)
+
+    if img_file.size > 300 * 1024:
+        return JsonResponse({'ok': False, 'error': 'ファイルサイズは300KB以内にしてください'}, status=400)
+
+    if CustomStamp.objects.filter(owner=request.user).count() >= 30:
+        return JsonResponse({'ok': False, 'error': 'スタンプは最大30個まで登録できます'}, status=400)
+
+    raw = img_file.read()
+    b64 = base64.b64encode(raw).decode('utf-8')
+    data_uri = f"data:{img_file.content_type};base64,{b64}"
+
+    stamp = CustomStamp.objects.create(owner=request.user, name=name, image_data=data_uri)
+    return JsonResponse({'ok': True, 'id': stamp.pk, 'name': stamp.name, 'image': stamp.image_data})
+
+
+@login_required
+@require_POST
+def stamp_delete(request, stamp_id):
+    """スタンプ削除"""
+    try:
+        if not request.user.menu_permission.can_view_daily_report_list:
+            return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': '権限がありません'}, status=403)
+
+    stamp = get_object_or_404(CustomStamp, pk=stamp_id, owner=request.user)
+    stamp.delete()
+    return JsonResponse({'ok': True})
+
+
+@login_required
+def stamp_list_api(request):
+    """ログインユーザーのスタンプ一覧をJSONで返す"""
+    try:
+        if not request.user.menu_permission.can_view_daily_report_list:
+            return JsonResponse({'ok': False, 'stamps': []})
+    except Exception:
+        return JsonResponse({'ok': False, 'stamps': []})
+
+    stamps = list(CustomStamp.objects.filter(owner=request.user).values('id', 'name', 'image_data'))
+    return JsonResponse({'ok': True, 'stamps': stamps})

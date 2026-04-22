@@ -7,7 +7,10 @@
 {% load custom_filters %}
 
 <div class="container mt-4">
-    <h1 class="mb-1">日計表 送信結果</h1>
+    <div class="d-flex justify-content-between align-items-center mb-1">
+        <h1 class="mb-0">日計表 送信結果</h1>
+        <a href="{% url 'stamp_manage' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-stamp me-1"></i>スタンプ管理</a>
+    </div>
     <hr class="my-4">
     <!-- 検索フォーム -->
     <form method="get" class="mb-4">

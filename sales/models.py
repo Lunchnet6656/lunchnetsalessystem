@@ -237,6 +237,23 @@ class UserMenuPermission(models.Model):
         return f"MenuPermission({self.user})"
 
 
+class CustomStamp(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='custom_stamps'
+    )
+    name = models.CharField(max_length=50, verbose_name='スタンプ名')
+    image_data = models.TextField(verbose_name='画像データ(base64 data URI)')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'カスタムスタンプ'
+        verbose_name_plural = 'カスタムスタンプ'
+
+    def __str__(self):
+        return f"{self.owner} - {self.name}"
+
+
 class ReportMessage(models.Model):
     FIELD_CHOICES = [
         ('comments', 'コメント'),
@@ -245,6 +262,7 @@ class ReportMessage(models.Model):
     TYPE_CHOICES = [
         ('text', 'テキスト'),
         ('reaction', 'リアクション'),
+        ('stamp', 'スタンプ'),
     ]
     EMOJI_CHOICES = ['👍', '❤️', '😊', '👏', '🎉']
 
@@ -270,6 +288,10 @@ class ReportMessage(models.Model):
     )
     body = models.TextField(blank=True)
     emoji = models.CharField(max_length=10, blank=True)
+    stamp = models.ForeignKey(
+        'CustomStamp', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='messages'
+    )
     parent = models.ForeignKey(
         'self', on_delete=models.CASCADE, null=True, blank=True,
         related_name='replies'

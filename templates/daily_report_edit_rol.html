@@ -411,7 +411,7 @@
 </div>
 
 {# ===== 管理者からのメッセージスレッド (従業員用) ===== #}
-{% if text_messages or reactions_comments or reactions_food %}
+{% if text_messages or reactions_comments or reactions_food or text_messages_comments or text_messages_food %}
 <div class="container mt-4 mb-5" id="dr-employee-thread">
   <h2 class="bg-info text-white px-3 py-2"><i class="fas fa-envelope me-2"></i>管理者からのメッセージ</h2>
   <p class="text-muted small"><i class="fas fa-lock me-1"></i>このやりとりはあなたと管理者のみ表示されます</p>
@@ -510,39 +510,52 @@
   </div>
   {% endif %}
 
-  {# テキストメッセージスレッド #}
-  {% for msg in text_messages %}
-  <div class="card mb-3 border-info">
-    <div class="card-body">
-      <div class="d-flex gap-2">
-        <div style="width:40px;height:40px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">{{ msg.sender.last_name|slice:":1" }}</div>
-        <div class="flex-grow-1">
-          <div class="mb-1"><strong>{{ msg.sender.last_name }} {{ msg.sender.first_name }}</strong> <span class="badge bg-primary">管理者</span> <small class="text-muted ms-2">{{ msg.created_at|date:"m/d H:i" }}</small> <span class="badge bg-secondary ms-1">{% if msg.field_target == 'comments' %}コメント{% else %}食数設定{% endif %}</span></div>
-          <p class="mb-0" style="white-space:pre-wrap;">{{ msg.body }}</p>
-        </div>
-      </div>
+  {# テキスト・スタンプメッセージスレッド（field別グループ表示） #}
+  {% for field_key, field_label, field_msgs in field_thread_pairs %}
+  {% if field_msgs %}
+  <div class="card mb-4 border-info">
+    <div class="card-header bg-info bg-opacity-10 text-dark">
+      <i class="fas fa-comment-dots me-1"></i>{{ field_label }}へのメッセージ
     </div>
-    {% for reply in msg.replies.all %}
-    <div class="card-body border-top bg-light">
-      <div class="d-flex gap-2 ms-4">
-        <div style="width:32px;height:32px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">{{ reply.sender.last_name|slice:":1" }}</div>
-        <div class="flex-grow-1">
-          <div class="mb-1"><strong>あなた</strong> <small class="text-muted ms-2">{{ reply.created_at|date:"m/d H:i" }}</small></div>
-          <p class="mb-0" style="white-space:pre-wrap;">{{ reply.body }}</p>
+    <ul class="list-group list-group-flush">
+      {% for msg in field_msgs %}
+      <li class="list-group-item px-3">
+        <div class="d-flex gap-2 py-2">
+          <div style="width:36px;height:36px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">{{ msg.sender.last_name|slice:":1" }}</div>
+          <div class="flex-grow-1">
+            <div class="mb-1"><strong>{{ msg.sender.last_name }} {{ msg.sender.first_name }}</strong> <span class="badge bg-primary">管理者</span> <small class="text-muted ms-2">{{ msg.created_at|date:"m/d H:i" }}</small></div>
+            {% if msg.message_type == 'stamp' and msg.stamp %}
+            <img src="{{ msg.stamp.image_data }}" alt="{{ msg.stamp.name }}" style="max-width:130px;max-height:110px;object-fit:contain;">
+            {% else %}
+            <p class="mb-1" style="white-space:pre-wrap;">{{ msg.body }}</p>
+            {% endif %}
+            {% for reply in msg.replies.all %}
+            <div class="ms-3 mt-2 border-start border-2 ps-3">
+              <div class="d-flex gap-2">
+                <div style="width:28px;height:28px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;flex-shrink:0;">{{ reply.sender.last_name|slice:":1" }}</div>
+                <div class="flex-grow-1">
+                  <div class="mb-1 small"><strong>あなた</strong> <small class="text-muted ms-1">{{ reply.created_at|date:"m/d H:i" }}</small></div>
+                  <p class="mb-0 small" style="white-space:pre-wrap;">{{ reply.body }}</p>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+            <div class="mt-2">
+              <div class="d-flex gap-2 align-items-start">
+                <div style="width:28px;height:28px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;flex-shrink:0;">{{ request.user.last_name|slice:":1" }}</div>
+                <div class="flex-grow-1">
+                  <textarea class="form-control mb-1 dr-reply-input" rows="1" placeholder="返信を入力..." data-parent="{{ msg.pk }}" style="font-size:13px;" maxlength="500"></textarea>
+                  <button class="btn btn-outline-primary btn-sm dr-reply-btn" data-parent="{{ msg.pk }}"><i class="fas fa-reply me-1"></i>返信</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    {% endfor %}
-    <div class="card-footer bg-white">
-      <div class="d-flex gap-2 align-items-start">
-        <div style="width:32px;height:32px;border-radius:50%;background:#6c757d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">{{ request.user.last_name|slice:":1" }}</div>
-        <div class="flex-grow-1">
-          <textarea class="form-control mb-2 dr-reply-input" rows="2" placeholder="返信を入力..." data-parent="{{ msg.pk }}" style="font-size:14px;" maxlength="500"></textarea>
-          <button class="btn btn-outline-primary btn-sm dr-reply-btn" data-parent="{{ msg.pk }}"><i class="fas fa-reply me-1"></i>返信</button>
-        </div>
-      </div>
-    </div>
+      </li>
+      {% endfor %}
+    </ul>
   </div>
+  {% endif %}
   {% endfor %}
 </div>
 {% endif %}
