@@ -423,11 +423,19 @@
                         </div>
                     </div>
                     <div class="col-12 col-md-4 mb-2">
+                        {% if service and not service.accepts_digital_payment %}
+                        <label for="digital_payment" class="form-label text-muted">電子決済 <small class="text-danger fw-bold">対象外</small></label>
+                        <div class="input-group">
+                        <input type="number" id="digital_payment" name="digital_payment" class="form-control" min="0" value="0" disabled style="background-color:#e9ecef; cursor:not-allowed;">
+                        <span class="input-group-text text-muted">円</span>
+                        </div>
+                        {% else %}
                         <label for="digital_payment" class="form-label">電子決済</label>
                         <div class="input-group">
                         <input type="number" id="digital_payment" name="digital_payment" class="form-control" min="0" value="0" oninput="updateRevenue()">
                         <span class="input-group-text">円</span>
                         </div>
+                        {% endif %}
                     </div>
                     <div class="col-12 col-md-4 mb-2">
                         <label for="cash" class="form-label label-cash-warning">現金(入力忘れないで！)</label>

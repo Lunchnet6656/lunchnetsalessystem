@@ -1471,8 +1471,11 @@ def location_list_view(request):
 
         # 上書き保存のリクエスト
         location_data = request.POST
-        for i in range(len(location_data)//8):  # 各locationごとのキー数が7つのため調整
+        i = 0
+        while True:
             no = location_data.get(f'location[{i}][no]')
+            if not no:
+                break
             name = location_data.get(f'location[{i}][name]')
             loc_type = location_data.get(f'location[{i}][type]')
             price_type = location_data.get(f'location[{i}][price_type]')
@@ -1480,6 +1483,7 @@ def location_list_view(request):
             service_price = location_data.get(f'location[{i}][service_price]')
             service_style = location_data.get(f'location[{i}][service_style]')
             direct_return = location_data.get(f'location[{i}][direct_return]')
+            accepts_digital_payment = location_data.get(f'location[{i}][accepts_digital_payment]') == '1'
 
             # データを保存
             try:
@@ -1492,12 +1496,14 @@ def location_list_view(request):
                         'service_name': service_name,
                         'service_price': service_price,
                         'service_style': service_style,
-                        'direct_return': direct_return
+                        'direct_return': direct_return,
+                        'accepts_digital_payment': accepts_digital_payment,
                     }
                 )
             except Exception as e:
                 messages.error(request, f'エラーが発生しました: {str(e)}')
                 return HttpResponseRedirect(reverse('location_list'))
+            i += 1
 
         messages.success(request, '販売場所データを更新しました。')
         return HttpResponseRedirect(reverse('location_list'))

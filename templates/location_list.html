@@ -60,6 +60,7 @@
                     <th>サービス価格</th>
                     <th>サービススタイル</th>
                     <th>直行直帰</th>
+                    <th>電子決済</th>
                 </tr>
             </thead>
             <tbody id="locationTableBody">
@@ -84,6 +85,7 @@
                         </select>
                     </td>
                     <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][direct_return]" value="{{ location.direct_return }}" style="width: 150px;"></td>
+                    <td class="text-center"><input type="checkbox" name="location[{{ forloop.counter0 }}][accepts_digital_payment]" value="1" {% if location.accepts_digital_payment %}checked{% endif %}></td>
                 </tr>
                 {% empty %}
                 <tr>
@@ -141,6 +143,7 @@
                     </select>
                 </td>
                 <td><input type="text" class="location-input" name="location[${rowCount}][direct_return]" value="" style="width: 150px;"></td>
+                <td class="text-center"><input type="checkbox" name="location[${rowCount}][accepts_digital_payment]" value="1"></td>
             `;
             tableBody.appendChild(newRow);
         });

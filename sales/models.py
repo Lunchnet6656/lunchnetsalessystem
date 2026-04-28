@@ -48,6 +48,7 @@ class SalesLocation(models.Model):
     service_price = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     service_style = models.CharField(max_length=100, default="なし")
     direct_return = models.IntegerField(default=0)
+    accepts_digital_payment = models.BooleanField(default=False, verbose_name="電子決済対応")
     requires_drive = models.BooleanField(default=False, verbose_name="運転必須")
     priority = models.CharField(max_length=1, choices=[("S","S"),("A","A"),("B","B")], default="A", verbose_name="優先度")
     excluded_from_shift = models.BooleanField(default=False, verbose_name="シフト対象外")
