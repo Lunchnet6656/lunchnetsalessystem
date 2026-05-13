@@ -52,6 +52,11 @@ class SalesLocation(models.Model):
     requires_drive = models.BooleanField(default=False, verbose_name="運転必須")
     priority = models.CharField(max_length=1, choices=[("S","S"),("A","A"),("B","B")], default="A", verbose_name="優先度")
     excluded_from_shift = models.BooleanField(default=False, verbose_name="シフト対象外")
+    excluded_from_public_status = models.BooleanField(
+        default=False,
+        verbose_name="出店状況ページ非表示",
+        help_text="お客様向け公開ページ（status.lunchnetsalessystem.com）に出さない拠点。配達など、社内シフトには残すが対外的に出店ではないもの。",
+    )
     carpool_route = models.ForeignKey(
         'CarpoolRoute', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='locations',

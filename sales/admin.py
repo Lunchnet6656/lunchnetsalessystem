@@ -9,7 +9,9 @@ class CustomUserAdmin(UserAdmin):
     )
 
 class SalesLocationAdmin(admin.ModelAdmin):
-    list_display = ('no', 'name', 'type', 'price_type', 'service_name', 'service_price', 'service_style', 'direct_return')
+    list_display = ('no', 'name', 'type', 'price_type', 'service_name', 'service_price', 'service_style', 'direct_return', 'excluded_from_shift', 'excluded_from_public_status')
+    list_filter = ('excluded_from_shift', 'excluded_from_public_status')
+    list_editable = ('excluded_from_public_status',)
     search_fields = ('no','name', 'direct_return')
 
 

@@ -7,10 +7,11 @@ from sales.management.commands.generate_status_json import build_status, is_busi
 from sales.models import ItemQuantity, Product, SalesLocation
 
 
-def _location(no, name, excluded=False):
+def _location(no, name, excluded=False, excluded_public=False):
     return SalesLocation.objects.create(
         no=no, name=name, type="", price_type="", service_name="",
         excluded_from_shift=excluded,
+        excluded_from_public_status=excluded_public,
     )
 
 
@@ -24,6 +25,7 @@ class StatusPageTests(TestCase):
         shinjuku = _location(1, "新宿")
         shibuya = _location(2, "渋谷")
         _location(3, "除外拠点", excluded=True)
+        haitatsu = _location(4, "配達", excluded_public=True)  # シフトには残すが公開ページからは消す
         product = Product.objects.create(no=1, week="20260511", name="からあげ弁当")
         ItemQuantity.objects.create(
             target_date="2026-05-12", target_week="20260511",
@@ -32,6 +34,11 @@ class StatusPageTests(TestCase):
         ItemQuantity.objects.create(
             target_date="2026-05-12", target_week="20260511",
             product=product, sales_location=shibuya, quantity=0,
+        )
+        # 配達は持参数が入っていても公開ページからは消えること
+        ItemQuantity.objects.create(
+            target_date="2026-05-12", target_week="20260511",
+            product=product, sales_location=haitatsu, quantity=80,
         )
         data = build_status(today=date(2026, 5, 12))
 
@@ -42,7 +49,9 @@ class StatusPageTests(TestCase):
         pairs = [(loc["name"], loc["status"]) for loc in data["locations"]]
         self.assertIn(("新宿", "open"), pairs)
         self.assertIn(("渋谷", "closed"), pairs)
-        self.assertNotIn("除外拠点", [loc["name"] for loc in data["locations"]])
+        names = [loc["name"] for loc in data["locations"]]
+        self.assertNotIn("除外拠点", names)
+        self.assertNotIn("配達", names)
 
     def test_all_unregistered_on_business_day(self):
         _location(1, "新宿")

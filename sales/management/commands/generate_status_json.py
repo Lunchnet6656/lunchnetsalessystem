@@ -40,8 +40,12 @@ def build_status(today: date | None = None) -> dict:
             "locations": [],
         }
 
+    # excluded_from_shift=社内シフトから外す ／ excluded_from_public_status=公開ページから外す
+    # （配達のように「シフト管理には残すが対外的に出店ではない」拠点を消すための別フラグ）
     locations = list(
-        SalesLocation.objects.filter(excluded_from_shift=False).order_by("no")
+        SalesLocation.objects
+        .filter(excluded_from_shift=False, excluded_from_public_status=False)
+        .order_by("no")
     )
     target_date = today.isoformat()  # ItemQuantity.target_date は "YYYY-MM-DD" 文字列（本番DB実データで確認・2026-05-13）
     totals = {
