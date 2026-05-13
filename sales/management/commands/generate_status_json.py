@@ -43,7 +43,7 @@ def build_status(today: date | None = None) -> dict:
     locations = list(
         SalesLocation.objects.filter(excluded_from_shift=False).order_by("no")
     )
-    target_date = today.strftime("%Y%m%d")  # ItemQuantity.target_date は yyyymmdd 文字列
+    target_date = today.isoformat()  # ItemQuantity.target_date は "YYYY-MM-DD" 文字列（本番DB実データで確認・2026-05-13）
     totals = {
         row["sales_location"]: row["total"]
         for row in (

@@ -26,11 +26,11 @@ class StatusPageTests(TestCase):
         _location(3, "除外拠点", excluded=True)
         product = Product.objects.create(no=1, week="20260511", name="からあげ弁当")
         ItemQuantity.objects.create(
-            target_date="20260512", target_week="20260511",
+            target_date="2026-05-12", target_week="20260511",
             product=product, sales_location=shinjuku, quantity=40,
         )
         ItemQuantity.objects.create(
-            target_date="20260512", target_week="20260511",
+            target_date="2026-05-12", target_week="20260511",
             product=product, sales_location=shibuya, quantity=0,
         )
         data = build_status(today=date(2026, 5, 12))
