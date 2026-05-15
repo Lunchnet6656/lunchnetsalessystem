@@ -1,6 +1,8 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.http import HttpResponse
 
 from .models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, ReportMessage
+from .models import _generate_qr_token
 from django.contrib.auth.admin import UserAdmin
 
 class CustomUserAdmin(UserAdmin):
@@ -8,11 +10,76 @@ class CustomUserAdmin(UserAdmin):
         (None, {'fields': ('full_name',)}),
     )
 
+@admin.action(description="選択した拠点のQR PDF を生成")
+def generate_qr_pdf_action(modeladmin, request, queryset):
+    """選択した拠点（no順）の QR PDF をダウンロードレスポンスとして返す。
+
+    1拠点あたり2ページ（完売QR・急休みQR）。0件選択時はメッセージで通知。
+    """
+    locs = list(queryset.order_by('no'))
+    if not locs:
+        modeladmin.message_user(
+            request, "拠点が選択されていません。", level=messages.WARNING,
+        )
+        return
+
+    from .qr_pdf import build_qr_pdf  # 重い import を遅延
+
+    def _build_url(token, kind):
+        # admin にログイン中のリクエストから絶対URLを構築（dev/prod 自動切替）
+        return request.build_absolute_uri(f"/q/{kind}/{token}/")
+
+    pdf_bytes = build_qr_pdf(locs, _build_url)
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="lunchnet-qr-{len(locs)}locations.pdf"'
+    )
+    return response
+
+
+@admin.action(description="選択した拠点のQRトークンを再発行（既存QRは無効化）")
+def regenerate_qr_tokens_action(modeladmin, request, queryset):
+    """流出時の緊急対応用。実行すると古い物理QRは即無効化（404）になる。
+
+    再印刷＋現場差し替えが必要なので、警告メッセージを目立たせる。
+    """
+    count = 0
+    for loc in queryset:
+        loc.qr_sold_out_token = _generate_qr_token()
+        loc.qr_closed_token = _generate_qr_token()
+        loc.save(update_fields=['qr_sold_out_token', 'qr_closed_token'])
+        count += 1
+
+    if count == 0:
+        modeladmin.message_user(
+            request, "拠点が選択されていません。", level=messages.WARNING,
+        )
+        return
+
+    modeladmin.message_user(
+        request,
+        f"{count}拠点のQRトークンを再発行しました。"
+        f"既存の物理QRは即時無効化されました。再印刷＋現場差し替えが必要です。",
+        level=messages.WARNING,
+    )
+
+
 class SalesLocationAdmin(admin.ModelAdmin):
-    list_display = ('no', 'name', 'type', 'price_type', 'service_name', 'service_price', 'service_style', 'direct_return', 'excluded_from_shift', 'excluded_from_public_status')
-    list_filter = ('excluded_from_shift', 'excluded_from_public_status')
-    list_editable = ('excluded_from_public_status',)
-    search_fields = ('no','name', 'direct_return')
+    list_display = (
+        'no', 'name', 'type', 'price_type', 'service_name', 'service_price',
+        'service_style', 'direct_return',
+        'excluded_from_shift', 'excluded_from_public_status',
+        'qr_enabled', 'today_override', 'today_override_date',
+    )
+    list_filter = (
+        'excluded_from_shift', 'excluded_from_public_status',
+        'qr_enabled', 'today_override',
+    )
+    list_editable = ('excluded_from_public_status', 'qr_enabled', 'today_override')
+    search_fields = ('no', 'name', 'direct_return')
+    readonly_fields = ('qr_sold_out_token', 'qr_closed_token', 'last_qr_publish_at')
+    actions = [generate_qr_pdf_action, regenerate_qr_tokens_action]
 
 
 class ProductAdmin(admin.ModelAdmin):

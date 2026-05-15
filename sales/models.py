@@ -1,9 +1,16 @@
 # sales/models.py
+import secrets
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import User
 from django.utils.timezone import now
 from django.conf import settings
+
+
+def _generate_qr_token():
+    # 16バイト=128bitの URL-safe トークン（22文字）。拠点別QRコードに埋め込む固定値。
+    return secrets.token_urlsafe(16)
 
 
 class CustomUser(AbstractUser):
@@ -61,6 +68,43 @@ class SalesLocation(models.Model):
         'CarpoolRoute', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='locations',
         verbose_name="同乗ルート",
+    )
+
+    # --- 出店状況ページ「本日の上書き」（QRコード由来）---
+    # generate_status_json は today_override_date == today の場合のみ today_override を採用する。
+    # 8:00 の Scheduler 実行時に publish_status_json が stale な override を全クリアする。
+    TODAY_OVERRIDE_CHOICES = [
+        ("", "なし"),
+        ("sold_out", "完売"),
+        ("closed", "お休み"),
+    ]
+    today_override = models.CharField(
+        max_length=10, choices=TODAY_OVERRIDE_CHOICES, default="", blank=True,
+        verbose_name="本日の上書き",
+        help_text="QRコードから設定される今日のステータス上書き。空＝通常表示。",
+    )
+    today_override_date = models.DateField(
+        null=True, blank=True,
+        verbose_name="本日の上書き設定日",
+        help_text="today_override を設定したJST日付。今日と一致する場合のみ有効。",
+    )
+    qr_sold_out_token = models.CharField(
+        max_length=32, unique=True, db_index=True, default=_generate_qr_token,
+        verbose_name="完売QRトークン",
+    )
+    qr_closed_token = models.CharField(
+        max_length=32, unique=True, db_index=True, default=_generate_qr_token,
+        verbose_name="急休みQRトークン",
+    )
+    qr_enabled = models.BooleanField(
+        default=False,
+        verbose_name="QR有効",
+        help_text="OFF のときは QR スキャンしても上書きを受け付けない（パイロット運用用のキルスイッチ）。",
+    )
+    last_qr_publish_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name="最終QR起因publish時刻",
+        help_text="QR起因で Cloudflare publish した最終時刻。60秒スロットルの判定に使う。",
     )
 
     def __str__(self):

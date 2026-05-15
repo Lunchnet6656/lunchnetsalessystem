@@ -59,9 +59,20 @@ def build_status(today: date | None = None) -> dict:
 
     rows = []
     open_count = 0
+    base_open_count = 0  # all_unregistered 判定は override 反映前の素の集計で行う
     for loc in locations:
         total = totals.get(loc.id) or 0
-        status = "open" if total >= 1 else "closed"
+        base_status = "open" if total >= 1 else "closed"
+        if base_status == "open":
+            base_open_count += 1
+
+        # today_override は当日に設定されたものだけ有効。stale な値は無視
+        # （publish_status_json が毎朝8:00にクリアするが、保険として日付チェック）
+        if loc.today_override and loc.today_override_date == today:
+            status = loc.today_override  # "sold_out" or "closed"
+        else:
+            status = base_status
+
         if status == "open":
             open_count += 1
         rows.append({"no": loc.no, "name": loc.name, "status": status})
@@ -73,7 +84,8 @@ def build_status(today: date | None = None) -> dict:
         "generated_at": generated_at,
         # 営業日なのに全拠点0＝持参数が朝までに登録されていない可能性。
         # ページ側はこれを見て「全店お休み」と断定せず「準備中」と表示する。
-        "all_unregistered": open_count == 0,
+        # （overrideが入っていても素の集計が0なら未登録扱い＝ページは「準備中」を表示）
+        "all_unregistered": base_open_count == 0,
         "locations": rows,
     }
 
@@ -106,9 +118,11 @@ class Command(BaseCommand):
         out.write_text(text, encoding="utf-8")
 
         open_count = sum(1 for loc in data["locations"] if loc["status"] == "open")
-        closed_count = len(data["locations"]) - open_count
+        sold_out_count = sum(1 for loc in data["locations"] if loc["status"] == "sold_out")
+        closed_count = len(data["locations"]) - open_count - sold_out_count
         self.stdout.write(
             f"[generate_status_json] {data['date']} ({data['weekday']}) "
             f"business_day={data['business_day']} open={open_count} "
-            f"closed={closed_count} all_unregistered={data['all_unregistered']} -> {out}"
+            f"sold_out={sold_out_count} closed={closed_count} "
+            f"all_unregistered={data['all_unregistered']} -> {out}"
         )

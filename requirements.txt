@@ -17,7 +17,8 @@ typing_extensions==4.12.2
 tzdata==2024.1
 whitenoise==6.8.2
 python-dotenv==1.0.1
-qrcode[pil]
+qrcode[pil]==8.2
+reportlab==4.4.10
 jpholiday
 line-bot-sdk==3.14.0
 python-pptx==1.0.2

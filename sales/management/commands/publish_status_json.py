@@ -17,8 +17,11 @@ import urllib.error
 import urllib.request
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
+from django.utils import timezone
 
 from sales.management.commands.generate_status_json import build_status
+from sales.models import SalesLocation
 
 DEFAULT_REPO = "shohei-02/lunchnet-status-page"
 FILE_PATH = "status.json"
@@ -71,6 +74,17 @@ class Command(BaseCommand):
         repo = options["repo"]
         branch = options["branch"]
         dry_run = options["dry_run"]
+
+        # 毎朝 8:00 JST の Scheduler 実行時に前日（以前）の today_override を全クリアする。
+        # これで「昨日完売にしたまま」が翌日に引きずらない。今日付の override は維持。
+        today = timezone.localdate()
+        cleared = SalesLocation.objects.filter(
+            ~Q(today_override="")
+        ).exclude(today_override_date=today).update(
+            today_override="", today_override_date=None,
+        )
+        if cleared:
+            self.stdout.write(f"[publish_status_json] stale override クリア: {cleared}件")
 
         data = build_status()
         new_text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"

@@ -19,6 +19,7 @@ from django.urls import path, include
 from . import views
 from django.contrib.auth import views as auth_views
 from .views import locked_out_view,my_page,submit_shift,edit_shift
+from sales import qr_views as sales_qr_views
 
 urlpatterns = [
     path('secure-admin/', admin.site.urls),
@@ -96,4 +97,9 @@ urlpatterns = [
     path('stamps/upload/', views.stamp_upload, name='stamp_upload'),
     path('stamps/<int:stamp_id>/delete/', views.stamp_delete, name='stamp_delete'),
     path('stamps/list/', views.stamp_list_api, name='stamp_list_api'),
+
+    # 出店状況ページ QRコード（売場スタッフ用・本日の上書き）
+    # 仕様: .company/engineering/harness/specs/w001-本日の出店状況ページ.md「QR拡張」
+    path('q/sold-out/<str:token>/', sales_qr_views.qr_sold_out, name='qr_sold_out'),
+    path('q/closed/<str:token>/', sales_qr_views.qr_closed, name='qr_closed'),
 ]
