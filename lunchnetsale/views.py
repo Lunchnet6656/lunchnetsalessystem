@@ -672,7 +672,7 @@ def daily_report_view(request):
 
     # 日付と販売場所の取得
     dates = ItemQuantity.objects.values_list('target_date', flat=True).distinct().order_by('-target_date')[:3]
-    locations = SalesLocation.objects.all()
+    locations = SalesLocation.objects.all().order_by('no')
     others_item = OthersItem.objects.all() 
     weather_options = ["快晴", "晴れ", "くもり", "雨", "大雨", "雪"]
     temp_options = ["猛暑", "暑い", "ちょうどいい", "涼しい", "寒い",'極寒']
