@@ -1,11 +1,11 @@
-{% load humanize order_extras %}
+{% load static humanize order_extras %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ delivery_bin.name }} 配達リスト</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'orders/css/tailwind.css' %}">
 </head>
 <body class="bg-gray-100 min-h-screen">
 <div class="max-w-3xl mx-auto px-4 py-6">
