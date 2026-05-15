@@ -111,16 +111,16 @@ def _handle_qr(request, token, kind):
             or (timezone.now() - loc.last_qr_publish_at).total_seconds() >= QR_PUBLISH_THROTTLE_SECONDS
         )
     )
-    publish_note = "Cloudflareへの反映に最大1分かかります。"
+    publish_note = "出店状況ページへの反映に最大1分かかります。"
     if should_publish:
         try:
             call_command("publish_status_json")
             loc.last_qr_publish_at = timezone.now()
             loc.save(update_fields=["last_qr_publish_at"])
-            publish_note = "Cloudflareへ反映を送りました（最大1分で表示が更新されます）。"
+            publish_note = "出店状況ページへ反映を送りました（最大1分で表示が更新されます）。"
         except Exception:
             # publish 失敗は致命的ではない（DBには保存済）。次の publish タイミングで同期される。
-            publish_note = "サーバーへ保存しました。表示反映は次回更新時となります。"
+            publish_note = "保存しました。表示反映は次回更新時となります。"
     elif already_set:
         publish_note = f"この拠点はすでに「{kind_label}」に設定されています。"
 
