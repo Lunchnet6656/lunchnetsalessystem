@@ -1048,58 +1048,89 @@ def daily_report_detail_rol(request):
         'reports_by_location': reports_by_location,
     }
     return render(request, 'daily_report_detail_rol.html', context)
-# 編集ビュー（管理者用）
-@login_required
-@staff_member_required
-def daily_report_edit(request, pk):
-    report = get_object_or_404(DailyReport, pk=pk)
-    entries = report.entries.all().order_by('product_no')  # 関連するエントリを取得
-    locations = SalesLocation.objects.all()
+# --- 日計表編集ビュー 共通ヘルパー（C6: daily_report_edit / _rol の重複を集約）---
+def _prepare_report_pricing(report):
+    """日計表編集ビュー（daily_report_edit / _rol）共通の準備処理。
+    report に拠点のサービス情報を付与し、(entries, product_prices) を返す。"""
+    entries = report.entries.all().order_by('product_no')
 
-    # locationの中から、report.locationと一致するものを探す
     price_type = 'A'
-    for location in locations:
+    for location in SalesLocation.objects.all():
         if location.name == report.location:
             report.service_name = location.service_name
             report.service_price = location.service_price
             report.service_style = location.service_style
             price_type = location.price_type
-            break  # 一致するlocationが見つかったらループを終了
+            break
 
-    # Productモデルから実際の単価を取得（derived_priceが0の場合のフォールバック用）
-    date_str = str(report.date)  # ISO形式 "2026-03-23"（ItemQuantity.target_dateの保存形式と一致）
+    def _price_for(product):
+        # 拠点の price_type に応じた単価を返す（derived_priceが0のときのフォールバック用）
+        if price_type == 'A':
+            return int(product.price_A)
+        if price_type == 'B':
+            return int(product.price_B)
+        if price_type == 'C':
+            return int(product.price_C)
+        return 0
+
+    date_str = str(report.date)  # ISO形式。ItemQuantity.target_dateの保存形式と一致
     product_prices = {}
     item_quantities = ItemQuantity.objects.filter(
-        target_date=date_str,
-        sales_location__name=report.location
+        target_date=date_str, sales_location__name=report.location
     ).select_related('product')
     for iq in item_quantities:
-        product = iq.product
-        if price_type == 'A':
-            product_prices[product.no] = int(product.price_A)
-        elif price_type == 'B':
-            product_prices[product.no] = int(product.price_B)
-        elif price_type == 'C':
-            product_prices[product.no] = int(product.price_C)
-        else:
-            product_prices[product.no] = 0
+        product_prices[iq.product.no] = _price_for(iq.product)
 
-    # product_pricesが不完全な場合、Productモデルから直接単価を取得
-    entry_product_nos = set(entry.product_no for entry in entries)
-    missing_nos = entry_product_nos - set(product_prices.keys())
+    # product_pricesが不完全な場合、Productモデルから直接単価を補完する
+    missing_nos = set(e.product_no for e in entries) - set(product_prices.keys())
     if missing_nos:
         iq_any = ItemQuantity.objects.filter(target_date=date_str).first()
         if iq_any:
-            fallback_products = Product.objects.filter(no__in=missing_nos, week=iq_any.target_week)
-            for product in fallback_products:
-                if price_type == 'A':
-                    product_prices[product.no] = int(product.price_A)
-                elif price_type == 'B':
-                    product_prices[product.no] = int(product.price_B)
-                elif price_type == 'C':
-                    product_prices[product.no] = int(product.price_C)
-                else:
-                    product_prices[product.no] = 0
+            for product in Product.objects.filter(no__in=missing_nos, week=iq_any.target_week):
+                product_prices[product.no] = _price_for(product)
+    return entries, product_prices
+
+
+def _save_report_entries(request, entries):
+    """日計表明細（entries）をPOST値で更新保存する。daily_report_edit / _rol 共通。"""
+    for entry in entries:
+        pno = entry.product_no
+        quantity = request.POST.get(f'quantity_{pno}')
+        sales_quantity = request.POST.get(f'sales_quantity_{pno}')
+        remaining_number = request.POST.get(f'remaining_{pno}')
+        total_sales = request.POST.get(f'total_sales_{pno}')
+
+        entry.product = request.POST.get(f'product_{pno}', entry.product)
+        entry.quantity = int(quantity) if quantity else 0
+        entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
+        entry.remaining_number = int(remaining_number) if remaining_number else 0
+        entry.total_sales = int(total_sales) if total_sales else 0
+        entry.sold_out = request.POST.get(f'sold_out_{pno}') is not None
+        entry.popular = request.POST.get(f'popular_{pno}') is not None
+        entry.unpopular = request.POST.get(f'unpopular_{pno}') is not None
+        entry.save()
+
+
+def _attach_derived_prices(entries, product_prices):
+    """各 entry に derived_price を付与し、ユニーク単価リスト（降順）を返す。
+    sales_quantityが0のときは product_prices の単価をフォールバックに使う。"""
+    unique_prices = set()
+    for entry in entries:
+        if entry.sales_quantity and entry.sales_quantity > 0:
+            entry.derived_price = int(entry.total_sales / entry.sales_quantity)
+        else:
+            entry.derived_price = product_prices.get(entry.product_no, 0)
+        if entry.derived_price > 0:
+            unique_prices.add(entry.derived_price)
+    return sorted(unique_prices, reverse=True)
+
+
+# 編集ビュー（管理者用）
+@login_required
+@staff_member_required
+def daily_report_edit(request, pk):
+    report = get_object_or_404(DailyReport, pk=pk)
+    entries, product_prices = _prepare_report_pricing(report)
 
     if request.method == "POST":
         # TimeFormのインスタンスを作成
@@ -1121,34 +1152,11 @@ def daily_report_edit(request, pk):
             # フォームから保存（時間フィールドもフォーム経由で保存される）
             report = form.save(commit=False)
             report.save()
-
-            # 日計表明細の処理（product_noベースでフィールド名を取得）
-            for entry in entries:
-                pno = entry.product_no
-                product_name = request.POST.get(f'product_{pno}', entry.product)
-                quantity = request.POST.get(f'quantity_{pno}')
-                sales_quantity = request.POST.get(f'sales_quantity_{pno}')
-                remaining_number = request.POST.get(f'remaining_{pno}')
-                total_sales = request.POST.get(f'total_sales_{pno}')
-                sold_out = request.POST.get(f'sold_out_{pno}') is not None
-                popular = request.POST.get(f'popular_{pno}') is not None
-                unpopular = request.POST.get(f'unpopular_{pno}') is not None
-
-                entry.product = product_name
-                entry.quantity = int(quantity) if quantity else 0
-                entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
-                entry.remaining_number = int(remaining_number) if remaining_number else 0
-                entry.total_sales = int(total_sales) if total_sales else 0
-                entry.sold_out = sold_out
-                entry.popular = popular
-                entry.unpopular = unpopular
-                entry.save()
-
-            messages.success(request, "更新されました")  # メッセージを追加
-            return redirect('daily_report_detail', date=report.date)  # 保存後にリダイレクト
+            _save_report_entries(request, entries)
+            messages.success(request, "更新されました")
+            return redirect('daily_report_detail', date=report.date)
         else:
-            print(form.errors)  # エラーを表示
-            print(time_form.errors)  # TimeFormのエラーも表示
+            logger.warning("daily_report_edit フォームエラー: %s / %s", form.errors, time_form.errors)
 
     else:
         form = DailyReportForm(instance=report)
@@ -1160,16 +1168,7 @@ def daily_report_edit(request, pk):
             'closing_time': report.closing_time,
         })
 
-    # 各entryにderived_priceを計算して付与（sales_quantityが0の場合はProductモデルの単価を使用）
-    unique_prices = set()
-    for entry in entries:
-        if entry.sales_quantity and entry.sales_quantity > 0:
-            entry.derived_price = int(entry.total_sales / entry.sales_quantity)
-        else:
-            entry.derived_price = product_prices.get(entry.product_no, 0)
-        if entry.derived_price > 0:
-            unique_prices.add(entry.derived_price)
-    unique_prices = sorted(list(unique_prices), reverse=True)
+    unique_prices = _attach_derived_prices(entries, product_prices)
 
     # 管理者がページを開いたとき、自分宛の従業員返信を既読にする
     ReportMessage.objects.filter(
@@ -1206,61 +1205,13 @@ def daily_report_edit(request, pk):
 # 編集ビュー
 @login_required
 def daily_report_edit_rol(request, pk):
-    print("=== daily_report_edit_rol 開始 ===")
     report = get_object_or_404(DailyReport, pk=pk)
     # pk書き換えによる他人の日計表の編集を防ぐ。管理者は全件可、一般従業員は自分の提出分のみ
     if not (request.user.is_staff or is_report_owner(request.user, report)):
         raise PermissionDenied("この日計表を編集する権限がありません。")
-    entries = report.entries.all().order_by('product_no')  # 関連するエントリを取得
-    locations = SalesLocation.objects.all()
-
-    # locationの中から、report.locationと一致するものを探す
-    price_type = 'A'
-    for location in locations:
-        if location.name == report.location:
-            report.service_name = location.service_name
-            report.service_price = location.service_price
-            report.service_style = location.service_style
-            price_type = location.price_type
-            break  # 一致するlocationが見つかったらループを終了
-
-    # Productモデルから実際の単価を取得（derived_priceが0の場合のフォールバック用）
-    date_str = str(report.date)  # ISO形式 "2026-03-23"（ItemQuantity.target_dateの保存形式と一致）
-    product_prices = {}
-    item_quantities = ItemQuantity.objects.filter(
-        target_date=date_str,
-        sales_location__name=report.location
-    ).select_related('product')
-    for iq in item_quantities:
-        product = iq.product
-        if price_type == 'A':
-            product_prices[product.no] = int(product.price_A)
-        elif price_type == 'B':
-            product_prices[product.no] = int(product.price_B)
-        elif price_type == 'C':
-            product_prices[product.no] = int(product.price_C)
-        else:
-            product_prices[product.no] = 0
-
-    # product_pricesが不完全な場合、Productモデルから直接単価を取得
-    entry_product_nos = set(entry.product_no for entry in entries)
-    missing_nos = entry_product_nos - set(product_prices.keys())
-    if missing_nos:
-        iq_any = ItemQuantity.objects.filter(target_date=date_str).first()
-        if iq_any:
-            fallback_products = Product.objects.filter(no__in=missing_nos, week=iq_any.target_week)
-            for product in fallback_products:
-                if price_type == 'A':
-                    product_prices[product.no] = int(product.price_A)
-                elif price_type == 'B':
-                    product_prices[product.no] = int(product.price_B)
-                elif price_type == 'C':
-                    product_prices[product.no] = int(product.price_C)
-                else:
-                    product_prices[product.no] = 0
+    entries, product_prices = _prepare_report_pricing(report)
 
     if request.method == "POST":
-        print("=== POST処理開始 ===")
         time_form = TimeForm(request.POST)
 
         post_data = request.POST.copy()
@@ -1275,59 +1226,20 @@ def daily_report_edit_rol(request, pk):
 
         form = DailyReportForm(post_data, instance=report)
 
-        print("POSTデータ:", request.POST)
-        
         if form.is_valid() and time_form.is_valid():
-            print("フォームのバリデーション成功")
             try:
                 # フォームから直接保存（時間フィールドもフォーム経由で保存される）
                 report = form.save()
-                print("レポート保存完了")
-
-                # 日計表明細の処理（product_noベースでフィールド名を取得）
-                print("=== エントリー処理開始 ===")
-                for entry in entries:
-                    pno = entry.product_no
-                    print(f"エントリー {pno} 処理中")
-                    product_name = request.POST.get(f'product_{pno}', entry.product)
-                    quantity = request.POST.get(f'quantity_{pno}')
-                    sales_quantity = request.POST.get(f'sales_quantity_{pno}')
-                    remaining_number = request.POST.get(f'remaining_{pno}')
-                    total_sales = request.POST.get(f'total_sales_{pno}')
-                    sold_out = request.POST.get(f'sold_out_{pno}') is not None
-                    popular = request.POST.get(f'popular_{pno}') is not None
-                    unpopular = request.POST.get(f'unpopular_{pno}') is not None
-
-                    print(f"エントリーデータ: product={product_name}, quantity={quantity}, sales={sales_quantity}")
-
-                    try:
-                        entry.product = product_name
-                        entry.quantity = int(quantity) if quantity else 0
-                        entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
-                        entry.remaining_number = int(remaining_number) if remaining_number else 0
-                        entry.total_sales = int(total_sales) if total_sales else 0
-                        entry.sold_out = sold_out
-                        entry.popular = popular
-                        entry.unpopular = unpopular
-                        entry.save()
-                        print(f"エントリー {pno} 保存成功")
-                    except Exception as e:
-                        print(f"エントリー {pno} 保存エラー: {str(e)}")
-                        raise
-
-                print("=== 全処理完了 ===")
+                _save_report_entries(request, entries)
                 messages.success(request, "更新されました")
                 return redirect('daily_report_detail_rol')
             except Exception as e:
-                print(f"エラー発生: {str(e)}")
+                logger.error("daily_report_edit_rol 保存エラー: %s", e)
                 messages.error(request, f"更新中にエラーが発生しました: {str(e)}")
         else:
-            print("フォームバリデーションエラー:")
-            print("Form errors:", form.errors)
-            print("Time form errors:", time_form.errors)
+            logger.warning("daily_report_edit_rol フォームエラー: %s / %s", form.errors, time_form.errors)
 
     else:
-        print("=== GET処理開始 ===")
         form = DailyReportForm(instance=report)
         time_form = TimeForm(initial={
             'departure_time': report.departure_time,
@@ -1337,16 +1249,7 @@ def daily_report_edit_rol(request, pk):
             'closing_time': report.closing_time,
         })
 
-    # 各entryにderived_priceを計算して付与（sales_quantityが0の場合はProductモデルの単価を使用）
-    unique_prices = set()
-    for entry in entries:
-        if entry.sales_quantity and entry.sales_quantity > 0:
-            entry.derived_price = int(entry.total_sales / entry.sales_quantity)
-        else:
-            entry.derived_price = product_prices.get(entry.product_no, 0)
-        if entry.derived_price > 0:
-            unique_prices.add(entry.derived_price)
-    unique_prices = sorted(list(unique_prices), reverse=True)
+    unique_prices = _attach_derived_prices(entries, product_prices)
 
     user = request.user
     full_name = f"{user.last_name} {user.first_name}".strip()
@@ -1404,7 +1307,6 @@ def daily_report_edit_rol(request, pk):
         'reactions_food_parent_pk': reactions_food_parent_pk,
         'reactions_food_replies': reactions_food_replies,
     }
-    print("=== レンダリング開始 ===")
     return render(request, 'daily_report_edit_rol.html', context)
 
 # 削除ビュー（管理者用）
