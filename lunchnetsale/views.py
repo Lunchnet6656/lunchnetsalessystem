@@ -832,80 +832,81 @@ def daily_report_view(request):
                 messages.error(request, f'この日付（{selected_date}）の{selected_location}の日計表は既に集計済みのため、送信できません。', extra_tags='alert alert-danger')
                 return redirect('daily_report')
                 
-            # 既存の処理を続行
-            report, created = DailyReport.objects.update_or_create(
-                date=parse_date(selected_date),
-                location=selected_location,
-                defaults={
-                    'location_no':service.no,
-                    'person_in_charge': selected_person,
-                    'weather': ','.join(selected_weather),
-                    'temp': ','.join(selected_temp),
-                    'total_quantity': total_quantity,
-                    'sales_price_quantity_1': sales_price_quantity_1,
-                    'sales_price_quantity_2': sales_price_quantity_2,
-                    'sales_price_quantity_3': sales_price_quantity_3, 
-                    'total_sales_quantity': total_sales_quantity,
-                    'total_remaining': total_remaining,
-                    'total_revenue': total_revenue,
-                    'others_sales_1': others_sales_1,
-                    'others_price1': others_price1,
-                    'others_sales_quantity1': others_sales_quantity1,
-                    'others_sales_2': others_sales_2,
-                    'others_price2': others_price2,
-                    'others_sales_quantity2': others_sales_quantity2,
-                    'total_others_sales': total_others_sales,
-                    'no_rice_quantity': no_rice_quantity,
-                    'extra_rice_quantity': extra_rice_quantity,
-                    'coupon_type_600': coupon_type_600,
-                    'coupon_type_700': coupon_type_700,
-                    'discount_50': discount_50,
-                    'discount_100': discount_100,
-                    'service_name': service_name,
-                    'service_price': service_price,
-                    'service_type_600': service_type_600,
-                    'service_type_700': service_type_700,
-                    'service_type_100': service_type_100,
-                    'total_discount': total_discount,
-                    'paypay': paypay,
-                    'digital_payment': digital_payment,
-                    'cash': cash,
-                    'sales_difference': sales_difference,
-                    'departure_time': departure_time if departure_time else None,
-                    'arrival_time': arrival_time if arrival_time else None,
-                    'opening_time': opening_time if opening_time else None,
-                    'sold_out_time': sold_out_time if sold_out_time else None,
-                    'closing_time': closing_time if closing_time else None,
-                    'gasolin': gasolin,
-                    'highway': highway,
-                    'parking': parking,
-                    'part': part,
-                    'others': others,
-                    'comments': comment,
-                    'food_count_setting': food_count_setting,
-                    'submitted_by': request.user,
-                }
-            )
-            # DailyReportEntryの作成または更新
-            processed_product_nos = []
-            for item in item_data:
-                DailyReportEntry.objects.update_or_create(
-                    report=report,
-                    product_no=item.get('menu_no', 0),
+            # 既存の処理を続行（C7: ヘッダ・明細・古エントリ削除をまとめてトランザクション保存）
+            with transaction.atomic():
+                report, created = DailyReport.objects.update_or_create(
+                    date=parse_date(selected_date),
+                    location=selected_location,
                     defaults={
-                        'product': item.get('menu_name', ''),
-                        'quantity': request.POST.get(f'quantity_{item["menu_no"]}', 0),
-                        'sales_quantity': request.POST.get(f'sales_quantity_{item["menu_no"]}', 0),
-                        'remaining_number': request.POST.get(f'remaining_{item["menu_no"]}', 0),
-                        'total_sales': parse_value(request.POST.get(f'total_sales_{item["menu_no"]}', '0')),
-                        'sold_out': request.POST.get(f'sold_out_{item["menu_no"]}', 'off') == 'on',
-                        'popular': request.POST.get(f'popular_{item["menu_no"]}', 'off') == 'on',
-                        'unpopular': request.POST.get(f'unpopular_{item["menu_no"]}', 'off') == 'on'
+                        'location_no':service.no,
+                        'person_in_charge': selected_person,
+                        'weather': ','.join(selected_weather),
+                        'temp': ','.join(selected_temp),
+                        'total_quantity': total_quantity,
+                        'sales_price_quantity_1': sales_price_quantity_1,
+                        'sales_price_quantity_2': sales_price_quantity_2,
+                        'sales_price_quantity_3': sales_price_quantity_3,
+                        'total_sales_quantity': total_sales_quantity,
+                        'total_remaining': total_remaining,
+                        'total_revenue': total_revenue,
+                        'others_sales_1': others_sales_1,
+                        'others_price1': others_price1,
+                        'others_sales_quantity1': others_sales_quantity1,
+                        'others_sales_2': others_sales_2,
+                        'others_price2': others_price2,
+                        'others_sales_quantity2': others_sales_quantity2,
+                        'total_others_sales': total_others_sales,
+                        'no_rice_quantity': no_rice_quantity,
+                        'extra_rice_quantity': extra_rice_quantity,
+                        'coupon_type_600': coupon_type_600,
+                        'coupon_type_700': coupon_type_700,
+                        'discount_50': discount_50,
+                        'discount_100': discount_100,
+                        'service_name': service_name,
+                        'service_price': service_price,
+                        'service_type_600': service_type_600,
+                        'service_type_700': service_type_700,
+                        'service_type_100': service_type_100,
+                        'total_discount': total_discount,
+                        'paypay': paypay,
+                        'digital_payment': digital_payment,
+                        'cash': cash,
+                        'sales_difference': sales_difference,
+                        'departure_time': departure_time if departure_time else None,
+                        'arrival_time': arrival_time if arrival_time else None,
+                        'opening_time': opening_time if opening_time else None,
+                        'sold_out_time': sold_out_time if sold_out_time else None,
+                        'closing_time': closing_time if closing_time else None,
+                        'gasolin': gasolin,
+                        'highway': highway,
+                        'parking': parking,
+                        'part': part,
+                        'others': others,
+                        'comments': comment,
+                        'food_count_setting': food_count_setting,
+                        'submitted_by': request.user,
                     }
                 )
-                processed_product_nos.append(item.get('menu_no', 0))
-            # 現在のitem_dataに存在しない古いエントリを削除
-            report.entries.exclude(product_no__in=processed_product_nos).delete()
+                # DailyReportEntryの作成または更新
+                processed_product_nos = []
+                for item in item_data:
+                    DailyReportEntry.objects.update_or_create(
+                        report=report,
+                        product_no=item.get('menu_no', 0),
+                        defaults={
+                            'product': item.get('menu_name', ''),
+                            'quantity': request.POST.get(f'quantity_{item["menu_no"]}', 0),
+                            'sales_quantity': request.POST.get(f'sales_quantity_{item["menu_no"]}', 0),
+                            'remaining_number': request.POST.get(f'remaining_{item["menu_no"]}', 0),
+                            'total_sales': parse_value(request.POST.get(f'total_sales_{item["menu_no"]}', '0')),
+                            'sold_out': request.POST.get(f'sold_out_{item["menu_no"]}', 'off') == 'on',
+                            'popular': request.POST.get(f'popular_{item["menu_no"]}', 'off') == 'on',
+                            'unpopular': request.POST.get(f'unpopular_{item["menu_no"]}', 'off') == 'on'
+                        }
+                    )
+                    processed_product_nos.append(item.get('menu_no', 0))
+                # 現在のitem_dataに存在しない古いエントリを削除
+                report.entries.exclude(product_no__in=processed_product_nos).delete()
         else:
             context = {
                 'dates': dates,
@@ -1149,10 +1150,11 @@ def daily_report_edit(request, pk):
         form = DailyReportForm(post_data, instance=report)
 
         if form.is_valid() and time_form.is_valid():
-            # フォームから保存（時間フィールドもフォーム経由で保存される）
-            report = form.save(commit=False)
-            report.save()
-            _save_report_entries(request, entries)
+            # フォームと明細をまとめて保存（C7: 途中で失敗したらロールバック）
+            with transaction.atomic():
+                report = form.save(commit=False)
+                report.save()
+                _save_report_entries(request, entries)
             messages.success(request, "更新されました")
             return redirect('daily_report_detail', date=report.date)
         else:
@@ -1228,9 +1230,10 @@ def daily_report_edit_rol(request, pk):
 
         if form.is_valid() and time_form.is_valid():
             try:
-                # フォームから直接保存（時間フィールドもフォーム経由で保存される）
-                report = form.save()
-                _save_report_entries(request, entries)
+                # フォームと明細をまとめて保存（C7: 途中で失敗したらロールバック）
+                with transaction.atomic():
+                    report = form.save()
+                    _save_report_entries(request, entries)
                 messages.success(request, "更新されました")
                 return redirect('daily_report_detail_rol')
             except Exception as e:
