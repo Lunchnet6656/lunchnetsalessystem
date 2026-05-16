@@ -12,6 +12,17 @@ function debounce(func, wait) {
     };
 }
 
+// 通信失敗を画面上部に数秒表示する（fetch失敗時にUIが無反応で固まるのを防ぐ）
+function notifyFetchError(message) {
+    var banner = document.createElement('div');
+    banner.textContent = message || '通信に失敗しました。電波の良い場所でもう一度お試しください。';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+        'background:#c0392b;color:#fff;padding:12px;text-align:center;' +
+        'font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
+    document.body.appendChild(banner);
+    setTimeout(function() { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 6000);
+}
+
 // その他の売上用: 項目選択時に単価を更新
 function updatePrice(element, type) {
     var price = element.getAttribute('data-price' + type);
@@ -68,6 +79,11 @@ function switchPersonField(locationValue, preselectedPerson) {
                 if (preselectedPerson) {
                     selectEl.value = preselectedPerson;
                 }
+            })
+            .catch(function() {
+                // 通信失敗時は「読み込み中...」のまま固まらせない
+                selectEl.innerHTML = '<option>読み込みに失敗しました</option>';
+                notifyFetchError();
             });
     } else {
         showDefaultPerson();

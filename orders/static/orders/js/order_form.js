@@ -1,3 +1,14 @@
+// 通信失敗を画面上部に数秒表示する（fetch失敗時にUIが無反応で固まるのを防ぐ）
+function notifyFetchError(message) {
+    var banner = document.createElement('div');
+    banner.textContent = message || '通信に失敗しました。電波の良い場所でもう一度お試しください。';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+        'background:#c0392b;color:#fff;padding:12px;text-align:center;' +
+        'font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
+    document.body.appendChild(banner);
+    setTimeout(function() { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 6000);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const customerSelect = document.getElementById('id_customer');
     const priceTypeDisplay = document.getElementById('price-type-display');
@@ -109,7 +120,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 orderedCustomerIds = (data.customer_ids || []).map(String);
                 applyOrderedState();
                 if (callback) callback();
-            });
+            })
+            .catch(function() { notifyFetchError(); });
     }
 
     function applyOrderedState() {
@@ -257,7 +269,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (notesField && !notesField.value.trim() && data.notes) {
                             notesField.value = data.notes;
                         }
-                    });
+                    })
+                    .catch(function() { notifyFetchError(); });
             } else {
                 priceTypeDisplay.classList.add('hidden');
             }
@@ -304,7 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     duplicateWarning.classList.add('hidden');
                 }
-            });
+            })
+            .catch(function() { notifyFetchError(); });
     }
 
     if (customerSelect) {
@@ -334,7 +348,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentTotalsMap[String(t.product_id)] = t;
                 });
                 insertTotalsCards();
-            });
+            })
+            .catch(function() { notifyFetchError(); });
     }
 
     function insertTotalsCards() {
@@ -375,7 +390,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentProducts = data.products || [];
                 buildProductCards();
                 fetchOrderTotals(date);
-            });
+            })
+            .catch(function() { notifyFetchError(); });
     }
 
     // --- カード生成 ---
