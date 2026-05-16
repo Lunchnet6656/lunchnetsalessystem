@@ -45,6 +45,8 @@ from datetime import date as dt_date
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.timezone import now
 import urllib.parse
+from django.core.exceptions import PermissionDenied
+from .utils import is_report_owner
 
 @login_required
 def my_page(request):
@@ -1044,8 +1046,9 @@ def daily_report_detail_rol(request):
         'reports_by_location': reports_by_location,
     }
     return render(request, 'daily_report_detail_rol.html', context)
-# 編集ビュー
+# 編集ビュー（管理者用）
 @login_required
+@staff_member_required
 def daily_report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
     entries = report.entries.all().order_by('product_no')  # 関連するエントリを取得
@@ -1203,6 +1206,9 @@ def daily_report_edit(request, pk):
 def daily_report_edit_rol(request, pk):
     print("=== daily_report_edit_rol 開始 ===")
     report = get_object_or_404(DailyReport, pk=pk)
+    # pk書き換えによる他人の日計表の編集を防ぐ。管理者は全件可、一般従業員は自分の提出分のみ
+    if not (request.user.is_staff or is_report_owner(request.user, report)):
+        raise PermissionDenied("この日計表を編集する権限がありません。")
     entries = report.entries.all().order_by('product_no')  # 関連するエントリを取得
     locations = SalesLocation.objects.all()
 
@@ -1399,8 +1405,9 @@ def daily_report_edit_rol(request, pk):
     print("=== レンダリング開始 ===")
     return render(request, 'daily_report_edit_rol.html', context)
 
-# 削除ビュー
+# 削除ビュー（管理者用）
 @login_required
+@staff_member_required
 def daily_report_delete(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
     if request.method == "POST":
