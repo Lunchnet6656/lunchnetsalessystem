@@ -46,7 +46,11 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.timezone import now
 import urllib.parse
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from .utils import is_report_owner
+
+# モジュール共通ロガー（C8: print()を廃しログ出力に一元化）
+logger = logging.getLogger(__name__)
 
 @login_required
 def my_page(request):
@@ -83,7 +87,7 @@ def submit_shift(request):
     holidays_json = json.dumps([str(holiday) for holiday in holidays])  # JSON形式に変換
 
     if request.method == "POST":
-        print("POSTデータ:", request.POST)  # デバッグ用にPOSTデータを出力
+        logger.debug("POSTデータ: %s", request.POST)
         form = ShiftSubmissionForm(request.POST)
         form.initial['user'] = user  # バリデーション用にユーザー情報をセット
 
@@ -91,7 +95,7 @@ def submit_shift(request):
             shift_requests = []
 
             for date, is_off in form.cleaned_data.items():
-                print(f"デバッグ: {date} の is_off: {is_off}")  # 各日付のis_offの状態を出力
+                logger.debug("%s の is_off: %s", date, is_off)
                 if date.startswith("status_"):
                     shift_date = dt_date.fromisoformat(date.replace("status_", ""))
 
@@ -287,7 +291,6 @@ def csrf_failure_view(request, reason=""):
 
 @never_cache
 def login_view(request):
-    logger = logging.getLogger(__name__)
     User = get_user_model()
 
     if request.method == 'POST':
@@ -666,7 +669,6 @@ def parse_value(value_str):
 @login_required
 def daily_report_view(request):
 
-    logger = logging.getLogger(__name__)
     selected_person = ""
     # ログインユーザーのfirst_nameを取得
     selected_person = request.user.first_name if request.user.is_authenticated else ""
@@ -1693,7 +1695,7 @@ def item_quantity_detail_view(request, date):
     date_obj = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')  # フォーマットに合わせて変換
     date_only = date_obj.date()  # datetimeオブジェクトからdateオブジェクトを取得
     date_str = date_only.strftime('%Y-%m-%d')  # dateオブジェクトを文字列に変換
-    print(f"Selected date: {date_str}")  # 確認用
+    logger.debug("Selected date: %s", date_str)
 
     # 商品ごとの数量を取得
     item_quantities = ItemQuantity.objects.filter(target_date=date_str) \

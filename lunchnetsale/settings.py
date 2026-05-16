@@ -213,3 +213,21 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET', '')
 LINE_BOT_BASIC_ID = os.environ.get('LINE_BOT_BASIC_ID', '')  # 例: @abc12345
+
+# --- LOGGING ---
+# print() デバッグ文を廃し、出力をログに一元化する（C8）。
+# 本番=INFO（debugログは出さない）／開発=DEBUG。Herokuはstdoutをログ収集するためconsoleのみで足りる。
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {"format": "[{levelname}] {asctime} {name}: {message}", "style": "{"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+    },
+    "root": {"handlers": ["console"], "level": "INFO" if IS_PRODUCTION else "DEBUG"},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}

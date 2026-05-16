@@ -8,6 +8,9 @@ from .forms import UploadFileForm
 import pandas as pd
 from sales.models import SalesLocation
 import openpyxl
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def login_view(request):
@@ -33,16 +36,16 @@ def upload_view(request):
             wb = openpyxl.load_workbook(file)
             sheet = wb.active
 
-            print("ファイルの読み込みに成功しました")  # デバッグ用
+            logger.debug("ファイルの読み込みに成功しました")
             for row in sheet.iter_rows(min_row=2, values_only=True):
                 name, type = row
-                print(f"行データ: {name}, {type}")  # デバッグ用
+                logger.debug("行データ: %s, %s", name, type)
                 SalesLocation.objects.create(name=name, type=type)
 
-            print("データベースへの保存に成功しました")  # デバッグ用
+            logger.info("販売場所データの保存に成功しました")
             return redirect('dashboard')  # ダッシュボードにリダイレクト
         else:
-            print("フォームが無効です")  # デバッグ用
+            logger.warning("アップロードフォームが無効です")
     else:
         form = UploadFileForm()
     return render(request, 'upload.html', {'form': form})
