@@ -15,6 +15,7 @@ from pathlib import Path
 from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 load_dotenv()
 
@@ -32,10 +33,11 @@ IS_PRODUCTION = DJANGO_ENV == 'production'
 DEBUG = not IS_PRODUCTION if os.environ.get('DEBUG') is None else os.environ.get('DEBUG') == 'True'
 
 # --- SECRET_KEY ---
-SECRET_KEY = os.environ.get(
-    "SECRET_KEY",
-    "django-insecure--+q6!izt3($eu-q*8)3dgu$#zp6rj)n$(jkyi^-wxo-v%$l1(!"
-)
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "SECRET_KEY が未設定です。.env または Heroku Config Vars に設定してください。"
+    )
 
 # --- Host/CSRF 設定 ---
 ALLOWED_HOSTS = csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
