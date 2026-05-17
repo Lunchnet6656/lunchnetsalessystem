@@ -13,7 +13,7 @@ h1.mb-4::after {
   bottom: 0;
   width: 100%;
   height: 3px;
-  background-color: var(--ln-color-rule) !important;
+  background-color: var(--ln-color-brand) !important;
   border-radius: 2px;
 }
 
@@ -53,12 +53,12 @@ h1.mb-4::after {
 }
 
 .sidebar ul li a:hover {
-    background-color: var(--ln-color-primary);
+    background-color: var(--ln-color-brand);
     color: var(--ln-color-white); /* ホバー時の文字色 */
 }
 
 .sidebar ul li a.active {
-    background-color: var(--ln-color-primary);
+    background-color: var(--ln-color-brand);
     color: var(--ln-color-white);
 }
 

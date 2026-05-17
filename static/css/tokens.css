@@ -9,11 +9,10 @@
 :root {
     /* --- 色：共通（Bootstrap系 / ベース・日計表・ダッシュボード・ログイン） --- */
     --ln-color-dark: #343a40;             /* サイドバー背景・セクションナビ背景・合計行枠 */
-    --ln-color-rule: #555;                /* 見出し下線 */
+    --ln-color-brand: #ff0000;            /* ランチネットのブランド赤（ロゴ実測値） */
+    --ln-color-brand-dark: #cc0000;       /* ブランド赤の濃い版（ボタン hover 用） */
     --ln-color-border-strong: #444;       /* サイドバーのセクション見出し下線 */
     --ln-color-divider: #ddd;             /* セクション見出し文字・サマリー区切り線 */
-    --ln-color-primary: #007bff;          /* サイドバー hover/active・ログインボタン */
-    --ln-color-primary-dark: #0056b3;     /* ログインボタン hover */
     --ln-color-danger: #dc3545;           /* 警告文字（現金注意・チェック強調） */
     --ln-color-white: #ffffff;            /* 文字・背景の白 */
     --ln-color-text: #000;                /* チェック文字（黒） */

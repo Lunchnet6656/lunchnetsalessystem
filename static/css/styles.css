@@ -39,7 +39,7 @@ body {
 button {
     width: 100%;
     padding: 10px;
-    background-color: var(--ln-color-primary);
+    background-color: var(--ln-color-brand);
     color: var(--ln-color-white);
     border: none;
     border-radius: 5px;
@@ -47,5 +47,5 @@ button {
 }
 
 button:hover {
-    background-color: var(--ln-color-primary-dark);
+    background-color: var(--ln-color-brand-dark);
 }
