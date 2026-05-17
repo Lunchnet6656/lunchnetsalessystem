@@ -49,3 +49,21 @@ button {
 button:hover {
     background-color: var(--ln-color-brand-dark);
 }
+
+/* ログイン画面のロゴ */
+.login-logo {
+    height: 96px;
+    width: auto;
+}
+
+/* ログインボタンをブランド赤に（Bootstrap の btn-primary を上書き） */
+.btn-primary {
+    background-color: var(--ln-color-brand);
+    border-color: var(--ln-color-brand);
+}
+
+.btn-primary:hover,
+.btn-primary:active {
+    background-color: var(--ln-color-brand-dark);
+    border-color: var(--ln-color-brand-dark);
+}

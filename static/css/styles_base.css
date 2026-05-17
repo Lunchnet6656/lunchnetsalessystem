@@ -109,6 +109,12 @@ h1.mb-4::after {
     height: 60px; /* ナビバーの高さを指定 */
 }
 
+/* ナビバーのロゴ */
+.navbar-logo {
+    height: 36px;
+    width: auto;
+}
+
 /* タブレット向けスタイル */
 @media (max-width: 1024px) {
     .sidebar {

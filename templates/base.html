@@ -22,6 +22,9 @@
         <button id="sidebarCollapse" class="btn btn-dark">
           <i class="fas fa-bars"></i>
         </button>
+        <a class="navbar-brand p-0 me-2" href="{% url 'dashboard' %}">
+          <img src="{% static 'images/lunchnet-logo.png' %}" alt="ランチネット" class="navbar-logo">
+        </a>
         <a class="navbar-brand d-none d-lg-inline" href="{% url 'dashboard' %}">ランチネット販売実績管理システム (LSS)</a>
         <a class="navbar-brand d-inline d-lg-none" href="#">ランチネット販売実績管理システム</a>
       </div>
