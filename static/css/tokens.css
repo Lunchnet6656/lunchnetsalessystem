@@ -1,0 +1,44 @@
+/* tokens.css — lunchnetsale デザイントークン
+ *
+ * static/css/ の各スタイルが参照する「色」と「影」の一元定義。
+ * スプリント3「デザインの土台」で導入。値はすべて従来のハードコード値と同一
+ * （見た目は変えていない）。近似・重複した色はあえて統合せず別トークンにしてある。
+ * 統合・パレット一本化はデザイン統一スプリントの判断。
+ */
+
+:root {
+    /* --- 色：共通（Bootstrap系 / ベース・日計表・ダッシュボード・ログイン） --- */
+    --ln-color-dark: #343a40;             /* サイドバー背景・セクションナビ背景・合計行枠 */
+    --ln-color-rule: #555;                /* 見出し下線 */
+    --ln-color-border-strong: #444;       /* サイドバーのセクション見出し下線 */
+    --ln-color-divider: #ddd;             /* セクション見出し文字・サマリー区切り線 */
+    --ln-color-primary: #007bff;          /* サイドバー hover/active・ログインボタン */
+    --ln-color-primary-dark: #0056b3;     /* ログインボタン hover */
+    --ln-color-danger: #dc3545;           /* 警告文字（現金注意・チェック強調） */
+    --ln-color-white: #ffffff;            /* 文字・背景の白 */
+    --ln-color-text: #000;                /* チェック文字（黒） */
+    --ln-color-text-strong: #333;         /* サマリー数値 */
+    --ln-color-text-muted: #6c757d;       /* モバイルラベル・単価のミュート文字 */
+    --ln-color-text-dim: #adb5bd;         /* セクションナビのリンク文字 */
+    --ln-color-body-bg: #f4f4f4;          /* ログイン画面の body 背景 */
+    --ln-color-surface-muted: #f8f9fa;    /* 合計行背景・週末セル背景 */
+    --ln-color-surface-disabled: #e9ecef; /* 完売行背景 */
+    --ln-color-border: #dee2e6;           /* お弁当カード枠 */
+    --ln-color-overlay: rgba(0, 0, 0, 0.9); /* モバイルサイドバー背景 */
+
+    /* --- 色：出店カレンダー（独自パレット・Google系。共通グループとは別パレット） --- */
+    --ln-cal-blue: #1a73e8;       /* カレンダー見出し・戻るリンク */
+    --ln-cal-blue-dark: #174ea6;  /* 戻るリンク hover */
+    --ln-cal-blue-light: #e8f0fe; /* 日セル hover 背景 */
+    --ln-cal-gray: #5f6368;       /* カレンダー各所のグレー文字 */
+    --ln-cal-text: #202124;       /* 日付文字 */
+    --ln-cal-surface: #f1f3f4;    /* カレンダーヘッダ背景 */
+    --ln-cal-border: #e0e0e0;     /* コンテナ枠・日セル枠 */
+
+    /* --- 影 --- */
+    --ln-shadow-card: 0 0 10px rgba(0, 0, 0, 0.1);   /* ログインカード */
+    --ln-shadow-panel: 0 4px 8px rgba(0, 0, 0, 0.1); /* カレンダーコンテナ */
+    --ln-shadow-cell: 0 1px 2px rgba(0, 0, 0, 0.1);  /* カレンダー日セル */
+    --ln-shadow-col: 2px 0 5px rgba(0, 0, 0, 0.1);   /* テーブル固定列 */
+    --ln-shadow-nav: 0 -2px 8px rgba(0, 0, 0, 0.2);  /* セクションナビ */
+}
