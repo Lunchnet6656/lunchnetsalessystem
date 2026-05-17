@@ -4,7 +4,7 @@
     margin: auto;
     font-family: 'Roboto', Arial, sans-serif;
     background-color: var(--ln-color-white);
-    border: 1px solid var(--ln-cal-border);
+    border: 1px solid var(--ln-color-border);
     border-radius: 8px;
     padding: 20px;
     box-shadow: var(--ln-shadow-panel);
@@ -26,10 +26,10 @@ h1 {
 .calendar .header {
     display: flex;
     justify-content: space-between;
-    background-color: var(--ln-cal-surface); /* 薄いグレー */
+    background-color: var(--ln-color-surface-muted); /* 薄いグレー */
     border-radius: 8px;
     padding: 10px 0;
-    color: var(--ln-cal-gray); /* Googleグレー */
+    color: var(--ln-color-text-muted); /* Googleグレー */
     font-weight: 500;
     text-align: center;
 }
@@ -55,7 +55,7 @@ h1 {
     flex: 1;
     min-height: 100px;
     background-color: var(--ln-color-white);
-    border: 1px solid var(--ln-cal-border);
+    border: 1px solid var(--ln-color-border);
     border-radius: 4px;
     display: flex;
     flex-direction: column;
@@ -82,12 +82,12 @@ h1 {
 
 .calendar .day-cell .sales {
     font-size: 0.9rem;
-    color: var(--ln-cal-gray); /* 中間グレー */
+    color: var(--ln-color-text-muted); /* 中間グレー */
 }
 
 .calendar .day-cell .closing-time {
     font-size: 0.8rem;
-    color: var(--ln-cal-gray);
+    color: var(--ln-color-text-muted);
     margin-top: 5px;
 }
 
@@ -98,7 +98,7 @@ h1 {
 .calendar .day-cell:nth-child(6),
 .calendar .day-cell:nth-child(7) {
     background-color: var(--ln-color-surface-muted); /* 薄いグレー */
-    color: var(--ln-cal-gray); /* 中間グレー */
+    color: var(--ln-color-text-muted); /* 中間グレー */
 }
 
 /* 追加: 戻るボタン用のクラスを定義 */
