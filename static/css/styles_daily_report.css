@@ -57,18 +57,18 @@ table th:nth-child(2), table td:nth-child(2) {
 .table-container th.fixed-column, .table-container td.fixed-column {
     position: sticky;
     left: 0;
-    background-color: #fff;
+    background-color: var(--ln-color-white);
     z-index: 3; /* 他のセルより前面に表示 */
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); /* 少し影をつけて視認性を高める */
+    box-shadow: var(--ln-shadow-col); /* 少し影をつけて視認性を高める */
 }
 
 /* 2列目を固定 */
 .table-container th.fixed-column-2, .table-container td.fixed-column-2 {
     position: sticky;
     left: 80px; /* 2列目の位置を調整（1列目の幅分） */
-    background-color: #fff;
+    background-color: var(--ln-color-white);
     z-index: 3;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); /* 同じく影をつける */
+    box-shadow: var(--ln-shadow-col); /* 同じく影をつける */
 }
 
 /* 持参数と販売数の入力ボックスの幅を狭くする */
@@ -85,18 +85,18 @@ h2.bg-dark {
 
 /* インラインスタイル代替クラス */
 .label-cash-warning {
-    color: #dc3545;
+    color: var(--ln-color-danger);
     font-weight: bold;
 }
 
 .check-text {
-    color: #000;
+    color: var(--ln-color-text);
     text-decoration: underline;
     font-size: larger;
 }
 
 .check-highlight {
-    color: #dc3545;
+    color: var(--ln-color-danger);
 }
 
 .check-checkbox {
@@ -111,12 +111,12 @@ h2.bg-dark {
 
 /* 完売行のスタイル */
 tr.sold-out-row {
-    background-color: #e9ecef !important;
+    background-color: var(--ln-color-surface-disabled) !important;
     opacity: 0.7;
 }
 
 tr.sold-out-row input[type="number"] {
-    background-color: #e9ecef;
+    background-color: var(--ln-color-surface-disabled);
 }
 
 /* 送信ボタン非表示 */
@@ -130,16 +130,16 @@ tr.sold-out-row input[type="number"] {
     bottom: 0;
     left: 0;
     right: 0;
-    background: #343a40;
+    background: var(--ln-color-dark);
     z-index: 100;
     display: flex;
     justify-content: space-around;
     padding: 6px 0;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--ln-shadow-nav);
 }
 
 .section-nav a {
-    color: #adb5bd;
+    color: var(--ln-color-text-dim);
     font-size: 10px;
     text-align: center;
     text-decoration: none;
@@ -152,7 +152,7 @@ tr.sold-out-row input[type="number"] {
 
 .section-nav a:hover,
 .section-nav a:active {
-    color: #ffffff;
+    color: var(--ln-color-white);
 }
 
 .section-nav a i {
@@ -233,11 +233,11 @@ tr.sold-out-row input[type="number"] {
     .bento-table tbody tr {
         display: grid;
         grid-template-columns: auto 1fr 1fr;
-        border: 1px solid #dee2e6;
+        border: 1px solid var(--ln-color-border);
         border-radius: 6px;
         margin-bottom: 8px;
         padding: 8px;
-        background: #fff;
+        background: var(--ln-color-white);
         gap: 2px 8px;
         align-items: center;
     }
@@ -258,7 +258,7 @@ tr.sold-out-row input[type="number"] {
         grid-column: 3 / 4;
         grid-row: 1;
         text-align: right;
-        color: #6c757d;
+        color: var(--ln-color-text-muted);
     }
 
     /* 2行目: 持参数 | 残数(入力) | 販売数 | 売上 */
@@ -302,7 +302,7 @@ tr.sold-out-row input[type="number"] {
     .bento-table td::before {
         content: attr(data-label);
         font-size: 0.65rem;
-        color: #6c757d;
+        color: var(--ln-color-text-muted);
         display: block;
         line-height: 1;
         margin-bottom: 2px;
@@ -335,10 +335,10 @@ tr.sold-out-row input[type="number"] {
     .bento-table tfoot tr.total-row {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
-        border: 2px solid #343a40;
+        border: 2px solid var(--ln-color-dark);
         border-radius: 6px;
         padding: 8px;
-        background: #f8f9fa;
+        background: var(--ln-color-surface-muted);
         gap: 4px 8px;
         align-items: center;
         font-weight: bold;

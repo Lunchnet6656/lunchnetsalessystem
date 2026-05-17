@@ -19,13 +19,13 @@
     transform: translateY(-50%);
     width: 1px;
     height: 80%;
-    background-color: #ddd; /* 縦ラインの色 */
+    background-color: var(--ln-color-divider); /* 縦ラインの色 */
 }
 
 .summary-number {
     font-weight: bold; /* 数字を太字に */
     font-size: 24px; /* 数字を目立たせるために大きく */
-    color: #333; /* 色の調整 */
+    color: var(--ln-color-text-strong); /* 色の調整 */
 }
 
 .card-body {

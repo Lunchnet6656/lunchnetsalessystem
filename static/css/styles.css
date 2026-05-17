@@ -1,6 +1,6 @@
 body {
     font-family: 'Meiryo UI', sans-serif;
-    background-color: #f4f4f4;
+    background-color: var(--ln-color-body-bg);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -9,10 +9,10 @@ body {
 }
 
 .login-container {
-    background-color: #fff;
+    background-color: var(--ln-color-white);
     padding: 20px;
     border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--ln-shadow-card);
     width: 300px;
 }
 
@@ -39,13 +39,13 @@ body {
 button {
     width: 100%;
     padding: 10px;
-    background-color: #007BFF;
-    color: #fff;
+    background-color: var(--ln-color-primary);
+    color: var(--ln-color-white);
     border: none;
     border-radius: 5px;
     cursor: pointer;
 }
 
 button:hover {
-    background-color: #0056b3;
+    background-color: var(--ln-color-primary-dark);
 }
