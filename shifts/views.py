@@ -1095,10 +1095,16 @@ def user_settings(request):
             profile.save()
             messages.success(request, '通知設定を保存しました。')
         elif action == 'generate_line_code':
-            # 6桁の一時コードを生成してセッションに保存
+            # 6桁の使い捨てコードを発行（10分有効）。1ユーザー1有効コードに保つため
+            # 未使用の旧コードは無効化する。照合は専用モデルでDBインデックス検索する。
+            from .models import LineLinkCode
             code = ''.join(random.choices(string.digits, k=6))
-            request.session['line_link_code'] = code
-            request.session['line_link_user_id'] = request.user.id
+            LineLinkCode.objects.filter(user=request.user, used_at__isnull=True).delete()
+            LineLinkCode.objects.create(
+                user=request.user,
+                code=code,
+                expires_at=timezone.now() + datetime.timedelta(minutes=10),
+            )
         elif action == 'unlink_line':
             profile.line_user_id = ''
             profile.notify_via_line = False
@@ -1107,18 +1113,21 @@ def user_settings(request):
         return redirect('shifts:user_settings')
 
     context = {'profile': profile}
-    # セッションに連携コードがある場合、コードとLINE URLをコンテキストへ
-    line_code = request.session.get('line_link_code')
-    if line_code and not profile.line_user_id:
+    # 有効な（未使用・期限内）連携コードがあれば、コードとLINE URLをコンテキストへ。
+    link = None
+    if not profile.line_user_id:
+        from .models import LineLinkCode
+        link = LineLinkCode.objects.filter(
+            user=request.user, used_at__isnull=True, expires_at__gt=timezone.now()
+        ).order_by('-created_at').first()
+    if link:
         from django.conf import settings as django_settings
-        import urllib.parse
-        import logging
-        logger = logging.getLogger(__name__)
         basic_id = getattr(django_settings, 'LINE_BOT_BASIC_ID', '')
-        context['line_link_code'] = line_code
+        context['line_link_code'] = link.code
+        context['line_link_expires_at'] = link.expires_at
         if basic_id:
             context['line_friend_url'] = f"https://line.me/R/ti/p/{basic_id}"
-            context['line_url'] = f"https://line.me/R/oaMessage/{basic_id}/?{urllib.parse.quote(line_code)}"
+            context['line_url'] = f"https://line.me/R/oaMessage/{basic_id}/?{urllib.parse.quote(link.code)}"
         else:
             logger.warning("LINE_BOT_BASIC_ID is not configured. LINE app link will not be shown.")
     return render(request, 'shifts/user_settings.html', context)
@@ -1156,33 +1165,51 @@ def line_webhook(request):
         if not (text.isdigit() and len(text) == 6):
             return
 
+        from .models import LineLinkCode, LineLinkAttempt
         line_uid = event.source.user_id
+        now = timezone.now()
+
+        # 総当り対策：送信者ごとに10分で5回まで。超えたら黙って無視する。
+        window = datetime.timedelta(minutes=10)
+        attempt, _ = LineLinkAttempt.objects.get_or_create(
+            line_uid=line_uid, defaults={'window_start': now, 'count': 0}
+        )
+        if attempt.window_start < now - window:
+            attempt.window_start = now
+            attempt.count = 0
+        attempt.count += 1
+        attempt.save(update_fields=['window_start', 'count'])
+        if attempt.count > 5:
+            return
+
+        # 有効な（未使用・期限内）コードをインデックス検索。一致しなければ沈黙。
+        link = LineLinkCode.objects.filter(
+            code=text, used_at__isnull=True, expires_at__gt=now
+        ).order_by('-created_at').first()
+        if link is None:
+            return
+
+        try:
+            profile = UserProfile.objects.get(user=link.user)
+        except UserProfile.DoesNotExist:
+            return
+
+        # 使い捨て：先に used_at を立ててから紐付ける。
+        link.used_at = now
+        link.save(update_fields=['used_at'])
+        profile.line_user_id = line_uid
+        profile.notify_via_line = True
+        profile.save(update_fields=['line_user_id', 'notify_via_line'])
+
+        # 成功したらこの送信者の試行カウントをリセット。
+        attempt.count = 0
+        attempt.save(update_fields=['count'])
+
         from .line_bot import _get_line_api
         from linebot.models import TextSendMessage
         api = _get_line_api()
-        if api is None:
-            return
-
-        # セッションを使わず全ユーザーのセッションを検索できないため、
-        # 全アクティブセッションを走査してコードと照合する（将来は専用モデル化予定）。
-        from django.contrib.sessions.models import Session
-        from django.utils import timezone as tz
-        for session in Session.objects.filter(expire_date__gt=tz.now()):
-            data = session.get_decoded()
-            if data.get('line_link_code') == text:
-                user_id = data.get('line_link_user_id')
-                if user_id:
-                    try:
-                        profile = UserProfile.objects.get(user_id=user_id)
-                        profile.line_user_id = line_uid
-                        profile.notify_via_line = True
-                        profile.save()
-                        api.reply_message(event.reply_token, TextSendMessage(text='LINE連携が完了しました！'))
-                    except UserProfile.DoesNotExist:
-                        pass
-                return
-        # 一致しなかった場合も返信しない（お客様が偶然6桁を送った可能性があるため）。
-        return
+        if api is not None:
+            api.reply_message(event.reply_token, TextSendMessage(text='LINE連携が完了しました！'))
 
     signature = request.headers.get('X-Line-Signature', '')
     body = request.body.decode('utf-8')

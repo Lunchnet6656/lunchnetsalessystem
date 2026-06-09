@@ -40,9 +40,52 @@ class UserProfile(models.Model):
     class Meta:
         verbose_name = "ユーザープロフィール"
         verbose_name_plural = "ユーザープロフィール"
+        constraints = [
+            # 連携済み（空文字でない）LINE User ID は1プロフィールにつき一意。
+            # 未連携の '' は複数あり得るため除外する。
+            models.UniqueConstraint(
+                fields=['line_user_id'],
+                condition=~models.Q(line_user_id=''),
+                name='uniq_line_user_id_nonblank',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} プロフィール"
+
+
+class LineLinkCode(models.Model):
+    """LINE連携用の使い捨て6桁コード。発行から10分有効・1回使い切り。"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='line_link_codes', verbose_name='ユーザー',
+    )
+    code = models.CharField(max_length=6, db_index=True, verbose_name='連携コード')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='発行日時')
+    expires_at = models.DateTimeField(verbose_name='有効期限')
+    used_at = models.DateTimeField(null=True, blank=True, verbose_name='使用日時')
+
+    class Meta:
+        verbose_name = "LINE連携コード"
+        verbose_name_plural = "LINE連携コード"
+        indexes = [models.Index(fields=['code', 'used_at'])]
+
+    def __str__(self):
+        return f"{self.user} / {self.code}"
+
+
+class LineLinkAttempt(models.Model):
+    """LINE送信者ごとの連携コード照合の試行回数（総当り対策の簡易スロットル）。"""
+    line_uid = models.CharField(max_length=64, unique=True, verbose_name='LINE User ID')
+    count = models.PositiveIntegerField(default=0, verbose_name='試行回数')
+    window_start = models.DateTimeField(verbose_name='計測開始')
+
+    class Meta:
+        verbose_name = "LINE連携試行"
+        verbose_name_plural = "LINE連携試行"
+
+    def __str__(self):
+        return f"{self.line_uid} ({self.count})"
 
 
 class CompanyHoliday(models.Model):
