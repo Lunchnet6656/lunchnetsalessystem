@@ -1141,15 +1141,10 @@ def line_webhook(request):
 
         @handler.add(FollowEvent)
         def handle_follow(event):
-            from .line_bot import _get_line_api
-            from linebot.models import TextSendMessage
-            api = _get_line_api()
-            if api is None:
-                return
-            api.reply_message(
-                event.reply_token,
-                TextSendMessage(text='友だち追加ありがとうございます！\nシフト管理アプリで発行された6桁のコードをこちらに送信してください。')
-            )
+            # 友だち追加した人がスタッフか一般のお客さんか判別できないため、
+            # ここではシフト連携の案内を送らない（一般客に案内が出るのを防ぐ）。
+            # お客さま向けの挨拶は LINE公式アカウントの「あいさつメッセージ」機能で設定する。
+            return
 
         @handler.add(MessageEvent, message=TextMessage)
         def handle_text(event):
