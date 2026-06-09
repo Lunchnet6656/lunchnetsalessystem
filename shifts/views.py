@@ -1,6 +1,7 @@
 import csv
 import datetime
 import json
+import logging
 import random
 import string
 import urllib.parse
@@ -36,6 +37,8 @@ from .notifications import notify_assignment_changed, notify_manual_reminder, no
 from .utils import auto_close_expired_periods, can_submit_for_period, generate_date_range, get_holiday_name, is_holiday
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日']
 
@@ -1132,61 +1135,65 @@ def line_webhook(request):
     if handler is None:
         return HttpResponse(status=200)
 
+    from linebot.models import FollowEvent, MessageEvent, TextMessage
+    from linebot.exceptions import InvalidSignatureError
+
+    @handler.add(FollowEvent)
+    def handle_follow(event):
+        # 友だち追加した人がスタッフか一般のお客さんか判別できないため、
+        # ここではシフト連携の案内を送らない（一般客に案内が出るのを防ぐ）。
+        # お客さま向けの挨拶は LINE公式アカウントの「あいさつメッセージ」機能で設定する。
+        return
+
+    @handler.add(MessageEvent, message=TextMessage)
+    def handle_text(event):
+        # このアカウントはお客様向けOA（ランチネット）と同一チャンネルのため、
+        # 身元不明の送信者には一切返信しない。返信するのは「有効な連携コードが
+        # 一致したとき」だけにする（一般客への誤返信を防ぐ）。
+        text = event.message.text.strip()
+
+        # 連携コードは6桁数字。それ以外のメッセージ（お客様の問い合わせ等）は無視。
+        if not (text.isdigit() and len(text) == 6):
+            return
+
+        line_uid = event.source.user_id
+        from .line_bot import _get_line_api
+        from linebot.models import TextSendMessage
+        api = _get_line_api()
+        if api is None:
+            return
+
+        # セッションを使わず全ユーザーのセッションを検索できないため、
+        # 全アクティブセッションを走査してコードと照合する（将来は専用モデル化予定）。
+        from django.contrib.sessions.models import Session
+        from django.utils import timezone as tz
+        for session in Session.objects.filter(expire_date__gt=tz.now()):
+            data = session.get_decoded()
+            if data.get('line_link_code') == text:
+                user_id = data.get('line_link_user_id')
+                if user_id:
+                    try:
+                        profile = UserProfile.objects.get(user_id=user_id)
+                        profile.line_user_id = line_uid
+                        profile.notify_via_line = True
+                        profile.save()
+                        api.reply_message(event.reply_token, TextSendMessage(text='LINE連携が完了しました！'))
+                    except UserProfile.DoesNotExist:
+                        pass
+                return
+        # 一致しなかった場合も返信しない（お客様が偶然6桁を送った可能性があるため）。
+        return
+
     signature = request.headers.get('X-Line-Signature', '')
     body = request.body.decode('utf-8')
 
     try:
-        from linebot.models import FollowEvent, MessageEvent, TextMessage
-        from linebot.exceptions import InvalidSignatureError
-
-        @handler.add(FollowEvent)
-        def handle_follow(event):
-            # 友だち追加した人がスタッフか一般のお客さんか判別できないため、
-            # ここではシフト連携の案内を送らない（一般客に案内が出るのを防ぐ）。
-            # お客さま向けの挨拶は LINE公式アカウントの「あいさつメッセージ」機能で設定する。
-            return
-
-        @handler.add(MessageEvent, message=TextMessage)
-        def handle_text(event):
-            text = event.message.text.strip()
-            reply_token = event.reply_token
-            line_uid = event.source.user_id
-
-            from .line_bot import _get_line_api
-            from linebot.models import TextSendMessage
-            api = _get_line_api()
-            if api is None:
-                return
-
-            # セッションを使わず全ユーザーのセッションを検索できないため、
-            # 6桁数字のメッセージを受信したらコードと照合する
-            if text.isdigit() and len(text) == 6:
-                from django.contrib.sessions.models import Session
-                from django.utils import timezone as tz
-                matched = False
-                for session in Session.objects.filter(expire_date__gt=tz.now()):
-                    data = session.get_decoded()
-                    if data.get('line_link_code') == text:
-                        user_id = data.get('line_link_user_id')
-                        if user_id:
-                            try:
-                                profile = UserProfile.objects.get(user_id=user_id)
-                                profile.line_user_id = line_uid
-                                profile.notify_via_line = True
-                                profile.save()
-                                api.reply_message(reply_token, TextSendMessage(text='LINE連携が完了しました！'))
-                                matched = True
-                            except UserProfile.DoesNotExist:
-                                pass
-                        break
-                if not matched:
-                    api.reply_message(reply_token, TextSendMessage(text='コードが一致しませんでした。アプリで新しいコードを発行してください。'))
-            else:
-                api.reply_message(reply_token, TextSendMessage(text='シフト管理アプリのLINE Botです。アプリ内で連携コードを発行してここに入力してください。'))
-
         handler.handle(body, signature)
+    except InvalidSignatureError:
+        logger.warning('LINE Webhook: 署名検証に失敗しました。')
+        return HttpResponse(status=400)
     except Exception:
-        pass
+        logger.exception('LINE Webhook: ハンドラ処理中に例外が発生しました。')
 
     return HttpResponse(status=200)
 
