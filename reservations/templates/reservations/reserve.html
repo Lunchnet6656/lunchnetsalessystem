@@ -1,0 +1,261 @@
+{% load static reserve_extras %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ご予約 | {{ location.name }}｜ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:480px;margin:0 auto;padding:16px 16px 116px;}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:16px;margin-bottom:14px;}
+  h1{font-size:20px;margin:0 0 8px;color:var(--ln-color-text-strong);}
+  .meta{font-size:13px;color:var(--ln-color-text-muted);margin:0;line-height:1.7;}
+  .datesel{margin-top:10px;}
+  .datesel label{font-size:13px;color:var(--ln-color-text-strong);display:block;margin-bottom:4px;}
+  select,input[type=number],input[type=text]{font-size:16px;padding:8px;
+    border:1px solid var(--ln-color-border);border-radius:8px;background:var(--ln-color-white);
+    color:var(--ln-color-text);}
+  .item{padding:12px 0;border-bottom:1px solid var(--ln-color-divider);}
+  .item:last-child{border-bottom:none;}
+  .item .name{font-size:15px;color:var(--ln-color-text-strong);margin-bottom:6px;}
+  .item .name .price{font-size:13px;color:var(--ln-color-text-muted);margin-left:6px;}
+  .remain{display:inline-block;font-size:12px;margin-left:8px;color:var(--ln-color-text-muted);}
+  .remain.low{color:var(--ln-color-danger);font-weight:bold;}
+  .sizes{display:flex;gap:8px;}
+  .size{flex:1;text-align:center;}
+  .size-label{display:block;font-size:12px;color:var(--ln-color-text-muted);margin-bottom:4px;}
+  .size-label small{color:var(--ln-color-text-muted);font-size:11px;}
+  .stepper{display:flex;align-items:stretch;border:1px solid var(--ln-color-border);
+    border-radius:8px;overflow:hidden;background:var(--ln-color-white);
+    /* 連打時のダブルタップ・ズームだけ無効化（ピンチズームは残す＝視覚配慮を壊さない） */
+    touch-action:manipulation;}
+  .stepper .step{flex:0 0 34px;border:none;background:var(--ln-color-body-bg);
+    color:var(--ln-color-text-strong);font-size:20px;line-height:1;cursor:pointer;
+    touch-action:manipulation;user-select:none;-webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;}
+  .stepper .step:active{background:var(--ln-color-border);}
+  .stepper input{flex:1;width:100%;min-width:0;border:none;border-radius:0;
+    text-align:center;font-size:17px;background:var(--ln-color-white);color:var(--ln-color-text-muted);
+    -webkit-appearance:none;-moz-appearance:textfield;appearance:none;
+    border-left:1px solid var(--ln-color-border);border-right:1px solid var(--ln-color-border);}
+  .stepper input::-webkit-outer-spin-button,
+  .stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .stepper input.has{color:var(--ln-color-brand);font-weight:bold;}
+  .soldout{color:var(--ln-color-danger);font-size:13px;font-weight:bold;}
+  .total-card{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    background:var(--ln-color-white);border-top:1px solid var(--ln-color-border);
+    box-shadow:var(--ln-shadow-nav);padding:12px 16px;}
+  .total-card .sum{font-size:18px;font-weight:bold;color:var(--ln-color-text-strong);}
+  .btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;
+    background:var(--ln-color-brand);color:var(--ln-color-white);font-size:16px;font-weight:bold;
+    margin-top:8px;cursor:pointer;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .hint{font-size:12px;color:var(--ln-color-text-muted);text-align:center;margin:6px 0 0;}
+  .err{background:#fdecec;border:1px solid var(--ln-color-danger);color:var(--ln-color-danger);
+    padding:10px 12px;border-radius:8px;font-size:14px;margin-bottom:12px;}
+  label.fld{display:block;font-size:14px;margin-bottom:6px;color:var(--ln-color-text-strong);}
+  .policy{font-size:13px;color:var(--ln-color-text-muted);line-height:1.7;}
+  .policy .chk{display:flex;gap:8px;align-items:flex-start;margin-top:10px;
+    font-size:14px;color:var(--ln-color-text-strong);}
+  .closed{color:var(--ln-color-danger);font-weight:bold;margin:0;}
+  .greet{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;
+    color:var(--ln-color-text-strong);font-weight:bold;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  {% include "reservations/_masthead.html" %}
+  <div class="card">
+    <h1>{{ location.name }}</h1>
+    {% if is_open %}
+    <form method="get" class="datesel">
+      <label for="date">受取日</label>
+      <select id="date" name="date" onchange="this.form.submit()">
+        {% for d in selectable_dates %}
+        <option value="{{ d|date:'Y-m-d' }}" {% if d == pickup_date %}selected{% endif %}>{{ d|jp_date }}</option>
+        {% endfor %}
+      </select>
+      <p class="meta" style="margin-top:8px;">締切：{{ deadline|date:"n月j日 H:i" }} まで</p>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <div id="line-gate" class="err" style="display:none;"></div>
+  <div id="greet" class="greet" style="display:none;"></div>
+  <p style="text-align:right;margin:0 0 12px;">
+    <a href="{% url 'reservations:my_reservations' %}" style="font-size:13px;color:var(--ln-color-brand);font-weight:bold;text-decoration:none;">ご予約の確認・履歴 ›</a>
+  </p>
+
+  {% if not is_open %}
+    <div class="card"><p class="closed">いまご予約いただける日がありません（受付は前営業日16時まで）。</p></div>
+  {% elif not has_menu %}
+    <div class="card"><p class="meta">この日のメニューはまだ準備中です。少し時間をおいてからお試しください。</p></div>
+  {% else %}
+  <form method="post" action="{% url 'reservations:reserve_submit' token %}" id="resform">
+    {% csrf_token %}
+    <input type="hidden" name="pickup_date" value="{{ pickup_date|date:'Y-m-d' }}">
+    <input type="hidden" name="line_access_token" id="line_access_token">
+    <div class="card">
+      {% for row in rows %}
+      <div class="item" data-price="{{ row.price|floatformat:0 }}">
+        <div class="name">{{ row.product.name }}<span class="price">{{ row.price|floatformat:0 }}円</span>
+          {% if row.remaining > 0 %}<span class="remain{% if row.remaining <= 3 %} low{% endif %}">残り{{ row.remaining }}個</span>{% endif %}</div>
+        {% if row.remaining > 0 %}
+        <div class="sizes">
+          <div class="size">
+            <span class="size-label">大盛り<small>+{{ surcharge|floatformat:0 }}円</small></span>
+            <div class="stepper">
+              <button type="button" class="step" data-dir="-1" aria-label="大盛りを1つ減らす">−</button>
+              <input type="number" name="large_{{ row.product.id }}" class="q q-large" min="0" max="{{ row.remaining }}" value="0" inputmode="numeric" readonly>
+              <button type="button" class="step" data-dir="1" aria-label="大盛りを1つ増やす">＋</button>
+            </div>
+          </div>
+          <div class="size">
+            <span class="size-label">普通</span>
+            <div class="stepper">
+              <button type="button" class="step" data-dir="-1" aria-label="普通を1つ減らす">−</button>
+              <input type="number" name="regular_{{ row.product.id }}" class="q q-regular" min="0" max="{{ row.remaining }}" value="0" inputmode="numeric" readonly>
+              <button type="button" class="step" data-dir="1" aria-label="普通を1つ増やす">＋</button>
+            </div>
+          </div>
+          <div class="size">
+            <span class="size-label">小盛り</span>
+            <div class="stepper">
+              <button type="button" class="step" data-dir="-1" aria-label="小盛りを1つ減らす">−</button>
+              <input type="number" name="small_{{ row.product.id }}" class="q q-small" min="0" max="{{ row.remaining }}" value="0" inputmode="numeric" readonly>
+              <button type="button" class="step" data-dir="1" aria-label="小盛りを1つ増やす">＋</button>
+            </div>
+          </div>
+        </div>
+        {% else %}<span class="soldout">予約満了</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card policy">
+      <p style="margin:0;">
+        ・キャンセルは受取日の前営業日16時まで可能です。<br>
+        ・当日は販売終了までにお受け取りください。過ぎた場合はキャンセル扱いになることがあります。<br>
+        ・お支払いは受け取り時に現金です。
+      </p>
+      <label class="chk"><input type="checkbox" name="agree_policy" value="1"> 上記を確認しました</label>
+    </div>
+
+    <div class="total-card">
+      <div class="sum">合計：<span id="total">0</span>円</div>
+      <button class="btn" type="submit" id="submitBtn">この内容で予約する</button>
+      <p class="hint" id="submitHint">メニューの個数を選んでください</p>
+    </div>
+  </form>
+
+  <script>
+    (function(){
+      var SUR = {{ surcharge|floatformat:0 }};
+      var form = document.getElementById('resform');
+      var submitBtn = document.getElementById('submitBtn');
+      var submitHint = document.getElementById('submitHint');
+
+      // ＋／− ステッパー：readonly な数量を増減し、input イベントで合計を再計算させる
+      form.querySelectorAll('.step').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var input = btn.parentElement.querySelector('input');
+          var max = parseInt(input.max || '0', 10);
+          var v = (parseInt(input.value || '0', 10) || 0) + parseInt(btn.dataset.dir, 10);
+          if(v < 0){ v = 0; }
+          if(v > max){ v = max; }
+          input.value = v;
+          input.classList.toggle('has', v > 0);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+      });
+
+      function recalc(){
+        var total = 0;
+        form.querySelectorAll('.item').forEach(function(it){
+          var price = parseInt(it.dataset.price || '0', 10);
+          var L = parseInt((it.querySelector('.q-large')||{}).value || '0', 10) || 0;
+          var R = parseInt((it.querySelector('.q-regular')||{}).value || '0', 10) || 0;
+          var S = parseInt((it.querySelector('.q-small')||{}).value || '0', 10) || 0;
+          total += price * (R + S) + (price + SUR) * L;
+        });
+        document.getElementById('total').textContent = total.toLocaleString();
+        // 0個 or 同意未チェックでは押せない（friend ゲートで止められている時は触らない）
+        if(submitBtn && submitBtn.dataset.gated !== '1'){
+          var agreed = (form.querySelector('[name=agree_policy]') || {}).checked;
+          submitBtn.disabled = (total === 0) || !agreed;
+          if(total === 0){ submitHint.textContent = 'メニューの個数を選んでください'; submitHint.style.display = 'block'; }
+          else if(!agreed){ submitHint.textContent = '「上記を確認しました」にチェックしてください'; submitHint.style.display = 'block'; }
+          else { submitHint.style.display = 'none'; }
+        }
+      }
+      form.addEventListener('input', recalc);
+      form.addEventListener('change', recalc);
+      // 二重送信防止：送信が始まったらボタンを無効化（setTimeoutで送信自体は通す）
+      form.addEventListener('submit', function(){
+        setTimeout(function(){
+          if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = '送信中…'; }
+        }, 0);
+      });
+      recalc();
+    })();
+  </script>
+
+  <script>
+    // 案L：LIFFで本人のアクセストークンを取り、(1)友だち判定 (2)会員登録済みか判定する。
+    // 未登録なら登録画面（お名前設定）へ誘導。登録済みなら名前を表示して予約へ進む。
+    (function(){
+      var LIFF_ID = "{{ liff_id }}";
+      var REQUIRE = {{ require_line|yesno:"true,false" }};
+      var TOKEN = "{{ token }}";
+      var WHOAMI_URL = "{% url 'reservations:reserve_whoami' %}";
+      var REGISTER_URL = "{% url 'reservations:register_member' %}";
+      var form = document.getElementById('resform');
+      var tokenField = document.getElementById('line_access_token');
+      var submitBtn = document.getElementById('submitBtn');
+      var submitHint = document.getElementById('submitHint');
+      var greet = document.getElementById('greet');
+      var csrf = form ? (form.querySelector('[name=csrfmiddlewaretoken]') || {}).value : '';
+      function gate(msg){
+        var g = document.getElementById('line-gate');
+        if(g){ g.style.display = 'block'; g.textContent = msg; }
+        if(submitHint){ submitHint.style.display = 'none'; }
+        if(submitBtn){ submitBtn.dataset.gated = '1'; submitBtn.disabled = true; }
+      }
+      if(!window.liff || !LIFF_ID){ return; }  // SDK未読込／未設定（開発フォールバックはそのまま使える）
+      liff.init({ liffId: LIFF_ID }).then(function(){
+        if(!liff.isLoggedIn()){ if(REQUIRE){ liff.login(); } return; }
+        var at = liff.getAccessToken();
+        if(tokenField && at){ tokenField.value = at; }
+        liff.getFriendship().then(function(fs){
+          if(!fs.friendFlag){
+            gate("ご予約には、ランチネットLINEの友だち追加が必要です。追加してから開き直してください。");
+          }
+        }).catch(function(){});
+        // 会員登録済みか判定 → 未登録は登録画面へ、登録済みは名前を表示
+        fetch(WHOAMI_URL, {
+          method: 'POST',
+          headers: {'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'line_access_token=' + encodeURIComponent(at),
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if(!d.registered){
+            window.location.href = REGISTER_URL + '?loc=' + encodeURIComponent(TOKEN);
+            return;
+          }
+          if(greet && d.name){ greet.textContent = d.name + ' さんでご予約します'; greet.style.display = 'block'; }
+        }).catch(function(){});
+      }).catch(function(){
+        if(REQUIRE){ gate("LINEのトーク画面から開き直してください。"); }
+      });
+    })();
+  </script>
+  {% endif %}
+</div>
+</body>
+</html>

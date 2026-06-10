@@ -1,0 +1,103 @@
+{% load static reserve_extras %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ご予約の確認｜ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:480px;margin:0 auto;padding:16px;}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:16px;margin-bottom:14px;}
+  h1{font-size:20px;margin:0 0 8px;color:var(--ln-color-text-strong);}
+  .meta{font-size:13px;color:var(--ln-color-text-muted);margin:0;line-height:1.7;}
+  .rsv-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+  .rsv-num{font-size:13px;color:var(--ln-color-text-muted);letter-spacing:1px;}
+  .rsv-date{font-size:16px;font-weight:bold;color:var(--ln-color-text-strong);}
+  .badge{font-size:12px;padding:2px 8px;border-radius:999px;
+    background:var(--ln-color-body-bg);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
+  .badge.received{color:var(--ln-color-brand-dark);border-color:var(--ln-color-brand);}
+  .badge.handed{color:var(--ln-color-success);border-color:var(--ln-color-success);background:var(--ln-color-success-bg);}
+  .badge.noshow{color:var(--ln-color-danger);border-color:var(--ln-color-danger);background:#fdecec;}
+  .badge.cancelled{color:var(--ln-color-text-muted);}
+  a.rsv-link{display:block;text-decoration:none;color:inherit;}
+  a.rsv-link:active{background:var(--ln-color-body-bg);}
+  .rsv-go{font-size:13px;font-weight:bold;color:var(--ln-color-brand);text-align:right;margin:10px 0 0;}
+  .item{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;
+    border-bottom:1px solid var(--ln-color-divider);}
+  .item:last-child{border-bottom:none;}
+  .total{font-size:14px;margin-top:8px;color:var(--ln-color-text-strong);}
+  .err{background:#fdecec;border:1px solid var(--ln-color-danger);color:var(--ln-color-danger);
+    padding:10px 12px;border-radius:8px;font-size:14px;margin-bottom:12px;}
+  .btn{display:block;width:100%;box-sizing:border-box;padding:13px;border-radius:10px;
+    background:var(--ln-color-brand);color:var(--ln-color-white);font-size:16px;font-weight:bold;
+    text-align:center;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  {% include "reservations/_masthead.html" with masthead_title="ご予約の確認" %}
+  <div class="card"><h1>ご予約の確認</h1>
+    <p class="meta">あなたのLINEに紐づくご予約の一覧です。</p></div>
+
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+  {% if loaded %}
+    {% if reservations %}
+      {% for r in reservations %}
+      <a class="card rsv-link" href="{% url 'reservations:reserve_complete' r.reservation_number %}">
+        <div class="rsv-head">
+          <span class="rsv-date">{{ r.pickup_date|jp_date }} 受取</span>
+          <span class="badge {{ r.status }}">{{ r.get_status_display }}</span>
+        </div>
+        <p class="meta">{{ r.sales_location.name }}　予約番号 <span class="rsv-num">{{ r.reservation_number }}</span></p>
+        <div style="margin-top:8px;">
+          {% for item in r.items.all %}
+          <div class="item">
+            <span>{{ item.product_name }}{% if item.quantity_large %}　大{{ item.quantity_large }}{% endif %}{% if item.quantity_regular %}　並{{ item.quantity_regular }}{% endif %}{% if item.quantity_small %}　小{{ item.quantity_small }}{% endif %}</span>
+            <span>{{ item.subtotal|floatformat:0 }}円</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="total">合計 {{ r.total_quantity }} 個 ／ {{ r.total_amount|floatformat:0 }}円（受け取り時に現金）</p>
+        <p class="rsv-go">{% if r.status == 'received' %}控え・受け取り完了はこちら{% else %}控えを見る{% endif %} ›</p>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="card"><p class="meta">ご予約はまだありません。</p></div>
+    {% endif %}
+    {% if liff_reserve_url %}<a class="btn" href="{{ liff_reserve_url }}">新しく予約する</a>{% endif %}
+  {% else %}
+    <div class="card"><p class="meta" id="loading">読み込み中…</p></div>
+    <form method="post" id="mineform" style="display:none;">
+      {% csrf_token %}
+      <input type="hidden" name="line_access_token" id="line_access_token">
+    </form>
+    <script>
+      // LIFFで本人のアクセストークンを取得し、自分自身へPOSTして履歴を取得する。
+      (function(){
+        var LIFF_ID = "{{ liff_id }}";
+        var REQUIRE = {{ require_line|yesno:"true,false" }};
+        var form = document.getElementById('mineform');
+        function submitWith(tok){
+          document.getElementById('line_access_token').value = tok || '';
+          form.submit();
+        }
+        if(!window.liff || !LIFF_ID){ if(!REQUIRE){ submitWith(''); } return; }
+        liff.init({ liffId: LIFF_ID }).then(function(){
+          if(!liff.isLoggedIn()){ if(REQUIRE){ liff.login(); } else { submitWith(''); } return; }
+          submitWith(liff.getAccessToken());
+        }).catch(function(){
+          if(!REQUIRE){ submitWith(''); }
+          else { document.getElementById('loading').textContent = 'LINEのトーク画面から開き直してください。'; }
+        });
+      })();
+    </script>
+  {% endif %}
+</div>
+</body>
+</html>

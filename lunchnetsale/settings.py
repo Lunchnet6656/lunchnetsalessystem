@@ -43,6 +43,21 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = csv_env("ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = csv_env("CSRF_TRUSTED_ORIGINS")
 
+# --- LINE予約（LIFF・案L）設定 ---
+# LIFF ID はフロントに露出する公開値。チャネルシークレット/アクセストークン等の機密は置かない。
+LIFF_ID = os.environ.get("LIFF_ID", "2010353511-5kQfbV06")
+# 顧客がQRなしで再注文するための「予約リンク」＝LIFF URL（LINEで開くと予約フォームになる）。
+# 確定通知・控え・履歴に載せる。テスト中は単一拠点のLIFFに解決。複数拠点化は将来 env で上書き。
+LIFF_RESERVE_URL = os.environ.get("LIFF_RESERVE_URL") or f"https://liff.line.me/{LIFF_ID}"
+# 登録済みテスト客にだけ出す「予約リッチメニュー」のID（setup_reservation_richmenu で採番）。
+LINE_RESERVE_RICHMENU_ID = os.environ.get("LINE_RESERVE_RICHMENU_ID", "")
+# ※ push通知の送信元 LINE_CHANNEL_ACCESS_TOKEN は下の「LINE Bot 設定」で定義（重複定義を排除）。
+# 予約に LINE 連携（友だち必須＋userId本人識別）を要求するか。
+# 本番=必須。ローカル開発のみ False で、LINE未連携の仮会員フォールバックを許可（動作確認用）。
+RESERVE_REQUIRE_LINE = (
+    os.environ.get("RESERVE_REQUIRE_LINE", "True" if IS_PRODUCTION else "False") == "True"
+)
+
 # --- Heroku で HTTPS を正しく認識させる（超重要） ---
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
@@ -74,6 +89,7 @@ INSTALLED_APPS = [
     'shifts',
     'orders',
     'quest',
+    'reservations',
     'lunchnetsale',
     'django.contrib.humanize',
     'axes',

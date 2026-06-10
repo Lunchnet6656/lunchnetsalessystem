@@ -107,6 +107,23 @@ class SalesLocation(models.Model):
         help_text="QR起因で Cloudflare publish した最終時刻。60秒スロットルの判定に使う。",
     )
 
+    # --- 予約システム（個人セルフ取り置き）---
+    # 仕様: .company/engineering/harness/specs/w001-予約システム-要件定義.md
+    reservation_enabled = models.BooleanField(
+        default=False,
+        verbose_name="予約受付",
+        help_text="ON の拠点だけセルフ予約を受け付ける。テスト店舗だけ ON にするキルスイッチ。",
+    )
+    qr_reserve_token = models.CharField(
+        max_length=32, unique=True, db_index=True, default=_generate_qr_token,
+        verbose_name="予約QRトークン",
+    )
+    default_product_cap = models.IntegerField(
+        default=10,
+        verbose_name="1メニューあたりの予約上限/日",
+        help_text="1メニューを1日に何個まで予約で確保できるか。既定10。",
+    )
+
     def __str__(self):
         return f"{self.name}"
 

@@ -1,0 +1,83 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>お名前の登録 | ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:480px;margin:0 auto;padding:16px;}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:16px;margin-bottom:14px;}
+  h1{font-size:18px;margin:0 0 8px;color:var(--ln-color-text-strong);}
+  .meta{font-size:13px;color:var(--ln-color-text-muted);margin:0;line-height:1.7;}
+  label.fld{display:block;font-size:14px;margin-bottom:6px;color:var(--ln-color-text-strong);}
+  input[type=text]{font-size:16px;padding:10px;border:1px solid var(--ln-color-border);
+    border-radius:8px;background:var(--ln-color-white);color:var(--ln-color-text);
+    width:100%;box-sizing:border-box;}
+  .btn{display:block;width:100%;box-sizing:border-box;padding:13px;border:none;border-radius:10px;
+    background:var(--ln-color-brand);color:var(--ln-color-white);font-size:16px;font-weight:bold;
+    margin-top:14px;cursor:pointer;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .err{background:#fdecec;border:1px solid var(--ln-color-danger);color:var(--ln-color-danger);
+    padding:10px 12px;border-radius:8px;font-size:14px;margin-bottom:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  {% include "reservations/_masthead.html" with masthead_title="お名前の登録" %}
+  <div class="card">
+    <h1>お名前を教えてください</h1>
+    <p class="meta">受け取りのときに、このお名前でお呼びします。<br>最初の1回だけ設定すれば、次回からは入力不要ですぐご予約いただけます。</p>
+  </div>
+
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <div id="line-gate" class="err" style="display:none;"></div>
+
+  <form method="post" action="{% url 'reservations:register_member' %}" id="regform">
+    {% csrf_token %}
+    <input type="hidden" name="loc" value="{{ loc }}">
+    <input type="hidden" name="line_access_token" id="line_access_token">
+    <div class="card">
+      <label class="fld" for="name">お名前（呼び出し用）</label>
+      <input type="text" id="name" name="name" value="{{ name }}" placeholder="例）田中" maxlength="100">
+      <p class="meta" style="margin-top:8px;">LINEのお名前を初期表示しています。変更できます。</p>
+    </div>
+    <button class="btn" type="submit" id="submitBtn">この名前で登録してすすむ</button>
+  </form>
+
+  <script>
+    (function(){
+      var LIFF_ID = "{{ liff_id }}";
+      var REQUIRE = {{ require_line|yesno:"true,false" }};
+      var tokenField = document.getElementById('line_access_token');
+      var submitBtn = document.getElementById('submitBtn');
+      var nameInput = document.getElementById('name');
+      function gate(msg){
+        var g = document.getElementById('line-gate');
+        if(g){ g.style.display='block'; g.textContent = msg; }
+        if(submitBtn){ submitBtn.disabled = true; }
+      }
+      if(!window.liff || !LIFF_ID){ return; }
+      liff.init({ liffId: LIFF_ID }).then(function(){
+        if(!liff.isLoggedIn()){ if(REQUIRE){ liff.login(); } return; }
+        var at = liff.getAccessToken();
+        if(tokenField && at){ tokenField.value = at; }
+        liff.getProfile().then(function(p){
+          if(nameInput && !nameInput.value && p && p.displayName){ nameInput.value = p.displayName; }
+        }).catch(function(){});
+        liff.getFriendship().then(function(fs){
+          if(!fs.friendFlag){ gate("ご予約には、ランチネットLINEの友だち追加が必要です。追加してから開き直してください。"); }
+        }).catch(function(){});
+      }).catch(function(){
+        if(REQUIRE){ gate("LINEのトーク画面から開き直してください。"); }
+      });
+    })();
+  </script>
+</div>
+</body>
+</html>

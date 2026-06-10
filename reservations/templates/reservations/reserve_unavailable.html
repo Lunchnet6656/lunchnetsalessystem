@@ -1,0 +1,36 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>予約できません</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:480px;margin:0 auto;padding:16px;}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:24px;margin-top:32px;
+    border-top:6px solid var(--ln-color-danger);}
+  h1{font-size:19px;margin:0 0 12px;color:var(--ln-color-danger);}
+  p{font-size:15px;line-height:1.7;color:var(--ln-color-text);margin:8px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  {% include "reservations/_masthead.html" %}
+  <div class="card">
+    {% if reason == "invalid" %}
+      <h1>このQRコードは使用できません</h1>
+      <p>QRコードが正しく読み取れなかったか、無効になっています。</p>
+      <p>お手数ですが、売り場のスタッフにお声がけください。</p>
+    {% else %}
+      <h1>現在ご予約を受け付けていません</h1>
+      <p>{% if location %}{{ location.name }} では、{% endif %}ただいま予約を試験的に一部店舗でのみ実施しています。</p>
+      <p>この店舗での予約開始まで、もうしばらくお待ちください。</p>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{% load static %}
+<style>
+  /* 出店状況ページ（lunchnet-status-page）の masthead と同じトーンに合わせる */
+  .ln-masthead{text-align:center;padding-bottom:18px;
+    border-bottom:2px solid var(--ln-color-brand);margin-bottom:14px;}
+  .ln-masthead .brand-logo{display:block;width:100%;max-width:230px;height:auto;margin:0 auto;}
+  .ln-masthead .title{font-size:26px;font-weight:800;margin:12px 0 0;
+    letter-spacing:.02em;color:var(--ln-color-text-strong);}
+</style>
+<header class="ln-masthead">
+  <img class="brand-logo" src="{% static 'images/lunchnet-logo-full.png' %}" alt="ランチネット">
+  <p class="title">{{ masthead_title|default:"お弁当のご予約" }}</p>
+</header>

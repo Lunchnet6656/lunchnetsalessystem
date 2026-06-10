@@ -1,0 +1,140 @@
+{% load static reserve_extras %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ご予約内容｜ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:480px;margin:0 auto;padding:16px;}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:20px;margin-bottom:14px;}
+  h1{font-size:19px;margin:0 0 14px;color:var(--ln-color-brand-dark);}
+  .name-hero{text-align:center;padding:6px 0 2px;}
+  .name-hero .lead{font-size:13px;color:var(--ln-color-text-muted);margin:0 0 4px;}
+  .name-hero .name{font-size:30px;font-weight:800;color:var(--ln-color-text-strong);
+    letter-spacing:1px;line-height:1.2;}
+  .name-hero .name .suffix{font-size:16px;font-weight:600;color:var(--ln-color-text-muted);margin-left:4px;}
+  .name-note{font-size:13px;color:var(--ln-color-text-muted);text-align:center;margin:8px 0 0;line-height:1.7;}
+  .meta{font-size:14px;color:var(--ln-color-text-muted);line-height:1.9;margin:14px 0 0;}
+  .subnum{margin-top:14px;padding-top:12px;border-top:1px dashed var(--ln-color-divider);
+    font-size:13px;color:var(--ln-color-text-muted);text-align:center;}
+  .subnum b{font-size:16px;letter-spacing:1px;color:var(--ln-color-text);font-weight:700;}
+  .shot{display:flex;gap:8px;align-items:flex-start;margin-top:14px;padding:10px 12px;
+    background:var(--ln-color-body-bg);border-radius:8px;font-size:13px;
+    color:var(--ln-color-text);line-height:1.6;}
+  .item{display:flex;justify-content:space-between;padding:8px 0;
+    border-bottom:1px solid var(--ln-color-divider);font-size:15px;}
+  .item:last-child{border-bottom:none;}
+  .note{font-size:13px;color:var(--ln-color-text-muted);margin-top:10px;}
+  .pickup-note{font-size:13px;color:var(--ln-color-text-muted);line-height:1.7;margin:0;}
+  .btn{display:block;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:10px;
+    background:var(--ln-color-brand);color:var(--ln-color-white);font-size:16px;font-weight:bold;
+    text-align:center;text-decoration:none;cursor:pointer;}
+  .btn.secondary{background:var(--ln-color-white);color:var(--ln-color-brand);
+    border:1.5px solid var(--ln-color-brand);}
+  .btn.done{background:var(--ln-color-success);}  /* 受け取り完了＝完了アクションは緑 */
+  .btn.cancel{background:var(--ln-color-white);color:var(--ln-color-danger);
+    border:1.5px solid var(--ln-color-danger);}
+  .btn + .btn, form + form, form + .btn{margin-top:8px;}
+  .dup{background:#fff6e9;border:1px solid var(--ln-color-brand);color:var(--ln-color-brand-dark);
+    padding:11px 13px;border-radius:8px;font-size:14px;margin-bottom:12px;line-height:1.6;}
+  .statusbar{padding:12px 14px;border-radius:10px;font-size:14px;font-weight:bold;
+    text-align:center;margin-bottom:14px;}
+  .statusbar.done{background:var(--ln-color-success-bg);color:var(--ln-color-success);}
+  .statusbar.cancelled{background:var(--ln-color-body-bg);color:var(--ln-color-text-muted);}
+  .statusbar.noshow{background:#fdecec;color:var(--ln-color-danger);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  {% include "reservations/_masthead.html" with masthead_title="ご予約内容" %}
+  {% if dup %}<div class="dup">すでにこの受取日のご予約があります。内容は下記のとおりです（新しい予約は作成していません）。変更したい場合は「予約を取り消す」で取り消してから、取り直してください。</div>{% endif %}
+  {% if denied %}<div class="dup">ご本人の確認ができませんでした。お手数ですが、LINEのトーク画面（予約リンク）から開き直してから操作してください。</div>{% endif %}
+  <div class="card">
+    {% if reservation.status == 'cancelled' %}
+      <h1>このご予約は取消済みです</h1>
+    {% elif reservation.status == 'handed' %}
+      <h1>受け取り完了しました</h1>
+    {% elif reservation.status == 'noshow' %}
+      <h1>受け取り期限を過ぎました</h1>
+    {% else %}
+      <h1>ご予約を承りました</h1>
+    {% endif %}
+    <div class="name-hero">
+      {% if reservation.status == 'received' %}<p class="lead">受け取り時に、このお名前をお伝えください</p>{% endif %}
+      <div class="name">{{ reservation.member.name }}<span class="suffix">さん</span></div>
+    </div>
+    {% if reservation.status == 'received' %}<p class="name-note">このお名前で、お弁当を別袋にご用意してお待ちします。</p>{% endif %}
+    <p class="meta">
+      受取店舗：{{ reservation.sales_location.name }}<br>
+      受取日：{{ reservation.pickup_date|jp_date }}<br>
+      お支払い：受け取り時に現金
+    </p>
+    <div class="subnum">お問い合わせ番号　<b>{{ reservation.reservation_number }}</b></div>
+  </div>
+
+  {% if reservation.status == 'received' %}
+    <form method="post" action="{% url 'reservations:reserve_self_handover' reservation.reservation_number %}"
+          style="margin-bottom:14px;">
+      {% csrf_token %}
+      <input type="hidden" name="line_access_token" class="liff-tok">
+      <button class="btn done" type="submit">受け取り完了にする</button>
+    </form>
+  {% elif reservation.status == 'handed' %}
+    <div class="statusbar done">✅ 受け取り完了済みです。ありがとうございました！</div>
+  {% elif reservation.status == 'cancelled' %}
+    <div class="statusbar cancelled">この予約は取り消されました。もう一度ご予約いただけます。</div>
+  {% elif reservation.status == 'noshow' %}
+    <div class="statusbar noshow">受け取り期限を過ぎたため、キャンセル扱いになりました。</div>
+  {% endif %}
+
+  <div class="card">
+    {% for item in reservation.items.all %}
+    <div class="item">
+      <span>{{ item.product_name }}{% if item.quantity_large %}　大{{ item.quantity_large }}{% endif %}{% if item.quantity_regular %}　並{{ item.quantity_regular }}{% endif %}{% if item.quantity_small %}　小{{ item.quantity_small }}{% endif %}</span>
+      <span>{{ item.subtotal|floatformat:0 }}円</span>
+    </div>
+    {% endfor %}
+    <p class="note">合計 {{ reservation.total_quantity }} 個　／　{{ reservation.total_amount|floatformat:0 }}円（受け取り時に現金）</p>
+  </div>
+
+  <div class="card">
+    <p class="pickup-note">受け取りは、いつもの <b>{{ reservation.sales_location.name }}</b> の販売場所・販売時間内にお越しください。</p>
+  </div>
+
+  {% if reservation.status == 'received' %}
+    <form method="post" action="{% url 'reservations:reserve_cancel' reservation.reservation_number %}"
+          onsubmit="return confirm('この予約を取り消します。よろしいですか？');">
+      {% csrf_token %}
+      <input type="hidden" name="line_access_token" class="liff-tok">
+      <button class="btn cancel" type="submit">予約を取り消す</button>
+    </form>
+  {% endif %}
+
+  {% if liff_reserve_url %}
+    <a class="btn{% if reservation.status == 'received' %} secondary{% endif %}" href="{{ liff_reserve_url }}">新しく予約する</a>
+  {% endif %}
+  <a class="btn secondary" href="{% url 'reservations:my_reservations' %}">ご予約の確認・履歴を見る</a>
+
+  <script>
+    // 受け取り完了/取消は「本人だけ」が実行できる（IDOR対策）。LIFFで取れるアクセストークンを
+    // 各フォームの隠しフィールドに入れて送信し、サーバーで予約の本人と一致を照合する。
+    (function(){
+      var LIFF_ID = "{{ liff_id }}";
+      var toks = document.querySelectorAll('.liff-tok');
+      if(!toks.length || !window.liff || !LIFF_ID){ return; }
+      liff.init({ liffId: LIFF_ID }).then(function(){
+        if(!liff.isLoggedIn()){ return; }
+        var at = liff.getAccessToken();
+        if(at){ toks.forEach(function(t){ t.value = at; }); }
+      }).catch(function(){});
+    })();
+  </script>
+</div>
+</body>
+</html>

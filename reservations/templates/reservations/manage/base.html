@@ -1,0 +1,73 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}予約管理{% endblock %}｜ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:760px;margin:0 auto;padding:12px 14px 80px;}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:6px 0 10px;}
+  .mhead .t{font-size:18px;font-weight:800;color:var(--ln-color-text-strong);}
+  .mhead .who{font-size:12px;color:var(--ln-color-text-muted);}
+  .mnav{display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--ln-color-brand);padding-bottom:8px;}
+  .mnav a{flex:1;text-align:center;padding:9px 6px;border-radius:8px;text-decoration:none;
+    font-size:14px;font-weight:bold;color:var(--ln-color-text-muted);background:var(--ln-color-white);
+    border:1px solid var(--ln-color-border);}
+  .mnav a.on{background:var(--ln-color-brand);color:var(--ln-color-white);border-color:var(--ln-color-brand);}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:14px;margin-bottom:12px;}
+  .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .filters label{font-size:12px;color:var(--ln-color-text-muted);}
+  select,input[type=date],input[type=number]{font-size:15px;padding:7px 8px;
+    border:1px solid var(--ln-color-border);border-radius:8px;background:var(--ln-color-white);
+    color:var(--ln-color-text);}
+  .summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .stat{flex:1;min-width:74px;background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:10px;padding:8px 10px;text-align:center;}
+  .stat .n{font-size:20px;font-weight:800;color:var(--ln-color-text-strong);line-height:1.2;}
+  .stat .l{font-size:11px;color:var(--ln-color-text-muted);}
+  .stat.meals .n{color:var(--ln-color-brand);}
+  table.grid{width:100%;border-collapse:collapse;font-size:14px;}
+  table.grid th{font-size:12px;color:var(--ln-color-text-muted);text-align:left;
+    padding:6px 8px;border-bottom:2px solid var(--ln-color-border);}
+  table.grid td{padding:8px;border-bottom:1px solid var(--ln-color-divider);vertical-align:top;}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;white-space:nowrap;
+    border:1px solid var(--ln-color-border);color:var(--ln-color-text-muted);background:var(--ln-color-body-bg);}
+  .badge.received{color:var(--ln-color-brand-dark);border-color:var(--ln-color-brand);}
+  .badge.handed{color:var(--ln-color-success);border-color:var(--ln-color-success);background:var(--ln-color-success-bg);}
+  .badge.noshow{color:var(--ln-color-danger);border-color:var(--ln-color-danger);background:#fdecec;}
+  .badge.cancelled{color:var(--ln-color-text-muted);}
+  .btn{display:inline-block;padding:8px 12px;border:none;border-radius:8px;font-size:13px;font-weight:bold;
+    cursor:pointer;text-decoration:none;}
+  .btn-hand{background:var(--ln-color-success);color:#fff;}
+  .btn-noshow{background:var(--ln-color-white);color:var(--ln-color-danger);border:1px solid var(--ln-color-danger);}
+  .btn-undo{background:var(--ln-color-white);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
+  .btn-save{background:var(--ln-color-brand);color:#fff;width:100%;padding:11px;font-size:14px;}
+  .muted{color:var(--ln-color-text-muted);font-size:13px;}
+  .empty{text-align:center;color:var(--ln-color-text-muted);padding:28px 8px;}
+  .inline-form{display:inline;}
+  .menu-lines{font-size:13px;line-height:1.6;}
+  .menu-lines .big{color:var(--ln-color-brand-dark);font-weight:bold;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mhead">
+    <span class="t">🍱 予約管理</span>
+    <span class="who">{{ request.user.get_username }}</span>
+  </header>
+  <nav class="mnav">
+    <a href="{% url 'reservations:manage_pickup' %}" class="{% block nav_pickup %}{% endblock %}">当日受取</a>
+    {% if request.user.is_staff %}
+    <a href="{% url 'reservations:manage_list' %}" class="{% block nav_list %}{% endblock %}">予約一覧</a>
+    <a href="{% url 'reservations:manage_locations' %}" class="{% block nav_loc %}{% endblock %}">拠点設定</a>
+    {% endif %}
+  </nav>
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

@@ -1,0 +1,66 @@
+{% extends "reservations/manage/base.html" %}
+{% load reserve_extras %}
+{% block title %}予約一覧{% endblock %}
+{% block nav_list %}on{% endblock %}
+{% block content %}
+
+<div class="card">
+  <form method="get" class="filters">
+    <label>拠点
+      <select name="loc" onchange="this.form.submit()">
+        <option value="">すべて</option>
+        {% for l in locations %}
+        <option value="{{ l.id }}" {% if f_loc == l.id|stringformat:'s' %}selected{% endif %}>{{ l.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>受取日
+      <input type="date" name="date" value="{{ f_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </label>
+    <label>状態
+      <select name="status" onchange="this.form.submit()">
+        <option value="">すべて</option>
+        {% for v, lbl in status_choices %}
+        <option value="{{ v }}" {% if f_status == v %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if f_loc or f_date or f_status %}<a class="muted" href="{% url 'reservations:manage_list' %}">クリア</a>{% endif %}
+  </form>
+</div>
+
+<div class="summary">
+  <div class="stat"><div class="n">{{ summary.total }}</div><div class="l">件数</div></div>
+  <div class="stat"><div class="n">{{ summary.received }}</div><div class="l">受付済</div></div>
+  <div class="stat"><div class="n">{{ summary.handed }}</div><div class="l">受渡済</div></div>
+  <div class="stat"><div class="n">{{ summary.noshow }}</div><div class="l">ノーショー</div></div>
+  <div class="stat meals"><div class="n">{{ summary.meals }}</div><div class="l">有効食数</div></div>
+</div>
+
+<div class="card">
+{% if reservations %}
+  <table class="grid">
+    <thead>
+      <tr><th>受取日</th><th>拠点</th><th>お名前</th><th>内容</th><th>状態</th></tr>
+    </thead>
+    <tbody>
+      {% for r in reservations %}
+      <tr>
+        <td>{{ r.pickup_date|jp_date }}</td>
+        <td>{{ r.sales_location.name }}</td>
+        <td>{{ r.member.name }}</td>
+        <td class="menu-lines">
+          {% for it in r.items.all %}<div>{{ it.product_name }}{% if it.quantity_large %} 大{{ it.quantity_large }}{% endif %}{% if it.quantity_regular %} 並{{ it.quantity_regular }}{% endif %}{% if it.quantity_small %} 小{{ it.quantity_small }}{% endif %}</div>{% endfor %}
+          <div class="muted">計{{ r.total_quantity }}個 / {{ r.total_amount|floatformat:0 }}円 / No.{{ r.reservation_number }}</div>
+        </td>
+        <td><span class="badge {{ r.status }}">{{ r.get_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if reservations|length >= 300 %}<p class="muted" style="margin-top:10px;">※ 最新300件まで表示しています。絞り込んでください。</p>{% endif %}
+{% else %}
+  <p class="empty">条件に合う予約はありません。</p>
+{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "reservations/manage/base.html" %}
+{% load reserve_extras %}
+{% block title %}当日受取{% endblock %}
+{% block nav_pickup %}on{% endblock %}
+{% block content %}
+
+<div class="card">
+  <form method="get" class="filters">
+    <label>拠点
+      <select name="loc" onchange="this.form.submit()">
+        {% for l in locations %}
+        <option value="{{ l.id }}" {% if location and l.id == location.id %}selected{% endif %}>{{ l.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>受取日
+      <input type="date" name="date" value="{{ pickup|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </label>
+  </form>
+  {% if location %}<p class="muted" style="margin:8px 0 0;">{{ location.name }}　{{ pickup|jp_date }} の受け取り</p>{% endif %}
+</div>
+
+{% if not locations %}
+  <div class="card"><p class="empty">予約を受け付けている拠点がありません。「拠点設定」でONにしてください。</p></div>
+{% else %}
+
+<div class="summary">
+  <div class="stat"><div class="n">{{ summary.received }}</div><div class="l">未受取</div></div>
+  <div class="stat"><div class="n">{{ summary.handed }}</div><div class="l">受渡済</div></div>
+  <div class="stat"><div class="n">{{ summary.noshow }}</div><div class="l">ノーショー</div></div>
+  <div class="stat meals"><div class="n">{{ summary.meals }}</div><div class="l">要準備 食数</div></div>
+</div>
+
+{% if reservations %}
+  {% for r in reservations %}
+  <div class="card" style="padding:12px 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+      <div style="font-size:18px;font-weight:800;color:var(--ln-color-text-strong);">{{ r.member.name }} <span class="muted" style="font-weight:normal;">さん</span></div>
+      <span class="badge {{ r.status }}">{{ r.get_status_display }}</span>
+    </div>
+    <div class="menu-lines" style="margin:6px 0;">
+      {% for it in r.items.all %}
+        <div>{{ it.product_name }}{% if it.quantity_large %}　<span class="big">大{{ it.quantity_large }}</span>{% endif %}{% if it.quantity_regular %}　並{{ it.quantity_regular }}{% endif %}{% if it.quantity_small %}　小{{ it.quantity_small }}{% endif %}</div>
+      {% endfor %}
+    </div>
+    <div class="muted" style="margin-bottom:8px;">合計 {{ r.total_quantity }}個 / {{ r.total_amount|floatformat:0 }}円（現金）　No.{{ r.reservation_number }}</div>
+    <div style="display:flex;gap:8px;">
+      {% if r.status == 'received' %}
+        <form method="post" action="{% url 'reservations:manage_pickup_update' %}" class="inline-form">
+          {% csrf_token %}<input type="hidden" name="reservation_id" value="{{ r.id }}"><input type="hidden" name="action" value="hand">
+          <button class="btn btn-hand" type="submit">受渡済にする</button>
+        </form>
+        <form method="post" action="{% url 'reservations:manage_pickup_update' %}" class="inline-form"
+              onsubmit="return confirm('{{ r.member.name }}さんを「来店なし」にします。よろしいですか？');">
+          {% csrf_token %}<input type="hidden" name="reservation_id" value="{{ r.id }}"><input type="hidden" name="action" value="noshow">
+          <button class="btn btn-noshow" type="submit">来店なし</button>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'reservations:manage_pickup_update' %}" class="inline-form">
+          {% csrf_token %}<input type="hidden" name="reservation_id" value="{{ r.id }}"><input type="hidden" name="action" value="undo">
+          <button class="btn btn-undo" type="submit">未受取に戻す</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="card"><p class="empty">この日のご予約はありません。</p></div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
