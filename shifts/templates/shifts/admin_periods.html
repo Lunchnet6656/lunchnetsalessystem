@@ -35,8 +35,86 @@
     </form>
 </div>
 
-<!-- 一覧 -->
-<div class="bg-white rounded shadow overflow-hidden">
+<!-- 一覧（モバイル：カード型） -->
+<div class="md:hidden space-y-4">
+    {% for p in periods %}
+    <div class="bg-white rounded-xl shadow-sm border-l-4 transition hover:shadow-md overflow-hidden
+        {% if p.status == 'OPEN' %}border-green-500
+        {% elif p.status == 'REVIEW' %}border-yellow-500
+        {% elif p.status == 'FIXED' %}border-blue-500
+        {% else %}border-purple-500{% endif %}">
+
+        <!-- 見出し -->
+        <div class="p-4">
+            <div class="flex items-start justify-between gap-2">
+                <div class="leading-tight">
+                    <div class="text-base font-bold text-gray-800">{{ p.start_date|date:"n月j日" }} <span class="text-gray-300 font-normal">—</span> {{ p.end_date|date:"n月j日" }}</div>
+                    <div class="text-xs text-gray-400 mt-1">{{ p.start_date|date:"Y年" }}</div>
+                </div>
+                <span class="text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap
+                    {% if p.status == 'OPEN' %}bg-green-100 text-green-700
+                    {% elif p.status == 'REVIEW' %}bg-yellow-100 text-yellow-700
+                    {% elif p.status == 'FIXED' %}bg-blue-100 text-blue-700
+                    {% else %}bg-purple-100 text-purple-700{% endif %}">
+                    {{ p.get_status_display }}
+                </span>
+            </div>
+            <div class="mt-3 text-sm space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">受付開始</span>
+                    <span class="text-gray-700 font-medium">{{ p.submission_open_at|date:"n/j H:i" }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">提出締切</span>
+                    <span class="text-gray-700 font-medium">{{ p.submission_close_at|date:"n/j H:i" }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作 -->
+        <div class="bg-gray-50 px-4 py-3 space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+                <a href="{% url 'shifts:admin_review_submissions' p.id %}" class="text-center bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-2 rounded-lg text-sm font-medium">提出確認</a>
+                <a href="{% url 'shifts:admin_period_assignment' p.id %}" class="text-center bg-green-100 text-green-700 hover:bg-green-200 px-3 py-2 rounded-lg text-sm font-medium">割当グリッド</a>
+            </div>
+            {% if p.status == 'OPEN' %}
+            <form method="post" onsubmit="return confirm('未提出者にリマインドを送信しますか？')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="notify_reminder">
+                <input type="hidden" name="period_id" value="{{ p.id }}">
+                <button type="submit" class="w-full bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-2 rounded-lg text-sm font-medium">未提出者に通知</button>
+            </form>
+            {% endif %}
+            <form method="post" class="flex items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="change_status">
+                <input type="hidden" name="period_id" value="{{ p.id }}">
+                <select name="status" class="flex-1 text-sm bg-white border border-gray-300 rounded-lg px-3 py-2">
+                    {% for code, label in status_choices %}
+                        <option value="{{ code }}" {% if p.status == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="bg-gray-800 text-white hover:bg-gray-700 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">変更</button>
+            </form>
+        </div>
+
+        <!-- 削除 -->
+        <div class="px-4 py-2 text-right border-t border-gray-100">
+            <form method="post" class="inline" onsubmit="return confirm('この期間を削除しますか？関連データも全て削除されます。')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="period_id" value="{{ p.id }}">
+                <button type="submit" class="text-xs text-gray-400 hover:text-red-600 transition">この期間を削除</button>
+            </form>
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center text-sm">募集期間はありません。</div>
+    {% endfor %}
+</div>
+
+<!-- 一覧（PC：テーブル型） -->
+<div class="hidden md:block bg-white rounded shadow overflow-x-auto">
     <table class="w-full text-sm">
         <thead>
             <tr class="bg-gray-100 text-left">

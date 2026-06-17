@@ -85,20 +85,20 @@
                         <span class="text-sm text-gray-400">休日 (OFF固定)</span>
                         <input type="hidden" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF">
                     {% else %}
-                        <div class="flex items-center space-x-2">
-                            <label class="inline-flex items-center">
+                        <div class="flex items-center gap-2">
+                            <label class="inline-flex items-center min-h-[44px] px-3 rounded border border-gray-200 cursor-pointer">
                                 <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="WORK"
                                     {% if info.availability == 'WORK' %}checked{% endif %}
-                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}"
+                                    class="avail-radio w-5 h-5" data-date="{{ info.date|date:'Y-m-d' }}"
                                     data-fixed="{{ info.is_fixed_weekday|yesno:'1,0' }}">
-                                <span class="ml-1 text-sm text-green-700">出勤</span>
+                                <span class="ml-2 text-sm text-green-700">出勤</span>
                             </label>
-                            <label class="inline-flex items-center">
+                            <label class="inline-flex items-center min-h-[44px] px-3 rounded border border-gray-200 cursor-pointer">
                                 <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF"
                                     {% if info.availability == 'OFF' %}checked{% endif %}
-                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}"
+                                    class="avail-radio w-5 h-5" data-date="{{ info.date|date:'Y-m-d' }}"
                                     data-fixed="{{ info.is_fixed_weekday|yesno:'1,0' }}">
-                                <span class="ml-1 text-sm text-red-600">休み</span>
+                                <span class="ml-2 text-sm text-red-600">休み</span>
                             </label>
                         </div>
                     {% endif %}
@@ -112,7 +112,7 @@
                     <div>
                         <label class="text-xs text-gray-500">理由: {% if info.requires_reason %}<span class="text-red-500">*</span>{% endif %}</label>
                         <select name="absence_{{ info.date|date:'Y-m-d' }}"
-                                class="text-sm border rounded px-2 py-1 absence-select"
+                                class="text-sm border rounded px-3 py-2 min-h-[44px] absence-select"
                                 data-date="{{ info.date|date:'Y-m-d' }}">
                             <option value="">選択してください</option>
                             <option value="PERSONAL" {% if info.absence_category == 'PERSONAL' %}selected{% endif %}>私用</option>
@@ -129,7 +129,7 @@
                     <div class="substitute-row {% if info.absence_category != 'SUBSTITUTE' %}hidden{% endif %}"
                          id="sub-{{ info.date|date:'Y-m-d' }}">
                         <label class="text-xs text-gray-500">代替者:</label>
-                        <select name="substitute_{{ info.date|date:'Y-m-d' }}" class="text-sm border rounded px-2 py-1">
+                        <select name="substitute_{{ info.date|date:'Y-m-d' }}" class="text-sm border rounded px-3 py-2 min-h-[44px]">
                             <option value="">選択してください</option>
                             {% for u in all_users %}
                                 <option value="{{ u.id }}" {% if info.substitute_user_id == u.id %}selected{% endif %}>
@@ -141,7 +141,7 @@
                     <div>
                         <label class="text-xs text-gray-500">コメント:</label>
                         <input type="text" name="comment_{{ info.date|date:'Y-m-d' }}" value="{{ info.comment }}"
-                               class="text-sm border rounded px-2 py-1 w-full" placeholder="任意">
+                               class="text-sm border rounded px-3 py-2 min-h-[44px] w-full" placeholder="任意">
                     </div>
                 </div>
                 {% endif %}

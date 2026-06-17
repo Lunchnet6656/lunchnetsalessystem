@@ -333,6 +333,69 @@ class ShiftAssignment(models.Model):
         return self.external_staff is not None
 
 
+class PublishedShiftSnapshot(models.Model):
+    """公開時点の確定シフト（ベースライン）。
+    公開後にグリッドで編集しても、スタッフ画面はこのスナップショットを表示する。
+    「修正確定」を押すと現在の割当でスナップショットが更新される。
+    """
+    period = models.ForeignKey(
+        SchedulePeriod,
+        on_delete=models.CASCADE,
+        related_name='published_snapshots',
+        verbose_name="期間",
+    )
+    date = models.DateField(verbose_name="日付")
+    sales_location = models.ForeignKey(
+        'sales.SalesLocation',
+        on_delete=models.CASCADE,
+        related_name='published_snapshots',
+        verbose_name="売り場",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='published_snapshots',
+        verbose_name="担当者",
+    )
+    external_staff = models.ForeignKey(
+        ExternalStaff,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='published_snapshots',
+        verbose_name="外部スタッフ",
+    )
+    special_type = models.CharField(
+        max_length=10, choices=ShiftAssignment.SPECIAL_TYPE_CHOICES,
+        blank=True, default='', verbose_name="特殊種別",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+
+    class Meta:
+        unique_together = ('period', 'date', 'sales_location')
+        ordering = ['date', 'sales_location']
+        verbose_name = "公開シフトスナップショット"
+        verbose_name_plural = "公開シフトスナップショット"
+
+    def __str__(self):
+        return f"[公開] {self.date} {self.sales_location} → {self.assignee_name}"
+
+    @property
+    def assignee_name(self):
+        if self.special_type:
+            return dict(ShiftAssignment.SPECIAL_TYPE_CHOICES).get(self.special_type, '')
+        if self.user:
+            full_name = f"{self.user.last_name} {self.user.first_name}".strip()
+            return full_name or self.user.username
+        if self.external_staff:
+            return self.external_staff.name
+        return ""
+
+    @property
+    def is_external(self):
+        return self.external_staff is not None
+
+
 class NotificationTemplate(models.Model):
     NOTIFICATION_TYPE_CHOICES = [
         ('OPEN', 'シフト募集開始'),

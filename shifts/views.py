@@ -27,6 +27,7 @@ from .models import (
     ExternalAvailabilityDay,
     ExternalStaff,
     NotificationTemplate,
+    PublishedShiftSnapshot,
     SchedulePeriod,
     ShiftAssignment,
     ShiftNotification,
@@ -34,7 +35,16 @@ from .models import (
     UserProfile,
 )
 from .notifications import notify_assignment_changed, notify_manual_reminder, notify_period_open, notify_published
-from .utils import auto_close_expired_periods, can_submit_for_period, generate_date_range, get_holiday_name, is_holiday
+from .utils import (
+    assignment_identity_key,
+    auto_close_expired_periods,
+    can_submit_for_period,
+    generate_date_range,
+    get_holiday_name,
+    get_pending_change_count,
+    is_holiday,
+    snapshot_published_assignments,
+)
 
 User = get_user_model()
 
@@ -384,8 +394,9 @@ def view_schedule(request):
     period = get_object_or_404(SchedulePeriod, pk=period_id, status='PUBLISHED')
     dates = list(generate_date_range(period.start_date, period.end_date))
 
-    assignments = ShiftAssignment.objects.filter(
-        date__gte=period.start_date, date__lte=period.end_date,
+    # スタッフ画面は「公開ベースライン」を表示する（公開後の編集中内容は見せない）
+    assignments = PublishedShiftSnapshot.objects.filter(
+        period=period,
     ).select_related('user', 'external_staff', 'sales_location')
     assignment_map = {(a.date, a.sales_location_id): a for a in assignments}
 
@@ -565,6 +576,8 @@ def admin_periods(request):
                 period.save()
                 messages.success(request, 'ステータスを変更しました。')
                 if new_status == 'PUBLISHED':
+                    # 公開時点の確定シフトをベースラインとして保存
+                    snapshot_published_assignments(period)
                     try:
                         notif = notify_published(period)
                         if notif:
@@ -1290,6 +1303,34 @@ def admin_period_assignment(request, period_id):
             messages.warning(request, '公開済み期間のみ変更通知を送信できます。')
         return redirect('shifts:admin_period_assignment', period_id=period_id)
 
+    # 修正確定アクション（公開後の編集をベースラインに反映し変更通知）
+    if request.method == 'POST' and request.POST.get('action') == 'confirm_revision':
+        if period.status == 'PUBLISHED':
+            pending = get_pending_change_count(period)
+            if pending == 0:
+                messages.info(request, '未反映の修正はありません。')
+            else:
+                snapshot_published_assignments(period)
+                send_notification = bool(request.POST.get('send_notification'))
+                if not send_notification:
+                    messages.success(request, f'修正を確定しました。（{pending}件 / 変更通知なし）')
+                else:
+                    try:
+                        notif = notify_assignment_changed(period)
+                        if notif:
+                            messages.success(
+                                request,
+                                f'修正を確定し、変更通知を送信しました。'
+                                f'（{pending}件 / LINE={notif.sent_line_count}, メール={notif.sent_email_count}）',
+                            )
+                        else:
+                            messages.success(request, f'修正を確定しました。（{pending}件 / 変更通知は無効設定のため未送信）')
+                    except Exception:
+                        messages.success(request, f'修正を確定しました。（{pending}件 / 変更通知の送信中にエラーが発生しました）')
+        else:
+            messages.warning(request, '公開済み期間のみ修正確定できます。')
+        return redirect('shifts:admin_period_assignment', period_id=period_id)
+
     dates = list(generate_date_range(period.start_date, period.end_date))
 
     locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by(
@@ -1310,6 +1351,16 @@ def admin_period_assignment(request, period_id):
     assignment_map = {}
     for a in assignments:
         assignment_map[(a.date, a.sales_location_id)] = a
+
+    # 公開ベースライン（スナップショット）key=(date, location_id)
+    is_published = period.status == 'PUBLISHED'
+    snapshot_map = {}
+    if is_published:
+        snapshots = PublishedShiftSnapshot.objects.filter(
+            period=period,
+        ).select_related('user', 'external_staff')
+        for s in snapshots:
+            snapshot_map[(s.date, s.sales_location_id)] = s
 
     # 出勤可能ユーザー (date -> [user_ids])
     avail_days = AvailabilityDay.objects.filter(
@@ -1359,6 +1410,10 @@ def admin_period_assignment(request, period_id):
                 'is_holiday': holiday,
                 'assignment': a,
             }
+            if is_published:
+                base = snapshot_map.get((d, loc.id))
+                cell['baseline_key'] = assignment_identity_key(base)
+                cell['baseline_name'] = base.assignee_name if base else ''
             if a and not a.special_type:
                 if a.user_id:
                     p = profiles.get(a.user_id)
@@ -1481,6 +1536,8 @@ def admin_period_assignment(request, period_id):
         'candidates_by_date': json.dumps(candidates_by_date, ensure_ascii=False),
         'holiday_dates': json.dumps(holiday_dates),
         'assignment_map': assignment_map,
+        'is_published': is_published,
+        'pending_count': get_pending_change_count(period) if is_published else 0,
     }
     return render(request, 'shifts/admin_period_assignment.html', context)
 

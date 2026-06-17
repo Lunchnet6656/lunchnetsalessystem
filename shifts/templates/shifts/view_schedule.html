@@ -87,9 +87,9 @@
 {% else %}
 {# ─────────────── グリッド表示 ─────────────── #}
 
-<div class="mb-3 flex items-center gap-3">
-    <a href="{% url 'shifts:view_schedule' %}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; 期間選択に戻る</a>
-    <h1 class="text-xl font-bold">確定シフト</h1>
+<div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <a href="{% url 'shifts:view_schedule' %}" class="text-blue-600 hover:text-blue-800 text-sm whitespace-nowrap">&larr; 期間選択に戻る</a>
+    <h1 class="text-xl font-bold whitespace-nowrap">確定シフト</h1>
     <span class="text-sm text-gray-500">{{ period.start_date|date:"Y年n月j日" }} 〜 {{ period.end_date|date:"Y年n月j日" }}</span>
 </div>
 {% if period.shared_notes %}

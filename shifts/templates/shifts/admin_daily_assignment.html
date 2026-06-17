@@ -17,7 +17,7 @@
 {% else %}
     <form method="post">
         {% csrf_token %}
-        <div class="bg-white rounded shadow overflow-hidden">
+        <div class="bg-white rounded shadow overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-100 text-left">
@@ -47,7 +47,7 @@
                             {% endif %}
                         </td>
                         <td class="px-4 py-2">
-                            <select name="loc_{{ item.location.id }}" class="border rounded px-2 py-1 text-sm w-full max-w-xs">
+                            <select name="loc_{{ item.location.id }}" class="border rounded px-3 py-2 min-h-[44px] text-sm w-full">
                                 <option value="">-- 未割当 --</option>
                                 {% for u in item.candidates %}
                                     <option value="{{ u.id }}" {% if item.assigned_user_id == u.id %}selected{% endif %}>

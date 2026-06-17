@@ -37,6 +37,12 @@
         background: #e0f2fe; font-weight: 700; font-size: 11px;
         text-align: center; min-width: 50px; white-space: nowrap;
     }
+    /* 公開後の未反映の変更セル */
+    .grid-table td.cell-changed { box-shadow: inset 0 0 0 2px #f97316; }
+    .grid-table td.cell-changed .old-assignee {
+        display: block; font-size: 10px; color: #9ca3af;
+        text-decoration: line-through; line-height: 1.1; margin-top: 1px;
+    }
 </style>
 {% endblock %}
 
@@ -54,15 +60,35 @@
         <a href="{% url 'shifts:admin_external_availability' period.id %}" class="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700">外部スタッフ出勤設定</a>
         <button id="btn-autofill" class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700">自動割当</button>
         <button id="btn-clear-all" class="bg-red-500 text-white px-3 py-2 rounded text-sm hover:bg-red-600">全クリア</button>
-        {% if period.status == 'PUBLISHED' %}
-        <form method="post" style="display:inline;" onsubmit="return confirm('全スタッフにシフト変更通知を送信しますか？');">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="notify_change">
-            <button type="submit" class="bg-orange-500 text-white px-3 py-2 rounded text-sm hover:bg-orange-600">変更通知を送信</button>
-        </form>
-        {% endif %}
     </div>
 </div>
+
+{% if is_published %}
+<!-- 公開後の修正バナー -->
+<div id="pending-banner" class="mb-4 rounded-lg border px-4 py-3 flex flex-wrap items-center justify-between gap-3
+    {% if pending_count %}bg-orange-50 border-orange-200{% else %}bg-green-50 border-green-200{% endif %}">
+    <div class="text-sm">
+        <span class="font-semibold
+            {% if pending_count %}text-orange-700{% else %}text-green-700{% endif %}">
+            <span id="pending-badge">{% if pending_count %}未反映の修正 <span id="pending-count">{{ pending_count }}</span> 件{% else %}公開中（未反映の修正なし）{% endif %}</span>
+        </span>
+        <span class="block text-xs text-gray-500 mt-1">公開後の編集はスタッフ画面に未反映です。「修正確定」でスタッフへ反映＆変更通知を送ります。</span>
+    </div>
+    <form method="post" id="confirm-revision-form" onsubmit="return confirmRevision();">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm_revision">
+        <div class="flex items-center gap-3">
+            <label class="inline-flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap cursor-pointer">
+                <input type="checkbox" name="send_notification" value="1" class="w-4 h-4">
+                スタッフに変更通知を送る
+            </label>
+            <button type="submit" id="btn-confirm-revision"
+                class="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                {% if not pending_count %}disabled{% endif %}>修正確定</button>
+        </div>
+    </form>
+</div>
+{% endif %}
 
 <!-- グリッドテーブル -->
 <div class="bg-white rounded shadow overflow-auto" style="max-height: 70vh;">
@@ -101,6 +127,7 @@
                         data-date="{{ cell.date|date:'Y-m-d' }}"
                         data-location-id="{{ row.location.id }}"
                         data-requires-drive="{{ row.location.requires_drive|yesno:'1,0' }}"
+                        {% if is_published %}data-baseline="{{ cell.baseline_key|default:'' }}" data-baseline-name="{{ cell.baseline_name|default:'' }}"{% endif %}
                         {% if cell.is_holiday %}
                             class="holiday-cell"
                         {% elif cell.assignment %}
@@ -164,6 +191,7 @@ var freeStaffByDate = {{ free_staff_by_date|safe }};
 var holidayDates = {{ holiday_dates|safe }};
 var currentCell = null;
 var csrfToken = '{{ csrf_token }}';
+var isPublished = {{ is_published|yesno:'true,false' }};
 
 function openDropdown(td) {
     var date = td.dataset.date;
@@ -354,6 +382,7 @@ function updateCell(date, locationId, data) {
     td.dataset.workPattern = data.work_pattern || '';
     td.dataset.defaultLocationId = data.default_location_id ? String(data.default_location_id) : '';
 
+    applyChangedDecoration(td);
     rebuildFreeStaffForDate(date);
 }
 
@@ -367,7 +396,72 @@ function clearCell(date, locationId) {
     td.dataset.specialType = '';
     td.dataset.workPattern = '';
     td.dataset.defaultLocationId = '';
+    applyChangedDecoration(td);
     rebuildFreeStaffForDate(date);
+}
+
+// ---------- 公開後の差分ハイライト ----------
+function cellCurrentKey(td) {
+    if (td.dataset.userId) return 'u:' + td.dataset.userId;
+    if (td.dataset.extId) return 'e:' + td.dataset.extId;
+    if (td.dataset.specialType) return 's:' + td.dataset.specialType;
+    return '';
+}
+
+function applyChangedDecoration(td) {
+    if (!isPublished) return;
+    if (td.dataset.baseline === undefined) return;  // 祝日セル等は対象外
+    var changed = (td.dataset.baseline || '') !== cellCurrentKey(td);
+    var existing = td.querySelector('.old-assignee');
+    if (changed) {
+        td.classList.add('cell-changed');
+        if (!existing) {
+            var span = document.createElement('span');
+            span.className = 'old-assignee';
+            span.textContent = '旧:' + (td.dataset.baselineName || 'なし');
+            td.appendChild(span);
+        }
+    } else {
+        td.classList.remove('cell-changed');
+        if (existing) existing.remove();
+    }
+    updatePendingBanner();
+}
+
+function updatePendingBanner() {
+    if (!isPublished) return;
+    var n = document.querySelectorAll('td.cell-changed').length;
+    var badge = document.getElementById('pending-badge');
+    var banner = document.getElementById('pending-banner');
+    var btn = document.getElementById('btn-confirm-revision');
+    if (badge) {
+        badge.innerHTML = n > 0
+            ? '未反映の修正 <span id="pending-count">' + n + '</span> 件'
+            : '公開中（未反映の修正なし）';
+    }
+    if (banner) {
+        banner.classList.toggle('bg-orange-50', n > 0);
+        banner.classList.toggle('border-orange-200', n > 0);
+        banner.classList.toggle('bg-green-50', n === 0);
+        banner.classList.toggle('border-green-200', n === 0);
+    }
+    if (btn) btn.disabled = (n === 0);
+}
+
+function confirmRevision() {
+    var cb = document.querySelector('#confirm-revision-form input[name="send_notification"]');
+    var notify = cb && cb.checked;
+    if (notify) {
+        return confirm('現在の編集内容を確定し、全スタッフに変更通知を送信します。よろしいですか？');
+    }
+    return confirm('現在の編集内容を確定します。（変更通知は送りません）\nよろしいですか？');
+}
+
+function initChangedDecorations() {
+    if (!isPublished) return;
+    document.querySelectorAll('#assignment-grid td[data-baseline]').forEach(function(td) {
+        applyChangedDecoration(td);
+    });
 }
 
 function rebuildFreeStaffForDate(date) {
@@ -465,6 +559,7 @@ document.getElementById('btn-clear-all').addEventListener('click', function() {
 
 // 初期表示
 renderFreeStaff();
+initChangedDecorations();
 
 function getCookie(name) {
     var value = '; ' + document.cookie;

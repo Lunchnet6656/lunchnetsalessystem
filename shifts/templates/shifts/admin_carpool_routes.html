@@ -31,6 +31,7 @@
 <div class="bg-white rounded shadow p-4 mb-6">
     <h2 class="text-lg font-semibold mb-3">ルート一覧</h2>
     {% if routes %}
+    <div class="overflow-x-auto">
     <table class="w-full text-sm">
         <thead>
             <tr class="border-b bg-gray-50">
@@ -78,6 +79,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p class="text-gray-400 text-sm">ルートがまだ登録されていません。</p>
     {% endif %}
@@ -89,6 +91,7 @@
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="assign_locations">
+        <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b bg-gray-50">
@@ -116,6 +119,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         <div class="mt-4">
             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">割当を保存</button>
         </div>

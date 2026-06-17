@@ -37,7 +37,7 @@
         <button type="submit" class="text-xs bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded">選択した提出を承認</button>
     </div>
 
-    <div class="bg-white rounded shadow overflow-hidden">
+    <div class="bg-white rounded shadow overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr class="bg-gray-100 text-left">
@@ -87,14 +87,14 @@
                     <td class="px-4 py-2">
                         <div class="flex gap-1 items-center flex-wrap">
                             {% if item.submission and item.submission.status == 'SUBMITTED' %}
-                            <button type="button" class="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2 py-1 rounded reject-btn"
+                            <button type="button" class="text-sm bg-red-100 text-red-700 hover:bg-red-200 px-3 py-2 rounded reject-btn"
                                     data-id="{{ item.submission.id }}"
                                     data-name="{{ item.user.last_name }} {{ item.user.first_name }}">
                                 却下
                             </button>
                             {% endif %}
                             <a href="{% url 'shifts:admin_edit_submission' period.id item.user.id %}"
-                               class="text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 px-2 py-1 rounded">
+                               class="text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 px-3 py-2 rounded">
                                 編集
                             </a>
                         </div>
@@ -102,7 +102,7 @@
                 </tr>
                 {% if item.days %}
                 <tr class="hidden" id="detail-user-{{ item.user.id }}">
-                    <td colspan="8" class="px-4 py-2 bg-gray-50">
+                    <td colspan="8" class="px-4 py-2 bg-gray-50 overflow-x-auto">
                         {% if item.submission and item.submission.status == 'RETURNED' and item.submission.admin_note %}
                         <div class="mb-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-3 py-2">
                             <strong>差戻メモ:</strong> {{ item.submission.admin_note }}

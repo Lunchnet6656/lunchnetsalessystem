@@ -38,18 +38,18 @@
                         <span class="text-sm text-gray-400">休日 (OFF固定)</span>
                         <input type="hidden" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF">
                     {% else %}
-                        <div class="flex items-center space-x-2">
-                            <label class="inline-flex items-center">
+                        <div class="flex items-center gap-2">
+                            <label class="inline-flex items-center min-h-[44px] px-3 rounded border border-gray-200 cursor-pointer">
                                 <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="WORK"
                                     {% if info.availability == 'WORK' %}checked{% endif %}
-                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}">
-                                <span class="ml-1 text-sm text-green-700">出勤</span>
+                                    class="avail-radio w-5 h-5" data-date="{{ info.date|date:'Y-m-d' }}">
+                                <span class="ml-2 text-sm text-green-700">出勤</span>
                             </label>
-                            <label class="inline-flex items-center">
+                            <label class="inline-flex items-center min-h-[44px] px-3 rounded border border-gray-200 cursor-pointer">
                                 <input type="radio" name="avail_{{ info.date|date:'Y-m-d' }}" value="OFF"
                                     {% if info.availability == 'OFF' %}checked{% endif %}
-                                    class="avail-radio" data-date="{{ info.date|date:'Y-m-d' }}">
-                                <span class="ml-1 text-sm text-red-600">休み</span>
+                                    class="avail-radio w-5 h-5" data-date="{{ info.date|date:'Y-m-d' }}">
+                                <span class="ml-2 text-sm text-red-600">休み</span>
                             </label>
                         </div>
                     {% endif %}
