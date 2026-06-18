@@ -1,0 +1,49 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+労働者名簿の個別編集。1スタッフの全項目を4セクションに分けて編集する。
+退職処理（退職日＋事由＋在籍フラグ自動OFF）もここで完結。
+{% endcomment %}
+{% block title %}{{ staff.display_name }}の労働者名簿{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_staff_roster' %}">‹ 労働者名簿一覧へ</a>
+      <h1 class="manage__title">{{ staff.display_name }}<span class="manage__sub">労働者名簿の編集</span></h1>
+    </div>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="roster" %}
+
+  <form method="post" class="settings">
+    {% csrf_token %}
+    {% for section in field_sections %}
+    <section class="settings-section">
+      <h2 class="settings-section__title">{{ section.title }}</h2>
+      <div class="settings-section__fields">
+        {% for field in section.fields %}
+        <div class="field{% if field.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
+          {% for error in field.errors %}<p class="field__error">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand">名簿を保存</button>
+      <a class="link-btn" href="{% url 'attendance:manage_staff_roster' %}">キャンセル</a>
+    </div>
+  </form>
+
+  <p class="note">
+    退職日を入力すると、自動的に「在籍」がOFFになります（給与計算の対象外になります）。<br>
+    退職事由を入力する場合は、退職年月日も必須です。
+  </p>
+</div>
+{% endblock %}

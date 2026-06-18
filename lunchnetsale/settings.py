@@ -26,17 +26,32 @@ def csv_env(name: str, default: str = ""):
     return [s.strip() for s in os.environ.get(name, default).split(",") if s.strip()]
 
 # --- 環境判定 ---
+# Heroku は dyno 上で必ず DYNO 環境変数を立てる。DJANGO_ENV を production に
+# し忘れる/タイポしても本番安全側（DEBUG=False・secure cookie 等）に倒すため、
+# 「DJANGO_ENV=production」または「Heroku dyno 上」を本番とみなす（フェイルセーフ）。
 DJANGO_ENV = os.environ.get('DJANGO_ENV', 'development')
-IS_PRODUCTION = DJANGO_ENV == 'production'
+IS_PRODUCTION = DJANGO_ENV == 'production' or bool(os.environ.get('DYNO'))
 
 # --- 本番フラグ ---
-DEBUG = not IS_PRODUCTION if os.environ.get('DEBUG') is None else os.environ.get('DEBUG') == 'True'
+# 本番では DEBUG を常に False に固定（env で DEBUG=True にしても無効）。
+# 開発時のみ DEBUG 環境変数で上書き可能。
+if IS_PRODUCTION:
+    DEBUG = False
+else:
+    DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 # --- SECRET_KEY ---
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     raise ImproperlyConfigured(
         "SECRET_KEY が未設定です。.env または Heroku Config Vars に設定してください。"
+    )
+# 本番では Django の自動生成キー（django-insecure- 接頭辞）での起動を拒否する。
+# 弱い開発用キーのまま本番デプロイすると署名系のセキュリティが破られるため。
+if IS_PRODUCTION and SECRET_KEY.startswith("django-insecure-"):
+    raise ImproperlyConfigured(
+        "本番で開発用の脆弱な SECRET_KEY が使われています。"
+        "Heroku Config Vars に十分に長くランダムな SECRET_KEY を設定してください。"
     )
 
 # --- Host/CSRF 設定 ---
@@ -89,6 +104,7 @@ INSTALLED_APPS = [
     'shifts',
     'orders',
     'quest',
+    'attendance',
     'reservations',
     'lunchnetsale',
     'django.contrib.humanize',

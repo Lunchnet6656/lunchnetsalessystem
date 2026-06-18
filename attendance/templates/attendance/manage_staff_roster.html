@@ -1,0 +1,93 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+労働者名簿（管理者）。労基法107条で会社単位の作成・保存義務がある法定帳票。
+氏名・性別・生年月日・住所・業務の種類・入退社情報を1画面で一覧。
+{% endcomment %}
+{% block title %}労働者名簿{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <h1 class="manage__title">労働者名簿<span class="manage__sub">労基法107条</span></h1>
+    <form method="get" class="period-form">
+      <select name="status" class="select" onchange="this.form.submit()" aria-label="在籍状況">
+        <option value="active" {% if status == "active" %}selected{% endif %}>在籍中のみ</option>
+        <option value="retired" {% if status == "retired" %}selected{% endif %}>退職者のみ</option>
+        <option value="all" {% if status == "all" %}selected{% endif %}>全員</option>
+      </select>
+      <select name="company" class="select" onchange="this.form.submit()" aria-label="会社">
+        <option value="">全社</option>
+        {% for value, label in company_choices %}
+          <option value="{{ value }}" {% if value == company %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="unit" class="select" onchange="this.form.submit()" aria-label="事業区分">
+        <option value="">全事業</option>
+        {% for value, label in unit_choices %}
+          <option value="{{ value }}" {% if value == unit %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="roster" %}
+
+  {# 給与計算の「期間バー」と同じパターン。左：状況サマリ／右：アクション。 #}
+  <div class="action-bar">
+    <div>
+      <span class="action-bar__label">{% if status == "retired" %}退職者{% elif status == "all" %}全員{% else %}在籍中{% endif %} {{ rows|length }}名</span>
+    </div>
+    <div class="action-bar__buttons">
+      <a class="btn btn--sub" href="{% url 'attendance:manage_staff_roster_csv' %}?status={{ status }}&company={{ company }}&unit={{ unit }}">📊 CSVダウンロード</a>
+      <a class="btn btn--brand" href="{% url 'attendance:manage_staff_new' %}">＋ スタッフ追加</a>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="roster-wrap">
+    <table class="roster">
+      <thead>
+        <tr>
+          <th>氏名</th>
+          <th>性別</th>
+          <th>生年月日</th>
+          <th>住所</th>
+          <th>連絡先</th>
+          <th>事業／会社</th>
+          <th>業務の種類</th>
+          <th>入社日</th>
+          <th>在籍</th>
+          <th>退職日／事由</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in rows %}
+        <tr>
+          <td class="roster__name">{{ s.display_name }}</td>
+          <td>{{ s.get_gender_display|default:"—" }}</td>
+          <td>{{ s.birthday|date:"Y/n/j"|default:"—" }}</td>
+          <td class="roster__address">{{ s.address|default:"—" }}</td>
+          <td>{{ s.phone|default:"—" }}</td>
+          <td>{{ s.get_business_unit_display }}<br><small><span class="company-badge company-badge--{{ s.company|lower }}">{{ s.company }}</span></small></td>
+          <td>{{ s.job_description|default:"—" }}</td>
+          <td>{{ s.hired_on|date:"Y/n/j"|default:"—" }}</td>
+          <td>{% if s.is_active %}<span class="badge badge--ok">在籍</span>{% else %}<span class="badge badge--closed">退職</span>{% endif %}</td>
+          <td>{% if s.retired_on %}{{ s.retired_on|date:"Y/n/j" }}<br><small>{{ s.retire_reason }}</small>{% else %}—{% endif %}</td>
+          <td><a class="link" href="{% url 'attendance:manage_staff_roster_edit' s.id %}">編集 ›</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="empty">対象のスタッフがいません。フィルタを変えてみてください。</p>
+  {% endif %}
+
+  <p class="note">
+    労基法107条により、労働者名簿は退職日から5年間（経過措置中は3年間）の保存義務があります。<br>
+    CSVは UTF-8 BOM 付き → Excel で文字化けせず開けます。
+  </p>
+</div>
+{% endblock %}

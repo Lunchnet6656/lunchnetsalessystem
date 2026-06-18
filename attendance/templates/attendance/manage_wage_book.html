@@ -1,0 +1,64 @@
+{% extends "attendance/base.html" %}
+{% load humanize %}
+{% comment %}
+賃金台帳（管理者）。労基法108条に基づき、1スタッフごとに月次の賃金を
+1年分集計してテーブル表示する。確定済み Payslip のみ対象。
+スプリント契約: w002-スプリント5-法定帳票.md（未作成）
+{% endcomment %}
+{% block title %}{{ staff.display_name }}の賃金台帳{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_payroll' %}">‹ 給与計算一覧へ</a>
+      <h1 class="manage__title">{{ staff.display_name }}<span class="manage__sub">賃金台帳（{{ staff.get_business_unit_display }}／{{ staff.get_company_display }}）</span></h1>
+    </div>
+    <form method="get" class="period-form">
+      <select name="year" class="select" onchange="this.form.submit()" aria-label="対象年">
+        {% for y in year_options %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}年</option>
+        {% endfor %}
+      </select>
+      <a class="btn btn--sub" href="{% url 'attendance:manage_wage_book_csv' staff.id %}?year={{ year }}">📊 CSVダウンロード</a>
+    </form>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="payroll" %}
+
+  {% if is_empty %}
+    <p class="empty">{{ year }}年の確定済み給与明細がありません。給与計算を確定すると賃金台帳に反映されます。</p>
+  {% else %}
+    <div class="wagebook-wrap">
+      <table class="wagebook">
+        <thead>
+          <tr>
+            <th class="wagebook__label">項目</th>
+            {% for col in columns %}
+              <th>{{ col.label }}</th>
+            {% endfor %}
+            <th class="wagebook__total-head">年間合計</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <th class="wagebook__label">{{ row.label }}</th>
+            {% for v in row.values %}
+              <td class="wagebook__num">{{ v|intcomma }}</td>
+            {% endfor %}
+            <td class="wagebook__num wagebook__total">{% if row.total != "" %}{{ row.total|intcomma }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note">
+      労基法108条により、賃金台帳は5年間（経過措置中は3年間）の保存義務があります。<br>
+      CSVは社労士・労基監督署へそのまま提出可能な形式（UTF-8 BOM付き、Excelで開けます）。
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

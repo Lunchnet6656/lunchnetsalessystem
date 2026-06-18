@@ -1,0 +1,50 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+給与設定（管理者）。締め日・割増率・深夜帯・休憩控除・最低賃金・端数を編集する。
+Django admin に頼らず勤怠アプリ内で設定できるようにした画面。
+{% endcomment %}
+{% block title %}給与設定{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <h1 class="manage__title">給与設定</h1>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="settings" %}
+
+  <form method="post" class="settings">
+    {% csrf_token %}
+    {% for section in field_sections %}
+    <section class="settings-section">
+      <h2 class="settings-section__title">{{ section.title }}</h2>
+      <div class="settings-section__fields">
+        {% for field in section.fields %}
+        <div class="field{% if field.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
+          {% for error in field.errors %}<p class="field__error">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand">設定を保存</button>
+    </div>
+  </form>
+
+  <p class="note">
+    最低賃金が上がってスタッフの時給も合わせて上げたいときは、
+    <a class="link" href="{% url 'attendance:manage_min_wage_update' %}">最低賃金 一括更新 ›</a>
+    を使う（現在の最低時給で働いているスタッフだけが対象。それより高い時給の人は触らない）。
+  </p>
+
+  <p class="note">
+    この設定は給与計算（試算・確定）に即反映される。確定済みの期間の金額は凍結されているため、
+    設定を変えても再計算するには給与計算画面で確定を取り消す必要がある。
+  </p>
+</div>
+{% endblock %}

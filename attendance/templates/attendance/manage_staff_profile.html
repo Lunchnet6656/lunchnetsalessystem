@@ -1,0 +1,48 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+スタッフごとの手当・控除（給与プロフィール）の編集画面。
+Django admin を使わず、アプリ内で手当・控除を登録する。
+{% endcomment %}
+{% block title %}{{ staff.display_name }}の手当・控除{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_payslip_detail' staff.id %}">‹ 給与明細へ戻る</a>
+      <h1 class="manage__title">{{ staff.display_name }}<span class="manage__sub">手当・控除の登録（{{ staff.get_business_unit_display }}／{{ staff.get_company_display }}）</span></h1>
+    </div>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="staff_settings" %}
+
+  <form method="post" class="settings">
+    {% csrf_token %}
+    {% for section in field_sections %}
+    <section class="settings-section">
+      <h2 class="settings-section__title">{{ section.title }}</h2>
+      <div class="settings-section__fields">
+        {% for field in section.fields %}
+        <div class="field{% if field.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
+          {% for error in field.errors %}<p class="field__error">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand">手当・控除を保存</button>
+    </div>
+  </form>
+
+  <p class="note">
+    ここで登録した手当・控除は給与計算（試算・確定）に即反映される。
+    健康保険・介護・厚生年金・住民税は社労士／自治体から渡る月額を入力（未加入なら0）。
+    雇用保険料と所得税はアプリが自動計算する。
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+給与計算（管理者）。期間を選び全スタッフの計算結果を一覧する。
+未確定＝試算／確定済み＝凍結された Payslip を表示。
+スプリント契約: w002-スプリント3-給与計算エンジン.md
+{% endcomment %}
+{% load humanize %}
+{% block title %}給与計算{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <h1 class="manage__title">給与計算</h1>
+    <form method="get" class="period-form">
+      <select name="period" class="select" onchange="this.form.submit()" aria-label="対象期間">
+        {% for opt in period_options %}
+          <option value="{{ opt.value }}" {% if opt.value == period_end|date:"Y-m-d" %}selected{% endif %}>{{ opt.label }}（{{ opt.range }}）</option>
+        {% endfor %}
+      </select>
+      <select name="company" class="select" onchange="this.form.submit()" aria-label="会社">
+        <option value="">全社</option>
+        {% for value, label in company_choices %}
+          <option value="{{ value }}" {% if value == company %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="unit" class="select" onchange="this.form.submit()" aria-label="事業区分">
+        <option value="">全事業</option>
+        {% for value, label in unit_choices %}
+          <option value="{{ value }}" {% if value == unit %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="btn btn--sub">表示</button></noscript>
+    </form>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="payroll" %}
+
+  <div class="manage__period">
+    <div>
+      <span class="manage__period-label">{{ period_label }}</span>
+      <span class="manage__period-range">{{ period_start|date:"Y/n/j" }} 〜 {{ period_end|date:"Y/n/j" }}</span>
+    </div>
+    <div class="close-form">
+      {% if is_confirmed %}
+        <span class="badge badge--closed">確定済み{% if confirmed_at %}（{{ confirmed_at|date:"n/j H:i" }}）{% endif %}</span>
+        <a class="btn btn--brand" href="{% url 'attendance:manage_payslip_bulk_pdf' %}?period={{ period_end|date:'Y-m-d' }}{% if company %}&company={{ company }}{% endif %}{% if unit %}&unit={{ unit }}{% endif %}">📄 全員分PDFをダウンロード</a>
+        <form method="post" action="{% url 'attendance:manage_payroll_confirm' %}" class="close-form">
+          {% csrf_token %}
+          <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+          <button type="submit" name="action" value="cancel" class="btn btn--sub"
+            onclick="return confirm('{{ period_label }}の給与計算の確定を取り消します。再計算できる状態に戻ります。よろしいですか？')">確定を取り消す</button>
+        </form>
+      {% elif is_closed %}
+        <span class="badge badge--open">試算（未確定）</span>
+        <form method="post" action="{% url 'attendance:manage_payroll_confirm' %}" class="close-form">
+          {% csrf_token %}
+          <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+          <button type="submit" name="action" value="confirm" class="btn btn--brand"
+            onclick="return confirm('{{ period_label }}の給与計算を確定します。確定後は金額が凍結されます。よろしいですか？')">この期間を確定する</button>
+        </form>
+      {% else %}
+        <span class="badge badge--open">試算（未締め）</span>
+        <a class="link" href="{% url 'attendance:manage_dashboard' %}?period={{ period_end|date:'Y-m-d' }}">確定するには先に月締め ›</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 当月のガソリン単価（PayrollPeriod 単位）。車・バイク通勤者のガソリン代計算に使う。 #}
+  {% if not is_confirmed %}
+  <form method="post" action="{% url 'attendance:manage_save_gasoline' %}" class="gasoline-form">
+    {% csrf_token %}
+    <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+    <label class="gasoline-form__label">
+      今月のガソリン単価（円/L）：
+      <input type="number" name="gasoline_yen_per_liter" value="{{ gasoline_yen_per_liter }}" min="0" max="500" class="input gasoline-form__input">
+    </label>
+    <button type="submit" class="btn btn--sub">保存</button>
+    <span class="gasoline-form__hint">0だと車・バイク通勤者のガソリン代を計算しません</span>
+  </form>
+  {% endif %}
+
+  {% if rows %}
+  <table class="grid">
+    <thead>
+      <tr>
+        <th class="grid__th--name">氏名</th>
+        <th>会社</th>
+        <th>事業</th>
+        <th class="grid__th--num">勤務日数</th>
+        <th class="grid__th--num">時給</th>
+        <th class="grid__th--num">総支給額</th>
+        <th class="grid__th--num">控除合計</th>
+        <th class="grid__th--num">差引支給額</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="grid__name">{{ row.staff.display_name }}</td>
+        <td><span class="company-badge company-badge--{{ row.staff.company|lower }}">{{ row.staff.company }}</span></td>
+        <td>{{ row.staff.get_business_unit_display }}</td>
+        <td class="grid__num">{{ row.work_days }}日</td>
+        <td class="grid__num">
+          {% if row.no_wage %}<span class="badge badge--warn">時給未登録</span>
+          {% else %}{{ row.hourly_wage|intcomma }}円{% if row.below_min_wage %}<br><span class="badge badge--warn">最低賃金未満</span>{% endif %}{% endif %}
+        </td>
+        <td class="grid__num">{{ row.gross_yen|intcomma }}</td>
+        <td class="grid__num">{{ row.total_deduction_yen|intcomma }}</td>
+        <td class="grid__num grid__total">{{ row.net_pay_yen|intcomma }}円</td>
+        <td>
+          <div class="action-links">
+            <a class="link" href="{% url 'attendance:manage_payslip_detail' row.staff.id %}?period={{ period_end|date:'Y-m-d' }}">明細 ›</a>
+            {% if is_confirmed %}
+              <a class="link" href="{% url 'attendance:manage_payslip_pdf' row.staff.id %}?period={{ period_end|date:'Y-m-d' }}">📄 PDF</a>
+            {% endif %}
+            <a class="link" href="{% url 'attendance:manage_wage_book' row.staff.id %}?year={{ period_end|date:'Y' }}">📊 賃金台帳</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">合計（{{ rows|length }}名）</td>
+        <td class="grid__num">{{ totals.work_days }}日</td>
+        <td></td>
+        <td class="grid__num">{{ totals.gross|intcomma }}</td>
+        <td class="grid__num">{{ totals.deduction|intcomma }}</td>
+        <td class="grid__num grid__total">{{ totals.net|intcomma }}円</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <p class="note">
+    総支給額＝基本賃金＋割増＋手当。控除合計＝社会保険・雇用保険・所得税・住民税など。
+    <strong>差引支給額＝総支給額−控除合計（手取り）</strong>。各人の内訳は「明細」から。
+    所得税は国税庁の電算機計算（甲欄・令和8年分）で自動計算、雇用保険は料率で自動計算、
+    社会保険・住民税はスタッフごとの登録額（Django admin の給与プロフィール）。割増率・最低賃金・雇用保険料率は<a class="link" href="{% url 'attendance:manage_settings' %}">設定</a>画面で変更できる。
+  </p>
+  {% else %}
+    <p class="empty">対象のスタッフがいません。Django admin（secure-admin/）でスタッフを登録してください。</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+スタッフ別 日次明細（管理者）。期間内の全日付を1行＝1フォームで表示し、
+出退勤の修正・販売のまとめ入力を受ける。締め済み期間は読み取り専用。
+スプリント契約: w002-スプリント2-勤怠集計と管理.md
+{% endcomment %}
+{% block title %}{{ staff.display_name }}の勤怠{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_dashboard' %}?period={{ period_end|date:'Y-m-d' }}">‹ 月次一覧へ</a>
+      <h1 class="manage__title">{{ staff.display_name }}<span class="manage__sub">{{ staff.get_business_unit_display }}／{{ staff.store.name }}／{{ staff.get_company_display }}</span></h1>
+    </div>
+    <form method="get" class="period-form">
+      <select name="period" class="select" onchange="this.form.submit()" aria-label="対象期間">
+        {% for opt in period_options %}
+          <option value="{{ opt.value }}" {% if opt.value == period_end|date:"Y-m-d" %}selected{% endif %}>{{ opt.label }}（{{ opt.range }}）</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit" class="btn btn--sub">表示</button></noscript>
+    </form>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="dashboard" %}
+
+  <div class="summary">
+    <span class="summary__item">期間 <strong>{{ period_label }}</strong></span>
+    <span class="summary__item">勤務 <strong>{{ summary.work_days }}日</strong></span>
+    <span class="summary__item">実働 <strong>{{ summary.work_display }}</strong></span>
+    <span class="summary__item">深夜 <strong>{{ summary.night_display }}</strong></span>
+    <span class="summary__item">時間外 <strong>{{ summary.overtime_display }}</strong></span>
+    {% if summary.missing_days %}<span class="summary__item summary__item--warn">打刻漏れ <strong>{{ summary.missing_days }}日</strong></span>{% endif %}
+  </div>
+
+  {% if is_locked %}
+    <div class="lockbar">この期間は締め済みです。修正するには月次一覧で締めを解除してください。</div>
+  {% endif %}
+
+  <div class="daygrid">
+    <div class="daygrid__head">
+      <span>日付</span>
+      <span>出勤</span>
+      <span>退勤</span>
+      <span class="daygrid__num">実働</span>
+      <span class="daygrid__num">休憩</span>
+      <span class="daygrid__num">深夜</span>
+      <span class="daygrid__num">時間外</span>
+      <span>状態</span>
+      <span>{% if not is_locked %}理由（任意）・保存{% endif %}</span>
+    </div>
+    {% for row in rows %}
+    <form method="post" action="{% url 'attendance:manage_save_day' staff.id %}"
+          id="d{{ row.iso }}"
+          class="daygrid__row{% if row.is_weekend %} daygrid__row--weekend{% endif %}{% if row.missing %} daygrid__row--missing{% endif %}">
+      {% csrf_token %}
+      <input type="hidden" name="work_date" value="{{ row.iso }}">
+      <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+      <span class="daygrid__date">{{ row.date|date:"n/j" }}<small>（{{ row.weekday }}）</small></span>
+      {% if is_locked %}
+        <span>{{ row.clock_in_time|default:"—" }}</span>
+        <span>{{ row.clock_out_time|default:"—" }}</span>
+      {% else %}
+        <input type="time" name="clock_in" value="{{ row.clock_in_time }}" class="timeinput" aria-label="{{ row.date|date:'n月j日' }}の出勤時刻">
+        <input type="time" name="clock_out" value="{{ row.clock_out_time }}" class="timeinput" aria-label="{{ row.date|date:'n月j日' }}の退勤時刻">
+      {% endif %}
+      <span class="daygrid__num">{{ row.work_display }}</span>
+      <span class="daygrid__num">{{ row.break_display }}</span>
+      <span class="daygrid__num">{{ row.night_display }}</span>
+      <span class="daygrid__num">{{ row.overtime_display }}</span>
+      <span>
+        {% if row.missing %}<span class="badge badge--warn">打刻漏れ</span>
+        {% elif row.manual %}<span class="badge badge--manual">手入力</span>
+        {% elif row.corrected %}<span class="badge badge--corrected">修正済</span>
+        {% elif row.complete %}<span class="badge badge--ok">打刻あり</span>
+        {% else %}<span class="daygrid__empty">—</span>{% endif %}
+      </span>
+      {% if is_locked %}
+        <span></span>
+      {% else %}
+        <span class="daygrid__action">
+          <input type="text" name="reason" placeholder="理由（任意）" class="reasoninput" maxlength="255">
+          <button type="submit" class="btn btn--sub btn--sm">保存</button>
+        </span>
+      {% endif %}
+    </form>
+    {% endfor %}
+  </div>
+
+  {% if edits %}
+  <h2 class="manage__h2">修正履歴</h2>
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>修正日時</th>
+        <th>対象</th>
+        <th>操作</th>
+        <th>変更</th>
+        <th>修正者</th>
+        <th>理由</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in edits %}
+      <tr>
+        <td class="grid__sub">{{ e.created_at|date:"Y/n/j H:i" }}</td>
+        <td>{{ e.time_record.work_date|date:"n/j" }}　{{ e.time_record.get_kind_display }}</td>
+        <td>{{ e.get_action_display }}</td>
+        <td>{{ e.before_value }} → {{ e.after_value }}</td>
+        <td>{{ e.editor.username }}</td>
+        <td class="grid__sub">{{ e.reason|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

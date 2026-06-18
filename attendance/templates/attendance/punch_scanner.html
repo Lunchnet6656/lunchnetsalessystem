@@ -1,0 +1,83 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}打刻スキャナー{% endblock %}
+
+{% block main_modifier %}app-main--kiosk{% endblock %}
+
+{% block content %}
+<section class="kiosk">
+  {% if not mode %}
+    {# ホーム：モード選択 #}
+    <header class="kiosk__home-header">
+      <p class="kiosk__clock" id="js-kiosk-clock" aria-live="off">{{ now_label }}</p>
+      <p class="kiosk__date">{{ today_label }}</p>
+      <h1 class="kiosk__title">打刻するモードを選んでください</h1>
+    </header>
+    <div class="kiosk__mode-grid">
+      <a href="{{ clock_in_mode_url }}" class="kiosk-mode kiosk-mode--in">
+        <span class="kiosk-mode__label">出勤</span>
+        <span class="kiosk-mode__sub">朝の打刻</span>
+      </a>
+      <a href="{{ clock_out_mode_url }}" class="kiosk-mode kiosk-mode--out">
+        <span class="kiosk-mode__label">退勤</span>
+        <span class="kiosk-mode__sub">帰る前の打刻</span>
+      </a>
+    </div>
+    <p class="kiosk__help">
+      モードを選ぶと、カメラが起動します。<br>
+      QRコードをカメラにかざしてください。
+    </p>
+
+  {% else %}
+    {# スキャナー：カメラ起動中 #}
+    <header class="kiosk__scan-header kiosk__scan-header--{{ mode }}">
+      <span class="kiosk__mode-badge">{{ mode_label }}モード</span>
+      <a href="{{ scanner_home_url }}" class="kiosk__change-mode">モード変更</a>
+    </header>
+    <div class="kiosk__scanner"
+         data-kiosk-api="{{ kiosk_api_url }}"
+         data-mode="{{ mode }}">
+      <div class="kiosk__camera-frame">
+        <video id="kiosk-video" class="kiosk__video" playsinline muted></video>
+        <canvas id="kiosk-canvas" class="kiosk__canvas" hidden></canvas>
+        <div class="kiosk__viewfinder" aria-hidden="true"></div>
+      </div>
+      <p id="kiosk-prompt" class="kiosk__prompt">QRコードをかざしてください</p>
+      <div id="kiosk-toast" class="kiosk__toast" role="status" aria-live="polite" hidden></div>
+
+      <details class="kiosk__manual">
+        <summary>カメラが使えないときは手動でトークン入力</summary>
+        <form id="kiosk-manual-form" class="kiosk__manual-form">
+          <input type="text" id="kiosk-manual-token" placeholder="トークン (UUID)" autocomplete="off">
+          <button type="submit" class="link-btn">打刻する</button>
+        </form>
+      </details>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if mode %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="{% static 'attendance/js/punch_scanner.js' %}"></script>
+{% else %}
+<script>
+  // ホーム画面の時計を毎秒更新する。深夜の日またぎは現状サポートしない
+  // （日付ラベルは1分以上ズレてもユーザーが手動リロードすれば直る）。
+  (function () {
+    "use strict";
+    var el = document.getElementById("js-kiosk-clock");
+    if (!el) return;
+    function pad(n) { return n < 10 ? "0" + n : String(n); }
+    function tick() {
+      var d = new Date();
+      el.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

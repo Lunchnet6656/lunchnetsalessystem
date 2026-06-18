@@ -1,0 +1,49 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+新規スタッフ追加。admin に頼らず、認証アカウント・基本情報・労働者名簿項目・
+初期時給までを1画面で作成する。Django admin で作っていたフローを完全に置換。
+{% endcomment %}
+{% block title %}スタッフ新規追加{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_staff_roster' %}">‹ 労働者名簿一覧へ</a>
+      <h1 class="manage__title">スタッフ新規追加<span class="manage__sub">認証アカウント＋名簿＋初期時給をまとめて作成</span></h1>
+    </div>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="roster" %}
+
+  <form method="post" class="settings">
+    {% csrf_token %}
+    {% for section in field_sections %}
+    <section class="settings-section">
+      <h2 class="settings-section__title">{{ section.title }}</h2>
+      <div class="settings-section__fields">
+        {% for field in section.fields %}
+        <div class="field{% if field.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
+          {% for error in field.errors %}<p class="field__error">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand">スタッフを追加する</button>
+      <a class="link-btn" href="{% url 'attendance:manage_staff_roster' %}">キャンセル</a>
+    </div>
+  </form>
+
+  <p class="note">
+    パスワードは本人に渡したあと、ログイン後に変更してもらってください。<br>
+    社会保険料・通勤手当などの詳細は、追加後に「スタッフ設定」「給与プロフィール」から設定できます。
+  </p>
+</div>
+{% endblock %}

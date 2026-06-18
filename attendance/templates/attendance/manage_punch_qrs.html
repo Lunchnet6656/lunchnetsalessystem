@@ -1,0 +1,84 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}打刻QR一括印刷{% endblock %}
+
+{% block main_modifier %}app-main--qrs{% endblock %}
+
+{% block content %}
+<section class="qrs">
+  <header class="qrs__header no-print">
+    <a class="link" href="{% url 'attendance:manage_dashboard' %}">‹ 月次一覧へ</a>
+    <h1 class="qrs__title">打刻QR — 配布</h1>
+    {% include "attendance/_subnav.html" with active="qrs" %}
+    <p class="qrs__lead">
+      紙で配るならブラウザの印刷でA4出力できます（{{ total }}件）。<br>
+      個人スマホで使うなら、各カードの「URLをコピー」を押してLINE等で本人に送ってください。
+    </p>
+    <form method="get" class="qrs__filter">
+      <label>
+        事業区分：
+        <select name="business_unit" onchange="this.form.submit()">
+          <option value="">すべて</option>
+          {% for value, label in business_units %}
+            <option value="{{ value }}" {% if business_unit == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="button" class="link-btn" onclick="window.print()">印刷する</button>
+    </form>
+  </header>
+
+  <div class="qrs__sheet">
+    {% for card in cards %}
+      <article class="qr-card">
+        <p class="qr-card__store">{{ card.staff.store.name }}</p>
+        <p class="qr-card__name">{{ card.staff.display_name }}</p>
+        <div class="qr-card__qr">
+          {{ card.qr_svg|safe }}
+        </div>
+        <p class="qr-card__unit">{{ card.staff.get_business_unit_display }}</p>
+        <p class="qr-card__hint">出退勤の打刻に使います</p>
+        <div class="qr-card__actions no-print">
+          <button type="button" class="link-btn js-copy-url" data-url="{{ card.url }}">URLをコピー</button>
+          <a class="link-btn" href="{{ card.url }}" target="_blank" rel="noopener">開く</a>
+          <form method="post" action="{% url 'attendance:manage_rotate_punch_token' card.staff.id %}" class="qr-card__rotate"
+                onsubmit="return confirm('{{ card.staff.display_name }} さんのQRを再発行します。古いQR・URL（流出した場合も含む）は無効になり、新しいQRの配布が必要です。よろしいですか？');">
+            {% csrf_token %}
+            <button type="submit" class="link-btn link-btn--danger">QR再発行（失効）</button>
+          </form>
+        </div>
+      </article>
+    {% empty %}
+      <p class="qrs__empty no-print">対象のスタッフがいません。</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 「URLをコピー」ボタン — クリップボードにスタッフ個人のURLをコピーする
+  (function () {
+    document.querySelectorAll('.js-copy-url').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var url = btn.dataset.url;
+        if (!navigator.clipboard) {
+          // 古いブラウザ向けの素朴フォールバック
+          window.prompt('コピーしてください:', url);
+          return;
+        }
+        navigator.clipboard.writeText(url)
+          .then(function () {
+            var orig = btn.textContent;
+            btn.textContent = '✓ コピー済み';
+            setTimeout(function () { btn.textContent = orig; }, 1500);
+          })
+          .catch(function () {
+            window.prompt('コピーしてください:', url);
+          });
+      });
+    });
+  })();
+</script>
+{% endblock %}

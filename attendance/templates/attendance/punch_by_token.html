@@ -1,0 +1,83 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}打刻 — {{ staff.display_name }}{% endblock %}
+
+{% block content %}
+<section class="punch punch--token">
+  <p class="punch__greeting">{{ staff.display_name }} さん</p>
+  <p class="punch__date">
+    <span class="punch__date-day">{{ today_label }}</span>
+    <span class="punch__date-time" id="js-time">{{ now_label }}</span>
+  </p>
+
+  {% if punch.state == "not_clocked_in" %}
+    <p class="punch__status punch__status--idle">本日まだ出勤していません</p>
+    <form method="post" action="{% url 'attendance:punch_by_token' staff.punch_token %}" class="punch__form" data-confirm-punch>
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="clock_in">
+      <button type="submit" class="punch-btn punch-btn--in">出勤</button>
+    </form>
+
+  {% elif punch.state == "working" %}
+    <p class="punch__status punch__status--working">
+      勤務中
+      <span class="punch__sub">{{ punch.clock_in_at|time:"H:i" }} 出勤</span>
+    </p>
+    <form method="post" action="{% url 'attendance:punch_by_token' staff.punch_token %}" class="punch__form" data-confirm-punch>
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="clock_out">
+      <button type="submit" class="punch-btn punch-btn--out">退勤</button>
+    </form>
+
+  {% else %}
+    <p class="punch__status punch__status--done">
+      本日の勤務は完了しました
+      <span class="punch__sub">{{ punch.clock_in_at|time:"H:i" }} 〜 {{ punch.clock_out_at|time:"H:i" }}</span>
+    </p>
+    <p class="punch__note">追加・修正が必要な場合は管理者に連絡してください。</p>
+  {% endif %}
+</section>
+
+{% if past_payslips %}
+<section class="my-payslips">
+  <h2 class="my-payslips__title">📄 過去の給与明細</h2>
+  <p class="my-payslips__lead">タップするとPDFがダウンロードできます（直近6ヶ月分）。</p>
+  <ul class="my-payslips__list">
+    {% for ps in past_payslips %}
+      <li class="my-payslips__item">
+        <a class="my-payslips__link" href="{% url 'attendance:punch_payslip_pdf' staff.punch_token %}?period={{ ps.payroll_period.period_end|date:'Y-m-d' }}">
+          <span class="my-payslips__period">{{ ps.payroll_period.period_end|date:"Y年n月" }}度</span>
+          <span class="my-payslips__amount">{{ ps.net_pay_yen|stringformat:"d" }}円</span>
+          <span class="my-payslips__icon">⬇</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="my-qr">
+  <h2 class="my-qr__title">📱 私の打刻QR</h2>
+  <p class="my-qr__lead">
+    このQRを<strong>長押し→「画像を保存」</strong>でスマホに保存しておくと、<br>
+    出勤・退勤時に共有端末にかざすだけで打刻できます。
+  </p>
+  <div class="my-qr__img">
+    {{ qr_svg|safe }}
+  </div>
+  <p class="my-qr__name">{{ staff.display_name }}</p>
+  <details class="my-qr__details">
+    <summary>このページのURL（ブックマーク推奨）</summary>
+    <p class="my-qr__url"><code>{{ qr_url }}</code></p>
+    <p class="my-qr__hint">
+      このURLは <strong>自分専用</strong> なので、他の人に教えないでください。<br>
+      URLからもこのページに戻ってこれます（QRを失くしたとき用）。
+    </p>
+  </details>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'attendance/js/punch.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,342 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+スタッフ別の給与明細（管理者）。勤怠を直接編集すると、支給・控除・差引支給額が
+JS で動的に更新される。保存すると ManualWorkHours として永続化される。
+確定済み期間は読み取り専用。
+{% endcomment %}
+{% load humanize static %}
+{% block title %}{{ staff.display_name }}の給与明細{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_payroll' %}?period={{ period_end|date:'Y-m-d' }}">‹ 給与計算一覧へ</a>
+      <h1 class="manage__title">{{ staff.display_name }}<span class="manage__sub">{{ staff.get_business_unit_display }}／{{ staff.store.name }}／{{ staff.get_company_display }}</span></h1>
+      <a class="btn btn--sub btn--sm" href="{% url 'attendance:manage_staff_profile' staff.id %}">手当・控除を編集</a>
+      {% if is_confirmed %}
+        <a class="btn btn--sub btn--sm" href="{% url 'attendance:manage_payslip_pdf' staff.id %}?period={{ period_end|date:'Y-m-d' }}">📄 PDFダウンロード</a>
+      {% endif %}
+      <a class="btn btn--sub btn--sm" href="{% url 'attendance:manage_wage_book' staff.id %}?year={{ period_end|date:'Y' }}">📊 賃金台帳</a>
+    </div>
+    <form method="get" class="period-form">
+      <select name="period" class="select" onchange="this.form.submit()" aria-label="対象期間">
+        {% for opt in period_options %}
+          <option value="{{ opt.value }}" {% if opt.value == period_end|date:"Y-m-d" %}selected{% endif %}>{{ opt.label }}（{{ opt.range }}）</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="payroll" %}
+
+  <div class="manage__period">
+    <div>
+      <span class="manage__period-label">{{ period_label }} 給与明細</span>
+      <span class="manage__period-range">{{ period_start|date:"Y/n/j" }} 〜 {{ period_end|date:"Y/n/j" }}</span>
+    </div>
+    {% if is_confirmed %}
+      <span class="badge badge--closed">確定済み</span>
+    {% else %}
+      <span class="badge badge--open">試算（未確定）</span>
+    {% endif %}
+  </div>
+
+  <form id="hours-save-form"
+        method="post"
+        action="{% url 'attendance:manage_payslip_save_hours' staff.id %}"
+        data-preview-url="{% url 'attendance:manage_payslip_preview' staff.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+
+    <section class="payslip-block">
+      <h2 class="payslip-block__title">
+        勤怠
+        {% if is_confirmed %}<span class="badge badge--closed">確定済み（編集不可）</span>
+        {% elif manual_used %}<span class="badge badge--manual">手入力</span>
+        {% else %}<span class="badge badge--ok">打刻データ</span>{% endif %}
+      </h2>
+      <div class="payslip-block__grid">
+        <div class="kv">
+          <span class="kv__k">勤務日数</span>
+          <span class="kv__v">
+            <input type="number" name="work_days" value="{{ input_work_days }}" min="0" max="31" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>日</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">勤務<small>（通常・拘束）</small></span>
+          <span class="kv__v">
+            <input type="text" inputmode="decimal" name="work_hours" value="{{ input_work_hours }}" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>h</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">休憩<small>（月合計）</small></span>
+          <span class="kv__v">
+            <input type="text" inputmode="decimal" name="break_hours" value="{{ input_break_hours }}" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>h</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">時間外</span>
+          <span class="kv__v">
+            <input type="text" inputmode="decimal" name="overtime_hours" value="{{ input_overtime_hours }}" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>h</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">深夜</span>
+          <span class="kv__v">
+            <input type="text" inputmode="decimal" name="night_hours" value="{{ input_night_hours }}" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>h</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">休日</span>
+          <span class="kv__v">
+            <input type="text" inputmode="decimal" name="holiday_hours" value="{{ input_holiday_hours }}" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>h</small>
+          </span>
+        </div>
+      </div>
+
+      {% if is_sales %}
+      {# 販売事業向けの手当入力。食堂事業のスタッフでは出さない。 #}
+      <div class="payslip-block__grid payslip-block__grid--sales">
+        <div class="kv">
+          <span class="kv__k">行商<small>（{{ peddling_rate_yen|intcomma }}円/回）</small></span>
+          <span class="kv__v">
+            <input type="number" name="peddling_count" value="{{ peddling_count }}" min="0" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>回</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">箱洗い<small>（{{ box_wash_rate_yen|intcomma }}円/箱）</small></span>
+          <span class="kv__v">
+            <input type="number" name="box_wash_count" value="{{ box_wash_count }}" min="0" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>箱</small>
+          </span>
+        </div>
+        <div class="kv">
+          <span class="kv__k">有給<small>（所定 {{ scheduled_minutes_per_day }}分×時給）</small></span>
+          <span class="kv__v">
+            <input type="number" name="paid_leave_days" value="{{ paid_leave_days }}" min="0" max="31" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>日</small>
+          </span>
+        </div>
+        {% if is_driver %}
+        <div class="kv">
+          <span class="kv__k">ドライバー<small>（{{ driver_rate_yen|intcomma }}円/回）</small></span>
+          <span class="kv__v">
+            <input type="number" name="driver_count" value="{{ driver_count }}" min="0" class="payslip-input" {% if is_confirmed %}disabled{% endif %}>
+            <small>回</small>
+          </span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# 有給休暇サマリ（10月〜9月の年度）。販売だけでなく全員に表示する：
+         有給は全スタッフに付与される労基法の権利であり、確認できると便利。 #}
+      <div class="leave-summary">
+        <span class="leave-summary__year">有給年度（{{ paid_leave_summary.year_label }}）</span>
+        <span class="leave-summary__item">付与 <strong>{{ paid_leave_summary.granted }}日</strong></span>
+        <span class="leave-summary__item">取得 <strong>{{ paid_leave_summary.used }}日</strong></span>
+        <span class="leave-summary__item leave-summary__item--remaining">残り <strong>{{ paid_leave_summary.remaining }}日</strong></span>
+      </div>
+    </section>
+
+    <div class="payslip-cols">
+      <section class="payslip-block">
+        <h2 class="payslip-block__title">支給</h2>
+        <table class="ledger">
+          <tr><td>基本賃金 <small class="ledger__note">（拘束 <span data-field="gross_work_minutes">{{ gross_work_minutes|intcomma }}</span>分 ÷60 ×{{ d.hourly_wage|intcomma }}円）</small></td><td class="ledger__num"><span data-field="base_wage_gross_yen">{{ base_wage_gross_yen|intcomma }}</span></td></tr>
+          <tr class="ledger__row--minus" data-break-row{% if not d.break_deduction_yen %} hidden{% endif %}><td>休憩控除 <small class="ledger__note">（休憩 <span data-field="break_minutes">{{ d.break_minutes|intcomma }}</span>分 ÷60 ×{{ d.hourly_wage|intcomma }}円）</small></td><td class="ledger__num">−<span data-field="break_deduction_yen">{{ d.break_deduction_yen|intcomma }}</span></td></tr>
+          <tr><td>時間外手当 <small class="ledger__note">（<span data-field="overtime_minutes">{{ d.overtime_minutes|intcomma }}</span>分 ÷60 ×{{ ot_unit_yen|intcomma }}円〔時給×{{ ot_full_rate }}〕）</small></td><td class="ledger__num"><span data-field="overtime_premium_yen">{{ d.overtime_premium_yen|intcomma }}</span></td></tr>
+          <tr><td>深夜手当 <small class="ledger__note">（<span data-field="night_minutes">{{ d.night_minutes|intcomma }}</span>分 ÷60 ×{{ night_unit_yen|intcomma }}円〔時給×{{ night_full_rate }}〕）</small></td><td class="ledger__num"><span data-field="night_premium_yen">{{ d.night_premium_yen|intcomma }}</span></td></tr>
+          <tr><td>休日手当 <small class="ledger__note">（<span data-field="holiday_minutes">{{ d.holiday_minutes|intcomma }}</span>分 ÷60 ×{{ holiday_unit_yen|intcomma }}円〔時給×{{ holiday_full_rate }}〕）</small></td><td class="ledger__num"><span data-field="holiday_premium_yen">{{ d.holiday_premium_yen|intcomma }}</span></td></tr>
+          <tr><td>通勤手当</td><td class="ledger__num"><span data-field="commute_allowance_yen">{{ d.commute_allowance_yen|intcomma }}</span></td></tr>
+          {% if commute_method == "car" or commute_method == "motorcycle" %}
+          <tr><td>通勤ガソリン代 <small class="ledger__note">（{{ commute_method_label }}・{{ commute_distance_km }}km×2×日数×{{ gasoline_yen_per_liter }}円÷{{ fuel_efficiency_kml }}）</small></td><td class="ledger__num"><span data-field="gasoline_yen">{{ gasoline_yen|intcomma }}</span></td></tr>
+          {% endif %}
+          <tr><td>{{ profile.other_allowance_name|default:"その他手当" }}</td><td class="ledger__num"><span data-field="other_allowance_yen">{{ d.other_allowance_yen|intcomma }}</span></td></tr>
+          {% if is_sales %}
+          <tr><td>行商手当 <small class="ledger__note">（<span data-field="peddling_count">{{ peddling_count }}</span>回×{{ peddling_rate_yen|intcomma }}円）</small></td><td class="ledger__num"><span data-field="peddling_allowance_yen">{{ peddling_allowance_yen|intcomma }}</span></td></tr>
+          <tr><td>箱洗い手当 <small class="ledger__note">（<span data-field="box_wash_count">{{ box_wash_count }}</span>箱×{{ box_wash_rate_yen|intcomma }}円）</small></td><td class="ledger__num"><span data-field="box_wash_allowance_yen">{{ box_wash_allowance_yen|intcomma }}</span></td></tr>
+          <tr><td>有給手当 <small class="ledger__note">（<span data-field="paid_leave_days">{{ paid_leave_days }}</span>日×{{ scheduled_minutes_per_day }}分×{{ d.hourly_wage|intcomma }}円）</small></td><td class="ledger__num"><span data-field="paid_leave_yen">{{ paid_leave_yen|intcomma }}</span></td></tr>
+          {% if is_driver %}
+          <tr><td>ドライバー手当 <small class="ledger__note">（<span data-field="driver_count">{{ driver_count }}</span>回×{{ driver_rate_yen|intcomma }}円）</small></td><td class="ledger__num"><span data-field="driver_allowance_yen">{{ driver_allowance_yen|intcomma }}</span></td></tr>
+          {% endif %}
+          {% endif %}
+          {% for adj in payment_adjustments %}
+          <tr class="ledger__row--adj"><td>{{ adj.name }}{% if adj.note %} <small class="ledger__note">（{{ adj.note }}）</small>{% endif %}</td><td class="ledger__num">{{ adj.amount_yen|intcomma }}</td></tr>
+          {% endfor %}
+          <tr class="ledger__total"><td>総支給額</td><td class="ledger__num"><span data-field="gross_yen">{{ d.gross_yen|intcomma }}</span>円</td></tr>
+        </table>
+      </section>
+
+      <section class="payslip-block">
+        <h2 class="payslip-block__title">控除</h2>
+        <table class="ledger">
+          <tr><td>健康保険料</td><td class="ledger__num"><span data-field="health_insurance_yen">{{ d.health_insurance_yen|intcomma }}</span></td></tr>
+          <tr><td>介護保険料</td><td class="ledger__num"><span data-field="nursing_insurance_yen">{{ d.nursing_insurance_yen|intcomma }}</span></td></tr>
+          <tr><td>厚生年金保険料</td><td class="ledger__num"><span data-field="pension_yen">{{ d.pension_yen|intcomma }}</span></td></tr>
+          <tr><td>雇用保険料</td><td class="ledger__num"><span data-field="employment_insurance_yen">{{ d.employment_insurance_yen|intcomma }}</span></td></tr>
+          <tr><td>所得税</td><td class="ledger__num"><span data-field="income_tax_yen">{{ d.income_tax_yen|intcomma }}</span></td></tr>
+          <tr><td>住民税</td><td class="ledger__num"><span data-field="resident_tax_yen">{{ d.resident_tax_yen|intcomma }}</span></td></tr>
+          <tr><td>{{ profile.other_deduction_name|default:"その他控除" }}</td><td class="ledger__num"><span data-field="other_deduction_yen">{{ d.other_deduction_yen|intcomma }}</span></td></tr>
+          {% for adj in deduction_adjustments %}
+          <tr class="ledger__row--adj"><td>{{ adj.name }}{% if adj.note %} <small class="ledger__note">（{{ adj.note }}）</small>{% endif %}</td><td class="ledger__num">{{ adj.amount_yen|intcomma }}</td></tr>
+          {% endfor %}
+          <tr class="ledger__total"><td>控除合計</td><td class="ledger__num"><span data-field="total_deduction_yen">{{ d.total_deduction_yen|intcomma }}</span>円</td></tr>
+        </table>
+      </section>
+    </div>
+
+    <div class="netpay">
+      <span class="netpay__label">差引支給額（手取り）</span>
+      <span class="netpay__amount"><span data-field="net_pay_yen">{{ d.net_pay_yen|intcomma }}</span><small>円</small></span>
+    </div>
+
+    {% if not is_confirmed %}
+    {# 差引支給額のすぐ下にデカ保存ボタンを置く＝計算結果を見た直後の自然な視線で押せる。 #}
+    <button type="submit" class="save-cta" id="js-save-cta">
+      <span class="save-cta__icon" aria-hidden="true">💾</span>
+      <span class="save-cta__main">この内容で勤怠を保存する</span>
+      <span class="save-cta__sub save-cta__sub--clean">保存しないとブラウザを閉じた時に消えます</span>
+      <span class="save-cta__sub save-cta__sub--dirty" hidden>⚠ 未保存の変更があります — 押してください</span>
+    </button>
+    {% if manual_used %}
+    <div class="save-cta-sub">
+      <button type="submit" form="hours-clear-form" class="link-btn"
+              onclick="return confirm('手入力を解除して打刻データから再計算します。よろしいですか？')">打刻データに戻す</button>
+    </div>
+    {% endif %}
+    {% endif %}
+  </form>
+
+  {% if not is_confirmed %}
+  {# 未保存時のみ表示するスティッキー保存バー（画面下部固定）。スクロール先でも押せる。 #}
+  <div class="sticky-savebar" id="js-sticky-savebar" hidden>
+    <span class="sticky-savebar__msg">⚠ 未保存の変更があります</span>
+    <button type="submit" form="hours-save-form" class="btn btn--brand">勤怠を保存</button>
+  </div>
+  {% endif %}
+
+  {% if not is_confirmed and manual_used %}
+  <form id="hours-clear-form" method="post"
+        action="{% url 'attendance:manage_payslip_clear_hours' staff.id %}" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+  </form>
+  {% endif %}
+
+  {% if not is_confirmed %}
+  <section class="payslip-block adjustments-block">
+    <h2 class="payslip-block__title">臨時項目<small>（年末調整還付・慶弔金・遡及精算など）</small></h2>
+    <form method="post" action="{% url 'attendance:manage_payslip_save_adjustments' staff.id %}" id="adjustments-form">
+      {% csrf_token %}
+      <input type="hidden" name="period" value="{{ period_end|date:'Y-m-d' }}">
+      <table class="adj-table">
+        <thead>
+          <tr>
+            <th class="adj-col-name">項目名</th>
+            <th class="adj-col-kind">区分</th>
+            <th class="adj-col-amount">金額（円）</th>
+            <th class="adj-col-note">備考</th>
+            <th class="adj-col-delete"></th>
+          </tr>
+        </thead>
+        <tbody id="adjustments-tbody">
+          {% for adj in payment_adjustments %}
+          <tr class="adj-row">
+            <td><input type="hidden" name="adj_{{ adj.id }}_id" value="{{ adj.id }}">
+                <input type="text" name="adj_{{ adj.id }}_name" value="{{ adj.name }}" class="input" maxlength="64"></td>
+            <td><select name="adj_{{ adj.id }}_kind" class="input">
+                  {% for v, label in adjustment_kinds %}
+                  <option value="{{ v }}" {% if v == adj.kind %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select></td>
+            <td><input type="number" name="adj_{{ adj.id }}_amount" value="{{ adj.amount_yen }}" min="0" class="cell-input cell-input--wide"></td>
+            <td><input type="text" name="adj_{{ adj.id }}_note" value="{{ adj.note }}" class="input" maxlength="255"></td>
+            <td><label class="checkbox-cell"><input type="checkbox" name="adj_{{ adj.id }}_delete"> 削除</label></td>
+          </tr>
+          {% endfor %}
+          {% for adj in deduction_adjustments %}
+          <tr class="adj-row">
+            <td><input type="hidden" name="adj_{{ adj.id }}_id" value="{{ adj.id }}">
+                <input type="text" name="adj_{{ adj.id }}_name" value="{{ adj.name }}" class="input" maxlength="64"></td>
+            <td><select name="adj_{{ adj.id }}_kind" class="input">
+                  {% for v, label in adjustment_kinds %}
+                  <option value="{{ v }}" {% if v == adj.kind %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select></td>
+            <td><input type="number" name="adj_{{ adj.id }}_amount" value="{{ adj.amount_yen }}" min="0" class="cell-input cell-input--wide"></td>
+            <td><input type="text" name="adj_{{ adj.id }}_note" value="{{ adj.note }}" class="input" maxlength="255"></td>
+            <td><label class="checkbox-cell"><input type="checkbox" name="adj_{{ adj.id }}_delete"> 削除</label></td>
+          </tr>
+          {% endfor %}
+          {# JS で複製する空テンプレート行（最初は非表示）。プレースホルダ '__i__' は追加時に通し番号に置換 #}
+          <tr class="adj-row adj-row--template" hidden>
+            <td><input type="text" name="adj_new___i___name" class="input" maxlength="64"></td>
+            <td><select name="adj_new___i___kind" class="input">
+                  {% for v, label in adjustment_kinds %}
+                  <option value="{{ v }}">{{ label }}</option>
+                  {% endfor %}
+                </select></td>
+            <td><input type="number" name="adj_new___i___amount" min="0" class="cell-input cell-input--wide"></td>
+            <td><input type="text" name="adj_new___i___note" class="input" maxlength="255"></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="adj-actions">
+        <button type="button" id="add-adj-row" class="btn btn--sub btn--sm">＋ 行を追加</button>
+        <button type="submit" class="btn btn--brand">臨時項目を保存</button>
+      </div>
+    </form>
+  </section>
+  {% elif payment_adjustments or deduction_adjustments %}
+  <section class="payslip-block adjustments-block">
+    <h2 class="payslip-block__title">臨時項目<small>（確定済み・編集不可）</small></h2>
+    <p class="field__help">この期間は確定済みのため臨時項目は編集できません。給与計算画面で確定を取り消すと編集できます。</p>
+  </section>
+  {% endif %}
+
+  <p class="note">
+    時給 {{ d.hourly_wage|intcomma }}円{% if below_min_wage %}（<strong>最低賃金未満</strong>）{% endif %}。
+    勤怠欄を直接編集すると、支給・控除・手取りが入力に合わせて更新される。「勤怠を保存」を押すまで永続化されない。
+    保存するとそのスタッフ・その期間は手入力扱いに切り替わり、以降は打刻データを使わずこの値で計算される（「打刻データに戻す」で取り消し可）。
+    通勤手当は非課税扱い（暫定）。所得税は国税庁の電算機計算（甲欄・令和8年分）で自動計算。
+    健康保険・介護・厚生年金・住民税・その他控除はスタッフごとの登録額（「手当・控除を編集」）。
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'attendance/js/payslip_preview.js' %}"></script>
+<script>
+  // 臨時項目の「＋ 行を追加」：テンプレート行を複製して name の __i__ を通し番号で置換。
+  (function () {
+    var btn = document.getElementById('add-adj-row');
+    if (!btn) return;
+    var tbody = document.getElementById('adjustments-tbody');
+    var template = tbody && tbody.querySelector('.adj-row--template');
+    if (!template) return;
+    var counter = 0;
+    btn.addEventListener('click', function () {
+      counter++;
+      var clone = template.cloneNode(true);
+      clone.classList.remove('adj-row--template');
+      clone.removeAttribute('hidden');
+      var idx = String(counter);
+      clone.querySelectorAll('[name]').forEach(function (input) {
+        input.name = input.name.replace('__i__', idx);
+      });
+      tbody.insertBefore(clone, template);
+    });
+  })();
+</script>
+{% endblock %}

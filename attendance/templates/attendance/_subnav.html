@@ -1,0 +1,51 @@
+{% comment %}
+管理者向け勤怠アプリの共通サブナビ。{% include %} で取り込み、active 変数で
+現在のセクションを示す。
+
+  {% include "attendance/_subnav.html" with active="dashboard" %}
+
+active の値（"dashboard" がデフォルト）:
+  dashboard       … 月次勤怠（manage_dashboard / manage_staff_detail）
+  payroll         … 給与計算（manage_payroll / manage_payslip_detail / manage_wage_book）
+  staff_settings  … スタッフ設定（manage_staff_settings / manage_staff_profile）
+  roster          … 労働者名簿（manage_staff_roster）
+  qrs             … 打刻QR印刷（manage_punch_qrs）
+  settings        … 設定（manage_settings / manage_min_wage_update）
+{% endcomment %}
+<nav class="subnav">
+  {% if active == "dashboard" %}
+    <span class="subnav__item subnav__item--active">月次勤怠</span>
+  {% else %}
+    <a class="subnav__item" href="{% url 'attendance:manage_dashboard' %}">月次勤怠</a>
+  {% endif %}
+
+  {% if active == "payroll" %}
+    <span class="subnav__item subnav__item--active">給与計算</span>
+  {% else %}
+    <a class="subnav__item" href="{% url 'attendance:manage_payroll' %}">給与計算</a>
+  {% endif %}
+
+  {% if active == "staff_settings" %}
+    <span class="subnav__item subnav__item--active">スタッフ設定</span>
+  {% else %}
+    <a class="subnav__item" href="{% url 'attendance:manage_staff_settings' %}">スタッフ設定</a>
+  {% endif %}
+
+  {% if active == "roster" %}
+    <span class="subnav__item subnav__item--active">労働者名簿</span>
+  {% else %}
+    <a class="subnav__item" href="{% url 'attendance:manage_staff_roster' %}">労働者名簿</a>
+  {% endif %}
+
+  {% if active == "qrs" %}
+    <span class="subnav__item subnav__item--active">打刻QR印刷</span>
+  {% else %}
+    <a class="subnav__item" href="{% url 'attendance:manage_punch_qrs' %}">打刻QR印刷</a>
+  {% endif %}
+
+  {% if active == "settings" %}
+    <span class="subnav__item subnav__item--active">設定</span>
+  {% else %}
+    <a class="subnav__item" href="{% url 'attendance:manage_settings' %}">設定</a>
+  {% endif %}
+</nav>

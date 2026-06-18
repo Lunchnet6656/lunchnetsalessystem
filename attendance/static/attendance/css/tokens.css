@@ -1,0 +1,56 @@
+/* 勤怠アプリのデザイントークン。
+   色・余白・角丸・文字サイズはここに集約し、個別CSSではこの変数だけを参照する
+   （値の直書きを禁止し、テーマ変更を1ファイルで完結させる）。 */
+:root {
+  /* 色 */
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-text: #1f2933;
+  --color-text-sub: #6b7785;
+  --color-border: #e2e8ed;
+
+  --color-brand: #d6334c;          /* ランチネットの赤 */
+  --color-clock-in: #1f9d57;       /* 出勤＝緑 */
+  --color-clock-in-dark: #178247;
+  --color-clock-out: #e07b1a;      /* 退勤＝オレンジ */
+  --color-clock-out-dark: #c2660c;
+
+  --color-success-bg: #e6f6ec;
+  --color-success-text: #157f45;
+  --color-error-bg: #fdeced;
+  --color-error-text: #c0283c;
+  --color-warn-bg: #fef3e2;        /* 打刻漏れ・要対応 */
+  --color-warn-text: #b3650a;
+  --color-info-bg: #e8f0fe;        /* 手入力・修正済の注記 */
+  --color-info-text: #2456c8;
+  --color-row-weekend: #faf6f0;    /* 土日の行の淡い下地 */
+
+  /* 余白 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+
+  /* 角丸・影 */
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --shadow-card: 0 2px 12px rgba(31, 41, 51, 0.08);
+
+  /* 文字サイズ */
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 20px;
+  --font-xl: 28px;
+
+  /* フォーム部品の高さ（全画面で統一する3段スケール）
+     sm=表内の密な入力 / md=標準の入力欄・ボタン / lg=タップ主体の大型 */
+  --control-h-sm: 36px;
+  --control-h: 42px;
+  --control-h-lg: 48px;
+
+  /* よく使う入力欄・操作部の幅（直書きを避け、列幅の揃いを保つ） */
+  --field-w-sm: 64px;     /* 数値1〜3桁の小型入力 */
+  --field-w-md: 96px;     /* 金額・時間などの中型入力 */
+  --field-w-lg: 180px;    /* 氏名検索・セレクトなど */
+}

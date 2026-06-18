@@ -1,0 +1,26 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}勤怠{% endblock %} ｜ ランチネット</title>
+  <link rel="stylesheet" href="{% static 'attendance/css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'attendance/css/attendance.css' %}">
+</head>
+<body>
+  <header class="app-header">
+    <span class="app-header__title">ランチネット 勤怠</span>
+  </header>
+  <main class="app-main {% block main_modifier %}{% endblock %}">
+    {% if messages %}
+      <div class="messages" role="status" aria-live="polite">
+        {% for message in messages %}
+          <div class="toast toast--{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

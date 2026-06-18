@@ -1,0 +1,79 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+最低賃金の一括更新。8割が最低時給というランチネットの運用で、最低賃金が
+上がったときに対象スタッフだけまとめて更新する。最低時給じゃない人は触らない。
+{% endcomment %}
+{% load humanize %}
+{% block title %}最低賃金 一括更新{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_settings' %}">‹ 給与設定へ戻る</a>
+      <h1 class="manage__title">最低賃金 一括更新</h1>
+    </div>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="settings" %}
+
+  <section class="settings-section">
+    <h2 class="settings-section__title">現在の状況</h2>
+    <p>現在の最低賃金：<strong>{{ setting.min_wage|intcomma }} 円</strong></p>
+
+    <h3 class="subheading">対象スタッフ — 現在 {{ setting.min_wage|intcomma }} 円で働いている人（{{ on_min|length }}名）</h3>
+    {% if on_min %}
+    <ul class="staff-list">
+      {% for s in on_min %}
+        <li>{{ s.display_name }} <span class="kv__k">（{{ s.get_business_unit_display }}）</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="empty">対象スタッフはいません。</p>{% endif %}
+
+    <h3 class="subheading">影響なし — それ以外の時給のスタッフ（{{ above_min|length }}名）</h3>
+    {% if above_min %}
+    <ul class="staff-list staff-list--muted">
+      {% for s, w in above_min %}
+        <li>{{ s.display_name }} <span class="kv__k">（{{ s.get_business_unit_display }}・{{ w|intcomma }}円）</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if no_wage %}
+    <p class="field__help">時給未登録のスタッフ {{ no_wage|length }} 名は対象外。スタッフのプロフィールから時給を登録してください。</p>
+    {% endif %}
+  </section>
+
+  <form method="post" class="settings">
+    {% csrf_token %}
+    <section class="settings-section">
+      <h2 class="settings-section__title">新しい最低賃金</h2>
+      <div class="settings-section__fields">
+        <div class="field{% if form.new_min_wage.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ form.new_min_wage.id_for_label }}">{{ form.new_min_wage.label }}</label>
+          {{ form.new_min_wage }}
+          {% for e in form.new_min_wage.errors %}<p class="field__error">{{ e }}</p>{% endfor %}
+        </div>
+        <div class="field{% if form.effective_from.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ form.effective_from.id_for_label }}">{{ form.effective_from.label }}</label>
+          {{ form.effective_from }}
+          <p class="field__help">この日から新しい時給を適用する（既存の履歴は残る）</p>
+          {% for e in form.effective_from.errors %}<p class="field__error">{{ e }}</p>{% endfor %}
+        </div>
+      </div>
+    </section>
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand"
+        onclick="return confirm('対象スタッフ {{ on_min|length }} 名の時給を新しい最低賃金に更新します。よろしいですか？')"
+        {% if not on_min %}disabled{% endif %}>一括更新する</button>
+    </div>
+  </form>
+
+  <p class="note">
+    最低賃金より高い時給で働いているスタッフは触らない。時給未登録のスタッフも対象外。
+    最低賃金の設定値（給与設定の「最低賃金」）も同時に更新される。
+    既存の時給履歴は残し、効力発生日の時給を新しく1件追加する。
+  </p>
+</div>
+{% endblock %}

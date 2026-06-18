@@ -1,0 +1,56 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}打刻{% endblock %}
+
+{% block content %}
+<section class="punch">
+  <p class="punch__notice">
+    通常はQRコードで打刻してください（共有端末は
+    <a href="{% url 'attendance:punch_scanner' %}">スキャナー</a>、
+    個人スマホは配布されたQRURLから）。この画面はログインを使った代理打刻用です。
+  </p>
+  <p class="punch__greeting">{{ staff.display_name }} さん</p>
+  <p class="punch__date">
+    <span class="punch__date-day">{{ today_label }}</span>
+    <span class="punch__date-time" id="js-time">{{ now_label }}</span>
+  </p>
+
+  {% if punch.state == "not_clocked_in" %}
+    <p class="punch__status punch__status--idle">まだ出勤していません</p>
+    <form method="post" action="{% url 'attendance:punch' %}" class="punch__form" data-confirm-punch>
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="clock_in">
+      <button type="submit" class="punch-btn punch-btn--in">出勤</button>
+    </form>
+
+  {% elif punch.state == "working" %}
+    <p class="punch__status punch__status--working">
+      勤務中
+      <span class="punch__sub">{{ punch.clock_in_at|time:"H:i" }} 出勤</span>
+    </p>
+    <form method="post" action="{% url 'attendance:punch' %}" class="punch__form" data-confirm-punch>
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="clock_out">
+      <button type="submit" class="punch-btn punch-btn--out">退勤</button>
+    </form>
+
+  {% else %}
+    <p class="punch__status punch__status--done">
+      本日の勤務は完了しました
+      <span class="punch__sub">{{ punch.clock_in_at|time:"H:i" }} 〜 {{ punch.clock_out_at|time:"H:i" }}</span>
+    </p>
+  {% endif %}
+
+  {% if punch.can_undo %}
+    <form method="post" action="{% url 'attendance:undo_punch' %}" class="punch__undo" data-confirm-undo>
+      {% csrf_token %}
+      <button type="submit" class="link-btn">直近の打刻を取り消す</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'attendance/js/punch.js' %}"></script>
+{% endblock %}

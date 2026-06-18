@@ -1,0 +1,121 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+全スタッフ設定（時給・手当・控除）の一括編集。50名以上の従業員＋PC操作が
+苦手な運用者を想定して、スタッフごとに画面遷移しないスプレッドシート型。
+事業区分フィルタ＋名前検索で50人から目的の人を即見つけられる。
+{% endcomment %}
+{% load humanize %}
+{% block title %}スタッフ設定{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <h1 class="manage__title">スタッフ設定<span class="manage__sub">時給・手当・控除を全員分まとめて</span></h1>
+    <form method="get" class="period-form">
+      <select name="company" class="select" onchange="this.form.submit()" aria-label="会社">
+        <option value="">全社</option>
+        {% for value, label in company_choices %}
+          <option value="{{ value }}" {% if value == company %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="unit" class="select" onchange="this.form.submit()" aria-label="事業区分">
+        <option value="">全事業</option>
+        {% for value, label in unit_choices %}
+          <option value="{{ value }}" {% if value == unit %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" id="staff-search" class="input input--search" placeholder="氏名で絞り込み" oninput="filterStaffRows(this.value)" aria-label="氏名で絞り込み">
+      <noscript><button type="submit" class="btn btn--sub">表示</button></noscript>
+    </form>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="staff_settings" %}
+
+  {# 給与計算の「期間バー」と同じパターン。左：状況サマリ／右：アクション。 #}
+  <div class="action-bar">
+    <div>
+      <span class="action-bar__label">全{{ rows|length }}名</span>
+      <span class="action-bar__sub">最低賃金 {{ min_wage|default:"—" }}円</span>
+    </div>
+    <a class="btn btn--brand" href="{% url 'attendance:manage_staff_new' %}">＋ スタッフ追加</a>
+  </div>
+
+  {% if rows %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="unit" value="{{ unit }}">
+    <div class="staff-settings__wrap">
+      <table class="grid grid--staff-settings">
+        <thead>
+          <tr>
+            <th class="grid__th--name">氏名</th>
+            <th>事業</th>
+            <th>会社</th>
+            <th class="grid__th--num">時給（円）</th>
+            <th class="grid__th--num">通勤手当</th>
+            <th class="grid__th--num">健保</th>
+            <th class="grid__th--num">厚年</th>
+            <th class="grid__th--num">住民税</th>
+            <th class="grid__th--num">扶養</th>
+            <th>雇用保険</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr class="staff-row" data-name="{{ row.staff.display_name }}">
+            <td class="grid__name">{{ row.staff.display_name }}</td>
+            <td>{{ row.staff.get_business_unit_display }}</td>
+            <td>
+              <select name="staff_{{ row.staff.id }}_company" class="cell-input cell-input--company">
+                {% for value, label in company_choices %}
+                  <option value="{{ value }}" {% if value == row.company %}selected{% endif %}>{{ value }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="grid__num">
+              <input type="number" name="staff_{{ row.staff.id }}_hourly_wage" value="{{ row.hourly_wage }}" min="0" class="cell-input cell-input--wide" placeholder="0">
+              {% if row.below_min_wage %}<br><span class="badge badge--warn">最賃未満</span>{% endif %}
+            </td>
+            <td class="grid__num"><input type="number" name="staff_{{ row.staff.id }}_commute_allowance" value="{{ row.commute_allowance }}" min="0" class="cell-input" placeholder="0"></td>
+            <td class="grid__num"><input type="number" name="staff_{{ row.staff.id }}_health_insurance" value="{{ row.health_insurance }}" min="0" class="cell-input" placeholder="0"></td>
+            <td class="grid__num"><input type="number" name="staff_{{ row.staff.id }}_pension_insurance" value="{{ row.pension_insurance }}" min="0" class="cell-input" placeholder="0"></td>
+            <td class="grid__num"><input type="number" name="staff_{{ row.staff.id }}_resident_tax" value="{{ row.resident_tax }}" min="0" class="cell-input" placeholder="0"></td>
+            <td class="grid__num"><input type="number" name="staff_{{ row.staff.id }}_dependents_count" value="{{ row.dependents_count }}" min="0" max="20" class="cell-input cell-input--narrow"></td>
+            <td><label class="checkbox-cell"><input type="checkbox" name="staff_{{ row.staff.id }}_employment_insurance_enrolled" {% if row.employment_insurance_enrolled %}checked{% endif %}>加入</label></td>
+            <td><a class="link" href="{% url 'attendance:manage_staff_profile' row.staff.id %}">詳細 ›</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand">全員分まとめて保存</button>
+      <span class="settings__hint">{{ rows|length }}名表示中・最低賃金 {{ min_wage|intcomma }}円</span>
+    </div>
+  </form>
+
+  <p class="note">
+    時給は「{{ effective_from|date:"Y/n/j" }}」から適用される新しい履歴として保存される（既存履歴は残す・同額なら何もしない）。
+    通勤手当は非課税扱い（暫定）。健保・厚年・住民税は社労士／自治体から渡る月額をそのまま入力（未加入なら0）。
+    扶養人数は所得税の電算機計算で使う（源泉控除対象配偶者＋親族の数）。
+    介護保険料・その他手当／控除・その他項目は「詳細」から個別に編集。
+  </p>
+  {% else %}
+    <p class="empty">対象のスタッフがいません。事業区分を切り替えるか、Django admin でスタッフを登録してください。</p>
+  {% endif %}
+</div>
+
+<script>
+  // 氏名で行を絞り込む（純粋クライアントサイド・50人想定なら十分軽い）。
+  function filterStaffRows(query) {
+    var q = (query || "").trim().toLowerCase();
+    document.querySelectorAll('.staff-row').forEach(function (row) {
+      var name = (row.dataset.name || "").toLowerCase();
+      row.style.display = (q === "" || name.indexOf(q) !== -1) ? "" : "none";
+    });
+  }
+</script>
+{% endblock %}

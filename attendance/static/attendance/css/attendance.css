@@ -1,0 +1,1788 @@
+/* 勤怠アプリの画面スタイル。値は tokens.css の変数のみを参照する。
+   スマホ縦画面を主対象に、打刻ボタンは指で押しやすい大きさを確保する。 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app-header {
+  background: var(--color-brand);
+  color: #fff;
+  padding: var(--space-md);
+  text-align: center;
+}
+
+.app-header__title {
+  font-size: var(--font-md);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.app-main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-md);
+}
+
+/* メッセージ（打刻結果のフィードバック） */
+.messages {
+  margin-bottom: var(--space-md);
+}
+
+.toast {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-md);
+  margin-bottom: var(--space-sm);
+}
+
+.toast--success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.toast--error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+/* 打刻カード */
+.punch {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-lg) var(--space-md) var(--space-xl);
+  text-align: center;
+}
+
+.punch__greeting {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-xs);
+}
+
+.punch__date {
+  color: var(--color-text-sub);
+  font-size: var(--font-md);
+  margin: 0 0 var(--space-lg);
+}
+
+.punch__date-time {
+  display: block;
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: var(--space-xs);
+}
+
+.punch__status {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-lg);
+  line-height: 1.6;
+}
+
+.punch__status--idle {
+  color: var(--color-text-sub);
+}
+
+.punch__status--working {
+  color: var(--color-clock-in-dark);
+}
+
+.punch__status--done {
+  color: var(--color-text-sub);
+}
+
+.punch__sub {
+  display: block;
+  font-size: var(--font-sm);
+  font-weight: 400;
+  color: var(--color-text-sub);
+  margin-top: var(--space-xs);
+}
+
+.punch__form {
+  margin: 0;
+}
+
+/* 打刻ボタン：指で押しやすい大きな円形ボタン */
+.punch-btn {
+  width: 200px;
+  height: 200px;
+  max-width: 72vw;
+  max-height: 72vw;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: var(--font-xl);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.05s ease;
+}
+
+.punch-btn:active {
+  transform: scale(0.97);
+}
+
+.punch-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.punch-btn--in {
+  background: var(--color-clock-in);
+}
+
+.punch-btn--in:active {
+  background: var(--color-clock-in-dark);
+}
+
+.punch-btn--out {
+  background: var(--color-clock-out);
+}
+
+.punch-btn--out:active {
+  background: var(--color-clock-out-dark);
+}
+
+/* 打刻の取り消しリンク */
+.punch__undo {
+  margin: var(--space-xl) 0 0;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-sub);
+  font-size: var(--font-sm);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: var(--space-sm) var(--space-md);
+  min-height: 44px;
+}
+
+/* --- 個人ページの「私のQR」セクション --------------------------------- */
+
+.my-qr {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-top: var(--space-xl);
+  text-align: center;
+  box-shadow: var(--shadow-card);
+}
+
+.my-qr__title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-md);
+}
+
+.my-qr__lead {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: 0 0 var(--space-md);
+  line-height: 1.7;
+}
+
+.my-qr__lead strong {
+  color: var(--color-text);
+}
+
+.my-qr__img {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-md) 0;
+  /* iOS Safari の「画像を保存」を効かせるため、SVGに長押し領域を確保 */
+  -webkit-touch-callout: default;
+}
+
+.my-qr__img svg {
+  width: 240px;
+  height: 240px;
+  /* 透明背景だと保存後に見えなくなる端末があるため、白下地を明示 */
+  background: #fff;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+}
+
+.my-qr__name {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: var(--space-sm) 0 var(--space-md);
+}
+
+.my-qr__details {
+  margin-top: var(--space-md);
+  text-align: left;
+  font-size: var(--font-sm);
+}
+
+.my-qr__details summary {
+  cursor: pointer;
+  color: var(--color-text-sub);
+  user-select: none;
+}
+
+.my-qr__url {
+  margin: var(--space-sm) 0;
+  word-break: break-all;
+}
+
+.my-qr__url code {
+  font-size: 12px;
+  background: var(--color-bg);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+}
+
+.my-qr__hint {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  line-height: 1.7;
+  margin: var(--space-sm) 0 0;
+}
+
+/* 未登録アカウント向けの案内 */
+.notice {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+  color: var(--color-text-sub);
+  font-size: var(--font-md);
+  line-height: 1.8;
+}
+
+/* ============================================================
+   管理者画面（スプリント2）：月次一覧・スタッフ別日次明細
+   PC幅の表組みを主対象にする。スタッフ用の打刻画面とは別系統。
+   ============================================================ */
+.app-main--wide {
+  /* テーブル列が多い管理画面用。1440p モニタ・MacBook Pro 16inch でも
+     名前や項目が折り返さない幅を確保する。狭いウィンドウでは横スクロール。 */
+  max-width: 1480px;
+}
+
+.manage__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.manage__title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  margin: 0;
+}
+
+.manage__sub {
+  font-size: var(--font-sm);
+  font-weight: 400;
+  color: var(--color-text-sub);
+  margin-left: var(--space-sm);
+}
+
+.manage__h2 {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  margin: var(--space-xl) 0 var(--space-sm);
+}
+
+/* 期間・事業区分のセレクタ */
+.period-form {
+  display: flex;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.select {
+  font-size: var(--font-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  /* ボタン・入力欄と同じ標準高さに揃え、ツールバー内で天地が一致するようにする */
+  min-height: var(--control-h);
+}
+
+/* 期間バー＋月締め
+   ツールバー帯（.manage__period / .action-bar / .gasoline-form）は
+   同じ最小高さに揃え、同一ページで縦に並んでも天地が一致するようにする。 */
+.manage__period,
+.action-bar,
+.gasoline-form {
+  min-height: calc(var(--control-h) + var(--space-md) * 2);
+}
+
+.manage__period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.manage__period-label {
+  font-size: var(--font-lg);
+  font-weight: 700;
+}
+
+.manage__period-range {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin-left: var(--space-sm);
+}
+
+.close-form {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  margin: 0;
+}
+
+/* ボタン
+   <a> と <button> の両方に使うため、inline-flex で中央寄せして
+   要素タイプによる高さ差（インライン<a>だと min-height が無視される問題）を解消する。 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 var(--space-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-decoration: none;
+  min-height: var(--control-h);
+}
+
+.btn--brand {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.btn--sub {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn--sm {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-md);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+/* バッジ */
+.badge {
+  display: inline-block;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.badge--open   { background: var(--color-warn-bg);    color: var(--color-warn-text); }
+.badge--closed { background: var(--color-success-bg); color: var(--color-success-text); }
+.badge--warn   { background: var(--color-error-bg);   color: var(--color-error-text); }
+.badge--ok     { background: var(--color-success-bg); color: var(--color-success-text); }
+.badge--manual,
+.badge--corrected { background: var(--color-info-bg); color: var(--color-info-text); }
+
+/* 一覧テーブル（月次一覧・修正履歴で共用） */
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  font-size: var(--font-sm);
+}
+
+.grid th,
+.grid td {
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  /* 氏名や事業区分が折り返さないように、テーブルセルは原則1行表示 */
+  white-space: nowrap;
+}
+
+/* 折り返したいセル（バッジ複数や注記つき）には .grid__cell--wrap を当てる */
+.grid__cell--wrap {
+  white-space: normal;
+}
+
+.grid thead th {
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-weight: 700;
+}
+
+.grid__th--num { text-align: right; }
+.grid__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid__name { font-weight: 700; }
+.grid__sub  { color: var(--color-text-sub); }
+
+.grid tbody tr:hover { background: var(--color-bg); }
+
+.grid tfoot td {
+  background: var(--color-bg);
+  font-weight: 700;
+  border-bottom: none;
+}
+
+.link {
+  color: var(--color-brand);
+  text-decoration: none;
+  font-weight: 700;
+}
+.link:hover { text-decoration: underline; }
+
+.empty {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--color-text-sub);
+}
+
+/* 月次合計サマリー（日次明細の上部） */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.summary__item {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+}
+
+.summary__item strong {
+  font-size: var(--font-lg);
+  color: var(--color-text);
+  margin-left: var(--space-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary__item--warn strong { color: var(--color-error-text); }
+
+/* 締め済みの注意バー */
+.lockbar {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  font-weight: 700;
+  font-size: var(--font-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+}
+
+/* 日次明細グリッド：1行＝1日＝1フォーム */
+.daygrid {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.daygrid__head,
+.daygrid__row {
+  display: grid;
+  grid-template-columns: 96px 92px 92px 62px 62px 62px 64px 104px 1fr;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+}
+
+.daygrid__head {
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: var(--font-sm);
+  font-weight: 700;
+}
+
+.daygrid__row {
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-sm);
+  margin: 0;
+}
+
+.daygrid__row--weekend { background: var(--color-row-weekend); }
+.daygrid__row--missing { background: var(--color-error-bg); }
+
+.daygrid__date { font-weight: 700; }
+.daygrid__date small {
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.daygrid__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.daygrid__action {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.daygrid__empty { color: var(--color-text-sub); }
+
+/* 入力欄 */
+.timeinput,
+.reasoninput {
+  font-size: var(--font-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  min-height: var(--control-h-sm);
+}
+
+.timeinput { width: 100%; }
+.reasoninput { flex: 1; min-width: 80px; }
+
+/* 横幅が狭い端末では日次グリッドを横スクロールさせる */
+@media (max-width: 720px) {
+  .daygrid { overflow-x: auto; }
+  .daygrid__head,
+  .daygrid__row { min-width: 680px; }
+}
+
+/* 管理者画面のサブナビ（月次勤怠 ⇄ 給与計算） */
+.subnav {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.subnav__item {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  color: var(--color-text-sub);
+  text-decoration: none;
+}
+
+.subnav__item--active {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.subnav a.subnav__item:hover {
+  background: var(--color-surface);
+}
+
+/* 給与計算：支給額の列を強調 */
+.grid__total {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.grid thead th small {
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.grid__num small {
+  color: var(--color-text-sub);
+}
+
+/* 計算ロジックの注記 */
+.note {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  line-height: 1.7;
+}
+
+/* 給与設定画面（横幅は他の管理者画面＝app-main--wide に揃える） */
+.settings-section {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.settings-section__title {
+  font-size: var(--font-md);
+  font-weight: 700;
+  margin: 0 0 var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-section__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+/* 1フィールド。単独だと行いっぱいに、複数だと220pxずつ折り返す */
+.field {
+  flex: 1 1 220px;
+}
+
+.field__label {
+  display: block;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+.field__help {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  line-height: 1.5;
+}
+
+.field__error {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-sm);
+  color: var(--color-error-text);
+  font-weight: 700;
+}
+
+/* フォーム入力欄（PayrollSettingForm の全フィールド共通） */
+.input {
+  width: 100%;
+  font-size: var(--font-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  min-height: var(--control-h);
+}
+
+.field--error .input {
+  border-color: var(--color-error-text);
+}
+
+.settings__actions {
+  margin-top: var(--space-md);
+}
+
+/* 給与明細（スタッフ別・勤怠/支給/控除の3区分） */
+.payslip-block {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.payslip-block__title {
+  font-size: var(--font-md);
+  font-weight: 700;
+  margin: 0 0 var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--color-brand);
+}
+
+.payslip-block__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-xl);
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.kv__k {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+}
+
+.kv__k small,
+.kv__v small {
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.kv__v {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 支給と控除を横並び（狭い画面では縦積み） */
+.payslip-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.payslip-cols .payslip-block {
+  flex: 1 1 320px;
+}
+
+/* 支給・控除の内訳テーブル */
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-md);
+}
+
+.ledger td {
+  padding: var(--space-sm) var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ledger__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger__total td {
+  font-weight: 700;
+  font-size: var(--font-lg);
+  border-bottom: none;
+  border-top: 2px solid var(--color-border);
+  padding-top: var(--space-sm);
+}
+
+/* 差引支給額（手取り）の強調バナー */
+.netpay {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  align-items: baseline;
+  justify-content: space-between;
+  background: var(--color-brand);
+  color: #fff;
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  margin-top: var(--space-md);
+}
+
+.netpay__label {
+  font-size: var(--font-md);
+  font-weight: 700;
+}
+
+.netpay__amount {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.netpay__amount small {
+  font-size: var(--font-md);
+  margin-left: 2px;
+}
+
+/* --- 給与明細の保存CTA（差引支給額の直下、デカ目立つボタン） ----------- */
+
+.save-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  width: 100%;
+  margin-top: var(--space-md);
+  padding: var(--space-lg) var(--space-md);
+  background: var(--color-clock-in);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+  box-shadow: var(--shadow-card);
+}
+
+.save-cta:hover {
+  background: var(--color-clock-in-dark);
+}
+
+.save-cta:active {
+  transform: translateY(1px);
+}
+
+.save-cta__icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.save-cta__main {
+  font-size: var(--font-xl);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.save-cta__sub {
+  font-size: var(--font-sm);
+  opacity: 0.9;
+}
+
+.save-cta__sub--dirty {
+  font-weight: 700;
+}
+
+/* 未保存時：脈打つアニメーションで視線を引く */
+.save-cta--dirty {
+  background: var(--color-brand);
+  animation: save-pulse 1.6s ease-in-out infinite;
+}
+
+.save-cta--dirty:hover {
+  background: #b62a40;
+}
+
+@keyframes save-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(214, 51, 76, 0.55); }
+  50%      { box-shadow: 0 0 0 12px rgba(214, 51, 76, 0); }
+}
+
+.save-cta-sub {
+  text-align: center;
+  margin-top: var(--space-sm);
+}
+
+/* --- 画面下部固定スティッキー保存バー（未保存時のみ表示） -------------- */
+
+.sticky-savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-warn-bg);
+  border-top: 2px solid var(--color-warn-text);
+  color: var(--color-warn-text);
+  font-weight: 700;
+  z-index: 50;
+  box-shadow: 0 -2px 12px rgba(31, 41, 51, 0.12);
+}
+
+.sticky-savebar__msg {
+  font-size: var(--font-md);
+}
+
+/* スティッキーバーが見えてる時は、その分だけページ下部に空きを確保 */
+body.has-sticky-savebar {
+  padding-bottom: 80px;
+}
+
+/* セクション内の小見出し（最低賃金一括更新のスタッフ区分用） */
+.subheading {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--color-text-sub);
+  margin: var(--space-md) 0 var(--space-xs);
+}
+
+/* スタッフ名リスト（最低賃金一括更新の対象/対象外） */
+.staff-list {
+  list-style: none;
+  padding-left: 0;
+  margin: var(--space-xs) 0 var(--space-md);
+  columns: 2;
+  font-size: var(--font-sm);
+}
+
+.staff-list li {
+  padding: 2px 0;
+  break-inside: avoid;
+}
+
+.staff-list--muted {
+  color: var(--color-text-sub);
+}
+
+/* 勤務時間入力（販売事業の v1 用）: 表内の狭い数値入力欄と備考欄 */
+.hours-input {
+  width: var(--field-w-md);
+  font-size: var(--font-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  min-height: var(--control-h-sm);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.note-input {
+  width: 100%;
+  min-height: var(--control-h-sm);
+  font-size: var(--font-sm);
+}
+
+/* 給与明細の勤怠インライン編集 — 数字をそのまま編集できる大きめの入力 */
+.payslip-input {
+  width: var(--field-w-md);
+  font-size: var(--font-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  text-align: right;
+  min-height: var(--control-h);
+}
+
+.payslip-input:focus {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.payslip-input:disabled {
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  cursor: not-allowed;
+}
+
+/* 勤怠ブロックの kv__v はインライン input ＋単位の組み合わせ */
+.payslip-block__grid .kv__v {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+/* スタッフ設定（一括）テーブル */
+.staff-settings__wrap {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
+}
+
+.grid--staff-settings {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.grid--staff-settings thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* テーブル内のセル入力欄 */
+.cell-input {
+  width: var(--field-w-md);
+  font-size: var(--font-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  min-height: var(--control-h-sm);
+}
+
+.cell-input--wide {
+  width: var(--field-w-md);
+}
+
+.cell-input--narrow {
+  width: var(--field-w-sm);
+}
+
+/* 会社選択は3つのコードを表示するので、テキスト左寄せで少し広め */
+.cell-input--company {
+  width: var(--field-w-sm);
+  text-align: left;
+}
+
+.cell-input:focus {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -2px;
+}
+
+.checkbox-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-sm);
+  cursor: pointer;
+}
+
+.settings__hint {
+  margin-left: var(--space-md);
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+}
+
+/* 給与明細の臨時項目（年末調整還付・慶弔金・遡及精算など） */
+.adjustments-block {
+  margin-top: var(--space-md);
+}
+
+.adjustments-block .payslip-block__title small {
+  font-size: var(--font-sm);
+  font-weight: 400;
+  color: var(--color-text-sub);
+  margin-left: var(--space-sm);
+}
+
+.adj-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+}
+
+.adj-table th,
+.adj-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.adj-table thead th {
+  color: var(--color-text-sub);
+  font-weight: 700;
+  background: var(--color-bg);
+}
+
+.adj-col-name   { width: 28%; }
+.adj-col-kind   { width: 18%; }
+.adj-col-amount { width: 14%; text-align: right; }
+.adj-col-note   { width: 30%; }
+.adj-col-delete { width: 10%; }
+
+.adj-actions {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  margin-top: var(--space-md);
+}
+
+/* 支給/控除 ledger 内の臨時項目行 — わずかに目印を付ける */
+.ledger__row--adj td {
+  color: var(--color-text);
+  font-style: italic;
+}
+
+.ledger__note {
+  color: var(--color-text-sub);
+  font-style: normal;
+}
+
+/* --- QR打刻：共有端末スキャナー（キオスク） -------------------------- */
+
+.app-main--kiosk {
+  max-width: 1024px;
+  padding: var(--space-lg);
+}
+
+.kiosk__home-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+/* リアルタイム時計（毎秒更新） */
+.kiosk__clock {
+  font-size: 120px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  /* 桁が動くたびに幅が変わって左右に揺れるのを防ぐ */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  margin: 0 0 var(--space-sm);
+}
+
+.kiosk__date {
+  color: var(--color-text-sub);
+  font-size: var(--font-lg);
+  margin-bottom: var(--space-md);
+}
+
+.kiosk__title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  margin: 0;
+}
+
+.kiosk__mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.kiosk-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  border-radius: var(--radius-lg);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.1s ease;
+}
+
+.kiosk-mode:active {
+  transform: scale(0.98);
+}
+
+.kiosk-mode--in {
+  background: var(--color-clock-in);
+}
+
+.kiosk-mode--out {
+  background: var(--color-clock-out);
+}
+
+.kiosk-mode__label {
+  font-size: 80px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.kiosk-mode__sub {
+  font-size: var(--font-lg);
+  opacity: 0.85;
+  margin-top: var(--space-sm);
+}
+
+.kiosk__help {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-size: var(--font-md);
+  line-height: 1.7;
+}
+
+/* スキャナー画面 */
+.kiosk__scan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+  color: #fff;
+}
+
+.kiosk__scan-header--clock_in {
+  background: var(--color-clock-in);
+}
+
+.kiosk__scan-header--clock_out {
+  background: var(--color-clock-out);
+}
+
+.kiosk__mode-badge {
+  font-size: var(--font-xl);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.kiosk__change-mode {
+  color: #fff;
+  text-decoration: underline;
+  font-size: var(--font-md);
+}
+
+.kiosk__scanner {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.kiosk__camera-frame {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  background: #000;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.kiosk__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kiosk__canvas {
+  display: none;
+}
+
+.kiosk__viewfinder {
+  position: absolute;
+  top: 12%;
+  left: 12%;
+  right: 12%;
+  bottom: 12%;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+
+.kiosk__prompt {
+  text-align: center;
+  font-size: var(--font-lg);
+  color: var(--color-text);
+  margin-top: var(--space-lg);
+}
+
+.kiosk__toast {
+  margin-top: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-lg);
+  text-align: center;
+  font-weight: 600;
+}
+
+.kiosk__toast[data-state="ok"] {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.kiosk__toast[data-state="error"] {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.kiosk__manual {
+  margin-top: var(--space-xl);
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+}
+
+.kiosk__manual summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.kiosk__manual-form {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.kiosk__manual-form input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-md);
+  min-height: var(--control-h);
+}
+
+/* --- 打刻QR一括印刷シート -------------------------------------------- */
+
+.app-main--qrs {
+  max-width: 900px;
+  padding: var(--space-lg);
+}
+
+.qrs__header {
+  margin-bottom: var(--space-lg);
+}
+
+.qrs__title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  margin: 0 0 var(--space-sm);
+}
+
+.qrs__lead {
+  color: var(--color-text-sub);
+  margin: 0 0 var(--space-md);
+}
+
+.qrs__filter {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.qrs__filter select {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-height: var(--control-h);
+}
+
+.qrs__sheet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.qr-card {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.qr-card__store {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: 0 0 var(--space-xs);
+}
+
+.qr-card__name {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 var(--space-md);
+  letter-spacing: 0.04em;
+}
+
+.qr-card__qr {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-md);
+}
+
+.qr-card__qr svg {
+  width: 220px;
+  height: 220px;
+}
+
+.qr-card__unit {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: 0 0 var(--space-xs);
+}
+
+.qr-card__hint {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: 0;
+}
+
+.qr-card__actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.qrs__empty {
+  text-align: center;
+  color: var(--color-text-sub);
+  padding: var(--space-xl);
+}
+
+/* 印刷時：A4縦、ヘッダー非表示、1ページに3行×2列＝6枚 */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  body {
+    background: #fff;
+  }
+  .app-header,
+  .no-print,
+  .messages {
+    display: none !important;
+  }
+  .app-main--qrs {
+    padding: 0;
+    max-width: none;
+  }
+  .qrs__sheet {
+    gap: 4mm;
+  }
+  .qr-card {
+    border: 1px dashed #999;
+    padding: 6mm;
+  }
+  .qr-card__qr svg {
+    width: 60mm;
+    height: 60mm;
+  }
+}
+
+/* 既存の login-based 打刻画面に貼る案内バナー */
+.punch__notice {
+  font-size: var(--font-sm);
+  color: var(--color-info-text);
+  background: var(--color-info-bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+  line-height: 1.6;
+}
+
+.punch__notice a {
+  color: var(--color-info-text);
+  font-weight: 700;
+}
+
+/* --- 会社バッジ（LSN/LN/LF）------------------------------------------ */
+.company-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.company-badge--lsn { background: #2456c8; }  /* 母体・社員 */
+.company-badge--ln  { background: #e07b1a; }  /* 販売（オレンジ＝退勤色と同系） */
+.company-badge--lf  { background: #1f9d57; }  /* 製造（緑＝出勤色と同系） */
+
+/* --- 個人ページ：過去の給与明細PDFリスト ----------------------------- */
+.my-payslips {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-top: var(--space-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.my-payslips__title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-sm);
+}
+
+.my-payslips__lead {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: 0 0 var(--space-md);
+}
+
+.my-payslips__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.my-payslips__item {
+  margin: 0 0 var(--space-sm);
+}
+
+.my-payslips__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--color-text);
+  font-weight: 600;
+  min-height: 48px;
+}
+
+.my-payslips__link:active {
+  background: var(--color-border);
+}
+
+.my-payslips__period {
+  flex: 1;
+}
+
+.my-payslips__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-brand);
+  margin-right: var(--space-md);
+}
+
+.my-payslips__icon {
+  font-size: var(--font-lg);
+  color: var(--color-text-sub);
+}
+
+/* ガソリン単価の入力フォーム（給与計算画面上部） */
+.gasoline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  background: var(--color-info-bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  color: var(--color-info-text);
+}
+
+.gasoline-form__label {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.gasoline-form__input {
+  width: var(--field-w-md);
+}
+
+.gasoline-form__hint {
+  font-size: var(--font-sm);
+  font-weight: 400;
+  color: var(--color-info-text);
+  opacity: 0.85;
+}
+
+/* --- 賃金台帳テーブル ------------------------------------------------- */
+.wagebook-wrap {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md);
+}
+
+.wagebook {
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+  min-width: 100%;
+}
+
+.wagebook thead th {
+  background: var(--color-bg);
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--color-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.wagebook tbody th.wagebook__label {
+  text-align: left;
+  font-weight: 600;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-bg);
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.wagebook tbody td {
+  padding: var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.wagebook__num {
+  white-space: nowrap;
+}
+
+.wagebook__total-head,
+.wagebook__total {
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  font-weight: 700;
+}
+
+.empty {
+  color: var(--color-text-sub);
+  background: var(--color-bg);
+  padding: var(--space-xl);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+/* --- 労働者名簿一覧 -------------------------------------------------- */
+.roster-wrap {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.roster {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--font-sm);
+}
+
+.roster thead th {
+  background: var(--color-bg);
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.roster tbody td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+  /* 1行で表示する（住所など長い項目は別途 .roster__address で許可） */
+  white-space: nowrap;
+}
+
+/* 住所列だけは長くなりがちなので折り返しを許す */
+.roster__address {
+  white-space: normal;
+  min-width: 180px;
+}
+
+.roster__name {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* フィルタフォームの隣に置けない「追加ボタン」用の独立行 */
+.manage__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 var(--space-md);
+}
+
+/* スタッフ設定の氏名検索欄。Selectと同サイズに揃える */
+.input--search {
+  width: var(--field-w-lg);
+}
+
+/* manage__head 左側：タイトルと小さい追加ボタンを横並びにするコンテナ */
+.manage__head-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+/* 給与計算の .manage__period と同じレイヤー（subnav 直下のアクションバー） */
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.action-bar__label {
+  font-size: var(--font-lg);
+  font-weight: 700;
+}
+
+.action-bar__sub {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin-left: var(--space-md);
+}
+
+.action-bar__buttons {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+/* テーブル行内のアクションリンク群を横並びに（縦積み防止） */
+.action-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  white-space: nowrap;
+}
+
+/* 有給休暇サマリ（給与明細画面） */
+.leave-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
+  align-items: center;
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-info-bg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  color: var(--color-info-text);
+}
+
+.leave-summary__year {
+  font-weight: 700;
+}
+
+.leave-summary__item {
+  font-size: var(--font-md);
+}
+
+.leave-summary__item strong {
+  font-size: var(--font-lg);
+  margin-left: var(--space-xs);
+}
+
+.leave-summary__item--remaining {
+  margin-left: auto;
+}
+
+.leave-summary__item--remaining strong {
+  color: var(--color-brand);
+}
