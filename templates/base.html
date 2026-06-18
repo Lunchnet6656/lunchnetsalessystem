@@ -160,6 +160,16 @@
                     </li>
                     {% endif %}
 
+                    <!-- 勤怠セクション（管理者用） -->
+                    {% if user.menu_permission.can_view_attendance %}
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">勤怠</h6>
+                        <a href="{% url 'attendance:manage_dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-clock"></i> 勤怠アプリ
+                        </a>
+                    </li>
+                    {% endif %}
+
                     <!-- 一般ユーザー向けデータセクション -->
                     {% if user.menu_permission.can_view_daily_report_rol or user.menu_permission.can_view_performance_by_location_rol %}
                     <li class="list-group-item">

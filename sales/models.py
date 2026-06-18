@@ -279,7 +279,7 @@ class UserMenuPermission(models.Model):
     )
     can_view_upload = models.BooleanField(default=False, verbose_name="データアップロード")
     can_view_register = models.BooleanField(default=False, verbose_name="新規ユーザー登録")
-    can_view_mypage = models.BooleanField(default=True, verbose_name="マイページ")
+    can_view_mypage = models.BooleanField(default=False, verbose_name="マイページ")
     can_view_user_list = models.BooleanField(default=False, verbose_name="ユーザー管理")
     can_view_location_list = models.BooleanField(default=False, verbose_name="販売場所データ確認")
     can_view_product_list = models.BooleanField(default=False, verbose_name="メニューデータ確認")
@@ -297,6 +297,7 @@ class UserMenuPermission(models.Model):
     can_view_orders = models.BooleanField(default=False, verbose_name="受注管理")
     can_view_dashboard = models.BooleanField(default=False, verbose_name="売上ダッシュボード")
     can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")
+    can_view_attendance = models.BooleanField(default=False, verbose_name="勤怠アプリ")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
     shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
 
