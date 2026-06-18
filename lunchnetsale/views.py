@@ -20,6 +20,7 @@ from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 import csv
+import re
 import calendar
 from calendar import monthrange
 from dateutil.relativedelta import relativedelta
@@ -385,23 +386,29 @@ def user_list_view(request):
 class CustomUserChangeForm(UserChangeForm):
     current_password = forms.CharField(
         required=False,
-        widget=forms.PasswordInput(attrs={'placeholder': '現在のパスワード'}),
+        widget=forms.PasswordInput(attrs={'placeholder': '現在のパスワード', 'class': 'form-control'}),
         label='現在のパスワード'
     )
     new_password = forms.CharField(
         required=False,
-        widget=forms.PasswordInput(attrs={'placeholder': '新しいパスワード'}),
+        widget=forms.PasswordInput(attrs={'placeholder': '新しいパスワード', 'class': 'form-control'}),
         label='新しいパスワード'
     )
     confirm_password = forms.CharField(
         required=False,
-        widget=forms.PasswordInput(attrs={'placeholder': '新しいパスワード（確認）'}),
+        widget=forms.PasswordInput(attrs={'placeholder': '新しいパスワード（確認）', 'class': 'form-control'}),
         label='新しいパスワード（確認）'
     )
 
     class Meta:
         model = User
         fields = ['username', 'first_name', 'last_name', 'is_staff']
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_staff': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1384,41 +1391,55 @@ def location_list_view(request):
             return HttpResponseRedirect(reverse('location_list'))
 
         # 上書き保存のリクエスト
+        # 旧実装は while ループで「NOが空の行が来たら break」していたため、途中行の
+        # NOを空にすると以降の行が保存されない静かなデータ欠落があった。
+        # csrf や selected_ids も混ざるため、行indexは正規表現で全件抽出する。
         location_data = request.POST
-        i = 0
-        while True:
-            no = location_data.get(f'location[{i}][no]')
+        row_indexes = sorted({
+            int(match.group(1))
+            for key in location_data
+            for match in [re.match(r'location\[(\d+)\]\[no\]', key)]
+            if match
+        })
+
+        skipped_rows = 0
+        for i in row_indexes:
+            # 既存行は隠しフィールドの id をキーに更新する（並べ替え・NO変更でも
+            # 同一レコードを保つ。ItemQuantity が SalesLocation を id でFK参照しているため、
+            # id を保たないと持参数データが別拠点に紐づいてしまう）。
+            row_id = (location_data.get(f'location[{i}][id]') or '').strip()
+            no = (location_data.get(f'location[{i}][no]') or '').strip()
+            name = (location_data.get(f'location[{i}][name]') or '').strip()
+
+            # NO・販売場所名が両方空の行はスキップ（新規追加した空行など）
+            if not no and not name:
+                continue
+            # NOは整数キー。未入力では保存できないので警告対象にしてスキップ
             if not no:
-                break
-            name = location_data.get(f'location[{i}][name]')
-            loc_type = location_data.get(f'location[{i}][type]')
-            price_type = location_data.get(f'location[{i}][price_type]')
-            service_name = location_data.get(f'location[{i}][service_name]')
-            service_price = location_data.get(f'location[{i}][service_price]')
-            service_style = location_data.get(f'location[{i}][service_style]')
-            direct_return = location_data.get(f'location[{i}][direct_return]')
-            accepts_digital_payment = location_data.get(f'location[{i}][accepts_digital_payment]') == '1'
+                skipped_rows += 1
+                continue
 
-            # データを保存
+            fields = {
+                'no': no,
+                'name': name,
+                'type': location_data.get(f'location[{i}][type]'),
+                'price_type': location_data.get(f'location[{i}][price_type]'),
+                'service_name': location_data.get(f'location[{i}][service_name]'),
+                'service_price': location_data.get(f'location[{i}][service_price]') or 0,
+                'service_style': location_data.get(f'location[{i}][service_style]'),
+                'direct_return': location_data.get(f'location[{i}][direct_return]') or 0,
+                'accepts_digital_payment': location_data.get(f'location[{i}][accepts_digital_payment]') == '1',
+            }
+            # データを保存（1行のエラーで全体を止めず、その行だけスキップして続行）
             try:
-                SalesLocation.objects.update_or_create(
-                    no=no,
-                    defaults={
-                        'name': name,
-                        'type': loc_type,
-                        'price_type': price_type,
-                        'service_name': service_name,
-                        'service_price': service_price,
-                        'service_style': service_style,
-                        'direct_return': direct_return,
-                        'accepts_digital_payment': accepts_digital_payment,
-                    }
-                )
+                if not (row_id and SalesLocation.objects.filter(id=row_id).update(**fields)):
+                    SalesLocation.objects.create(**fields)
             except Exception as e:
-                messages.error(request, f'エラーが発生しました: {str(e)}')
-                return HttpResponseRedirect(reverse('location_list'))
-            i += 1
+                messages.error(request, f'NO {no} の保存でエラーが発生しました: {str(e)}')
+                continue
 
+        if skipped_rows:
+            messages.warning(request, f'NOが未入力の{skipped_rows}行は保存しませんでした。')
         messages.success(request, '販売場所データを更新しました。')
         return HttpResponseRedirect(reverse('location_list'))
 
@@ -1437,23 +1458,41 @@ def others_list_view(request):
             return HttpResponseRedirect(reverse('others_item_list'))
 
         # 上書き保存のリクエスト
+        # フォームは others[i][no] / others[i][name] / others[i][price] 形式で送られる。
+        # csrf や selected_ids も POST に混ざるため、行インデックスは正規表現で抽出する。
         others_data = request.POST
-        for i in range(len(others_data)//3):  # 各locationごとのキー数が7つのため調整
-            no = others_data.get(f'others[{i}][no]')
-            name = others_data.get(f'others[{i}][name]')
-            price = others_data.get(f'others[{i}][price]')
+        row_indexes = sorted({
+            int(match.group(1))
+            for key in others_data
+            for match in [re.match(r'others\[(\d+)\]\[no\]', key)]
+            if match
+        })
 
+        skipped_rows = 0
+        for i in row_indexes:
+            # 既存行は隠しフィールドの id をキーに更新する。
+            # NOをキーにすると、並べ替え（NO振り直し）やNO手動変更のときに
+            # 別レコードを上書きしてしまうため、必ず id 基準で同一性を保つ。
+            row_id = (others_data.get(f'others[{i}][id]') or '').strip()
+            no = (others_data.get(f'others[{i}][no]') or '').strip()
+            name = (others_data.get(f'others[{i}][name]') or '').strip()
+            price = (others_data.get(f'others[{i}][price]') or '').strip()
 
-        # データを保存
-        OthersItem.objects.update_or_create(
-            no=no,
-            defaults={
-                'no': no,
-                'name': name,
-                'price': price,
-            }
-        )
+            # NO・商品名が両方空の行はスキップ（新規追加した空行など）
+            if not no and not name:
+                continue
+            # NOは整数キー。未入力では保存できないので警告対象にしてスキップ
+            if not no:
+                skipped_rows += 1
+                continue
 
+            fields = {'no': no, 'name': name, 'price': price or 0}
+            # row_id があり、その行が現存すれば更新。無ければ（新規行 or 既に削除済み）新規作成
+            if not (row_id and OthersItem.objects.filter(id=row_id).update(**fields)):
+                OthersItem.objects.create(**fields)
+
+        if skipped_rows:
+            messages.warning(request, f'NOが未入力の{skipped_rows}行は保存しませんでした。')
         messages.success(request, 'その他の項目を更新しました。')
         return HttpResponseRedirect(reverse('others_item_list'))
 

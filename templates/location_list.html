@@ -1,162 +1,194 @@
-<!DOCTYPE html>
 {% extends 'base.html' %}
 
-{% block title %}販売場所一覧{% endblock %}
+{% block title %}販売場所リスト{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<style>
+    .location-table th, .location-table td {
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .location-table th.col-handle, .location-table td.col-handle {
+        width: 44px;
+        text-align: center;
+    }
+    .location-table th.col-check, .location-table td.col-check {
+        width: 44px;
+        text-align: center;
+    }
+    .location-table .form-control,
+    .location-table .form-select {
+        min-width: 130px;
+    }
+    .location-table .col-no .form-control {
+        min-width: 80px;
+    }
+    .drag-handle {
+        cursor: move;
+        color: var(--ln-color-text-muted);
+        user-select: none;
+    }
+    .location-placeholder {
+        height: 48px;
+        background: var(--ln-color-surface-muted);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 {% load custom_filters %}
 
-<!-- jQueryおよびjQuery UIの読み込み（CDNから） -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
-<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<div class="container-fluid mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h1 class="h3 mb-0">販売場所リスト</h1>
+        <span class="text-muted small">全 {{ locations|length }} 件</span>
+    </div>
+    <p class="text-muted small mb-3">
+        行の左端 <i class="material-icons align-middle" style="font-size:1rem;">menu</i> をドラッグすると並べ替えできます（NOは自動で振り直されます）。
+    </p>
+    <hr class="mb-4">
 
-<style>
-    .drag-handle {
-        cursor: move; /* マウスカーソルを移動可能な状態に変更 */
-        display: flex; /* アイコンとチェックボックスを横並びに */
-        align-items: center; /* 垂直方向に中央揃え */
-        height: 50px;
-    }
-    /* テーブル全体の幅 */
-    .table {
-        table-layout: fixed; /* 正しい記述方法 */
-        width: 100%; /* または任意の幅に調整 */
-    }
-
-    .table th, .table td {
-        width: 180px;
-    }
-
-    /* 1列目の幅 */
-    .table th:first-child, .table td:first-child {
-        width: 40px; /* 1列目の幅を固定 */
-        text-align: left; /* 中央揃え */
-    }
-    .table th:nth-child(2), .table td:nth-child(2) {
-    width: 30px; /* 2列目の幅を固定（ここで任意の幅に設定） */
-    text-align: left; /* 左揃え */
-    }
-
-
-</style>
-
-<div class="container mt-4 mb-5">
-    <h1 class="mb-1">販売場所リスト</h1>
-    <hr class="my-4">
     <form id="locationForm" method="POST">
         {% csrf_token %}
-        <table class="table table-sm table-striped">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th><input type="checkbox" id="selectAll"></th>
-                    <th>NO</th>
-                    <th>販売場所</th>
-                    <th>販売形式</th>
-                    <th>価格タイプ</th>
-                    <th>サービス名</th>
-                    <th>サービス価格</th>
-                    <th>サービススタイル</th>
-                    <th>直行直帰</th>
-                    <th>電子決済</th>
-                </tr>
-            </thead>
-            <tbody id="locationTableBody">
-                {% for location in locations %}
-                <tr>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle location-table">
+                <thead>
+                    <tr>
+                        <th class="col-handle"></th>
+                        <th class="col-check"><input type="checkbox" id="selectAll" aria-label="全選択"></th>
+                        <th class="col-no">NO</th>
+                        <th>販売場所</th>
+                        <th>販売形式</th>
+                        <th>価格タイプ</th>
+                        <th>サービス名</th>
+                        <th>サービス価格</th>
+                        <th>サービススタイル</th>
+                        <th>直行直帰</th>
+                        <th class="text-center">電子決済</th>
+                    </tr>
+                </thead>
+                <tbody id="locationTableBody">
+                    {% for location in locations %}
+                    <tr>
+                        <td class="col-handle drag-handle" title="ドラッグで並べ替え">
+                            <i class="material-icons">menu</i>
+                        </td>
+                        <td class="col-check">
+                            <input type="hidden" name="location[{{ forloop.counter0 }}][id]" value="{{ location.id }}">
+                            <input type="checkbox" name="selected_ids" value="{{ location.id }}" aria-label="{{ location.name }}を選択">
+                        </td>
+                        <td class="col-no"><input type="number" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][no]" value="{{ location.no }}" min="0"></td>
+                        <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][name]" value="{{ location.name }}"></td>
+                        <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][type]" value="{{ location.type }}"></td>
+                        <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][price_type]" value="{{ location.price_type }}"></td>
+                        <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][service_name]" value="{{ location.service_name }}"></td>
+                        <td><input type="number" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][service_price]" value="{{ location.service_price }}" step="1"></td>
+                        <td>
+                            <select class="form-select form-select-sm location-input" name="location[{{ forloop.counter0 }}][service_style]">
+                                <option value="割引" {% if location.service_style == '割引' %}selected{% endif %}>割引</option>
+                                <option value="固定" {% if location.service_style == '固定' %}selected{% endif %}>固定</option>
+                                <option value="なし" {% if location.service_style == 'なし' %}selected{% endif %}>なし</option>
+                            </select>
+                        </td>
+                        <td><input type="number" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][direct_return]" value="{{ location.direct_return }}" min="0"></td>
+                        <td class="text-center"><input type="checkbox" class="form-check-input" name="location[{{ forloop.counter0 }}][accepts_digital_payment]" value="1" {% if location.accepts_digital_payment %}checked{% endif %}></td>
+                    </tr>
+                    {% empty %}
+                    <tr id="emptyRow">
+                        <td colspan="11" class="text-center text-muted">データがありません。「新規追加」から登録できます。</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-                    <td class="drag-handle">
-                        <i class="material-icons">menu</i>
-                    </td>
-                    <td><input type="checkbox" name="selected_ids" value="{{ location.id }}"></td>
-                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][no]" value="{{ location.no }}" style="width: 150px;"></td>
-                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][name]" value="{{ location.name }}" style="width: 150px;"></td>
-                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][type]" value="{{ location.type }}" style="width: 150px;"></td>
-                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][price_type]" value="{{ location.price_type }}" style="width: 150px;"></td>
-                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][service_name]" value="{{ location.service_name }}" style="width: 150px;"></td>
-                    <td><input type="number" class="location-input" name="location[{{ forloop.counter0 }}][service_price]" value="{{ location.service_price }}" style="width: 150px;"></td>
-                    <td>
-                        <select class="location-input" name="location[{{ forloop.counter0 }}][service_style]" style="width: 150px;">
-                            <option value="割引" {% if location.service_style == '割引' %}selected{% endif %}>割引</option>
-                            <option value="固定" {% if location.service_style == '固定' %}selected{% endif %}>固定</option>
-                            <option value="なし" {% if location.service_style == 'なし' %}selected{% endif %}>なし</option>
-                        </select>
-                    </td>
-                    <td><input type="text" class="location-input" name="location[{{ forloop.counter0 }}][direct_return]" value="{{ location.direct_return }}" style="width: 150px;"></td>
-                    <td class="text-center"><input type="checkbox" name="location[{{ forloop.counter0 }}][accepts_digital_payment]" value="1" {% if location.accepts_digital_payment %}checked{% endif %}></td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="8" class="text-center">データがありません</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <button type="button" class="btn btn-success" id="addRowButton">新規追加</button>
-        <button type="submit" name="delete" class="btn btn-danger" id="deleteButton">削除</button>
-        <button type="submit" class="btn btn-primary">上書き保存</button>
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            <button type="button" class="btn btn-success" id="addRowButton">
+                <i class="material-icons align-middle" style="font-size:1.1rem;">add</i> 新規追加
+            </button>
+            <button type="submit" name="delete" class="btn btn-outline-danger" id="deleteButton">選択した項目を削除</button>
+            <button type="submit" class="btn btn-primary ms-auto">上書き保存</button>
+        </div>
     </form>
 </div>
-<script>
 
-    document.getElementById('selectAll').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('input[name="selected_ids"]');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
-        });
-    });
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<script>
     document.addEventListener('DOMContentLoaded', function() {
-        // jQuery UIのSortableをテーブルに適用
-        $("#locationTableBody").sortable({
-            handle: '.drag-handle', // ドラッグハンドルとして三本線を指定
-            update: function(event, ui) {
-                // 行の順番が変更されたときにNOフィールドを更新
-                $('#locationTableBody tr').each(function(index) {
-                    $(this).find('input[name^="location["][name$="[no]"]').val(index + 1); // 行の順番に基づいてNOフィールドを更新
+        const tableBody = document.getElementById('locationTableBody');
+
+        // 全選択
+        const selectAll = document.getElementById('selectAll');
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                document.querySelectorAll('input[name="selected_ids"]').forEach(cb => {
+                    cb.checked = selectAll.checked;
                 });
-            }
+            });
+        }
+
+        // NOフィールドを表示順で振り直す
+        function renumberRows() {
+            $('#locationTableBody tr').each(function(index) {
+                $(this).find('input[name^="location["][name$="[no]"]').val(index + 1);
+            });
+        }
+
+        // jQuery UI Sortable（ドラッグ並べ替え）
+        $('#locationTableBody').sortable({
+            handle: '.drag-handle',
+            placeholder: 'location-placeholder',
+            update: renumberRows
         });
 
         // 新規行の追加
         document.getElementById('addRowButton').addEventListener('click', function() {
-            let tableBody = document.getElementById('locationTableBody');
-            let rowCount = tableBody.rows.length; // 現在の行数からインデックスを決定
-            let newRow = document.createElement('tr');
+            const emptyRow = document.getElementById('emptyRow');
+            if (emptyRow) emptyRow.remove();
+
+            const rowCount = tableBody.rows.length;
+            const newRow = document.createElement('tr');
             newRow.innerHTML = `
-                <td class="drag-handle">
+                <td class="col-handle drag-handle" title="ドラッグで並べ替え">
                   <i class="material-icons">menu</i>
                 </td>
-                <td><input type="checkbox" name="selected_ids" value=""></td> <!-- チェックボックスの列 -->
-                <td><input type="text" class="location-input" name="location[${rowCount}][no]" value="" style="width: 150px;"></td>
-                <td><input type="text" class="location-input" name="location[${rowCount}][name]" value="" style="width: 150px;"></td>
-                <td><input type="text" class="location-input" name="location[${rowCount}][type]" value="" style="width: 150px;"></td>
-                <td><input type="text" class="location-input" name="location[${rowCount}][price_type]" value="" style="width: 150px;"></td>
-                <td><input type="text" class="location-input" name="location[${rowCount}][service_name]" value="" style="width: 150px;"></td>
-                <td><input type="number" class="location-input" name="location[${rowCount}][service_price]" value="0" style="width: 150px;"></td>
+                <td class="col-check"><input type="hidden" name="location[${rowCount}][id]" value=""><input type="checkbox" name="selected_ids" value="" aria-label="選択"></td>
+                <td class="col-no"><input type="number" class="form-control form-control-sm location-input" name="location[${rowCount}][no]" value="" min="0"></td>
+                <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][name]" value=""></td>
+                <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][type]" value=""></td>
+                <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][price_type]" value=""></td>
+                <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][service_name]" value=""></td>
+                <td><input type="number" class="form-control form-control-sm location-input" name="location[${rowCount}][service_price]" value="0" step="1"></td>
                 <td>
-                    <select class="location-input" name="location[${rowCount}][service_style]" style="width: 150px;">
+                    <select class="form-select form-select-sm location-input" name="location[${rowCount}][service_style]">
                         <option value="割引">割引</option>
                         <option value="固定">固定</option>
                         <option value="なし" selected>なし</option>
                     </select>
                 </td>
-                <td><input type="text" class="location-input" name="location[${rowCount}][direct_return]" value="" style="width: 150px;"></td>
-                <td class="text-center"><input type="checkbox" name="location[${rowCount}][accepts_digital_payment]" value="1"></td>
+                <td><input type="number" class="form-control form-control-sm location-input" name="location[${rowCount}][direct_return]" value="0" min="0"></td>
+                <td class="text-center"><input type="checkbox" class="form-check-input" name="location[${rowCount}][accepts_digital_payment]" value="1"></td>
             `;
             tableBody.appendChild(newRow);
+            renumberRows();
+            newRow.querySelector('input[name$="[name]"]').focus();
         });
 
-        // 削除ボタンの確認ダイアログ
-        document.getElementById('deleteButton').addEventListener('click', function() {
-          if (confirm('選択した販売場所を削除しますか？')) {
-              // フォームを送信
-              document.getElementById('locationForm').submit();
-          }
+        // 削除ボタンの確認
+        document.getElementById('deleteButton').addEventListener('click', function(event) {
+            const anyChecked = document.querySelectorAll('input[name="selected_ids"]:checked').length > 0;
+            if (!anyChecked) {
+                event.preventDefault();
+                alert('削除する項目を選択してください。');
+                return;
+            }
+            if (!confirm('選択した販売場所を削除しますか？')) {
+                event.preventDefault();
+            }
         });
-  });
+    });
 </script>
-
-
 {% endblock %}

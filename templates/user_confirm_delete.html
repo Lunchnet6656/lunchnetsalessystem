@@ -34,11 +34,14 @@
                     }
                 });
                 if (response.ok) {
-                    const data = await response.json();
-                    sessionStorage.setItem('deleteMessage', data.message);
-                    
-                    window.opener.location.href = '/users/';
-                    window.close();
+                    // ポップアップで開かれている場合は親を更新して閉じる。
+                    // 直接アクセスされた場合は自身を一覧へ遷移させる。
+                    if (window.opener && !window.opener.closed) {
+                        window.opener.location.href = '/users/';
+                        window.close();
+                    } else {
+                        window.location.href = '/users/';
+                    }
                 }
             } catch (error) {
                 console.error('Error:', error);
