@@ -15,8 +15,6 @@
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const prompt = document.getElementById("kiosk-prompt");
   const toast = document.getElementById("kiosk-toast");
-  const manualForm = document.getElementById("kiosk-manual-form");
-  const manualToken = document.getElementById("kiosk-manual-token");
 
   // Web Speech API の音声リストは非同期に読み込まれる端末があるので、
   // 早めに getVoices() を叩いて初回発話で無音になる事故を避ける。
@@ -57,7 +55,7 @@
       return;
     }
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" }, audio: false })
+      .getUserMedia({ video: { facingMode: "user" }, audio: false })
       .then((stream) => {
         video.srcObject = stream;
         video.setAttribute("playsinline", "true");
@@ -155,20 +153,6 @@
       });
   }
 
-  // 手動入力フォーム（カメラが使えない場合用）
-  if (manualForm) {
-    manualForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      const val = (manualToken.value || "").trim();
-      if (!val) {
-        return;
-      }
-      cooldownUntil = Date.now() + 2500;
-      sendPunch(val);
-      manualToken.value = "";
-    });
-  }
-
   // --- ハードQRスキャナー（キーボードウェッジ）対応 ---
   // USB/Bluetooth接続のバーコード／QRスキャナーは、読み取った文字列を高速に
   // キー入力し、末尾に Enter を送る（HID＝キーボードとして振る舞う）。
@@ -177,10 +161,6 @@
   let wedgeBuf = "";
   let wedgeLastAt = 0;
   document.addEventListener("keydown", function (e) {
-    // 手動入力欄にフォーカスがあるときはフォーム側に任せ、二重送信を避ける
-    if (manualToken && e.target === manualToken) {
-      return;
-    }
     const now = Date.now();
     // 直前のキーから間隔が空いていれば新しい読み取りの先頭とみなす
     // （人の手打ちは遅く、スキャナーは連続して速い）

@@ -279,7 +279,7 @@ class StaffCreateForm(forms.Form):
     )
     password = forms.CharField(
         label="初期パスワード", min_length=8, max_length=128,
-        help_text="本人に渡したあと、ログイン後にしょうへい/本人が変更可。最低8文字",
+        help_text="本人に渡したあと、必要に応じて管理者が変更できます。最低8文字",
         widget=forms.PasswordInput(attrs={"class": "input"}),
     )
     # 基本情報

@@ -25,8 +25,8 @@
       </a>
     </div>
     <p class="kiosk__help">
-      モードを選ぶと、カメラが起動します。<br>
-      QRコードをカメラにかざしてください。
+      モードを選ぶと、読み取り画面になります。<br>
+      QRをスキャナーで読み取ってください。
     </p>
 
   {% else %}
@@ -49,14 +49,9 @@
         <div class="kiosk__viewfinder" aria-hidden="true"></div>
       </div>
 
-      <details class="kiosk__manual">
-        <summary>スキャナーが使えないとき（予備）</summary>
-        <button type="button" id="kiosk-camera-btn" class="link-btn">カメラで読み取る</button>
-        <form id="kiosk-manual-form" class="kiosk__manual-form">
-          <input type="text" id="kiosk-manual-token" placeholder="トークン (UUID)" autocomplete="off">
-          <button type="submit" class="link-btn">打刻する</button>
-        </form>
-      </details>
+      <button type="button" id="kiosk-camera-btn" class="kiosk__camera-fallback link-btn">
+        スキャナーが使えないときはカメラで読み取る
+      </button>
     </div>
   {% endif %}
 </section>
