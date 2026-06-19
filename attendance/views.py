@@ -106,6 +106,90 @@ def punch_page(request):
 
 
 @login_required
+def mypage(request):
+    """本人のマイページ＝打刻QRに純化した画面。
+
+    製造・食堂スタッフのログイン後の着地先。勤務状況・給与明細はフッターから
+    それぞれ専用画面（my_detail / my_payslips）へ。
+    """
+    staff = services.get_active_staff(request.user)
+    if staff is None:
+        return render(request, "attendance/not_registered.html", status=403)
+
+    state = services.get_punch_state(staff)
+
+    # 自分の打刻QR（トークンURLを埋め込む。QRページと同じ仕組み）
+    qr_url = request.build_absolute_uri(
+        reverse("attendance:punch_by_token", args=[staff.punch_token])
+    )
+    qr_svg = _build_qr_svg(qr_url)
+
+    context = {
+        "staff": staff,
+        "punch": state,
+        "today_label": _today_label(),
+        "now_label": timezone.localtime().strftime("%H:%M"),
+        "qr_svg": qr_svg,
+        "qr_url": qr_url,
+    }
+    return render(request, "attendance/mypage.html", context)
+
+
+@login_required
+def my_payslips(request):
+    """本人用の給与明細一覧（読み取り専用）。確定済みのPDFをDLできる。"""
+    staff = services.get_active_staff(request.user)
+    if staff is None:
+        return render(request, "attendance/not_registered.html", status=403)
+
+    past_payslips = list(
+        Payslip.objects.filter(staff=staff)
+        .select_related("payroll_period")
+        .order_by("-payroll_period__period_end")[:12]
+    )
+    return render(
+        request,
+        "attendance/my_payslips.html",
+        {"staff": staff, "past_payslips": past_payslips},
+    )
+
+
+@login_required
+def my_detail(request):
+    """本人用の勤務詳細（読み取り専用）。当月度の日別明細を表示する。
+
+    管理側 manage_staff_detail と同じ集計を使うが、編集はできない。
+    """
+    staff = services.get_active_staff(request.user)
+    if staff is None:
+        return render(request, "attendance/not_registered.html", status=403)
+
+    setting = PayrollSetting.current()
+    period_end = _selected_period_end(request, setting.closing_day)
+    period_start = aggregation.period_start_for(period_end, setting.closing_day)
+    period_options = _period_options(setting.closing_day, timezone.localdate())
+    rows = aggregation.build_day_rows(staff, period_start, period_end, setting)
+    summary = aggregation.summarize_rows(rows)
+
+    context = {
+        "staff": staff,
+        "period_label": aggregation.period_label(period_end),
+        "period_start": period_start,
+        "period_end": period_end,
+        "period_options": period_options,
+        "rows": rows,
+        "summary": {
+            "work_days": summary.work_days,
+            "work_display": aggregation.fmt_minutes(summary.work_minutes),
+            "night_display": aggregation.fmt_minutes(summary.night_minutes),
+            "overtime_display": aggregation.fmt_minutes(summary.overtime_minutes),
+            "missing_days": summary.missing_days,
+        },
+    }
+    return render(request, "attendance/my_detail.html", context)
+
+
+@login_required
 def punch(request):
     """出勤／退勤の打刻を受け付ける（POSTのみ）。"""
     if request.method != "POST":

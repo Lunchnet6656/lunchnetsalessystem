@@ -1,0 +1,58 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}勤務詳細 — {{ staff.display_name }}{% endblock %}
+
+{% block main_modifier %}app-main--with-footer{% endblock %}
+
+{% block content %}
+<section class="my-detail">
+  <h1 class="my-detail__title">勤務状況</h1>
+
+  <form method="get" class="period-form my-detail__period-form">
+    <select name="period" class="select" onchange="this.form.submit()" aria-label="表示する月度">
+      {% for opt in period_options %}
+        <option value="{{ opt.value }}"{% if opt.value == period_end|date:'Y-m-d' %} selected{% endif %}>{{ opt.label }}（{{ opt.range }}）</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="link-btn">表示</button></noscript>
+  </form>
+
+  <div class="my-detail__summary">
+    <span>勤務 <strong>{{ summary.work_days }}日</strong></span>
+    <span>実働 <strong>{{ summary.work_display }}</strong></span>
+    <span>深夜 <strong>{{ summary.night_display }}</strong></span>
+    <span>時間外 <strong>{{ summary.overtime_display }}</strong></span>
+    {% if summary.missing_days %}<span class="my-detail__warn">打刻漏れ <strong>{{ summary.missing_days }}日</strong></span>{% endif %}
+  </div>
+
+  <ul class="mdlist">
+    <li class="mdlist__head">
+      <span>日付</span>
+      <span>出勤–退勤</span>
+      <span class="mdlist__num">実働</span>
+      <span>状態</span>
+    </li>
+    {% for row in rows %}
+    <li class="mdlist__row{% if row.is_weekend %} mdlist__row--weekend{% endif %}{% if row.missing %} mdlist__row--missing{% endif %}">
+      <span class="mdlist__date">{{ row.date|date:"n/j" }}<small>（{{ row.weekday }}）</small></span>
+      <span class="mdlist__times">
+        {% if row.has_in or row.has_out %}{{ row.clock_in_time|default:"—" }}–{{ row.clock_out_time|default:"—" }}{% else %}<span class="mdlist__off">—</span>{% endif %}
+      </span>
+      <span class="mdlist__num">{{ row.work_display }}</span>
+      <span class="mdlist__badge">
+        {% if row.missing %}<span class="badge badge--warn">漏れ</span>
+        {% elif row.manual %}<span class="badge badge--manual">手入力</span>
+        {% elif row.corrected %}<span class="badge badge--corrected">修正</span>
+        {% elif row.complete %}<span class="badge badge--ok">打刻済</span>
+        {% else %}<span class="mdlist__off">—</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <p class="my-detail__note">確定前の集計です。修正が必要な場合は管理者に連絡してください。</p>
+</section>
+{% endblock %}
+
+{% block footer %}{% include "attendance/_mypage_nav.html" with active="detail" %}{% endblock %}

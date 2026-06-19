@@ -169,5 +169,64 @@
     });
   }
 
-  startCamera();
+  // --- ハードQRスキャナー（キーボードウェッジ）対応 ---
+  // USB/Bluetooth接続のバーコード／QRスキャナーは、読み取った文字列を高速に
+  // キー入力し、末尾に Enter を送る（HID＝キーボードとして振る舞う）。
+  // それを拾って、カメラと同じ sendPunch に流す。カメラと併用＝スキャナー主・
+  // カメラ予備。二重送信は既存の cooldown / lastScanned 抑制で防ぐ。
+  let wedgeBuf = "";
+  let wedgeLastAt = 0;
+  document.addEventListener("keydown", function (e) {
+    // 手動入力欄にフォーカスがあるときはフォーム側に任せ、二重送信を避ける
+    if (manualToken && e.target === manualToken) {
+      return;
+    }
+    const now = Date.now();
+    // 直前のキーから間隔が空いていれば新しい読み取りの先頭とみなす
+    // （人の手打ちは遅く、スキャナーは連続して速い）
+    if (now - wedgeLastAt > 120) {
+      wedgeBuf = "";
+    }
+    wedgeLastAt = now;
+
+    if (e.key === "Enter") {
+      const val = wedgeBuf.trim();
+      wedgeBuf = "";
+      if (val.length < 8) {
+        return;
+      }
+      e.preventDefault();
+      // 同一QRのほぼ同時の多重を抑える
+      if (val === lastScanned && now - lastScannedAt < 1200) {
+        return;
+      }
+      lastScanned = val;
+      lastScannedAt = now;
+      cooldownUntil = now + 2500;
+      sendPunch(val);
+      return;
+    }
+
+    // 印字可能な1文字だけバッファに足す（Shift等の修飾キーは無視）
+    if (e.key.length === 1) {
+      wedgeBuf += e.key;
+    }
+  });
+
+  // --- カメラ（予備）---
+  // 普段はハードスキャナーで打刻するためカメラは起動しない（映像も出さない）。
+  // スキャナーが使えないときだけ、ボタンでカメラを起動して読み取りに使う。
+  const cameraBtn = document.getElementById("kiosk-camera-btn");
+  const cameraBox = document.getElementById("kiosk-camera");
+  if (cameraBtn) {
+    cameraBtn.addEventListener("click", function () {
+      if (cameraBox) {
+        cameraBox.hidden = false;
+      }
+      cameraBtn.disabled = true;
+      cameraBtn.textContent = "カメラ起動中…";
+      setPrompt("QRコードをカメラにかざしてください");
+      startCamera();
+    });
+  }
 })();

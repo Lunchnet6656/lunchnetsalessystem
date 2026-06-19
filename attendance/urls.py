@@ -6,6 +6,9 @@ app_name = "attendance"
 
 urlpatterns = [
     path("", views.punch_page, name="punch_page"),
+    path("mypage/", views.mypage, name="mypage"),
+    path("mypage/detail/", views.my_detail, name="my_detail"),
+    path("mypage/payslips/", views.my_payslips, name="my_payslips"),
     path("punch/", views.punch, name="punch"),
     path("punch/undo/", views.undo_punch, name="undo_punch"),
     # QR打刻：共有端末スキャナー（ログイン不要）

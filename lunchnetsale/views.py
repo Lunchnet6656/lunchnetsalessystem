@@ -290,6 +290,21 @@ def csrf_failure_view(request, reason=""):
     return render(request, 'csrf_failure.html', status=403)
 
 
+def _post_login_destination(user):
+    """ログイン後の遷移先URL名を返す。
+
+    製造(LF)・食堂スタッフは勤怠マイページへ着地させ、それ以外（役員・社員・
+    販売員・既存の販売システム利用者）は従来どおりダッシュボードへ。
+    """
+    from attendance.services import get_active_staff
+    from attendance.models import COMPANY_LF
+
+    staff = get_active_staff(user)
+    if staff and (staff.company == COMPANY_LF or staff.business_unit == "cafeteria"):
+        return "attendance:mypage"
+    return "dashboard"
+
+
 @never_cache
 def login_view(request):
     User = get_user_model()
@@ -312,7 +327,7 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('dashboard')
+            return redirect(_post_login_destination(user))
         else:
             logger.error(f'Authentication failed for user: {username}')
             messages.error(request, 'ユーザー名またはパスワードが正しくありません')

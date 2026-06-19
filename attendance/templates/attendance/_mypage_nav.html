@@ -1,0 +1,21 @@
+{# スタッフ本人用の固定フッターナビ。include時に active を渡して現在地を示す #}
+<nav class="myfooter" aria-label="メニュー">
+  <a href="{% url 'attendance:mypage' %}"
+     class="myfooter__item{% if active == 'punch' %} myfooter__item--on{% endif %}"
+     {% if active == 'punch' %}aria-current="page"{% endif %}>
+    <span class="myfooter__icon" aria-hidden="true">📱</span>
+    <span class="myfooter__label">打刻</span>
+  </a>
+  <a href="{% url 'attendance:my_detail' %}"
+     class="myfooter__item{% if active == 'detail' %} myfooter__item--on{% endif %}"
+     {% if active == 'detail' %}aria-current="page"{% endif %}>
+    <span class="myfooter__icon" aria-hidden="true">📋</span>
+    <span class="myfooter__label">勤務状況</span>
+  </a>
+  <a href="{% url 'attendance:my_payslips' %}"
+     class="myfooter__item{% if active == 'payslips' %} myfooter__item--on{% endif %}"
+     {% if active == 'payslips' %}aria-current="page"{% endif %}>
+    <span class="myfooter__icon" aria-hidden="true">📄</span>
+    <span class="myfooter__label">給与明細</span>
+  </a>
+</nav>

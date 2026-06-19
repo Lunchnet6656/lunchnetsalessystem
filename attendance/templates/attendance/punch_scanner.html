@@ -38,16 +38,20 @@
     <div class="kiosk__scanner"
          data-kiosk-api="{{ kiosk_api_url }}"
          data-mode="{{ mode }}">
-      <div class="kiosk__camera-frame">
+      <p id="kiosk-prompt" class="kiosk__prompt">QRをスキャナーで読み取ってください</p>
+      <p class="kiosk__scan-sub">スマホのQRをスキャナーにかざすと打刻されます</p>
+      <div id="kiosk-toast" class="kiosk__toast" role="status" aria-live="polite" hidden></div>
+
+      {# カメラ（予備）：普段は非表示。下のボタンを押すと起動する #}
+      <div id="kiosk-camera" class="kiosk__camera-frame" hidden>
         <video id="kiosk-video" class="kiosk__video" playsinline muted></video>
         <canvas id="kiosk-canvas" class="kiosk__canvas" hidden></canvas>
         <div class="kiosk__viewfinder" aria-hidden="true"></div>
       </div>
-      <p id="kiosk-prompt" class="kiosk__prompt">QRコードをかざしてください</p>
-      <div id="kiosk-toast" class="kiosk__toast" role="status" aria-live="polite" hidden></div>
 
       <details class="kiosk__manual">
-        <summary>カメラが使えないときは手動でトークン入力</summary>
+        <summary>スキャナーが使えないとき（予備）</summary>
+        <button type="button" id="kiosk-camera-btn" class="link-btn">カメラで読み取る</button>
         <form id="kiosk-manual-form" class="kiosk__manual-form">
           <input type="text" id="kiosk-manual-token" placeholder="トークン (UUID)" autocomplete="off">
           <button type="submit" class="link-btn">打刻する</button>

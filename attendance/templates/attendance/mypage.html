@@ -1,0 +1,47 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}マイページ — {{ staff.display_name }}{% endblock %}
+
+{% block main_modifier %}app-main--with-footer{% endblock %}
+
+{% block content %}
+<section class="punch">
+  <p class="punch__greeting">{{ staff.display_name }} さん</p>
+
+  <h2 class="my-qr__title">📱 打刻QR</h2>
+  <div class="my-qr__img">
+    {{ qr_svg|safe }}
+  </div>
+  <p class="my-qr__lead">
+    <span class="my-qr__lead-line">出勤・退勤は、このQRを</span>
+    <span class="my-qr__lead-line"><strong>スキャナーで読み取って</strong>ください。</span>
+  </p>
+
+  <div class="punch__today">
+    <p class="punch__date">
+      <span class="punch__date-day">{{ today_label }}</span>
+      <span class="punch__date-time" id="js-time">{{ now_label }}</span>
+    </p>
+    {% if punch.state == "not_clocked_in" %}
+      <p class="punch__status punch__status--idle">本日まだ出勤していません</p>
+    {% elif punch.state == "working" %}
+      <p class="punch__status punch__status--working">
+        勤務中
+        <span class="punch__sub">{{ punch.clock_in_at|time:"H:i" }} 出勤</span>
+      </p>
+    {% else %}
+      <p class="punch__status punch__status--done">
+        本日の勤務は完了しました
+        <span class="punch__sub">{{ punch.clock_in_at|time:"H:i" }} 〜 {{ punch.clock_out_at|time:"H:i" }}</span>
+      </p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block footer %}{% include "attendance/_mypage_nav.html" with active="punch" %}{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'attendance/js/punch.js' %}"></script>
+{% endblock %}

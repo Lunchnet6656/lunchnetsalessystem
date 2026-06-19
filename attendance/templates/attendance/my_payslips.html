@@ -1,0 +1,30 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}給与明細 — {{ staff.display_name }}{% endblock %}
+
+{% block main_modifier %}app-main--with-footer{% endblock %}
+
+{% block content %}
+<section class="my-payslips">
+  <h1 class="my-detail__title">給与明細</h1>
+  {% if past_payslips %}
+  <p class="my-payslips__lead">タップするとPDFがダウンロードできます。</p>
+  <ul class="my-payslips__list">
+    {% for ps in past_payslips %}
+      <li class="my-payslips__item">
+        <a class="my-payslips__link" href="{% url 'attendance:punch_payslip_pdf' staff.punch_token %}?period={{ ps.payroll_period.period_end|date:'Y-m-d' }}">
+          <span class="my-payslips__period">{{ ps.payroll_period.period_end|date:"Y年n月" }}度</span>
+          <span class="my-payslips__amount">{{ ps.net_pay_yen|stringformat:"d" }}円</span>
+          <span class="my-payslips__icon">⬇</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="my-payslips__empty">まだ確定した給与明細はありません。</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block footer %}{% include "attendance/_mypage_nav.html" with active="payslips" %}{% endblock %}

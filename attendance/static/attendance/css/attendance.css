@@ -187,11 +187,29 @@ body {
   margin: 0 0 var(--space-md);
 }
 
+/* 名前の直下にQRを置くときの軽い余白 */
+.punch .my-qr__title {
+  margin-top: var(--space-md);
+}
+
+/* QRの下に続く「日時・ステータス」を区切り線で分ける */
+.punch__today {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
 .my-qr__lead {
   font-size: var(--font-sm);
   color: var(--color-text-sub);
   margin: 0 0 var(--space-md);
   line-height: 1.7;
+}
+
+/* 各行を1行に固定し、半端な自動折り返しを防ぐ */
+.my-qr__lead-line {
+  display: block;
+  white-space: nowrap;
 }
 
 .my-qr__lead strong {
@@ -1288,6 +1306,13 @@ body.has-sticky-savebar {
   margin-top: var(--space-lg);
 }
 
+.kiosk__scan-sub {
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin-top: var(--space-sm);
+}
+
 .kiosk__toast {
   margin-top: var(--space-md);
   padding: var(--space-md) var(--space-lg);
@@ -1496,6 +1521,234 @@ body.has-sticky-savebar {
 .company-badge--lf  { background: #1f9d57; }  /* 製造（緑＝出勤色と同系） */
 
 /* --- 個人ページ：過去の給与明細PDFリスト ----------------------------- */
+.my-summary {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-top: var(--space-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.my-summary__title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-md);
+}
+
+.my-summary__grid {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.my-summary__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+}
+
+.my-summary__label {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin-bottom: var(--space-xs);
+}
+
+.my-summary__value {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--color-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.my-summary__unit {
+  font-size: var(--font-md);
+  margin-left: 2px;
+}
+
+.my-summary__note {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: var(--space-md) 0 0;
+}
+
+.my-summary__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  color: var(--color-brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.my-summary__link:active {
+  background: var(--color-border);
+}
+
+/* --- 勤務詳細（本人・読み取り専用） --- */
+.my-detail__back {
+  margin: 0 0 var(--space-sm);
+}
+
+.my-detail__back a {
+  color: var(--color-text-sub);
+  text-decoration: none;
+  font-size: var(--font-sm);
+}
+
+.my-detail__title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  margin: 0;
+}
+
+.my-detail__period {
+  color: var(--color-text-sub);
+  margin: var(--space-xs) 0 var(--space-md);
+}
+
+.my-detail__period-form {
+  margin: var(--space-sm) 0 var(--space-md);
+}
+
+/* --- スタッフ本人用の固定フッターナビ --- */
+.app-main--with-footer {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+.myfooter {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -2px 12px rgba(31, 41, 51, 0.06);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 50;
+}
+
+.myfooter__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 64px;
+  text-decoration: none;
+  color: var(--color-text-sub);
+  font-size: var(--font-sm);
+}
+
+.myfooter__item--on {
+  color: var(--color-brand);
+  background: var(--color-bg);
+}
+
+.myfooter__icon {
+  font-size: var(--font-lg);
+  line-height: 1;
+}
+
+.myfooter__label {
+  font-weight: 700;
+}
+
+.my-detail__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin-bottom: var(--space-md);
+}
+
+.my-detail__summary strong {
+  color: var(--color-text);
+  font-size: var(--font-md);
+}
+
+.my-detail__warn strong {
+  color: var(--color-warn-text);
+}
+
+.mdlist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.mdlist__head,
+.mdlist__row {
+  display: grid;
+  grid-template-columns: 76px 1fr 56px 56px;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+}
+
+.mdlist__head {
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: var(--font-sm);
+  font-weight: 700;
+}
+
+.mdlist__row {
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-sm);
+}
+
+.mdlist__row--weekend {
+  background: var(--color-row-weekend);
+}
+
+.mdlist__row--missing {
+  background: var(--color-warn-bg);
+}
+
+.mdlist__date small {
+  color: var(--color-text-sub);
+}
+
+.mdlist__times {
+  font-variant-numeric: tabular-nums;
+}
+
+.mdlist__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mdlist__off {
+  color: var(--color-text-sub);
+}
+
+.my-detail__note {
+  font-size: var(--font-sm);
+  color: var(--color-text-sub);
+  margin: var(--space-md) 0 0;
+}
+
 .my-payslips {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
