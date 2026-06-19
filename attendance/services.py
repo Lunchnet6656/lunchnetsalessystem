@@ -457,7 +457,8 @@ def create_staff_with_user(
     *,
     username,
     password,
-    display_name,
+    last_name,
+    first_name,
     business_unit,
     company,
     store,
@@ -478,7 +479,13 @@ def create_staff_with_user(
     from .models import HourlyWage as _HW, Staff as _Staff
     if _User.objects.filter(username=username).exists():
         raise PunchError(f"ユーザー名「{username}」は既に使われています。")
-    user = _User.objects.create_user(username=username, password=password)
+    # 苗字・名前は auth.User の標準フィールドに保存（正規の置き場）。
+    # display_name は表示・並び順に使う合成名（"姓 名"）として保持する。
+    user = _User.objects.create_user(
+        username=username, password=password,
+        last_name=last_name, first_name=first_name,
+    )
+    display_name = f"{last_name} {first_name}".strip()
     staff = _Staff.objects.create(
         user=user,
         display_name=display_name,

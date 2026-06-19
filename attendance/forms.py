@@ -275,16 +275,21 @@ class StaffCreateForm(forms.Form):
     username = forms.CharField(
         label="ユーザー名（ログイン用）", max_length=150,
         help_text="半角英数。打刻URLには使わないが本人ログインや代理打刻で必要",
-        widget=forms.TextInput(attrs={"class": "input"}),
+        widget=forms.TextInput(attrs={"class": "input", "placeholder": "taro_yamada"}),
     )
     password = forms.CharField(
         label="初期パスワード", min_length=8, max_length=128,
-        help_text="本人に渡したあと、必要に応じて管理者が変更できます。最低8文字",
-        widget=forms.PasswordInput(attrs={"class": "input"}),
+        initial="password6656",
+        help_text="初期値は password6656。本人に渡したあと、必要に応じて管理者が変更できます。最低8文字",
+        widget=forms.PasswordInput(attrs={"class": "input"}, render_value=True),
     )
     # 基本情報
-    display_name = forms.CharField(
-        label="氏名", max_length=100,
+    last_name = forms.CharField(
+        label="苗字", max_length=50,
+        widget=forms.TextInput(attrs={"class": "input"}),
+    )
+    first_name = forms.CharField(
+        label="名前", max_length=50,
         widget=forms.TextInput(attrs={"class": "input"}),
     )
     business_unit = forms.ChoiceField(

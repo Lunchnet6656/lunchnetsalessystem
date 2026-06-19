@@ -2737,7 +2737,8 @@ class StaffCreateTests(TestCase):
         data = {
             "username": "new_taro",
             "password": "init-pw-12345",
-            "display_name": "新規 太郎",
+            "last_name": "新規",
+            "first_name": "太郎",
             "business_unit": "cafeteria",
             "company": "LSN",
             "store": self.store.id,
@@ -2822,7 +2823,8 @@ class StaffCreateTests(TestCase):
         staff = services.create_staff_with_user(
             username="svc_taro",
             password="pw-svc-12345678",
-            display_name="サービス 太郎",
+            last_name="サービス",
+            first_name="太郎",
             business_unit="sales",
             company="LN",
             store=self.store,

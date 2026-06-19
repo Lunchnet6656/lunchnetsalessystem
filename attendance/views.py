@@ -433,7 +433,8 @@ def manage_staff_new(request):
                 staff = services.create_staff_with_user(
                     username=form.cleaned_data["username"],
                     password=form.cleaned_data["password"],
-                    display_name=form.cleaned_data["display_name"],
+                    last_name=form.cleaned_data["last_name"],
+                    first_name=form.cleaned_data["first_name"],
                     business_unit=form.cleaned_data["business_unit"],
                     company=form.cleaned_data["company"],
                     store=form.cleaned_data["store"],
@@ -460,7 +461,7 @@ def manage_staff_new(request):
 
     sections = [
         ("認証アカウント", ["username", "password"]),
-        ("基本情報", ["display_name", "business_unit", "company", "store"]),
+        ("基本情報", ["last_name", "first_name", "business_unit", "company", "store"]),
         ("勤務情報", ["hired_on", "job_description", "initial_hourly_wage"]),
         ("個人情報（労働者名簿）", ["birthday", "gender", "address", "phone"]),
     ]
