@@ -160,13 +160,20 @@
                     </li>
                     {% endif %}
 
-                    <!-- 勤怠セクション（管理者用） -->
-                    {% if user.menu_permission.can_view_attendance %}
+                    <!-- 勤怠セクション -->
+                    {% if user.attendance_staff.is_active or user.menu_permission.can_view_attendance %}
                     <li class="list-group-item">
                         <h6 class="text-uppercase">勤怠</h6>
+                        {% if user.attendance_staff.is_active %}
+                        <a href="{% url 'attendance:mypage' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-clock"></i> 勤怠マイページ
+                        </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_attendance %}
                         <a href="{% url 'attendance:manage_dashboard' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-clock"></i> 勤怠アプリ
                         </a>
+                        {% endif %}
                     </li>
                     {% endif %}
 
