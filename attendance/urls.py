@@ -40,6 +40,11 @@ urlpatterns = [
         views.manage_save_day,
         name="manage_save_day",
     ),
+    path(
+        "manage/staff/<int:staff_id>/delete-day/",
+        views.manage_delete_day,
+        name="manage_delete_day",
+    ),
     # 給与計算（スプリント3）
     path("manage/payroll/", views.manage_payroll, name="manage_payroll"),
     path(

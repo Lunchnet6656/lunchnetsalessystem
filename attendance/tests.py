@@ -433,6 +433,61 @@ class ManageViewTests(TestCase):
         )
         self.assertEqual(TimeRecord.objects.filter(staff=self.staff).count(), 0)
 
+    def test_delete_day_soft_deletes_records(self):
+        # 打刻を作ってから削除＝is_deleted で論理削除＋削除履歴が残る。
+        self.client.force_login(self.admin)
+        self.client.post(
+            reverse("attendance:manage_save_day", args=[self.staff.id]),
+            {"work_date": "2026-05-02", "period": "2026-05-15",
+             "clock_in": "09:00", "clock_out": "18:00"},
+        )
+        self.assertEqual(
+            TimeRecord.objects.filter(staff=self.staff, is_deleted=False).count(), 2
+        )
+        response = self.client.post(
+            reverse("attendance:manage_delete_day", args=[self.staff.id]),
+            {"work_date": "2026-05-02", "period": "2026-05-15"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            TimeRecord.objects.filter(staff=self.staff, is_deleted=False).count(), 0
+        )
+        self.assertEqual(
+            TimeRecord.objects.filter(staff=self.staff, is_deleted=True).count(), 2
+        )
+        self.assertEqual(
+            TimeRecordEdit.objects.filter(
+                action=TimeRecordEdit.ACTION_DELETED
+            ).count(), 2
+        )
+
+    def test_delete_day_blocked_on_closed_period(self):
+        # 締め済み期間は削除できない。
+        self.client.force_login(self.admin)
+        self.client.post(
+            reverse("attendance:manage_save_day", args=[self.staff.id]),
+            {"work_date": "2026-05-02", "period": "2026-05-15",
+             "clock_in": "09:00", "clock_out": "18:00"},
+        )
+        services.close_period(date(2026, 5, 15), self.admin)
+        self.client.post(
+            reverse("attendance:manage_delete_day", args=[self.staff.id]),
+            {"work_date": "2026-05-02", "period": "2026-05-15"},
+        )
+        self.assertEqual(
+            TimeRecord.objects.filter(staff=self.staff, is_deleted=False).count(), 2
+        )
+
+    def test_delete_day_blocks_non_staff_member(self):
+        # 一般スタッフは削除エンドポイントを叩けない。
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("attendance:manage_delete_day", args=[self.staff.id]),
+            {"work_date": "2026-05-02", "period": "2026-05-15"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response["Location"])
+
     def test_close_period_via_view(self):
         self.client.force_login(self.admin)
         self.client.post(

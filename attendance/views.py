@@ -1252,6 +1252,38 @@ def manage_save_day(request, staff_id):
     return redirect(f"{url}?period={period}{anchor}")
 
 
+@staff_member_required
+def manage_delete_day(request, staff_id):
+    """1日分の勤怠記録を削除する（出退勤をクリア＝ソフト削除・POSTのみ）。
+
+    打ち間違い等の救済用。物理削除ではなく is_deleted で論理削除し、
+    TimeRecordEdit に削除履歴を残す（set_day_punches に委譲）。
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    staff = get_object_or_404(Staff, pk=staff_id)
+    work_date = _parse_date(request.POST.get("work_date"))
+    period = request.POST.get("period", "")
+
+    if work_date is None:
+        messages.error(request, "対象の日付が正しくありません。")
+    else:
+        try:
+            services.set_day_punches(
+                staff, work_date, None, None, request.user,
+                reason=request.POST.get("reason", "").strip() or "削除",
+            )
+            messages.success(
+                request, f"{work_date.month}月{work_date.day}日の勤怠記録を削除しました。"
+            )
+        except services.PunchError as exc:
+            messages.error(request, str(exc))
+
+    url = reverse("attendance:manage_staff_detail", args=[staff.id])
+    anchor = f"#d{work_date.isoformat()}" if work_date else ""
+    return redirect(f"{url}?period={period}{anchor}")
+
+
 # --- 管理者：給与計算（スプリント3） -----------------------------------------
 
 def _payroll_row(obj, setting):

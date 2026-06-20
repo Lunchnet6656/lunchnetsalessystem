@@ -460,6 +460,11 @@ body {
   color: var(--color-text);
   border-color: var(--color-border);
 }
+.btn--danger {
+  background: var(--color-surface);
+  color: var(--color-error-text);
+  border-color: var(--color-error-text);
+}
 
 .btn--sm {
   min-height: var(--control-h-sm);

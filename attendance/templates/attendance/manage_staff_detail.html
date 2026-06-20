@@ -83,6 +83,12 @@
         <span class="daygrid__action">
           <input type="text" name="reason" placeholder="理由（任意）" class="reasoninput" maxlength="255">
           <button type="submit" class="btn btn--sub btn--sm">保存</button>
+          {% if row.has_in or row.has_out %}
+          <button type="submit"
+                  formaction="{% url 'attendance:manage_delete_day' staff.id %}"
+                  class="btn btn--danger btn--sm"
+                  onclick="return confirm('{{ row.date|date:'n月j日' }}（{{ row.weekday }}）の勤怠記録を削除します。よろしいですか？')">削除</button>
+          {% endif %}
         </span>
       {% endif %}
     </form>
