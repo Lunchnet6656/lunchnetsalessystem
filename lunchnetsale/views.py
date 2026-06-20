@@ -327,6 +327,12 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
+            # セッション有効期限をロール別に設定（最終操作からの放置時間）
+            # 管理者は機微情報を扱うため短め、一般スタッフは個人スマホ前提で長め
+            if user.is_staff or user.is_superuser:
+                request.session.set_expiry(24 * 60 * 60)        # 管理者: 24時間
+            else:
+                request.session.set_expiry(30 * 24 * 60 * 60)   # 一般: 30日
             return redirect(_post_login_destination(user))
         else:
             logger.error(f'Authentication failed for user: {username}')

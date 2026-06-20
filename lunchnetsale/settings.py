@@ -173,7 +173,10 @@ DATABASES = {
 LOGIN_URL = '/login/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-# セッションタイムアウト設定（24時間）
+# セッションタイムアウト設定
+# ここはデフォルト値（フォールバック）。実際の有効期限はログイン時に
+# ロール別で上書きしている（lunchnetsale/views.py login_view: 管理者24時間 / 一般30日）。
+# SESSION_SAVE_EVERY_REQUEST=True なので「最終操作からの放置時間」でカウント（スライド式）。
 SESSION_COOKIE_AGE = 24 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
