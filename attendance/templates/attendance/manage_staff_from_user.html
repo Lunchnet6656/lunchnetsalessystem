@@ -1,0 +1,49 @@
+{% extends "attendance/base.html" %}
+{% comment %}
+既存ユーザーから勤怠スタッフを後付けする画面。販売システムで既にアカウントを
+持つ人を、新規アカウントを作り直さずに勤怠へ取り込む（User はそのまま流用）。
+{% endcomment %}
+{% block title %}既存ユーザーから勤怠登録{% endblock %}
+{% block main_modifier %}app-main--wide{% endblock %}
+
+{% block content %}
+<div class="manage">
+  <div class="manage__head">
+    <div>
+      <a class="link" href="{% url 'attendance:manage_staff_roster' %}">‹ 労働者名簿一覧へ</a>
+      <h1 class="manage__title">既存ユーザーから勤怠登録<span class="manage__sub">販売システムのアカウントをそのまま勤怠スタッフに取り込む</span></h1>
+    </div>
+  </div>
+
+  {% include "attendance/_subnav.html" with active="roster" %}
+
+  <form method="post" class="settings">
+    {% csrf_token %}
+    {% for section in field_sections %}
+    <section class="settings-section">
+      <h2 class="settings-section__title">{{ section.title }}</h2>
+      <div class="settings-section__fields">
+        {% for field in section.fields %}
+        <div class="field{% if field.errors %} field--error{% endif %}">
+          <label class="field__label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
+          {% for error in field.errors %}<p class="field__error">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    <div class="settings__actions">
+      <button type="submit" class="btn btn--brand">このユーザーを勤怠スタッフに登録</button>
+      <a class="link-btn" href="{% url 'attendance:manage_staff_roster' %}">キャンセル</a>
+    </div>
+  </form>
+
+  <p class="note">
+    パスワードや氏名は選んだユーザーのものをそのまま使います（新しいアカウントは作りません）。<br>
+    社会保険料・通勤手当などの詳細は、登録後に「スタッフ設定」「給与プロフィール」から設定できます。
+  </p>
+</div>
+{% endblock %}

@@ -476,6 +476,60 @@ def manage_staff_new(request):
     )
 
 
+@staff_member_required
+def manage_staff_from_user(request):
+    """既存ユーザーに勤怠Staffを後付けする画面。新規アカウントは作らない。
+
+    販売システムで既にアカウントを持つ人を、作り直さずに勤怠へ取り込む導線。
+    """
+    from .forms import StaffFromUserForm
+    if request.method == "POST":
+        form = StaffFromUserForm(request.POST)
+        if form.is_valid():
+            try:
+                staff = services.attach_staff_to_user(
+                    user=form.cleaned_data["user"],
+                    business_unit=form.cleaned_data["business_unit"],
+                    company=form.cleaned_data["company"],
+                    store=form.cleaned_data["store"],
+                    hired_on=form.cleaned_data.get("hired_on"),
+                    initial_hourly_wage=form.cleaned_data.get("initial_hourly_wage"),
+                    birthday=form.cleaned_data.get("birthday"),
+                    gender=form.cleaned_data.get("gender", ""),
+                    address=form.cleaned_data.get("address", ""),
+                    phone=form.cleaned_data.get("phone", ""),
+                    job_description=form.cleaned_data.get("job_description", ""),
+                )
+                messages.success(
+                    request,
+                    f"✓ {staff.display_name} を勤怠スタッフとして登録しました"
+                    f"（既存アカウントをそのまま利用）。",
+                )
+                return redirect("attendance:manage_staff_roster")
+            except services.PunchError as exc:
+                messages.error(request, str(exc))
+        else:
+            messages.error(request, "入力内容を確認してください。")
+    else:
+        form = StaffFromUserForm()
+
+    sections = [
+        ("対象ユーザー", ["user"]),
+        ("基本情報", ["business_unit", "company", "store"]),
+        ("勤務情報", ["hired_on", "job_description", "initial_hourly_wage"]),
+        ("個人情報（労働者名簿）", ["birthday", "gender", "address", "phone"]),
+    ]
+    field_sections = [
+        {"title": title, "fields": [form[name] for name in names]}
+        for title, names in sections
+    ]
+    return render(
+        request,
+        "attendance/manage_staff_from_user.html",
+        {"form": form, "field_sections": field_sections},
+    )
+
+
 # --- 労働者名簿（法定帳票・労基法107条）-------------------------------
 
 @staff_member_required

@@ -2837,6 +2837,45 @@ class StaffCreateTests(TestCase):
         self.assertEqual(staff.company, "LN")
         self.assertEqual(HourlyWage.objects.get(staff=staff).amount, 1600)
 
+    def test_attach_staff_to_existing_user(self):
+        """既存ユーザーに勤怠Staffを後付けでき、新規Userは増えない。"""
+        self.client.force_login(self.admin)
+        existing = User.objects.create_user(
+            username="hanbai_taro", password="pw-hanbai-123456",
+            last_name="販売", first_name="太郎",
+        )
+        before = User.objects.count()
+        resp = self.client.post(
+            reverse("attendance:manage_staff_from_user"),
+            {
+                "user": existing.id,
+                "business_unit": "sales",
+                "company": "LN",
+                "store": self.store.id,
+                "initial_hourly_wage": "1500",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(User.objects.count(), before)  # 新規Userは増えない
+        staff = Staff.objects.get(user=existing)
+        self.assertEqual(staff.display_name, "販売 太郎")
+        self.assertEqual(staff.company, "LN")
+        self.assertEqual(HourlyWage.objects.get(staff=staff).amount, 1500)
+
+    def test_attach_rejects_user_with_existing_staff(self):
+        """既にStaffがあるユーザーには後付けできない（二重防止）。"""
+        u = User.objects.create_user(
+            username="already_staff", password="pw-already-123456",
+            last_name="既存", first_name="花子",
+        )
+        services.attach_staff_to_user(
+            user=u, business_unit="cafeteria", company="LSN", store=self.store,
+        )
+        with self.assertRaises(services.PunchError):
+            services.attach_staff_to_user(
+                user=u, business_unit="cafeteria", company="LSN", store=self.store,
+            )
+
 
 class PaidLeaveSummaryTests(TestCase):
     """有給休暇の年度集計（10月〜9月）のテスト。"""

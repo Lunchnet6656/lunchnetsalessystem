@@ -453,12 +453,9 @@ def paid_leave_summary(staff, ref_date=None):
 # --- スタッフ新規追加（User + Staff + 初期時給 を1つの操作で） ----------------
 
 @transaction.atomic
-def create_staff_with_user(
+def attach_staff_to_user(
     *,
-    username,
-    password,
-    last_name,
-    first_name,
+    user,
     business_unit,
     company,
     store,
@@ -469,23 +466,18 @@ def create_staff_with_user(
     address="",
     phone="",
     job_description="",
+    display_name=None,
 ):
-    """auth.User と Staff、初期時給を同一トランザクションで作成する。
+    """既存の auth.User に Staff（＋初期時給）を後付けする。
 
-    どこかで失敗したら全部ロールバック（User 作成だけ残るような事態を避ける）。
-    新規入社の運用を1画面で完結させるため、admin 画面を経由しない導線で使う。
+    販売システムで既にアカウントを持つ人を、新規アカウントを作り直さずに
+    勤怠スタッフへ取り込む導線で使う。display_name 未指定なら User の姓名から合成。
     """
-    from django.contrib.auth.models import User as _User
     from .models import HourlyWage as _HW, Staff as _Staff
-    if _User.objects.filter(username=username).exists():
-        raise PunchError(f"ユーザー名「{username}」は既に使われています。")
-    # 苗字・名前は auth.User の標準フィールドに保存（正規の置き場）。
-    # display_name は表示・並び順に使う合成名（"姓 名"）として保持する。
-    user = _User.objects.create_user(
-        username=username, password=password,
-        last_name=last_name, first_name=first_name,
-    )
-    display_name = f"{last_name} {first_name}".strip()
+    if _Staff.objects.filter(user=user).exists():
+        raise PunchError(f"「{user.username}」には既に勤怠スタッフが登録されています。")
+    if not display_name:
+        display_name = f"{user.last_name} {user.first_name}".strip() or user.username
     staff = _Staff.objects.create(
         user=user,
         display_name=display_name,
@@ -508,6 +500,53 @@ def create_staff_with_user(
             effective_from=hired_on or _date.today(),
         )
     return staff
+
+
+@transaction.atomic
+def create_staff_with_user(
+    *,
+    username,
+    password,
+    last_name,
+    first_name,
+    business_unit,
+    company,
+    store,
+    hired_on=None,
+    initial_hourly_wage=None,
+    birthday=None,
+    gender="",
+    address="",
+    phone="",
+    job_description="",
+):
+    """auth.User を新規作成し、Staff・初期時給まで一括で作る。
+
+    どこかで失敗したら全部ロールバック（User 作成だけ残るような事態を避ける）。
+    既存ユーザーへの後付けは attach_staff_to_user を使う。
+    苗字・名前は auth.User の標準フィールドに保存（正規の置き場）。
+    """
+    from django.contrib.auth.models import User as _User
+    if _User.objects.filter(username=username).exists():
+        raise PunchError(f"ユーザー名「{username}」は既に使われています。")
+    user = _User.objects.create_user(
+        username=username, password=password,
+        last_name=last_name, first_name=first_name,
+    )
+    return attach_staff_to_user(
+        user=user,
+        business_unit=business_unit,
+        company=company,
+        store=store,
+        hired_on=hired_on,
+        initial_hourly_wage=initial_hourly_wage,
+        birthday=birthday,
+        gender=gender,
+        address=address,
+        phone=phone,
+        job_description=job_description,
+        display_name=f"{last_name} {first_name}".strip(),
+    )
 
 
 # --- 勤務時間の手動入力（販売事業の v1 用） ----------------------------------

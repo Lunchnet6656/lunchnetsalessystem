@@ -355,3 +355,36 @@ class StaffCreateForm(forms.Form):
         if _User.objects.filter(username=value).exists():
             raise forms.ValidationError("このユーザー名は既に使われています。")
         return value
+
+
+class StaffFromUserForm(StaffCreateForm):
+    """既存ユーザーに勤怠Staffを後付けするフォーム。
+
+    認証情報・氏名は選んだ User から引くので、それらの欄を外し、勤怠スタッフ
+    未登録のユーザーを選ぶ欄を足す。サービス services.attach_staff_to_user に委譲。
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 新規アカウント用の欄は使わない
+        for name in ("username", "password", "last_name", "first_name"):
+            self.fields.pop(name, None)
+        from django.contrib.auth.models import User as _User
+        from .models import Staff as _Staff
+        linked_ids = _Staff.objects.values_list("user_id", flat=True)
+        user_field = forms.ModelChoiceField(
+            label="対象ユーザー",
+            queryset=_User.objects.exclude(id__in=linked_ids).order_by("username"),
+            help_text="勤怠スタッフ未登録のユーザーから選ぶ（既存アカウントをそのまま使う）",
+            widget=forms.Select(attrs={"class": "input"}),
+        )
+        # ドロップダウンに「ユーザー名（姓 名）」を表示する
+        user_field.label_from_instance = (
+            lambda u: f"{u.username}（{u.last_name} {u.first_name}）".replace("（ ）", "").replace("（）", "")
+        )
+        self.fields["user"] = user_field
+        self.order_fields([
+            "user", "business_unit", "company", "store",
+            "hired_on", "job_description", "initial_hourly_wage",
+            "birthday", "gender", "address", "phone",
+        ])

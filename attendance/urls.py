@@ -69,6 +69,12 @@ urlpatterns = [
         views.manage_staff_new,
         name="manage_staff_new",
     ),
+    # 既存ユーザーから勤怠スタッフを後付け
+    path(
+        "manage/staff/from-user/",
+        views.manage_staff_from_user,
+        name="manage_staff_from_user",
+    ),
     # 労働者名簿（法定帳票・労基法107条）
     path(
         "manage/staff-roster/",

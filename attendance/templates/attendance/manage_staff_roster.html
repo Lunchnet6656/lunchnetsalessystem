@@ -40,6 +40,7 @@
     </div>
     <div class="action-bar__buttons">
       <a class="btn btn--sub" href="{% url 'attendance:manage_staff_roster_csv' %}?status={{ status }}&company={{ company }}&unit={{ unit }}">📊 CSVダウンロード</a>
+      <a class="btn btn--sub" href="{% url 'attendance:manage_staff_from_user' %}">👤 既存ユーザーから追加</a>
       <a class="btn btn--brand" href="{% url 'attendance:manage_staff_new' %}">＋ スタッフ追加</a>
     </div>
   </div>
