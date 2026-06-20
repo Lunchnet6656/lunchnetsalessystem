@@ -10,6 +10,7 @@
 <body>
   <header class="app-header">
     <span class="app-header__title">ランチネット 勤怠</span>
+    {% block header_action %}{% endblock %}
   </header>
   <main class="app-main {% block main_modifier %}{% endblock %}">
     {% if messages %}

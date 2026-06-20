@@ -5,11 +5,17 @@
 
 {% block main_modifier %}app-main--with-footer{% endblock %}
 
+{% block header_action %}
+<form method="post" action="{% url 'logout' %}" class="app-header__logout">
+  {% csrf_token %}
+  <button type="submit" class="app-header__logout-btn">ログアウト</button>
+</form>
+{% endblock %}
+
 {% block content %}
-<section class="punch">
+<section class="punch punch--compact">
   <p class="punch__greeting">{{ staff.display_name }} さん</p>
 
-  <h2 class="my-qr__title">📱 打刻QR</h2>
   <div class="my-qr__img">
     {{ qr_svg|safe }}
   </div>
@@ -44,4 +50,23 @@
 
 {% block scripts %}
 <script src="{% static 'attendance/js/punch.js' %}"></script>
+<script>
+  // スキャナーで打刻されると当日の状態が変わる。定期的に状態を確認し、
+  // 変化したらページを再読み込みして表示（ステータス）を最新にする。
+  (function () {
+    "use strict";
+    var current = "{{ punch.state }}";
+    var url = "{% url 'attendance:mypage_state' %}";
+    setInterval(function () {
+      fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.state && d.state !== current) {
+            window.location.reload();
+          }
+        })
+        .catch(function () { /* 一時的な通信エラーは無視 */ });
+    }, 5000);
+  })();
+</script>
 {% endblock %}

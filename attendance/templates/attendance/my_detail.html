@@ -5,6 +5,13 @@
 
 {% block main_modifier %}app-main--with-footer{% endblock %}
 
+{% block header_action %}
+<form method="post" action="{% url 'logout' %}" class="app-header__logout">
+  {% csrf_token %}
+  <button type="submit" class="app-header__logout-btn">ログアウト</button>
+</form>
+{% endblock %}
+
 {% block content %}
 <section class="my-detail">
   <h1 class="my-detail__title">勤務状況</h1>

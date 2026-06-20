@@ -136,6 +136,19 @@ def mypage(request):
 
 
 @login_required
+def mypage_state(request):
+    """マイページのポーリング用。本人の当日の打刻状態だけをJSONで返す。
+
+    スキャナーで打刻されるとマイページの表示が古くなるため、フロントが定期的に
+    これを叩き、状態が変わったらページを再読み込みする。
+    """
+    staff = services.get_active_staff(request.user)
+    if staff is None:
+        return JsonResponse({"state": None}, status=403)
+    return JsonResponse({"state": services.get_punch_state(staff)["state"]})
+
+
+@login_required
 def my_payslips(request):
     """本人用の給与明細一覧（読み取り専用）。確定済みのPDFをDLできる。"""
     staff = services.get_active_staff(request.user)

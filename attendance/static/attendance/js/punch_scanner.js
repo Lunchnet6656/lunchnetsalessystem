@@ -51,7 +51,7 @@
 
   function startCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setPrompt("カメラが使えない端末です。下の手動入力をお使いください。");
+      setPrompt("カメラが使えない端末です。スキャナーをお使いください。");
       return;
     }
     navigator.mediaDevices
@@ -66,6 +66,24 @@
         console.error(err);
         setPrompt("カメラの利用許可が必要です（端末のブラウザ設定を確認）。");
       });
+  }
+
+  // カメラを停止して黒枠（カメラ表示）を消す。スキャン成功後に呼び、画面を
+  // クリーンな待機状態へ戻す。予備カメラは次回ボタンで再度起動できる。
+  function stopCamera() {
+    if (video && video.srcObject) {
+      video.srcObject.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
+    }
+    const box = document.getElementById("kiosk-camera");
+    const btn = document.getElementById("kiosk-camera-btn");
+    if (box) {
+      box.hidden = true;
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "スキャナーが使えないときはカメラで読み取る";
+    }
   }
 
   function tick() {
@@ -130,6 +148,9 @@
       .then(({ status, body }) => {
         if (body.ok) {
           showToast("ok", "✓ " + body.message);
+          // カメラで読み取った場合は、成功したら黒枠を消してクリーンに戻す。
+          // （ハードスキャナー読み取り時はカメラ未起動なので no-op）
+          stopCamera();
           // 成功時のボイスメッセージ。kind はサーバーが返した確定値を使う
           // （クライアントの mode と一致するが、サーバー側を信頼源にする）。
           if (body.kind === "clock_in") {

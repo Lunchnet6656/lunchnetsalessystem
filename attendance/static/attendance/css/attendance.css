@@ -13,6 +13,7 @@ body {
 }
 
 .app-header {
+  position: relative;
   background: var(--color-brand);
   color: #fff;
   padding: var(--space-md);
@@ -23,6 +24,57 @@ body {
   font-size: var(--font-md);
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.app-header__logout {
+  position: absolute;
+  right: var(--space-md);
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+
+.app-header__logout-btn {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-header__logout-btn:active {
+  background: rgba(255, 255, 255, 0.30);
+}
+
+/* マイページのコンパクト表示（上下スクロールを避ける） */
+.punch--compact {
+  padding: var(--space-md);
+}
+
+.punch--compact .punch__greeting {
+  margin: 0 0 var(--space-sm);
+}
+
+.punch--compact .my-qr__img {
+  margin: var(--space-sm) 0;
+}
+
+.punch--compact .my-qr__img svg {
+  width: 190px;
+  height: 190px;
+  padding: var(--space-sm);
+}
+
+.punch--compact .my-qr__lead {
+  margin: var(--space-sm) 0 0;
+}
+
+.punch--compact .punch__today {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
 }
 
 .app-main {

@@ -7,6 +7,7 @@ app_name = "attendance"
 urlpatterns = [
     path("", views.punch_page, name="punch_page"),
     path("mypage/", views.mypage, name="mypage"),
+    path("mypage/state/", views.mypage_state, name="mypage_state"),
     path("mypage/detail/", views.my_detail, name="my_detail"),
     path("mypage/payslips/", views.my_payslips, name="my_payslips"),
     path("punch/", views.punch, name="punch"),
