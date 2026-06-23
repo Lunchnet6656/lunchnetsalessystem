@@ -46,8 +46,9 @@
     ├─ 募集期間を作成 ──────────────→ 全スタッフに LINE / メール通知
     └─ 「未提出者に通知」ボタン ─────→ 未提出スタッフに LINE / メール通知
 
-Heroku Scheduler（毎朝9時）
-    └─ send_shift_reminders --days 3 → 締切3日前の未提出スタッフに自動通知
+Heroku Scheduler（毎日 9:00 UTC = 18:00 JST）
+    └─ send_shift_reminders --days 1 → 締切“前日”の未提出スタッフに自動通知
+       ※締切「日」で判定するため、締切時刻は 23:59 等でもOK
 ```
 
 ---
@@ -217,7 +218,8 @@ DEFAULT_FROM_EMAIL=your-gmail@gmail.com
 
 ## Heroku Scheduler セットアップ
 
-締切 3 日前に未提出スタッフへ自動でリマインドを送るための設定です。
+締切“前日”に未提出スタッフへ自動でリマインドを送るための設定です。
+（`--days N` で N 日前に変更可。締切「日」で判定するので締切時刻は 23:59 等でもよい）
 
 ### Step 1: アドオンの追加
 
@@ -248,7 +250,7 @@ heroku addons:create scheduler:standard --app あなたのアプリ名
    |---|---|
    | Schedule | Every day at... |
    | Time | `09:00 AM UTC` ※日本時間18時。9時JST にしたい場合は `00:00 UTC` |
-   | Run Command | `python manage.py send_shift_reminders --days 3` |
+   | Run Command | `python manage.py send_shift_reminders --days 1` |
 
 5. 「**Save Job**」
 
@@ -265,11 +267,11 @@ heroku addons:create scheduler:standard --app あなたのアプリ名
 手動でコマンドを即時実行してテストできます:
 
 ```bash
-# 締切3日前の期間を対象にリマインド送信
-heroku run python manage.py send_shift_reminders --days 3 --app あなたのアプリ名
+# 締切“前日”の期間を対象にリマインド送信（本番ジョブと同じ）
+heroku run python manage.py send_shift_reminders --days 1 --app あなたのアプリ名
 
-# 今後999日以内の全期間を対象にテスト（対象なし確認）
-heroku run python manage.py send_shift_reminders --days 999 --app あなたのアプリ名
+# 当日が締切の期間でテストしたい場合は --days 0
+heroku run python manage.py send_shift_reminders --days 0 --app あなたのアプリ名
 ```
 
 実行ログの例:
@@ -337,7 +339,7 @@ heroku config:set \
 ### Heroku Scheduler
 
 - [ ] Heroku Scheduler アドオンを追加した
-- [ ] ジョブ `python manage.py send_shift_reminders --days 3` を登録した
+- [ ] ジョブ `python manage.py send_shift_reminders --days 1` を登録した
 - [ ] 実行時刻を UTC で正しく設定した（JST 9:00 = UTC 0:00）
 - [ ] `heroku run` で手動実行してエラーが出ないことを確認した
 
@@ -383,9 +385,9 @@ heroku config:set \
 
 **原因**: ジョブのコマンドやスケジュールの設定ミス
 **対処**:
-1. `heroku run python manage.py send_shift_reminders --days 3` で手動テスト
+1. `heroku run python manage.py send_shift_reminders --days 1` で手動テスト
 2. エラーが出た場合は `heroku logs --tail` でスタックトレースを確認
-3. 対象期間が存在するか確認（OPEN ステータスで締切3日前の期間があるか）
+3. 対象期間が存在するか確認（OPEN ステータスで締切が“翌日”の期間があるか）
 
 ---
 
