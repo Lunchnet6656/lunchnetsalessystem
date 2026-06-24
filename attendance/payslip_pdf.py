@@ -31,11 +31,21 @@ from .models import PayslipAdjustment
 _JP_FONT = "HeiseiKakuGo-W5"
 _FONT_REGISTERED = False
 
-# 既存Excel明細のピンク色（ヘッダー帯の淡い色）
-_PINK_HEADER = colors.HexColor("#F4D7DA")
-_PINK_NETPAY = colors.HexColor("#E8B5BC")  # 差引支給額のラベル帯（少し濃いめ）
-_BORDER = colors.HexColor("#888888")
-_BG_LABEL = colors.HexColor("#F0F0F0")  # 左側「支給/控除」縦ラベルの灰
+# 参考テンプレート（青系の給与支給明細書）のスタイルに合わせ、表全体を青で統一する。
+# セクションの区別は「色違い」ではなく、青の濃淡＋セクション間の間隔で表現する。
+_BORDER = colors.HexColor("#4F81BD")   # 罫線（オフィス定番の青）
+_HEAD = colors.HexColor("#DCE6F2")     # 各列ヘッダー帯（淡い青）／値の行は白
+_LABEL = colors.HexColor("#B8CCE4")    # 左端の縦ラベル帯（中間の青）
+_LABEL_BLUE = colors.HexColor("#5B9BD5")  # 縦ラベル帯（支給/控除/勤怠）。白文字が映える明るめの青
+_HEAD_GRAY = colors.HexColor("#D9D9D9")   # 記事のヘッダー帯（淡いグレー）
+_LABEL_GRAY = colors.HexColor("#3F3F3F")  # 記事の縦ラベル帯。黒に近いグレー＋白文字
+_BORDER_GRAY = colors.HexColor("#808080")  # 記事の罫線（グレー系）
+_EMPH = colors.HexColor("#95B3D7")     # 総支給額・総控除額・差引支給額の強調（濃いめの青）
+
+# ヘッダー（会社名/氏名）・差引支給額ボックスで使う色の別名。
+_PINK_HEADER = _HEAD
+_PINK_NETPAY = _EMPH
+_BG_LABEL = _LABEL
 
 
 def _ensure_font():
@@ -60,54 +70,56 @@ def _hours(minutes):
     return f"{minutes / 60:.2f}"
 
 
-def _para(text, size=10, bold=False, align="LEFT"):
+def _para(text, size=10, bold=False, align="LEFT", color=colors.black):
     """Platypus 用のスタイル付き段落を1つ作る。"""
     style = ParagraphStyle(
-        f"p{size}{bold}{align}",
+        f"p{size}{bold}{align}{color}",
         fontName=_JP_FONT,
         fontSize=size,
         leading=size * 1.2,
         alignment={"LEFT": 0, "CENTER": 1, "RIGHT": 2}.get(align, 0),
-        textColor=colors.black,
+        textColor=color,
     )
     return Paragraph(text, style)
 
 
-def _section(label, header_row, value_rows, col_widths):
-    """セクションテーブルを1つ作る（左に縦ラベル、右にヘッダー＋値）。
+def _section(label, pairs, col_widths, head_bg=_HEAD, label_bg=_LABEL_BLUE,
+             border=_BORDER):
+    """セクションを1つの表として作る（左に縦ラベル、右にヘッダー＋値の段）。
 
-    label        … 「支給」「控除」「勤怠」「記事」など
-    header_row   … 各列のラベル文字列のリスト（例: ["基本給", "早朝手当", ...]）
-    value_rows   … 値行のリスト（複数行可、各行は列数分のリスト）
-    col_widths   … ラベル列を除いた各列の幅（mm単位の数値リスト）
+    label      … 「支給」「控除」「勤怠」「記事」など。縦ラベル列に白文字で表示
+    pairs      … (header_row, value_row) のリスト。例: [(pay_h1, pay_v1), (pay_h2, pay_v2)]
+                 → ヘッダー行＋値行を2段ぶん重ね、縦ラベルは全段を結合した1セルにする
+    col_widths … ラベル列を除いた各列の幅（mm単位の数値リスト）
+    head_bg    … ヘッダー帯の背景色
+    label_bg   … 左端の縦ラベル帯の背景色（白文字が映える濃いめの色）
     """
-    # 左の縦ラベル + 各列ヘッダー / 各値行
     label_w = 11 * mm
     rows = []
-    rows.append([_para(f"<b>{label}</b>", size=9, align="CENTER")] + [
-        _para(f"<b>{h}</b>", size=7, align="CENTER") for h in header_row
-    ])
-    for values in value_rows:
-        rows.append([_para("", size=7)] + [
-            _para(v, size=8, align="CENTER") for v in values
-        ])
+    for header_row, values in pairs:
+        rows.append([""] + [_para(f"<b>{h}</b>", size=7, align="CENTER") for h in header_row])
+        rows.append([""] + [_para(v, size=8, align="CENTER") for v in values])
+    # 縦ラベルは先頭セルに置き、全段ぶち抜きで結合（白文字・縦書き風の2文字）。
+    rows[0][0] = _para(f"<b>{label}</b>", size=10, align="CENTER", color=colors.white)
+    n = len(rows)
 
     table = Table(
         rows,
         colWidths=[label_w] + col_widths,
-        rowHeights=[5.5 * mm] + [6 * mm] * len(value_rows),
+        rowHeights=[5.5 * mm, 6 * mm] * len(pairs),
     )
     style = TableStyle([
-        # 全体
-        ("GRID", (0, 0), (-1, -1), 0.6, _BORDER),
+        ("GRID", (0, 0), (-1, -1), 0.6, border),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("FONTNAME", (0, 0), (-1, -1), _JP_FONT),
-        # 縦ラベル列（左端）
-        ("BACKGROUND", (0, 0), (0, -1), _BG_LABEL),
-        ("SPAN", (0, 0), (0, -1)),  # 全行ぶち抜きで1セル化
-        # ヘッダー行はピンク背景
-        ("BACKGROUND", (1, 0), (-1, 0), _PINK_HEADER),
+        # 縦ラベル列：全段を結合した1セル＋白文字
+        ("SPAN", (0, 0), (0, -1)),
+        ("BACKGROUND", (0, 0), (0, -1), label_bg),
+        ("BOX", (0, 0), (0, -1), 0.6, label_bg),  # ラベル列は枠も同色で塗りつぶし一体化
     ])
+    # 各段のヘッダー行（偶数行）に淡い青の帯を敷く
+    for i in range(0, n, 2):
+        style.add("BACKGROUND", (1, i), (-1, i), head_bg)
     table.setStyle(style)
     return table
 
@@ -168,6 +180,13 @@ def _header_box(payslip):
         ("BACKGROUND", (0, 0), (0, 1), _PINK_HEADER),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("FONTNAME", (0, 0), (-1, -1), _JP_FONT),
+        # 氏名行（行2）はネストした表をそのまま枠として使う。セルの既定余白
+        # （左右6pt）が入ると氏名枠だけ右にズレて上の枠と頭が合わないので、
+        # この行だけ余白を0にして左端を会社名／期間の枠とぴったり揃える。
+        ("LEFTPADDING", (0, 2), (0, 2), 0),
+        ("RIGHTPADDING", (0, 2), (0, 2), 0),
+        ("TOPPADDING", (0, 2), (0, 2), 0),
+        ("BOTTOMPADDING", (0, 2), (0, 2), 0),
     ]))
     return header
 
@@ -238,7 +257,8 @@ def _build_story(payslip, payment_adjustments=None, deduction_adjustments=None):
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.append(top)
-    story.append(Spacer(1, 2 * mm))
+    # 氏名ヘッダーと支給セクションの間をしっかり空ける。
+    story.append(Spacer(1, 10 * mm))
 
     # --- 支給セクション（6列×2行） ----------------------------------------
     # A5横 = 210mm幅、両側マージン10mmずつなので使える幅は ~190mm
@@ -281,22 +301,14 @@ def _build_story(payslip, payment_adjustments=None, deduction_adjustments=None):
         _yen(driver_yen),
         _yen(payslip.gross_yen),
     ]
-    sec = _section("支\n給", pay_h1, [pay_v1], pay_col_widths)
-    story.append(sec)
-    sec2 = _section("", pay_h2, [pay_v2], pay_col_widths)
-    sec2.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.6, _BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("FONTNAME", (0, 0), (-1, -1), _JP_FONT),
-        ("BACKGROUND", (0, 0), (0, -1), _BG_LABEL),
-        ("SPAN", (0, 0), (0, -1)),
-        ("BACKGROUND", (1, 0), (-1, 0), _PINK_HEADER),
-        # 総支給額のセルだけ強調
-        ("BACKGROUND", (-1, 0), (-1, 0), _PINK_NETPAY),
-        ("FONTSIZE", (-1, 1), (-1, 1), 11),
+    sec = _section("支\n給", [(pay_h1, pay_v1), (pay_h2, pay_v2)], pay_col_widths)
+    sec.setStyle(TableStyle([
+        # 総支給額のセル（2段目ヘッダーの右端）と直下の値を強調
+        ("BACKGROUND", (-1, 2), (-1, 2), _LABEL_BLUE),
+        ("FONTSIZE", (-1, 3), (-1, 3), 11),
     ]))
-    story.append(sec2)
-    story.append(Spacer(1, 1.5 * mm))
+    story.append(sec)
+    story.append(Spacer(1, 6 * mm))
 
     # --- 控除セクション（6列×2行） ----------------------------------------
     ded_col_widths = [29.5 * mm] * 6
@@ -318,21 +330,14 @@ def _build_story(payslip, payment_adjustments=None, deduction_adjustments=None):
         _yen(payslip.other_deduction_yen + other_adj_deduct),
         _yen(payslip.total_deduction_yen),
     ]
-    sec3 = _section("控\n除", ded_h1, [ded_v1], ded_col_widths)
-    story.append(sec3)
-    sec4 = _section("", ded_h2, [ded_v2], ded_col_widths)
-    sec4.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.6, _BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("FONTNAME", (0, 0), (-1, -1), _JP_FONT),
-        ("BACKGROUND", (0, 0), (0, -1), _BG_LABEL),
-        ("SPAN", (0, 0), (0, -1)),
-        ("BACKGROUND", (1, 0), (-1, 0), _PINK_HEADER),
-        ("BACKGROUND", (-1, 0), (-1, 0), _PINK_NETPAY),
-        ("FONTSIZE", (-1, 1), (-1, 1), 11),
+    sec3 = _section("控\n除", [(ded_h1, ded_v1), (ded_h2, ded_v2)], ded_col_widths)
+    sec3.setStyle(TableStyle([
+        # 総控除額のセル（2段目ヘッダーの右端）と直下の値を強調
+        ("BACKGROUND", (-1, 2), (-1, 2), _LABEL_BLUE),
+        ("FONTSIZE", (-1, 3), (-1, 3), 11),
     ]))
-    story.append(sec4)
-    story.append(Spacer(1, 1.5 * mm))
+    story.append(sec3)
+    story.append(Spacer(1, 6 * mm))
 
     # --- 勤怠セクション（6列×2行） ----------------------------------------
     # 確定済み Payslip は件数フィールドを持たない（PayslipCalc は持っている）
@@ -374,19 +379,9 @@ def _build_story(payslip, payment_adjustments=None, deduction_adjustments=None):
         "—",                                # 遅刻時間（モデル未対応）
         "—",                                # 早退時間（モデル未対応）
     ]
-    sec5 = _section("勤\n怠", att_h1, [att_v1], att_col_widths)
+    sec5 = _section("勤\n怠", [(att_h1, att_v1), (att_h2, att_v2)], att_col_widths)
     story.append(sec5)
-    sec6 = _section("", att_h2, [att_v2], att_col_widths)
-    sec6.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.6, _BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("FONTNAME", (0, 0), (-1, -1), _JP_FONT),
-        ("BACKGROUND", (0, 0), (0, -1), _BG_LABEL),
-        ("SPAN", (0, 0), (0, -1)),
-        ("BACKGROUND", (1, 0), (-1, 0), _PINK_HEADER),
-    ]))
-    story.append(sec6)
-    story.append(Spacer(1, 1.5 * mm))
+    story.append(Spacer(1, 6 * mm))
 
     # --- 記事セクション（時給単価など） ------------------------------------
     # 時間外時給単価は四捨五入（基発150号・50銭以上切上げ）。実支給の計算単価と一致させる。
@@ -423,15 +418,10 @@ def _build_story(payslip, payment_adjustments=None, deduction_adjustments=None):
         _yen(paid_leave_unit) if paid_leave_unit else "—",
         f"{cum_paid_leave}日",     # 有給年度（10月〜9月）内の累計取得日数
     ]
-    sec7 = _section("記\n事", art_h, [art_v], [29.5 * mm] * 6)
+    sec7 = _section("記\n事", [(art_h, art_v)], [29.5 * mm] * 6,
+                    head_bg=_HEAD_GRAY, label_bg=_LABEL_GRAY, border=_BORDER_GRAY)
     story.append(sec7)
 
-    # フッター
-    story.append(Spacer(1, 2 * mm))
-    story.append(_para(
-        "※ この明細は給与計算アプリ（w002）が自動生成しました。",
-        size=6, align="LEFT",
-    ))
     return story
 
 
@@ -445,10 +435,14 @@ class _PayslipDoc(BaseDocTemplate):
             topMargin=8 * mm, bottomMargin=8 * mm,
             title="給与明細",
         )
+        # Frame の既定内側余白（上下左右6pt）を消す。これが残るとページ高さを
+        # ~4mm 食ってセクションが2ページ目にこぼれるため、マージンは doc 側
+        # （left/right/top/bottomMargin）だけで管理する。
         frame = Frame(
             self.leftMargin, self.bottomMargin,
             self.width, self.height,
             id="main", showBoundary=0,
+            leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
         )
         self.addPageTemplates([PageTemplate(id="payslip", frames=[frame])])
 

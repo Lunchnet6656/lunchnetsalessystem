@@ -155,10 +155,11 @@ def my_payslips(request):
     if staff is None:
         return render(request, "attendance/not_registered.html", status=403)
 
+    # 年タブで切り替える前提で、3年分（36ヶ月）まで遡れるようにする。
     past_payslips = list(
         Payslip.objects.filter(staff=staff)
         .select_related("payroll_period")
-        .order_by("-payroll_period__period_end")[:12]
+        .order_by("-payroll_period__period_end")[:36]
     )
     return render(
         request,

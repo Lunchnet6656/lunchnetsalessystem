@@ -17,17 +17,40 @@
   <h1 class="my-detail__title">給与明細</h1>
   {% if past_payslips %}
   <p class="my-payslips__lead">タップするとPDFがダウンロードできます。</p>
-  <ul class="my-payslips__list">
-    {% for ps in past_payslips %}
+  {# 年ごとにまとめ、上のタブで表示する年を切り替える（既定は最新年）。 #}
+  {% regroup past_payslips by payroll_period.period_end|date:"Y" as year_groups %}
+  <div class="my-payslips__tabs" role="tablist" aria-label="年で切り替え">
+    {% for group in year_groups %}
+      <button type="button"
+              class="my-payslips__tab{% if forloop.first %} is-active{% endif %}"
+              data-year="{{ group.grouper }}"
+              role="tab"
+              aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+        {{ group.grouper }}年
+      </button>
+    {% endfor %}
+  </div>
+  {% for group in year_groups %}
+  <ul class="my-payslips__list" data-year="{{ group.grouper }}"{% if not forloop.first %} hidden{% endif %}>
+    {% for ps in group.list %}
       <li class="my-payslips__item">
         <a class="my-payslips__link" href="{% url 'attendance:punch_payslip_pdf' staff.punch_token %}?period={{ ps.payroll_period.period_end|date:'Y-m-d' }}">
           <span class="my-payslips__period">{{ ps.payroll_period.period_end|date:"Y年n月" }}度</span>
           <span class="my-payslips__amount">{{ ps.net_pay_yen|stringformat:"d" }}円</span>
-          <span class="my-payslips__icon">⬇</span>
+          <span class="my-payslips__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                 stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v12" />
+              <path d="M8.5 6.5 12 3l3.5 3.5" />
+              <path d="M6 11H4.5A1.5 1.5 0 0 0 3 12.5v6A1.5 1.5 0 0 0 4.5 20h15a1.5 1.5 0 0 0 1.5-1.5v-6A1.5 1.5 0 0 0 19.5 11H18" />
+            </svg>
+          </span>
         </a>
       </li>
     {% endfor %}
   </ul>
+  {% endfor %}
   {% else %}
   <p class="my-payslips__empty">まだ確定した給与明細はありません。</p>
   {% endif %}
@@ -35,3 +58,33 @@
 {% endblock %}
 
 {% block footer %}{% include "attendance/_mypage_nav.html" with active="payslips" %}{% endblock %}
+
+{% block scripts %}
+<script>
+  // 年タブで表示する年のリストだけを出す。JSが無効でも最新年のリストは
+  // 表示されたまま（hidden は他年だけ）なので、最低限は機能する。
+  (function () {
+    "use strict";
+    var tabs = Array.prototype.slice.call(
+      document.querySelectorAll(".my-payslips__tab")
+    );
+    if (!tabs.length) return;
+    var lists = Array.prototype.slice.call(
+      document.querySelectorAll(".my-payslips__list")
+    );
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var year = tab.dataset.year;
+        tabs.forEach(function (t) {
+          var on = t === tab;
+          t.classList.toggle("is-active", on);
+          t.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        lists.forEach(function (ul) {
+          ul.hidden = ul.dataset.year !== year;
+        });
+      });
+    });
+  })();
+</script>
+{% endblock %}

@@ -37,7 +37,8 @@
     </header>
     <div class="kiosk__scanner"
          data-kiosk-api="{{ kiosk_api_url }}"
-         data-mode="{{ mode }}">
+         data-mode="{{ mode }}"
+         data-home-url="{{ scanner_home_url }}">
       <p id="kiosk-prompt" class="kiosk__prompt">QRをスキャナーで読み取ってください</p>
       <p class="kiosk__scan-sub">スマホのQRをスキャナーにかざすと打刻されます</p>
       <div id="kiosk-toast" class="kiosk__toast" role="status" aria-live="polite" hidden></div>

@@ -10,6 +10,10 @@
   }
   const apiUrl = scanner.dataset.kioskApi;
   const mode = scanner.dataset.mode;
+  // 打刻成功後、この秒数だけ結果を見せてからモード選択画面へ自動で戻す。
+  // 共有端末がスキャン画面のまま放置されるのを防ぐ。
+  const HOME_REDIRECT_SEC = 5;
+  const homeUrl = scanner.dataset.homeUrl;
   const video = document.getElementById("kiosk-video");
   const canvas = document.getElementById("kiosk-canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -47,6 +51,32 @@
 
   function setPrompt(text) {
     prompt.textContent = text;
+  }
+
+  // 打刻成功後にモード選択画面へ戻すタイマー。次の人がすぐスキャンしたら
+  // 新しい sendPunch 側でキャンセルし、最新の打刻結果を優先する。
+  let homeTimer = null;
+  function cancelHomeRedirect() {
+    if (homeTimer) {
+      clearInterval(homeTimer);
+      homeTimer = null;
+    }
+  }
+  function scheduleHomeRedirect() {
+    if (!homeUrl) {
+      return;
+    }
+    cancelHomeRedirect();
+    let remaining = HOME_REDIRECT_SEC;
+    homeTimer = setInterval(function () {
+      remaining -= 1;
+      if (remaining <= 0) {
+        cancelHomeRedirect();
+        window.location.href = homeUrl;
+        return;
+      }
+      setPrompt("あと" + remaining + "秒でモード選択へ戻ります…");
+    }, 1000);
   }
 
   function startCamera() {
@@ -137,6 +167,8 @@
   }
 
   function sendPunch(rawValue) {
+    // 前回の自動遷移待ちがあれば止める（次の人の打刻を優先）
+    cancelHomeRedirect();
     setPrompt("送信中…");
     hideToast();
     fetch(apiUrl, {
@@ -158,6 +190,10 @@
           } else if (body.kind === "clock_out") {
             speak("お疲れさまでした！");
           }
+          // 成功したら結果を数秒見せたあとモード選択画面へ自動で戻す。
+          // （成功時のみ。エラー時は同じモードで再スキャンできるよう留まる）
+          scheduleHomeRedirect();
+          return;
         } else {
           const msg = body.message || "打刻に失敗しました。";
           showToast("error", "× " + msg);
