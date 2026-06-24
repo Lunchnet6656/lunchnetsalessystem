@@ -667,11 +667,11 @@ body {
   .daygrid__row {
     /* 最終列(理由＋保存＋削除)は 1fr だと幅が潰れて行の外へ溢れるので、
        下限を確保し、行幅を全列の合計まで広げて背景・境界をはみ出させない。
-       出勤・退勤は時刻テキスト(08:29)に合わせたコンパクト幅(104px)にし、
+       出勤・退勤は時刻テキスト(08:29)に合わせたコンパクト幅(90px)にし、
        列間(gap=16px)でくっつかないよう間隔を確保する。 */
-    grid-template-columns: 92px 104px 104px 58px 58px 58px 60px 100px minmax(210px, 1fr);
+    grid-template-columns: 92px 90px 90px 58px 58px 58px 60px 100px minmax(210px, 1fr);
     column-gap: var(--space-md);
-    min-width: 980px;
+    min-width: 950px;
   }
   /* スクロールしても日付が見えるよう、日付列を左に固定。
      sticky セルは背景必須（透け防止）。さらに列間の gap(8px) が透けて
