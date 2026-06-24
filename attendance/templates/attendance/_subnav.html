@@ -11,43 +11,72 @@ active の値（"dashboard" がデフォルト）:
   roster          … 労働者名簿（manage_staff_roster）
   qrs             … 打刻QR印刷（manage_punch_qrs）
   settings        … 設定（manage_settings / manage_min_wage_update）
+
+レスポンシブ:
+  デスクトップ(>768px) … .subnav__panel が従来どおり横並び。☰/overlay は非表示。
+  モバイル(≤768px)     … ヘッダー左の☰(base.html の .app-header__menu)→checkbox
+                          トグルで .subnav__panel を左ドロワー表示。☰はDOM上ヘッダーに
+                          あるが label[for=subnav-toggle] でこのチェックボックスを操作する。
+                          JSオフでもCSSだけで開閉可（末尾JSはa11y補強のみ）。
 {% endcomment %}
-<nav class="subnav">
-  {% if active == "dashboard" %}
-    <span class="subnav__item subnav__item--active">月次勤怠</span>
-  {% else %}
-    <a class="subnav__item" href="{% url 'attendance:manage_dashboard' %}">月次勤怠</a>
-  {% endif %}
+<nav class="subnav" aria-label="管理メニュー">
+  {# 開閉トグル本体。☰はヘッダー側(base.html)に置き、label[for] で操作する。 #}
+  <input type="checkbox" id="subnav-toggle" class="subnav__checkbox">
+  <label for="subnav-toggle" class="subnav__overlay" aria-hidden="true"></label>
 
-  {% if active == "payroll" %}
-    <span class="subnav__item subnav__item--active">給与計算</span>
-  {% else %}
-    <a class="subnav__item" href="{% url 'attendance:manage_payroll' %}">給与計算</a>
-  {% endif %}
+  <div class="subnav__panel">
+    {% if active == "dashboard" %}
+      <span class="subnav__item subnav__item--active">月次勤怠</span>
+    {% else %}
+      <a class="subnav__item" href="{% url 'attendance:manage_dashboard' %}">月次勤怠</a>
+    {% endif %}
 
-  {% if active == "staff_settings" %}
-    <span class="subnav__item subnav__item--active">スタッフ設定</span>
-  {% else %}
-    <a class="subnav__item" href="{% url 'attendance:manage_staff_settings' %}">スタッフ設定</a>
-  {% endif %}
+    {% if active == "payroll" %}
+      <span class="subnav__item subnav__item--active">給与計算</span>
+    {% else %}
+      <a class="subnav__item" href="{% url 'attendance:manage_payroll' %}">給与計算</a>
+    {% endif %}
 
-  {% if active == "roster" %}
-    <span class="subnav__item subnav__item--active">労働者名簿</span>
-  {% else %}
-    <a class="subnav__item" href="{% url 'attendance:manage_staff_roster' %}">労働者名簿</a>
-  {% endif %}
+    {% if active == "staff_settings" %}
+      <span class="subnav__item subnav__item--active">スタッフ設定</span>
+    {% else %}
+      <a class="subnav__item" href="{% url 'attendance:manage_staff_settings' %}">スタッフ設定</a>
+    {% endif %}
 
-  {% if active == "qrs" %}
-    <span class="subnav__item subnav__item--active">打刻QR印刷</span>
-  {% else %}
-    <a class="subnav__item" href="{% url 'attendance:manage_punch_qrs' %}">打刻QR印刷</a>
-  {% endif %}
+    {% if active == "roster" %}
+      <span class="subnav__item subnav__item--active">労働者名簿</span>
+    {% else %}
+      <a class="subnav__item" href="{% url 'attendance:manage_staff_roster' %}">労働者名簿</a>
+    {% endif %}
 
-  {% if active == "settings" %}
-    <span class="subnav__item subnav__item--active">設定</span>
-  {% else %}
-    <a class="subnav__item" href="{% url 'attendance:manage_settings' %}">設定</a>
-  {% endif %}
+    {% if active == "qrs" %}
+      <span class="subnav__item subnav__item--active">打刻QR印刷</span>
+    {% else %}
+      <a class="subnav__item" href="{% url 'attendance:manage_punch_qrs' %}">打刻QR印刷</a>
+    {% endif %}
 
-  <a class="subnav__item" href="{% url 'attendance:punch_scanner' %}">勤怠ページ</a>
+    {% if active == "settings" %}
+      <span class="subnav__item subnav__item--active">設定</span>
+    {% else %}
+      <a class="subnav__item" href="{% url 'attendance:manage_settings' %}">設定</a>
+    {% endif %}
+
+    <a class="subnav__item" href="{% url 'attendance:punch_scanner' %}">勤怠ページ</a>
+  </div>
 </nav>
+<script>
+  // a11y補強：CSSだけで開閉は動くが、aria-expanded同期とEscで閉じるを足す。
+  // JSが無効でもドロワー自体は機能する（プログレッシブエンハンスメント）。
+  (function () {
+    "use strict";
+    var cb = document.getElementById("subnav-toggle");
+    var ham = document.querySelector(".app-header__menu");
+    if (!cb || !ham) return;
+    function sync() { ham.setAttribute("aria-expanded", cb.checked ? "true" : "false"); }
+    cb.addEventListener("change", sync);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && cb.checked) { cb.checked = false; sync(); }
+    });
+    sync();
+  })();
+</script>

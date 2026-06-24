@@ -9,6 +9,16 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <header class="app-header">
+    {% comment %}
+    管理者ページ（url_name が manage_ で始まる）のときだけ、ヘッダー左に
+    ハンバーガー☰を出す。トグル本体(#subnav-toggle)とドロワーは _subnav.html
+    側にあり、label[for] でDOMが離れていても開閉できる。
+    {% endcomment %}
+    {% if request.resolver_match.url_name|slice:":7" == "manage_" %}
+    <label for="subnav-toggle" class="app-header__menu" aria-label="メニューを開閉">
+      <span class="app-header__menu-bars" aria-hidden="true"></span>
+    </label>
+    {% endif %}
     <span class="app-header__title">ランチネット 勤怠</span>
     {% block header_action %}{% endblock %}
   </header>

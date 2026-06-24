@@ -39,6 +39,7 @@
     <div class="lockbar">この期間は締め済みです。修正するには月次一覧で締めを解除してください。</div>
   {% endif %}
 
+  <p class="scroll-hint">← 横にスクロールできます →</p>
   <div class="daygrid">
     <div class="daygrid__head">
       <span>日付</span>
@@ -97,7 +98,7 @@
 
   {% if edits %}
   <h2 class="manage__h2">修正履歴</h2>
-  <table class="grid">
+  <table class="grid grid--cards">
     <thead>
       <tr>
         <th>修正日時</th>
@@ -111,12 +112,12 @@
     <tbody>
       {% for e in edits %}
       <tr>
-        <td class="grid__sub">{{ e.created_at|date:"Y/n/j H:i" }}</td>
-        <td>{{ e.time_record.work_date|date:"n/j" }}　{{ e.time_record.get_kind_display }}</td>
-        <td>{{ e.get_action_display }}</td>
-        <td>{{ e.before_value }} → {{ e.after_value }}</td>
-        <td>{{ e.editor.username }}</td>
-        <td class="grid__sub">{{ e.reason|default:"—" }}</td>
+        <td class="grid__sub" data-label="修正日時">{{ e.created_at|date:"Y/n/j H:i" }}</td>
+        <td data-label="対象">{{ e.time_record.work_date|date:"n/j" }}　{{ e.time_record.get_kind_display }}</td>
+        <td data-label="操作">{{ e.get_action_display }}</td>
+        <td data-label="変更">{{ e.before_value }} → {{ e.after_value }}</td>
+        <td data-label="修正者">{{ e.editor.username }}</td>
+        <td class="grid__sub" data-label="理由">{{ e.reason|default:"—" }}</td>
       </tr>
       {% endfor %}
     </tbody>

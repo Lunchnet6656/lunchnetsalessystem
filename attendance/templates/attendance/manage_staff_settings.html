@@ -45,6 +45,7 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="unit" value="{{ unit }}">
+    <p class="scroll-hint">← 横にスクロールできます →</p>
     <div class="staff-settings__wrap">
       <table class="grid grid--staff-settings">
         <thead>

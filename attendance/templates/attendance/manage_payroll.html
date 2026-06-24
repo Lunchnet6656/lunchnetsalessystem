@@ -81,7 +81,7 @@
   {% endif %}
 
   {% if rows %}
-  <table class="grid">
+  <table class="grid grid--cards">
     <thead>
       <tr>
         <th class="grid__th--name">氏名</th>
@@ -99,17 +99,17 @@
       {% for row in rows %}
       <tr>
         <td class="grid__name">{{ row.staff.display_name }}</td>
-        <td><span class="company-badge company-badge--{{ row.staff.company|lower }}">{{ row.staff.company }}</span></td>
-        <td>{{ row.staff.get_business_unit_display }}</td>
-        <td class="grid__num">{{ row.work_days }}日</td>
-        <td class="grid__num">
+        <td data-label="会社"><span class="company-badge company-badge--{{ row.staff.company|lower }}">{{ row.staff.company }}</span></td>
+        <td data-label="事業">{{ row.staff.get_business_unit_display }}</td>
+        <td class="grid__num" data-label="勤務日数">{{ row.work_days }}日</td>
+        <td class="grid__num" data-label="時給">
           {% if row.no_wage %}<span class="badge badge--warn">時給未登録</span>
           {% else %}{{ row.hourly_wage|intcomma }}円{% if row.below_min_wage %}<br><span class="badge badge--warn">最低賃金未満</span>{% endif %}{% endif %}
         </td>
-        <td class="grid__num">{{ row.gross_yen|intcomma }}</td>
-        <td class="grid__num">{{ row.total_deduction_yen|intcomma }}</td>
-        <td class="grid__num grid__total">{{ row.net_pay_yen|intcomma }}円</td>
-        <td>
+        <td class="grid__num" data-label="総支給額">{{ row.gross_yen|intcomma }}</td>
+        <td class="grid__num" data-label="控除合計">{{ row.total_deduction_yen|intcomma }}</td>
+        <td class="grid__num grid__total" data-label="差引支給額">{{ row.net_pay_yen|intcomma }}円</td>
+        <td class="grid__cell--action" data-label="">
           <div class="action-links">
             <a class="link" href="{% url 'attendance:manage_payslip_detail' row.staff.id %}?period={{ period_end|date:'Y-m-d' }}">明細 ›</a>
             {% if is_confirmed %}
@@ -124,11 +124,11 @@
     <tfoot>
       <tr>
         <td colspan="3">合計（{{ rows|length }}名）</td>
-        <td class="grid__num">{{ totals.work_days }}日</td>
+        <td class="grid__num" data-label="勤務日数 合計">{{ totals.work_days }}日</td>
         <td></td>
-        <td class="grid__num">{{ totals.gross|intcomma }}</td>
-        <td class="grid__num">{{ totals.deduction|intcomma }}</td>
-        <td class="grid__num grid__total">{{ totals.net|intcomma }}円</td>
+        <td class="grid__num" data-label="総支給額 合計">{{ totals.gross|intcomma }}</td>
+        <td class="grid__num" data-label="控除合計 合計">{{ totals.deduction|intcomma }}</td>
+        <td class="grid__num grid__total" data-label="差引支給額 合計">{{ totals.net|intcomma }}円</td>
         <td></td>
       </tr>
     </tfoot>

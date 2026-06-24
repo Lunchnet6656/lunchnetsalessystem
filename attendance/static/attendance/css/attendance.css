@@ -659,11 +659,47 @@ body {
 .timeinput { width: 100%; }
 .reasoninput { flex: 1; min-width: 80px; }
 
-/* 横幅が狭い端末では日次グリッドを横スクロールさせる */
-@media (max-width: 720px) {
+/* 横幅が狭い端末では日次グリッド（編集系）を横スクロールさせ、日付列は左固定。
+   ブレークポイントは他のレスポンシブ対応と同じ768pxに揃える。 */
+@media screen and (max-width: 768px) {
   .daygrid { overflow-x: auto; }
   .daygrid__head,
-  .daygrid__row { min-width: 680px; }
+  .daygrid__row {
+    /* 最終列(理由＋保存＋削除)は 1fr だと幅が潰れて行の外へ溢れるので、
+       下限を確保し、行幅を全列の合計まで広げて背景・境界をはみ出させない。 */
+    grid-template-columns: 96px 92px 92px 62px 62px 62px 64px 104px minmax(220px, 1fr);
+    min-width: 940px;
+  }
+  /* スクロールしても日付が見えるよう、日付列を左に固定。
+     sticky セルは背景必須（透け防止）。さらに列間の gap(8px) が透けて
+     スクロール中のセルが覗くため、box-shadow で gap を行と同色に塗り、
+     その先に 1px の境界線を引く（行種別ごとに色を合わせる）。 */
+  .daygrid__head > span:first-child,
+  .daygrid__date {
+    position: sticky;
+    left: 0;
+    z-index: var(--z-sticky);
+  }
+  .daygrid__date {
+    background: var(--color-surface);
+    box-shadow: var(--space-sm) 0 0 var(--color-surface),
+                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+  }
+  .daygrid__row--weekend .daygrid__date {
+    background: var(--color-row-weekend);
+    box-shadow: var(--space-sm) 0 0 var(--color-row-weekend),
+                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+  }
+  .daygrid__row--missing .daygrid__date {
+    background: var(--color-error-bg);
+    box-shadow: var(--space-sm) 0 0 var(--color-error-bg),
+                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+  }
+  .daygrid__head > span:first-child {
+    background: var(--color-bg);
+    box-shadow: var(--space-sm) 0 0 var(--color-bg),
+                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+  }
 }
 
 /* 管理者画面のサブナビ（月次勤怠 ⇄ 給与計算） */
@@ -2144,4 +2180,290 @@ body.has-sticky-savebar {
 
 .leave-summary__item--remaining strong {
   color: var(--color-brand);
+}
+
+/* =========================================================================
+   モバイルレスポンシブ（管理者画面）
+   既存のデスクトップ表示に影響させないため、調整はすべて
+   @media screen and (max-width: 768px) 内に閉じ込める。
+   例外：サブナビの☰/オーバーレイ/トグルの「非表示」既定と .scroll-hint だけは
+   全幅で効かせる必要があるためメディアクエリ外に置く。
+   既存の .daygrid 用 @media(max-width:720px) は別系統なので据え置き。
+   ========================================================================= */
+
+/* サブナビ：デスクトップでは☰・オーバーレイ・トグルを出さず、従来の横並び */
+.subnav__checkbox,
+.subnav__overlay { display: none; }
+.app-header__menu { display: none; }   /* ☰はモバイルでのみ表示 */
+.subnav__panel { display: flex; gap: var(--space-xs); }
+
+/* 横スクロール表のヒント文（モバイルでのみ表示） */
+.scroll-hint { display: none; }
+
+@media screen and (max-width: 768px) {
+  /* ---- ツールバー類を縦積みに ---- */
+  .manage__head { flex-direction: column; align-items: stretch; }
+
+  .period-form { flex-wrap: wrap; width: 100%; }
+  .period-form .select,
+  .period-form .input,
+  .period-form .input--search,
+  .period-form .btn { flex: 1 1 100%; width: 100%; }
+
+  .manage__period,
+  .action-bar { flex-direction: column; align-items: stretch; }
+  .action-bar__buttons { flex-wrap: wrap; }
+  .action-bar__buttons .btn { flex: 1 1 auto; }
+
+  .qrs__filter { flex-direction: column; align-items: stretch; }
+  .qrs__sheet { grid-template-columns: 1fr; }
+
+  /* ---- タッチターゲット44px ---- */
+  .btn,
+  .select,
+  .input,
+  .cell-input,
+  .subnav__item { min-height: 44px; }
+
+  /* ---- サブナビ：☰はヘッダー左／ドロワーは固定 ---- */
+  .subnav { display: block; margin-bottom: 0; }  /* 中身は固定/非表示なので場所を取らない */
+
+  /* ヘッダー左のハンバーガー（赤帯に白い3本線） */
+  .app-header__menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: var(--space-md);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .app-header__menu:active { background: rgba(255, 255, 255, 0.18); }
+  .app-header__menu-bars,
+  .app-header__menu-bars::before,
+  .app-header__menu-bars::after {
+    content: "";
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: #fff;
+    border-radius: 2px;
+  }
+  .app-header__menu-bars { position: relative; }
+  .app-header__menu-bars::before { position: absolute; top: -7px; left: 0; }
+  .app-header__menu-bars::after  { position: absolute; top: 7px;  left: 0; }
+  /* タイトルが☰に重ならないよう左右に余白を確保（中央寄せは維持） */
+  .app-header__title { padding: 0 calc(44px + var(--space-md)); }
+
+  /* トグルは視覚的に隠すがキーボードフォーカスは残す */
+  .subnav__checkbox {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .subnav__checkbox:focus-visible ~ .subnav__panel {
+    outline: 2px solid var(--color-brand);
+  }
+
+  .subnav__panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 78vw;
+    max-width: 320px;
+    flex-direction: column;
+    gap: var(--space-xs);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-lg) var(--space-md);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: var(--z-drawer);
+    overflow-y: auto;
+  }
+  .subnav__panel .subnav__item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--space-sm) var(--space-md);
+  }
+  .subnav__overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 41, 51, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease;
+    z-index: var(--z-overlay);
+  }
+  .subnav__checkbox:checked ~ .subnav__panel { transform: translateX(0); }
+  .subnav__checkbox:checked ~ .subnav__overlay { opacity: 1; visibility: visible; }
+
+  /* ---- スクロールヒント ---- */
+  .scroll-hint {
+    display: block;
+    font-size: var(--font-sm);
+    color: var(--color-text-sub);
+    text-align: center;
+    margin: 0 0 var(--space-sm);
+  }
+
+  /* ---- カード化：閲覧テーブル（月次勤怠・給与計算・名簿） ---- */
+  .grid--cards,
+  .roster--cards {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .grid--cards thead,
+  .roster--cards thead { display: none; }
+  .grid--cards tbody,
+  .roster--cards tbody { display: block; }
+
+  .grid--cards tbody tr,
+  .roster--cards tbody tr {
+    display: block;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    margin-bottom: var(--space-md);
+    padding: var(--space-xs) 0;
+  }
+  /* hoverで背景が変わってカード感が崩れないよう固定 */
+  .grid--cards tbody tr:hover,
+  .roster--cards tbody tr:hover { background: var(--color-surface); }
+
+  .grid--cards tbody td,
+  .roster--cards tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    white-space: normal;          /* .grid td の nowrap を解除 */
+    text-align: right;
+  }
+  .grid--cards tbody tr td:last-child,
+  .roster--cards tbody tr td:last-child { border-bottom: none; }
+
+  .grid--cards tbody td::before,
+  .roster--cards tbody td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--color-text-sub);
+    text-align: left;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  /* ラベル空のセル（操作リンク等）は全幅・ラベル列なし */
+  .grid--cards tbody td[data-label=""],
+  .roster--cards tbody td[data-label=""] {
+    display: block;
+    text-align: left;
+    background: var(--color-bg);
+  }
+  .grid--cards tbody td[data-label=""]::before,
+  .roster--cards tbody td[data-label=""]::before { content: none; }
+
+  /* 氏名セルはカードの見出しに */
+  .grid--cards tbody td.grid__name,
+  .roster--cards tbody td.roster__name {
+    display: block;
+    text-align: left;
+    font-size: var(--font-md);
+    background: var(--color-bg);
+  }
+  .grid--cards tbody td.grid__name::before,
+  .roster--cards tbody td.roster__name::before { content: none; }
+
+  /* 操作リンク群：折返し許可＋タップ高さ確保 */
+  .grid--cards .action-links,
+  .roster--cards .action-links {
+    flex-wrap: wrap;
+    white-space: normal;
+    gap: var(--space-md) var(--space-lg);
+    justify-content: flex-start;
+  }
+  .grid--cards td .link,
+  .roster--cards td .link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* tfoot（合計行）：強調枠のカード */
+  .grid--cards tfoot { display: block; }
+  .grid--cards tfoot tr {
+    display: block;
+    background: var(--color-surface);
+    border: 2px solid var(--color-brand);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+  }
+  .grid--cards tfoot td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    text-align: right;
+  }
+  .grid--cards tfoot td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--color-text-sub);
+    text-align: left;
+    flex: 0 0 auto;
+  }
+  .grid--cards tfoot td:empty { display: none; }
+  .grid--cards tfoot td[colspan] {
+    display: block;
+    text-align: left;
+    font-size: var(--font-md);
+    background: var(--color-bg);
+  }
+  .grid--cards tfoot td[colspan]::before { content: none; }
+
+  /* ---- 横スクロール表：氏名列を固定（スタッフ設定） ---- */
+  /* position:sticky は border-collapse:collapse 下で効かないブラウザがあるため、
+     モバイルでは separate に切替（bottom border はセル側に残るので見た目は不変）。 */
+  .grid--staff-settings,
+  .wagebook {
+    border-collapse: separate;
+    border-spacing: 0;
+    /* .grid の overflow:hidden を解除。これが残ると table 自身が sticky の
+       基準になり、氏名列固定が効かない（スクロール基準を wrap に戻す）。 */
+    overflow: visible;
+  }
+  /* sticky セルは背景必須（後ろの列が透ける）。collapse 下では border が
+     描画されないので右境界は box-shadow で引く。 */
+  .grid--staff-settings td.grid__name,
+  .grid--staff-settings th.grid__th--name {
+    position: sticky;
+    left: 0;
+    background: var(--color-surface);
+    z-index: var(--z-sticky);
+    box-shadow: 1px 0 0 var(--color-border);
+  }
+  .grid--staff-settings thead th.grid__th--name {
+    background: var(--color-bg);
+    z-index: calc(var(--z-sticky) + 1);  /* thead(top) と left の交差を最前面に */
+  }
+  .grid--staff-settings tbody tr:hover td.grid__name {
+    background: var(--color-surface);    /* hoverでも固定列の背景を保つ */
+  }
 }

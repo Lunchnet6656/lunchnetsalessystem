@@ -47,7 +47,7 @@
 
   {% if rows %}
   <div class="roster-wrap">
-    <table class="roster">
+    <table class="roster roster--cards">
       <thead>
         <tr>
           <th>氏名</th>
@@ -67,16 +67,16 @@
         {% for s in rows %}
         <tr>
           <td class="roster__name">{{ s.display_name }}</td>
-          <td>{{ s.get_gender_display|default:"—" }}</td>
-          <td>{{ s.birthday|date:"Y/n/j"|default:"—" }}</td>
-          <td class="roster__address">{{ s.address|default:"—" }}</td>
-          <td>{{ s.phone|default:"—" }}</td>
-          <td>{{ s.get_business_unit_display }}<br><small><span class="company-badge company-badge--{{ s.company|lower }}">{{ s.company }}</span></small></td>
-          <td>{{ s.job_description|default:"—" }}</td>
-          <td>{{ s.hired_on|date:"Y/n/j"|default:"—" }}</td>
-          <td>{% if s.is_active %}<span class="badge badge--ok">在籍</span>{% else %}<span class="badge badge--closed">退職</span>{% endif %}</td>
-          <td>{% if s.retired_on %}{{ s.retired_on|date:"Y/n/j" }}<br><small>{{ s.retire_reason }}</small>{% else %}—{% endif %}</td>
-          <td><a class="link" href="{% url 'attendance:manage_staff_roster_edit' s.id %}">編集 ›</a></td>
+          <td data-label="性別">{{ s.get_gender_display|default:"—" }}</td>
+          <td data-label="生年月日">{{ s.birthday|date:"Y/n/j"|default:"—" }}</td>
+          <td class="roster__address" data-label="住所">{{ s.address|default:"—" }}</td>
+          <td data-label="連絡先">{{ s.phone|default:"—" }}</td>
+          <td data-label="事業／会社">{{ s.get_business_unit_display }}<br><small><span class="company-badge company-badge--{{ s.company|lower }}">{{ s.company }}</span></small></td>
+          <td data-label="業務の種類">{{ s.job_description|default:"—" }}</td>
+          <td data-label="入社日">{{ s.hired_on|date:"Y/n/j"|default:"—" }}</td>
+          <td data-label="在籍">{% if s.is_active %}<span class="badge badge--ok">在籍</span>{% else %}<span class="badge badge--closed">退職</span>{% endif %}</td>
+          <td data-label="退職日／事由">{% if s.retired_on %}{{ s.retired_on|date:"Y/n/j" }}<br><small>{{ s.retire_reason }}</small>{% else %}—{% endif %}</td>
+          <td class="grid__cell--action" data-label=""><a class="link" href="{% url 'attendance:manage_staff_roster_edit' s.id %}">編集 ›</a></td>
         </tr>
         {% endfor %}
       </tbody>
