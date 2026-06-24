@@ -666,10 +666,11 @@ body {
   .daygrid__head,
   .daygrid__row {
     /* 最終列(理由＋保存＋削除)は 1fr だと幅が潰れて行の外へ溢れるので、
-       下限を確保し、行幅を全列の合計まで広げて背景・境界をはみ出させない。 */
-    /* 出勤・退勤は iOS Safari の time 入力が固有の最小幅を持ち 92px だと隣と
-       重なるため、120px に広げる。合わせて行全体の min-width も調整。 */
-    grid-template-columns: 92px 120px 120px 58px 58px 58px 60px 100px minmax(210px, 1fr);
+       下限を確保し、行幅を全列の合計まで広げて背景・境界をはみ出させない。
+       出勤・退勤は時刻テキスト(08:29)に合わせたコンパクト幅(104px)にし、
+       列間(gap=16px)でくっつかないよう間隔を確保する。 */
+    grid-template-columns: 92px 104px 104px 58px 58px 58px 60px 100px minmax(210px, 1fr);
+    column-gap: var(--space-md);
     min-width: 980px;
   }
   /* スクロールしても日付が見えるよう、日付列を左に固定。
@@ -684,23 +685,23 @@ body {
   }
   .daygrid__date {
     background: var(--color-surface);
-    box-shadow: var(--space-sm) 0 0 var(--color-surface),
-                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+    box-shadow: var(--space-md) 0 0 var(--color-surface),
+                calc(var(--space-md) + 1px) 0 0 var(--color-border);
   }
   .daygrid__row--weekend .daygrid__date {
     background: var(--color-row-weekend);
-    box-shadow: var(--space-sm) 0 0 var(--color-row-weekend),
-                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+    box-shadow: var(--space-md) 0 0 var(--color-row-weekend),
+                calc(var(--space-md) + 1px) 0 0 var(--color-border);
   }
   .daygrid__row--missing .daygrid__date {
     background: var(--color-error-bg);
-    box-shadow: var(--space-sm) 0 0 var(--color-error-bg),
-                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+    box-shadow: var(--space-md) 0 0 var(--color-error-bg),
+                calc(var(--space-md) + 1px) 0 0 var(--color-border);
   }
   .daygrid__head > span:first-child {
     background: var(--color-bg);
-    box-shadow: var(--space-sm) 0 0 var(--color-bg),
-                calc(var(--space-sm) + 1px) 0 0 var(--color-border);
+    box-shadow: var(--space-md) 0 0 var(--color-bg),
+                calc(var(--space-md) + 1px) 0 0 var(--color-border);
   }
 }
 
