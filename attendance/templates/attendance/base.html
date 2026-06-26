@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}勤怠{% endblock %} ｜ ランチネット</title>
+  {% block manifest %}
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <meta name="apple-mobile-web-app-title" content="勤怠">
+  {% endblock %}
+  <link rel="apple-touch-icon" href="{% static 'images/icon-192.png' %}">
+  <meta name="theme-color" content="#212529">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="{% static 'attendance/css/tokens.css' %}">
   <link rel="stylesheet" href="{% static 'attendance/css/attendance.css' %}">
 </head>

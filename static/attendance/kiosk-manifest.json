@@ -1,0 +1,26 @@
+{
+  "name": "ランチネット 勤怠キオスク",
+  "short_name": "勤怠",
+  "description": "共有端末でQR打刻するためのキオスク画面",
+  "start_url": "/attendance/punch/scan/",
+  "scope": "/attendance/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#212529",
+  "theme_color": "#212529",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/static/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

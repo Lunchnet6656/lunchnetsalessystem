@@ -3,6 +3,11 @@
 
 {% block title %}打刻スキャナー{% endblock %}
 
+{% block manifest %}
+<link rel="manifest" href="{% static 'attendance/kiosk-manifest.json' %}">
+<meta name="apple-mobile-web-app-title" content="勤怠キオスク">
+{% endblock %}
+
 {% block main_modifier %}app-main--kiosk{% endblock %}
 
 {% block content %}
