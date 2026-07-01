@@ -1,0 +1,359 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>スタンプカード | ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<style>
+  :root{ --gold:#e0a528; }
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:#f3efe7;color:var(--ln-color-text);
+    background-image:radial-gradient(var(--ln-color-border) 1px,transparent 1px);background-size:18px 18px;}
+  .wrap{max-width:460px;margin:0 auto;padding:16px 14px 30px;}
+
+  /* --- カード本体 --- */
+  .ticket{background:var(--ln-color-white);border-radius:18px;overflow:hidden;
+    box-shadow:0 8px 24px rgba(0,0,0,.12);border:1px solid var(--ln-color-border);}
+  .tk-head{background:linear-gradient(135deg,var(--ln-color-brand),var(--ln-color-brand-dark));
+    color:#fff;padding:16px 18px;}
+  .tk-head .brand{font-size:13px;font-weight:700;letter-spacing:.04em;opacity:.95;}
+  .tk-head .title{font-size:19px;font-weight:900;margin-top:2px;}
+  .tk-head .countline{display:flex;align-items:baseline;gap:8px;margin-top:10px;}
+  .tk-head .count{font-size:40px;font-weight:900;line-height:1;}
+  .tk-head .count small{font-size:16px;font-weight:700;opacity:.9;}
+  .tk-head .toNext{font-size:13px;opacity:.95;margin-left:auto;text-align:right;line-height:1.4;}
+  .bar{height:8px;background:rgba(255,255,255,.3);border-radius:99px;margin-top:12px;overflow:hidden;}
+  .bar>i{display:block;height:100%;background:#fff;border-radius:99px;}
+  .tk-head .exp{margin-top:10px;font-size:12px;font-weight:700;color:#fff;
+    background:rgba(0,0,0,.16);display:inline-block;padding:4px 10px;border-radius:99px;}
+
+  /* --- スタンプ枠 --- */
+  .tk-body{padding:18px 16px 8px;}
+  .stamps{display:grid;grid-template-columns:repeat(5,1fr);gap:10px 8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;}
+  .slot{width:100%;max-width:56px;aspect-ratio:1/1;border-radius:50%;display:flex;
+    align-items:center;justify-content:center;font-size:15px;font-weight:800;position:relative;
+    border:2px dashed var(--ln-color-border);background:var(--ln-color-surface-muted);
+    color:var(--ln-color-text-dim);}
+  .slot.on{border-style:solid;border-color:var(--ln-color-brand);
+    background:radial-gradient(circle at 50% 38%, #fff 55%, #ffe7e7 100%);color:var(--ln-color-brand);}
+  /* スタンプ＝ランチネット赤ロゴ（ハンコ風） */
+  .slot .logo{position:absolute;width:86%;height:86%;object-fit:cover;border-radius:50%;
+    top:7%;left:7%;}
+  .slot.goal{border-color:var(--gold);border-width:3px;box-shadow:0 0 0 3px #fbf1d8;}
+  .slot.goal.on{border-color:var(--gold);}
+  /* 特典枠の押印は金色に色変え（通常の赤と区別） */
+  .slot.goal.on .logo{filter:hue-rotate(34deg) saturate(1.5) brightness(1.02);}
+  /* 押した感：大きく振りかぶって“バンッ”と押し込む→少し弾んで戻る */
+  .slot.press{animation:press .55s cubic-bezier(.2,.8,.2,1) both;z-index:2;}
+  .slot.press::after{content:"";position:absolute;inset:-6px;border-radius:50%;
+    border:3px solid var(--ln-color-brand);opacity:0;animation:ring .6s ease-out both;}
+  .slot.goal.press::after{border-color:var(--gold);}
+  @keyframes press{
+    0%{transform:scale(1.7);opacity:.2}
+    45%{transform:scale(.86)}
+    70%{transform:scale(1.08)}
+    100%{transform:scale(1);opacity:1}}
+  @keyframes ring{0%{transform:scale(.7);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+  .slot .num{position:absolute;top:-6px;right:-4px;font-size:10px;background:var(--ln-color-text-muted);
+    color:#fff;border-radius:99px;padding:1px 5px;font-weight:700;}
+  .slot.goal .num{background:var(--gold);}
+  /* マイルストーン下の「もらえる特典」チップ（常時表示） */
+  .rwtag{margin-top:7px;font-size:8.5px;line-height:1.2;text-align:center;font-weight:800;
+    color:var(--ln-color-brand-dark);background:#fff5e0;border:1px solid var(--gold);
+    border-radius:7px;padding:3px 2px;white-space:nowrap;letter-spacing:-.03em;
+    width:100%;box-sizing:border-box;}
+  .rwtag.done{color:var(--ln-color-success);background:var(--ln-color-success-bg);border-color:var(--ln-color-success);}
+  .cell .spacer{height:23px;margin-top:7px;} /* 非マイルストーンの高さ合わせ */
+
+  /* --- ミシン目 --- */
+  .perf{position:relative;height:1px;margin:14px 0 0;border-top:2px dashed var(--ln-color-border);}
+  .perf::before,.perf::after{content:"";position:absolute;top:-9px;width:18px;height:18px;border-radius:50%;
+    background:#f3efe7;}
+  .perf::before{left:-23px;}.perf::after{right:-23px;}
+
+  /* --- 特典リスト --- */
+  .tk-rewards{padding:14px 16px 18px;}
+  .rw{display:flex;align-items:center;gap:12px;border:1px solid var(--ln-color-border);
+    border-radius:12px;padding:12px 13px;margin-bottom:10px;background:var(--ln-color-white);}
+  .rw .rwico{font-size:24px;flex:none;}
+  .rw .rwmain{flex:1;min-width:0;}
+  .rw .rwname{font-size:15px;font-weight:800;color:var(--ln-color-text-strong);}
+  .rw .rwsub{font-size:11px;color:var(--ln-color-text-muted);margin-top:2px;}
+  .pill{font-size:11px;padding:4px 11px;border-radius:99px;white-space:nowrap;font-weight:700;flex:none;}
+  .pill.locked{background:var(--ln-color-surface-disabled);color:var(--ln-color-text-muted);}
+  .pill.used{background:var(--ln-color-surface-muted);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
+  /* タップできる特典カード：枠ごと押せる＝名前＋CTAが1枠に収まる */
+  .rw.tap{text-decoration:none;cursor:pointer;}
+  .rw.tap:active{transform:scale(.985);}
+  .rw.tap .rwsub{color:var(--ln-color-brand-dark);font-weight:700;}
+  .rw.ready{border:2px solid var(--ln-color-brand);box-shadow:0 3px 12px rgba(255,0,0,.12);}
+  .rw.pend{border:2px solid var(--gold);box-shadow:0 3px 12px rgba(224,165,40,.14);}
+  .rw.pend .rwsub{color:var(--ln-color-brand-dark);}
+  .rwcta{flex:none;display:inline-flex;align-items:center;gap:2px;white-space:nowrap;
+    font-size:13px;font-weight:900;padding:8px 12px;border-radius:99px;color:#fff;
+    background:var(--ln-color-brand);}
+  .rw.pend .rwcta{background:var(--gold);}
+  .rwcta .chev{font-size:18px;line-height:1;margin-top:-1px;}
+
+  /* --- フラッシュ・補助 --- */
+  .flash{padding:13px 15px;border-radius:12px;font-size:15px;font-weight:800;margin-bottom:14px;
+    display:flex;align-items:center;gap:9px;}
+  .flash .e{font-size:20px;}
+  .flash.ok{background:var(--ln-color-success-bg);color:var(--ln-color-success);border:1px solid var(--ln-color-success);}
+  .flash.info{background:#eef3fb;color:var(--ln-cal-blue-dark);border:1px solid var(--ln-cal-blue);}
+  .flash.warn{background:#fdf3e7;color:var(--ln-color-brand-dark);border:1px solid var(--ln-color-brand);}
+  .err{background:#fdecec;border:1px solid var(--ln-color-danger);color:var(--ln-color-danger);
+    padding:11px 13px;border-radius:10px;font-size:14px;margin-bottom:12px;}
+  .btn.reopen{background:var(--ln-color-text-muted);margin-bottom:14px;}
+  /* 新規会員のオンボーディング（スタンプ0個のとき） */
+  .onboard{background:#fff5e0;border:1px solid var(--gold);border-radius:14px;
+    padding:14px 16px;margin-bottom:14px;font-size:14px;line-height:1.7;
+    color:var(--ln-color-text-strong);font-weight:700;}
+  .onboard b{color:var(--ln-color-brand-dark);}
+  .foot{font-size:12px;color:var(--ln-color-text-muted);text-align:center;margin-top:14px;line-height:1.7;}
+  .masthead{text-align:center;padding:4px 0 12px;}
+  .masthead img{width:200px;max-width:62%;height:auto;}
+  /* 前のカードで獲得した（まだ使える）クーポンへの導線 */
+  .othercp{margin-top:14px;background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:14px;padding:14px 14px 8px;box-shadow:var(--ln-shadow-card);}
+  .othercp .oc-h{font-size:14px;font-weight:900;color:var(--ln-color-text-strong);}
+  .othercp .oc-note{font-size:11px;color:var(--ln-color-text-muted);margin:4px 0 10px;line-height:1.6;}
+  .oc-row{display:flex;align-items:center;gap:11px;padding:11px 6px;border-top:1px solid var(--ln-color-divider);
+    text-decoration:none;}
+  .oc-row:first-of-type{border-top:none;}
+  .oc-ico{font-size:22px;}
+  .oc-main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .oc-name{font-size:14px;font-weight:800;color:var(--ln-color-text-strong);}
+  .oc-exp{font-size:11px;color:var(--ln-color-brand-dark);margin-top:1px;}
+  .oc-arrow{font-size:22px;color:var(--ln-color-text-dim);}
+  /* 一時メッセージ（画面下部トースト・数秒で自動的に消える） */
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);
+    width:max-content;max-width:calc(100% - 32px);display:flex;align-items:flex-start;gap:9px;z-index:30;
+    padding:13px 18px;border-radius:14px;font-size:14px;font-weight:800;line-height:1.55;
+    box-shadow:0 8px 24px rgba(0,0,0,.22);opacity:0;transition:opacity .25s ease,transform .25s ease;
+    pointer-events:none;}
+  .toast.in{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast .e{font-size:18px;flex:none;line-height:1.4;}
+  /* 文字は途中で切らず、長ければ自然に行を増やす */
+  .toast .tx{flex:1;min-width:0;word-break:normal;overflow-wrap:anywhere;line-break:strict;}
+  .toast.ok{background:var(--ln-color-success);color:#fff;}
+  .toast.info{background:#2f3a4a;color:#fff;}
+  .toast.warn{background:var(--ln-color-brand-dark);color:#fff;}
+  .loading{text-align:center;color:var(--ln-color-text-muted);padding:46px 0;font-size:14px;}
+  /* 特典獲得の中央演出（背景暗転＋強調） */
+  .cz-bg{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:40;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+    opacity:0;transition:opacity .25s ease;}
+  .cz-bg.in{opacity:1;}
+  .cz-card{width:100%;max-width:330px;background:#fff;border-radius:22px;padding:28px 22px 22px;
+    text-align:center;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5);
+    transform:scale(.8);transition:transform .35s cubic-bezier(.2,.9,.25,1.3);}
+  .cz-bg.in .cz-card{transform:scale(1);}
+  .cz-burst{font-size:40px;line-height:1;margin-bottom:6px;}
+  .cz-medal{width:108px;height:108px;border-radius:50%;margin:4px auto 14px;overflow:hidden;
+    border:5px solid var(--gold);box-shadow:0 6px 18px rgba(224,165,40,.45);}
+  .cz-medal img{width:100%;height:100%;object-fit:cover;}
+  .cz-eyebrow{font-size:13px;font-weight:800;color:var(--gold);letter-spacing:.02em;}
+  .cz-title{font-size:28px;font-weight:900;color:var(--ln-color-brand);margin:2px 0 10px;}
+  .cz-reward{font-size:20px;font-weight:900;color:var(--ln-color-text-strong);
+    background:#fff5e0;border:2px dashed var(--gold);border-radius:12px;padding:10px;margin-bottom:12px;}
+  .cz-note{font-size:12px;color:var(--ln-color-text-muted);margin-bottom:18px;line-height:1.6;}
+  .cz-ok{display:block;width:100%;padding:14px;border:none;border-radius:12px;
+    background:var(--ln-color-brand);color:#fff;font-size:16px;font-weight:900;cursor:pointer;}
+  .btn{display:block;width:100%;padding:13px;border:none;border-radius:11px;background:var(--ln-color-brand);
+    color:#fff;font-size:15px;font-weight:800;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead"><img src="{% static 'images/lunchnet-logo-full.png' %}" alt="ランチネット"></div>
+
+  {% if not loaded %}
+    <div class="ticket"><div class="tk-body"><p class="loading" id="loading">スタンプを準備しています…</p>
+      {% if not require_line %}
+      <div id="devbox" style="display:none;text-align:center;padding-bottom:10px;">
+        <p class="foot" style="margin-bottom:10px;">（開発確認モード：LINE外なので手動で押せます）</p>
+        <button class="btn" type="submit" form="scanform">スタンプを押す（開発確認）</button>
+      </div>
+      {% endif %}
+    </div></div>
+    <form method="post" action="{{ post_action }}" id="scanform" style="display:none;">
+      {% csrf_token %}
+      <input type="hidden" name="line_access_token" id="line_access_token">
+    </form>
+    <noscript><div class="err">この画面はLINEアプリ内で開いてください。</div></noscript>
+
+  {% else %}
+    {% if error %}
+      <div class="err">{{ error }}</div>
+      <button class="btn reopen" type="button" onclick="location.reload()">開き直す</button>
+    {% endif %}
+
+    {% if state and state.count == 0 and not error %}
+      <div class="onboard">
+        <b>ようこそ！</b> お弁当のご購入で<b>スタンプが1個</b>たまります。<br>
+        5個で50円引き・10個で<b>お弁当1個無料</b>🍱 まずは最初の1個を！
+      </div>
+    {% endif %}
+
+    {% if state %}
+    <div class="ticket">
+      <div class="tk-head">
+        <div class="title">来店スタンプカード</div>
+        <div class="countline">
+          <span class="count">{{ state.count }}<small>/{{ state.cap }}</small></span>
+          <span class="toNext">
+            {% if state.capped %}コンプリート！<br>満了しました🎊
+            {% elif state.next_tier %}あと <b>{{ state.remaining }}</b> 個で<br>{{ state.next_label }}🎁
+            {% endif %}
+          </span>
+        </div>
+        <div class="bar"><i style="width:{{ state.pct }}%;"></i></div>
+        {% if state.expires_on %}
+          <div class="exp">⏳ 有効期限 {{ state.expires_on|date:'Y/n/j' }} まで</div>
+        {% else %}
+          <div class="exp">⏳ 初回スタンプから{{ state.validity_days }}日間 有効</div>
+        {% endif %}
+      </div>
+
+      <div class="tk-body">
+        <div class="stamps">
+          {% for n in state.slots %}
+          <div class="cell">
+            <div class="slot {% if n.on %}on{% endif %} {% if n.goal %}goal{% endif %} {% if popped and n.just_stamped %}press{% endif %}">
+              <span class="num">{{ n.num }}</span>
+              {% if n.on %}<img class="logo" src="{% static 'images/icon.png' %}" alt="スタンプ">{% endif %}
+            </div>
+            {% if n.goal %}
+              <div class="rwtag {% if n.on %}done{% endif %}">{{ n.goal_chip }}</div>
+            {% else %}
+              <div class="spacer"></div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div class="perf"></div>
+      </div>
+
+      <div class="tk-rewards">
+        {% for row in state.rows %}
+        {% if row.state == 'issued' or row.state == 'pending' %}
+          <a class="rw tap {% if row.state == 'issued' %}ready{% else %}pend{% endif %}"
+             href="{% url 'stamps:coupon_detail' reward_id=row.reward.id %}">
+            <span class="rwico">{{ row.icon }}</span>
+            <div class="rwmain">
+              <div class="rwname">{{ row.tier.label }}</div>
+              <div class="rwsub">{% if row.state == 'issued' %}タップしてクーポンを表示{% else %}次回のご来店から使えます{% endif %}</div>
+            </div>
+            <span class="rwcta">{% if row.state == 'issued' %}表示する{% else %}次回から{% endif %}<span class="chev">›</span></span>
+          </a>
+        {% else %}
+          <div class="rw">
+            <span class="rwico">{{ row.icon }}</span>
+            <div class="rwmain">
+              <div class="rwname">{{ row.tier.label }}</div>
+              <div class="rwsub">スタンプ{{ row.tier.threshold_pt }}個で獲得{% if row.tier.is_cap %}・ここで打ち止め{% endif %}</div>
+            </div>
+            {% if row.state == 'used' %}<span class="pill used">使用済み</span>
+            {% else %}<span class="pill locked">あと{{ row.remaining }}個</span>{% endif %}
+          </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if other_coupons %}
+    <div class="othercp">
+      <div class="oc-h">前のカードで獲得したクーポン</div>
+      <p class="oc-note">カードは切り替わっていますが、下のクーポンはまだお使いいただけます。</p>
+      {% for r in other_coupons %}
+      <a class="oc-row" href="{% url 'stamps:coupon_detail' reward_id=r.id %}">
+        <span class="oc-ico">{% if r.kind == 'free' %}🍱{% else %}🎫{% endif %}</span>
+        <span class="oc-main">
+          <span class="oc-name">{{ r.label }}</span>
+          <span class="oc-exp">有効期限 {{ r.expires_on|date:'Y/n/j' }} まで</span>
+        </span>
+        <span class="oc-arrow">›</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <p class="foot">このカードは初回スタンプから1ヶ月で切り替わります。<br>特典は販売員にこの画面を見せてご利用ください。</p>
+    {% endif %}
+  {% endif %}
+
+  {% if new_reward %}
+    <div class="cz-bg" id="celebrate">
+      <div class="cz-card">
+        <div class="cz-burst">🎉</div>
+        <div class="cz-medal"><img src="{% static 'images/icon.png' %}" alt="ランチネット"></div>
+        <div class="cz-eyebrow">スタンプ{{ new_reward.threshold_pt }}個 達成！</div>
+        <div class="cz-title">特典ゲット！</div>
+        <div class="cz-reward">{{ new_reward.label }}</div>
+        <div class="cz-note"><b>次回のご来店から</b>お使いいただけます。<br>（本日のお会計には使えません）</div>
+        <button class="cz-ok" type="button" id="celebrateOk">クーポンを確認する</button>
+        <a class="cz-skip" href="{% url 'stamps:coupon_detail' reward_id=new_reward.id %}" id="celebrateGo" style="display:none;"></a>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if loaded and result_message %}
+    <div class="toast {{ result_tone }}" id="toast">
+      <span class="e">{% if result_tone == 'ok' %}🎉{% elif result_tone == 'warn' %}🕒{% else %}✅{% endif %}</span>
+      <span class="tx">{{ result_message }}</span>
+    </div>
+  {% endif %}
+
+  {{ liff_id|json_script:"stamp-liff-id" }}
+  <script>
+    (function(){
+      var LIFF_ID = JSON.parse(document.getElementById('stamp-liff-id').textContent);
+      var REQUIRE = {{ require_line|yesno:"true,false" }};
+      var loaded = {{ loaded|yesno:"true,false" }};
+      function setTokens(at){
+        var f = document.getElementById('line_access_token'); if(f){ f.value = at; }
+        var ls = document.getElementsByClassName('latoken');
+        for(var i=0;i<ls.length;i++){ ls[i].value = at; }
+      }
+      // 特典獲得の中央演出：スタンプの押した感が出た少し後に、背景を暗転して中央に表示。
+      var cz = document.getElementById('celebrate');
+      if(cz){
+        setTimeout(function(){ cz.className = 'cz-bg in'; }, 650);
+        var okBtn = document.getElementById('celebrateOk');
+        var go = document.getElementById('celebrateGo');
+        if(okBtn){ okBtn.addEventListener('click', function(){ if(go){ go.click(); } }); }
+        cz.addEventListener('click', function(e){ if(e.target === cz){ cz.className = 'cz-bg'; } });
+      }
+      // 一時メッセージ（トースト）：表示→数秒で自動的にフェードアウト→DOMごと消す。
+      var toast = document.getElementById('toast');
+      if(toast){
+        setTimeout(function(){ toast.classList.add('in'); }, 60);
+        setTimeout(function(){ toast.classList.remove('in'); }, 3600);
+        setTimeout(function(){ if(toast && toast.parentNode){ toast.parentNode.removeChild(toast); } }, 4000);
+      }
+      function showDevOrError(msg){
+        var l=document.getElementById('loading'); if(l){ l.textContent = msg; }
+        var d=document.getElementById('devbox'); if(d){ d.style.display='block'; if(l){ l.style.display='none'; } }
+      }
+      if(!window.liff || !LIFF_ID){
+        if(!loaded){ showDevOrError('LINEアプリ内で開いてください。'); }
+        return;
+      }
+      liff.init({ liffId: LIFF_ID }).then(function(){
+        if(!liff.isLoggedIn()){ if(REQUIRE){ liff.login(); return; } showDevOrError('（開発確認）'); return; }
+        var at = liff.getAccessToken();
+        if(at){ setTokens(at); }
+        if(!loaded){ var form = document.getElementById('scanform'); if(form){ form.submit(); } }
+      }).catch(function(){
+        if(!loaded){ showDevOrError('読み込みに失敗しました（LINE外）。'); }
+      });
+    })();
+  </script>
+</div>
+</body>
+</html>

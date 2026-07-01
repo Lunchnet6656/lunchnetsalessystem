@@ -1,0 +1,88 @@
+{% extends "stamps/manage/base.html" %}
+{% block title %}特典設定{% endblock %}
+{% block heading %}特典設定・コスト{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>運用ルール</h2>
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="config">
+    <div class="fld"><label class="muted">カードの有効日数</label>
+      <input type="number" name="card_validity_days" value="{{ config.card_validity_days }}" min="1" style="width:80px;"></div>
+    <div class="fld"><label class="muted">クーポンの有効日数</label>
+      <input type="number" name="reward_validity_days" value="{{ config.reward_validity_days }}" min="1" style="width:80px;"></div>
+    <div class="fld"><label class="muted">クーポン利用開始</label>
+      <label style="font-size:13px;"><input type="checkbox" name="reward_starts_next_day" {% if config.reward_starts_next_day %}checked{% endif %}> 翌日（次回来店）から</label></div>
+    <button class="btn sm" type="submit">保存</button>
+  </form>
+  <p class="muted" style="margin:10px 0 0;">
+    カードの満了pt（マス数）は <b>{{ cap_pt }}個</b>。＝有効な段階のうち最大の到達ptで自動決定します（段階を足すとカードも伸びます）。
+    基準コストは損益・コスト集計用の想定値（実装には影響しません）。
+  </p>
+</div>
+
+{% for row in tier_rows %}
+<div class="card">
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="tier_id" value="{{ row.tier.id }}">
+    <div class="fld"><label class="muted">到達pt</label>
+      <input type="number" name="threshold_pt" value="{{ row.tier.threshold_pt }}" min="1" style="width:70px;font-weight:800;"></div>
+    {% if row.is_cap %}<div class="fld"><label class="muted">&nbsp;</label><span class="badge off">打ち止め</span></div>{% endif %}
+    <div class="fld"><label class="muted">特典名</label><input type="text" name="label" value="{{ row.tier.label }}" size="20"></div>
+    <div class="fld"><label class="muted">種類</label>
+      <select name="kind">
+        <option value="{{ kind_discount }}" {% if row.tier.kind == kind_discount %}selected{% endif %}>割引</option>
+        <option value="{{ kind_free }}" {% if row.tier.kind == kind_free %}selected{% endif %}>お弁当無料</option>
+      </select>
+    </div>
+    <div class="fld"><label class="muted">割引額（円・無料は0）</label><input type="number" name="discount_yen" value="{{ row.tier.discount_yen }}" min="0" style="width:80px;"></div>
+    <div class="fld"><label class="muted">基準コスト（円）</label><input type="number" name="benefit_cost" value="{{ row.tier.benefit_cost }}" min="0" style="width:90px;"></div>
+    <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" {% if row.tier.active %}checked{% endif %}> 使う</label></div>
+    <button class="btn sm" type="submit">保存</button>
+  </form>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:12px;">
+    <table class="grid" style="margin:0;">
+      <thead><tr><th>発行数</th><th>使用数</th><th>使用済みコスト</th></tr></thead>
+      <tbody><tr><td>{{ row.issued }}</td><td>{{ row.used }}</td><td>¥{{ row.cost }}</td></tr></tbody>
+    </table>
+    {% if row.deletable %}
+    <form method="post" onsubmit="return confirm('到達pt {{ row.tier.threshold_pt }} の段階を削除しますか？');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="tier_id" value="{{ row.tier.id }}">
+      <button class="btn sm ghost" type="submit">この段階を削除</button>
+    </form>
+    {% else %}
+    <span class="muted" style="font-size:12px;">発行済みあり＝削除不可（無効化で対応）</span>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="card">
+  <h2>段階を追加</h2>
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <div class="fld"><label class="muted">到達pt</label><input type="number" name="threshold_pt" min="1" style="width:70px;" required></div>
+    <div class="fld"><label class="muted">特典名</label><input type="text" name="label" size="20" placeholder="例：100円引き"></div>
+    <div class="fld"><label class="muted">種類</label>
+      <select name="kind">
+        <option value="{{ kind_discount }}">割引</option>
+        <option value="{{ kind_free }}">お弁当無料</option>
+      </select>
+    </div>
+    <div class="fld"><label class="muted">割引額（円・無料は0）</label><input type="number" name="discount_yen" value="0" min="0" style="width:80px;"></div>
+    <div class="fld"><label class="muted">基準コスト（円）</label><input type="number" name="benefit_cost" value="0" min="0" style="width:90px;"></div>
+    <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" checked> 使う</label></div>
+    <button class="btn sm" type="submit">追加する</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="stat brand" style="display:inline-block;"><div class="n">¥{{ total_cost }}</div><div class="l">使用済み特典の総コスト（全段階）</div></div>
+</div>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "stamps/manage/base.html" %}
+{% block title %}リッチメニュー{% endblock %}
+{% block heading %}リッチメニュー割当て（スタンプ利用者専用）{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted" style="margin:0 0 10px;">
+    LINE公式の管理画面ではセグメント別メニューはできません（デフォルト1枚のみ）。ここはMessaging APIの
+    per-user 配信で<b>スタンプを始めた人にだけスタンプ用リッチメニュー</b>を出す仕組み。API操作は
+    メッセージ数を消費しない＝<b>追加コスト0</b>。一般友だちは既存の（デフォルト）メニューのままです。
+  </p>
+  <table class="grid">
+    <thead><tr><th>セットアップ項目</th><th>状態</th></tr></thead>
+    <tbody>
+      <tr><td>チャネルアクセストークン</td>
+        <td>{% if has_token %}<span class="badge on">設定済み</span>{% else %}<span class="badge off">未設定</span>（LINE_CHANNEL_ACCESS_TOKEN）{% endif %}</td></tr>
+      <tr><td>スタンプ用リッチメニューID</td>
+        <td>{% if menu_id %}<span class="badge on">設定済み</span> <span class="mono">{{ menu_id }}</span>{% else %}<span class="badge off">未登録</span>（下記コマンドで作成）{% endif %}</td></tr>
+      <tr><td>初回スタンプ時の自動割当て</td>
+        <td>{% if auto_assign %}<span class="badge on">ON</span>{% else %}<span class="badge off">OFF</span>（STAMP_RICHMENU_AUTO_ASSIGN）{% endif %}</td></tr>
+    </tbody>
+  </table>
+  {% if not configured %}
+  <p class="muted" style="margin:10px 0 0;">
+    ⚠️ まだ自動割当ては動きません。下の「<b>リッチメニューの登録 / 更新</b>」で画像とリンク先を入れて登録すれば、メニューIDがここに保存され、初回スタンプ時に自動で出ます（コマンド・環境変数は不要）。
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>リッチメニューの登録 / 更新</h2>
+  <p class="muted" style="margin:-4px 0 12px;">画像（推奨2500×1686・PNG）と各ボタンのリンク先を入れて登録。LINEに自動アップロード→メニューIDをここに保存します（環境変数の編集は不要）。</p>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;">
+    {% if menu.is_registered %}
+    <div style="flex:0 0 auto;">
+      <img src="{% url 'stamps:manage_richmenu_image' %}?v={{ menu.updated_at|date:'U' }}" alt="現在のメニュー"
+           style="width:300px;border:1px solid var(--ln-color-border);border-radius:8px;">
+      <div class="muted" style="text-align:center;margin-top:4px;">登録済み {{ menu.registered_at|date:'n/j H:i' }}</div>
+    </div>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data" style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:10px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="register">
+      <div class="fld"><label class="muted">リッチメニュー画像（PNG・差し替え時のみ選択）</label>
+        <input type="file" name="image" accept="image/png,image/jpeg"></div>
+      <div class="fld"><label class="muted">① 今週のメニュー リンク先</label>
+        <input type="text" name="url_menu" value="{{ url_menu }}" style="width:100%;"></div>
+      <div class="fld"><label class="muted">② 本日の出店状況 リンク先</label>
+        <input type="text" name="url_status" value="{{ url_status }}" style="width:100%;"></div>
+      <div class="fld"><label class="muted">③ 販売場所 リンク先</label>
+        <input type="text" name="url_map" value="{{ url_map }}" style="width:100%;"></div>
+      <div class="fld"><label class="muted">④ スタンプ（マイカード）リンク先</label>
+        <input type="text" name="url_stamp" value="{{ url_stamp }}" style="width:100%;"></div>
+      <button class="btn" type="submit" {% if not has_token %}disabled{% endif %}>この内容で登録 / 更新する</button>
+      {% if not has_token %}<span class="muted">※ チャネルアクセストークン未設定のため登録できません。</span>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="stat brand"><div class="n">{{ n_linked }}</div><div class="l">適用中（スタンプメニュー表示）</div></div>
+  <div class="stat"><div class="n">{{ total }}</div><div class="l">スタンプ利用者（カード保有）</div></div>
+  <div class="stat"><div class="n">{{ n_failed }}</div><div class="l">失敗</div></div>
+</div>
+
+<div class="card">
+  <form method="post" style="display:inline;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="reassign_all">
+    <button class="btn" type="submit" {% if not configured %}disabled{% endif %}>全スタンプ利用者に一括適用</button>
+  </form>
+  <span class="muted" style="margin-left:10px;">既存利用者にまとめてスタンプメニューを出す（設定が揃ってから）。</span>
+</div>
+
+<div class="card">
+  <h2>利用者一覧（{{ total }}人）</h2>
+  {% if rows %}
+  <table class="grid">
+    <thead><tr><th>会員</th><th>状態</th><th>適用日時</th><th>操作</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.m.name }}<div class="mono">{{ r.m.line_user_id|slice:':12' }}…</div></td>
+        <td>
+          {% if r.status == 'linked' %}<span class="badge on">適用中</span>
+          {% elif r.status == 'failed' %}<span class="badge off" style="color:var(--ln-color-danger);border-color:var(--ln-color-danger);">失敗</span>
+          {% elif r.status == 'unlinked' %}<span class="badge off">解除</span>
+          {% else %}<span class="badge off">未適用</span>{% endif %}
+          {% if r.link and r.link.detail %}<div class="muted">{{ r.link.detail }}</div>{% endif %}
+        </td>
+        <td>{{ r.link.linked_at|date:'n/j H:i'|default:'-' }}</td>
+        <td>
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="action" value="link"><input type="hidden" name="member_id" value="{{ r.m.id }}">
+            <button class="btn sm" type="submit" {% if not configured %}disabled{% endif %}>適用</button>
+          </form>
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="action" value="unlink"><input type="hidden" name="member_id" value="{{ r.m.id }}">
+            <button class="btn ghost sm" type="submit">解除</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">スタンプ利用者がまだいません。</p>{% endif %}
+</div>
+{% endblock %}

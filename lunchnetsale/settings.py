@@ -73,6 +73,25 @@ RESERVE_REQUIRE_LINE = (
     os.environ.get("RESERVE_REQUIRE_LINE", "True" if IS_PRODUCTION else "False") == "True"
 )
 
+# --- スタンプカード（来店計測）設定 ---
+# 予約と同じ LIFF / 本人識別の仕組みを共用する（同一公式アカウント・同一 LIFF_ID）。
+# LIFF のエンドポイントは /stamp/ も含む必要がある（/reserve/ と同じドメイン直下）。
+# スタンプにLINE連携（userId本人識別）を要求するか。未設定なら予約と同じ既定に従う。
+STAMP_REQUIRE_LINE = (
+    os.environ.get("STAMP_REQUIRE_LINE", "True" if IS_PRODUCTION else "False") == "True"
+)
+# スタンプQRに埋め込む LIFF。通常カメラで読んでも LINE アプリ内で開くために、QRは
+# 素のWeb URLではなく liff.line.me/<LIFF_ID>/stamp/<token>/ を指す（LINEのショップQRと同じ）。
+# 既定は予約と同じ LIFF_ID を流用。専用LIFFを切るときだけ STAMP_LIFF_ID を上書きする。
+# ※LINE Developers 側で、この LIFF のエンドポイントURLが /stamp/ を含む必要がある（ドメイン直下推奨）。
+STAMP_LIFF_ID = os.environ.get("STAMP_LIFF_ID", LIFF_ID)
+
+# スタンプ利用者専用リッチメニュー（per-user 配信）。setup_stamp_richmenu で作成→ここに設定。
+# デフォルト（全友だち）には設定しない＝既存メニューのまま。初回スタンプ時にこのIDを本人へリンク。
+LINE_STAMP_RICHMENU_ID = os.environ.get("LINE_STAMP_RICHMENU_ID", "")
+# 初回スタンプ時に自動でスタンプ用リッチメニューを本人へ割り当てるか。
+STAMP_RICHMENU_AUTO_ASSIGN = os.environ.get("STAMP_RICHMENU_AUTO_ASSIGN", "True") == "True"
+
 # --- Heroku で HTTPS を正しく認識させる（超重要） ---
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
@@ -106,6 +125,7 @@ INSTALLED_APPS = [
     'quest',
     'attendance',
     'reservations',
+    'stamps',
     'lunchnetsale',
     'django.contrib.humanize',
     'axes',

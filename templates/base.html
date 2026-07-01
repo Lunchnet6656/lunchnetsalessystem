@@ -177,6 +177,16 @@
                     </li>
                     {% endif %}
 
+                    {% if user.menu_permission.can_view_stamp %}
+                    {# 公式LINEセクション（スタンプ・友だち管理）。既定は非表示・権限で解禁 #}
+                    <li class="list-group-item">
+                        <h6 class="text-uppercase">公式LINE</h6>
+                        <a href="{% url 'stamps:manage_dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fab fa-line"></i> スタンプ・友だち管理
+                        </a>
+                    </li>
+                    {% endif %}
+
                     <!-- 一般ユーザー向けデータセクション -->
                     {% if user.menu_permission.can_view_daily_report_rol or user.menu_permission.can_view_performance_by_location_rol %}
                     <li class="list-group-item">

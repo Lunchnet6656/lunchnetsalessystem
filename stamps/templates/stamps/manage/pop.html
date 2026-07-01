@@ -1,0 +1,46 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>宣伝POP｜{{ loc.name }}｜ランチネット</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#d7d7d7;}
+  .toolbar{max-width:210mm;margin:0 auto;padding:14px;display:flex;gap:10px;align-items:center;}
+  .toolbar .btn{padding:10px 18px;border:none;border-radius:10px;background:#1faa4e;
+    color:#fff;font-weight:800;font-size:14px;cursor:pointer;text-decoration:none;}
+  .toolbar .muted{font-size:12px;color:#555;}
+
+  /* 完成POP画像をまるごと背景に使い、QRだけ店舗別の本物を重ねる（＝白抜けゼロ・完全一致） */
+  .pop{width:210mm;height:297mm;margin:0 auto 30px;position:relative;overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,.2);}
+  .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;display:block;}
+  /* 焼き込みQRの上に本物QRを白地ごと重ねて差し替え（密度検出：QR本体 top64.86% left2.75% w38.58%） */
+  .qr{position:absolute;left:5%;top:63.2%;width:38.6%;z-index:2;
+    background:#fff;padding:0.4%;display:block;}
+  .store{position:absolute;right:1.5%;bottom:0.4%;z-index:9;color:#fff;font-size:8pt;font-weight:800;opacity:.7;}
+
+  @media print{
+    body{background:#fff;}
+    .toolbar{display:none;}
+    .pop{box-shadow:none;margin:0;}
+    @page{size:A4;margin:0;}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">印刷する</button>
+    <span class="muted">店舗：{{ loc.name }}／ A4縦・完成POPに店舗別の本物QR（読み取り可能）を合成。スマホのカメラで読むとLINEで開きます。</span>
+  </div>
+
+  <div class="pop">
+    <img class="bg" src="{% static 'images/pop2/full_v2.png' %}?v={{ bg_version }}" alt="ランチネット スタンプカード">
+    <img class="qr" src="{{ qr }}" alt="スタンプQR">
+    <div class="store">{{ loc.name }}</div>
+  </div>
+</body>
+</html>

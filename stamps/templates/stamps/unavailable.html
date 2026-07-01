@@ -1,0 +1,36 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>スタンプカード | ランチネット</title>
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+    margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
+  .wrap{max-width:420px;margin:40px auto;padding:16px;}
+  .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+    border-radius:12px;box-shadow:var(--ln-shadow-card);padding:24px;border-top:6px solid var(--ln-color-brand);}
+  h1{font-size:20px;margin:0 0 14px;color:var(--ln-color-brand-dark);}
+  p{font-size:15px;line-height:1.7;color:var(--ln-color-text-strong);margin:8px 0;}
+  .note{font-size:13px;color:var(--ln-color-text-muted);margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  {% if reason == 'invalid' %}
+    <h1>無効なQRコードです</h1>
+    <p>このQRコードは認識できませんでした。運営にご連絡ください。</p>
+  {% elif reason == 'denied' %}
+    <h1>ご本人を確認できませんでした</h1>
+    <p>特典は、スタンプを貯めたご本人のLINEからご利用いただけます。</p>
+  {% else %}
+    <h1>ただいまご利用いただけません</h1>
+    {% if location %}<p>店舗：{{ location.name }}</p>{% endif %}
+    <p>このスタンプQRはまだ運用開始されていません。</p>
+  {% endif %}
+  <p class="note">※このページを閉じて構いません。</p>
+</div></div>
+</body>
+</html>

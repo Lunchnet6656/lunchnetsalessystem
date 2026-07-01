@@ -124,6 +124,29 @@ class SalesLocation(models.Model):
         help_text="1メニューを1日に何個まで予約で確保できるか。既定10。",
     )
 
+    # --- スタンプカード（来店計測）---
+    # 仕様: .company/engineering/harness/specs/lunchnetsale-スタンプカード来店計測-MVP.md
+    # 既存のQRトークンの仕組み（_generate_qr_token）と同じパターンでスタンプ用トークンを持つ。
+    stamp_enabled = models.BooleanField(
+        default=False,
+        verbose_name="スタンプ受付",
+        help_text="ON の店舗だけスタンプを受け付ける。パイロット店舗だけ ON にするキルスイッチ。",
+    )
+    qr_stamp_token = models.CharField(
+        max_length=32, unique=True, db_index=True, default=_generate_qr_token,
+        verbose_name="スタンプQRトークン",
+    )
+    stamp_open_time = models.TimeField(
+        null=True, blank=True,
+        verbose_name="スタンプ出店開始時刻",
+        help_text="空＝全店共通の既定（11:00）。本店など製造中にも客が来る店舗は個別に早めに設定。",
+    )
+    stamp_close_time = models.TimeField(
+        null=True, blank=True,
+        verbose_name="スタンプ出店終了時刻",
+        help_text="空＝全店共通の既定（13:30）。",
+    )
+
     def __str__(self):
         return f"{self.name}"
 
@@ -298,6 +321,7 @@ class UserMenuPermission(models.Model):
     can_view_dashboard = models.BooleanField(default=False, verbose_name="売上ダッシュボード")
     can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")
     can_view_attendance = models.BooleanField(default=False, verbose_name="勤怠アプリ")
+    can_view_stamp = models.BooleanField(default=False, verbose_name="公式LINE（スタンプ）")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
     shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
 

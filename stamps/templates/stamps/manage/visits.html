@@ -1,0 +1,36 @@
+{% extends "stamps/manage/base.html" %}
+{% block title %}来店データ{% endblock %}
+{% block heading %}来店データ（スタンプログ）{% endblock %}
+{% block content %}
+<form method="get" class="filters">
+  <div class="fld"><label>期間（から）</label><input type="date" name="from" value="{{ start|date:'Y-m-d' }}"></div>
+  <div class="fld"><label>期間（まで）</label><input type="date" name="to" value="{{ end|date:'Y-m-d' }}"></div>
+  <div class="fld"><label>店舗</label>
+    <select name="loc">
+      <option value="">全店</option>
+      {% for l in locations %}<option value="{{ l.id }}" {% if f_loc == l.id|stringformat:'s' %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">表示</button>
+  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&export=csv">CSVダウンロード</a>
+</form>
+
+<div class="card">
+  <h2>来店一覧（{{ total }}件・最新500件まで表示）</h2>
+  {% if logs %}
+  <table class="grid">
+    <thead><tr><th>来店日時</th><th>会員</th><th>店舗</th><th>カード時点pt</th></tr></thead>
+    <tbody>
+      {% for lg in logs %}
+      <tr>
+        <td>{{ lg.stamped_at|date:'Y-m-d H:i' }}</td>
+        <td>{{ lg.card.member.name }}<div class="mono">{{ lg.card.member.line_user_id|slice:':12' }}…</div></td>
+        <td>{{ lg.location.name }}</td>
+        <td>{{ lg.card.stamp_count }}pt</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">この期間の来店データはありません。</p>{% endif %}
+</div>
+{% endblock %}

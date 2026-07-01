@@ -1,0 +1,41 @@
+{% extends "stamps/manage/base.html" %}
+{% block title %}ダッシュボード{% endblock %}
+{% block heading %}スタンプカード ダッシュボード{% endblock %}
+{% block content %}
+<form method="get" class="filters">
+  <div class="fld"><label>期間（から）</label><input type="date" name="from" value="{{ start|date:'Y-m-d' }}"></div>
+  <div class="fld"><label>期間（まで）</label><input type="date" name="to" value="{{ end|date:'Y-m-d' }}"></div>
+  <div class="fld"><label>店舗</label>
+    <select name="loc">
+      <option value="">全店</option>
+      {% for l in locations %}<option value="{{ l.id }}" {% if f_loc == l.id|stringformat:'s' %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn" type="submit">表示</button>
+</form>
+
+<div class="summary">
+  <div class="stat brand"><div class="n">{{ participation_rate }}%</div><div class="l">参加率（{{ participants }}人 / 友だち{{ friends }}人）</div></div>
+  <div class="stat"><div class="n">{{ visits }}</div><div class="l">期間内の来店数（スタンプ）</div></div>
+  <div class="stat"><div class="n">{{ n_cards }}</div><div class="l">対象カード数</div></div>
+</div>
+
+<div class="card">
+  <h2>各ポイント到達率（対象カードのうち）</h2>
+  <div class="summary" style="margin-bottom:0;">
+    <div class="stat"><div class="n">{{ reach.5 }}%</div><div class="l">5pt（50円引き）到達</div></div>
+    <div class="stat"><div class="n">{{ reach.10 }}%</div><div class="l">10pt（お弁当無料1個目）到達</div></div>
+    <div class="stat"><div class="n">{{ reach.20 }}%</div><div class="l">20pt（お弁当無料2個目・打ち止め）到達</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>特典</h2>
+  <div class="summary" style="margin-bottom:0;">
+    <div class="stat"><div class="n">{{ issued }}</div><div class="l">発行された特典</div></div>
+    <div class="stat"><div class="n">{{ used }}</div><div class="l">使用された特典</div></div>
+    <div class="stat brand"><div class="n">¥{{ est_cost }}</div><div class="l">使用済み特典の推定コスト</div></div>
+  </div>
+  <p class="muted" style="margin-top:10px;">※ 参加率の分母は現在のLINE会員数（来店計測の自作基盤に紐づく友だち）。パイロットのGO/NO-GO判定はこの画面と「分析」のCSVで行う。</p>
+</div>
+{% endblock %}

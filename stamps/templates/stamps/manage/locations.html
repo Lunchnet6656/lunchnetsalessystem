@@ -1,0 +1,49 @@
+{% extends "stamps/manage/base.html" %}
+{% block title %}店舗QR・出店時間{% endblock %}
+{% block heading %}店舗QR・出店時間{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted" style="margin:0 0 10px;">
+    店舗は既存の拠点マスタ（SalesLocation）をそのまま使用します（ここでは新規登録しません）。
+    パイロットは対象店舗だけ「スタンプ受付」をONにしてください。出店時間は空欄なら全店共通の
+    既定（{{ default_open|time:'H:i' }}〜{{ default_close|time:'H:i' }}）。本店など製造中にも客が来る店舗は個別に早めに設定できます。
+  </p>
+  <a class="btn" href="{% url 'stamps:manage_location_qr_pdf' %}">有効店舗のQRをまとめて印刷（PDF）</a>
+</div>
+
+{% for row in rows %}
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+    <div>
+      <h2 style="margin:0;">{{ row.loc.name }}
+        {% if row.loc.stamp_enabled %}<span class="badge on">受付中</span>{% else %}<span class="badge off">停止中</span>{% endif %}
+      </h2>
+      <div class="muted">出店時間 {{ row.open|time:'H:i' }}〜{{ row.close|time:'H:i' }}{% if row.custom_hours %}（個別設定）{% else %}（既定）{% endif %}</div>
+    </div>
+  </div>
+
+  <p class="mono" style="margin:10px 0 4px;">スタンプURL：<code class="url">{{ row.stamp_url }}</code></p>
+  <a class="btn ghost sm" href="{% url 'stamps:manage_location_pop' location_id=row.loc.id %}" target="_blank">宣伝POPを作成（QR込み・印刷用）</a>
+
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:10px;">
+    {% csrf_token %}
+    <input type="hidden" name="location_id" value="{{ row.loc.id }}">
+    <div class="fld"><label class="muted">スタンプ受付</label>
+      <label style="font-size:13px;"><input type="checkbox" name="stamp_enabled" {% if row.loc.stamp_enabled %}checked{% endif %}> 受け付ける</label>
+    </div>
+    <div class="fld"><label class="muted">出店開始</label>
+      <input type="time" name="stamp_open_time" value="{% if row.loc.stamp_open_time %}{{ row.loc.stamp_open_time|time:'H:i' }}{% endif %}"></div>
+    <div class="fld"><label class="muted">出店終了</label>
+      <input type="time" name="stamp_close_time" value="{% if row.loc.stamp_close_time %}{{ row.loc.stamp_close_time|time:'H:i' }}{% endif %}"></div>
+    <button class="btn sm" type="submit">保存</button>
+  </form>
+
+  <form method="post" style="margin-top:8px;" onsubmit="return confirm('QRトークンを再発行すると、貼ってある古いQRは無効になります。よろしいですか？');">
+    {% csrf_token %}
+    <input type="hidden" name="location_id" value="{{ row.loc.id }}">
+    <input type="hidden" name="action" value="regen_qr">
+    <button class="btn ghost sm" type="submit">QRを再発行</button>
+  </form>
+</div>
+{% endfor %}
+{% endblock %}
