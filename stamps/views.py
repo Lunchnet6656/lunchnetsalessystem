@@ -54,7 +54,9 @@ def render_stamp(request, *, location=None, token="", post_action=None, status=2
         "loaded": False,
         "location": location,
         "token": token,
-        "liff_id": settings.LIFF_ID,
+        # スタンプ画面の liff.init はスタンプ用LIFF（＝スタンプを配信するドメインのLIFF）を使う。
+        # QR/リッチメニューと同じ STAMP_LIFF_ID に揃える（予約が別ドメインでも食い違わない）。
+        "liff_id": settings.STAMP_LIFF_ID,
         "require_line": identity.stamp_require_line(),
         "post_action": post_action,
     }
@@ -131,7 +133,7 @@ def coupon_ctx(reward, member=None):
         "reward": reward,
         "is_used": reward.status == Reward.STATUS_USED,
         "member": member,
-        "liff_id": settings.LIFF_ID,
+        "liff_id": settings.STAMP_LIFF_ID,   # クーポン画面の liff.init もスタンプ用LIFF
         "require_line": identity.stamp_require_line(),
     }
 
