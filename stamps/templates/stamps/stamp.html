@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>スタンプカード | ランチネット</title>
+<!-- LIFF SDK。LINE内では自動注入されるが、通常ブラウザ（カメラで読んでSafari等）でも
+     liff.login()でLINEログイン→本人特定できるよう明示的に読み込む。 -->
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
 <style>
   :root{ --gold:#e0a528; }
