@@ -20,8 +20,12 @@ from . import views
 from django.contrib.auth import views as auth_views
 from .views import locked_out_view,my_page,submit_shift,edit_shift
 from sales import qr_views as sales_qr_views
+from stamps import views as stamp_views
 
 urlpatterns = [
+    # スタンプ用LIFFのエンドポイント（ルート）。LINEが ?liff.state=/stamp/<token>/ で
+    # 実パスを渡すので、本来のスタンプURLへ振り直す。liff.state無しの通常アクセスは404（従来どおり）。
+    path('', stamp_views.liff_entry, name='liff_entry'),
     path('secure-admin/', admin.site.urls),
     path('shifts/', include('shifts.urls')),
     path('orders/', include('orders.urls')),

@@ -290,6 +290,20 @@ class StampCustomerViewTests(TestCase):
     def test_stamp_page_invalid_token_404(self):
         self.assertEqual(self.client.get("/stamp/NOPE/").status_code, 404)
 
+    def test_liff_entry_redirects_liffstate(self):
+        # LINEが ?liff.state=/stamp/<token>/ でルートを開く → 本来のURLへ302
+        path = f"/stamp/{self.loc.qr_stamp_token}/"
+        resp = self.client.get("/", {"liff.state": path})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], path)
+
+    def test_liff_entry_root_without_state_404(self):
+        self.assertEqual(self.client.get("/").status_code, 404)   # 従来どおりルートは404
+
+    def test_liff_entry_blocks_open_redirect(self):
+        self.assertEqual(self.client.get("/", {"liff.state": "https://evil.com/"}).status_code, 404)
+        self.assertEqual(self.client.get("/", {"liff.state": "//evil.com/"}).status_code, 404)
+
     def test_stamp_page_disabled_403(self):
         self.loc.stamp_enabled = False
         self.loc.save(update_fields=["stamp_enabled"])

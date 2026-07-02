@@ -11,8 +11,11 @@
 会員特定は stamps.identity（予約と同じトークン検証）。名前登録は不要（来店計測が主目的）。
 開発確認用のデモ画面は stamps.dev_views（本番は404）。
 """
+from urllib.parse import unquote
+
 from django.conf import settings
-from django.shortcuts import get_object_or_404, render
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
@@ -21,6 +24,21 @@ from reservations import line_api
 from stamps import identity, services
 from stamps.models import Reward, StampLog
 from stamps.services import card_view_state
+
+
+def liff_entry(request):
+    """LIFFのディープリンク入口（サイトのルート＝スタンプ用LIFFのエンドポイント）。
+
+    LINEはLIFFのエンドポイント（ルート `/`）を開き、本来のパスを
+    `?liff.state=/stamp/<token>/` というクエリで渡す（SPA向けのディープリンク方式）。
+    当アプリはサーバーレンダリングなので、ここで liff.state を受けて本来のスタンプURLへ
+    サーバー側でリダイレクトする。liff.state が無い通常アクセスは404（従来どおり）。
+    """
+    target = unquote(request.GET.get("liff.state", ""))
+    # オープンリダイレクト防止：自サイトの /stamp/ パスのみ許可（外部URL・二重スラッシュ排除）。
+    if target.startswith("/stamp/") and "//" not in target and "://" not in target:
+        return redirect(target)
+    raise Http404("liff entry")
 
 
 def _location_by_token(token):
