@@ -56,6 +56,11 @@ class SalesLocation(models.Model):
     service_style = models.CharField(max_length=100, default="なし")
     direct_return = models.IntegerField(default=0)
     accepts_digital_payment = models.BooleanField(default=False, verbose_name="電子決済対応")
+    expects_cash = models.BooleanField(
+        default=True,
+        verbose_name="現金入力あり",
+        help_text="OFF の拠点（社員食堂・配達など現金を扱わない売り場）は、日計表の現金欄をグレーアウトし、未入力チェックの対象外にする。",
+    )
     requires_drive = models.BooleanField(default=False, verbose_name="運転必須")
     priority = models.CharField(max_length=1, choices=[("S","S"),("A","A"),("B","B")], default="A", verbose_name="優先度")
     excluded_from_shift = models.BooleanField(default=False, verbose_name="シフト対象外")
@@ -240,6 +245,17 @@ class DailyReport(models.Model):
         related_name='submitted_reports'
     )
     updated_at = models.DateTimeField(auto_now=True) # 自動で更新日時を記録
+
+    class Meta:
+        # 同日・同売場は1件のみ。再送信が速すぎて起きる競合（同時POST）による
+        # 重複行をDBレベルで防ぐ。制約があることで update_or_create が
+        # 「作成失敗→既存を更新」に自動フォールバックし、根本的に競合安全になる。
+        constraints = [
+            models.UniqueConstraint(
+                fields=['date', 'location'],
+                name='uniq_dailyreport_date_location',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.date} - {self.location}"

@@ -12,7 +12,7 @@
        data-shin-yokohama-url="{% url 'shin_yokohama_users' %}"
        data-selected-person="{{ selected_person|escapejs }}">
   <h1 class="text-center">ランチネット日計表入力</h1>
-  <form method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission();">
+  <form method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission(event);">
     {% csrf_token %}
     <div class="mb-3">
         <label for="date" class="form-label">日付</label>
@@ -438,11 +438,19 @@
                         {% endif %}
                     </div>
                     <div class="col-12 col-md-4 mb-2">
-                        <label for="cash" class="form-label label-cash-warning">現金(入力忘れないで！)</label>
+                        {% if service and not service.expects_cash %}
+                        <label for="cash" class="form-label text-muted">現金 <small class="text-danger fw-bold">対象外</small></label>
                         <div class="input-group">
-                        <input type="number" id="cash" name="cash" class="form-control" min="0" value="0" oninput="updateRevenue()">
+                        <input type="number" id="cash" name="cash" class="form-control" min="0" value="0" disabled style="background-color:#e9ecef; cursor:not-allowed;">
+                        <span class="input-group-text text-muted">円</span>
+                        </div>
+                        {% else %}
+                        <label for="cash" class="form-label label-cash-warning">現金 <span id="cash-required-msg" class="cash-required-msg">未入力</span></label>
+                        <div class="input-group">
+                        <input type="number" id="cash" name="cash" class="form-control cash-empty" min="0" placeholder="必ず入力" oninput="updateRevenue()">
                         <span class="input-group-text">円</span>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="mb-3">
@@ -538,7 +546,7 @@
             </div>
                 <!-- 送信ボタン -->
                 <div class="mb-3">
-                    <button type="submit" name="action" value="send" class="btn btn-success w-100 py-3 btn-submit-hidden" id="submit-button">送信</button>
+                    <button type="submit" name="action" value="send" class="btn btn-success w-100 py-3 btn-incomplete" id="submit-button">送信</button>
                 </div>
             <!-- スマホ用セクションナビゲーション -->
             <nav class="section-nav d-md-none">

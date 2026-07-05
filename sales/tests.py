@@ -259,6 +259,24 @@ class SalesLocationSaveTest(TestCase):
         self._post(data)
         self.assertTrue(SalesLocation.objects.get(no=1).accepts_digital_payment)
 
+    def test_expects_cash_checkbox_on(self):
+        """現金入力チェックONが反映されること（現金あり拠点）。"""
+        data = self._row(0, 1, 'A拠点')
+        data['location[0][expects_cash]'] = '1'
+        self._post(data)
+        self.assertTrue(SalesLocation.objects.get(no=1).expects_cash)
+
+    def test_expects_cash_checkbox_off(self):
+        """現金入力チェックOFF（POSTに無い）は現金なし拠点として保存されること。"""
+        data = self._row(0, 1, 'A拠点')  # expects_cash キーを含めない＝未チェック
+        self._post(data)
+        self.assertFalse(SalesLocation.objects.get(no=1).expects_cash)
+
+    def test_expects_cash_defaults_true(self):
+        """モデルのデフォルトは「現金あり」（True）であること。"""
+        loc = SalesLocation.objects.create(no=9, name='新拠点', type='常設', price_type='A')
+        self.assertTrue(loc.expects_cash)
+
     def test_negative_service_price_is_saved(self):
         """サービス価格は割引でマイナス（例 -100）になり得るため、負の値も保存できること。"""
         data = self._row(0, 1, 'A拠点')
@@ -303,3 +321,52 @@ class SalesLocationSaveTest(TestCase):
         # 持参数は依然としてA拠点（同一id）に紐づいている
         self.assertEqual(iq.sales_location_id, a.id)
         self.assertEqual(iq.sales_location.name, 'A拠点')
+
+
+class DailyReportDuplicateGuardTest(TestCase):
+    """同日・同売場の日計表が2件作られないこと（二重送信＝同時POST競合の対策）の回帰テスト。
+
+    (date, location) のユニーク制約により、
+    ① 2件目の作成は IntegrityError で弾かれる
+    ② update_or_create は「作成失敗→既存を更新」に自動フォールバックし重複を作らない
+    ことを保証する。"""
+
+    def _make(self, **kwargs):
+        defaults = dict(
+            date=timezone.now().date(),
+            location='本店',
+            location_no=1,
+            total_revenue=10000,
+        )
+        defaults.update(kwargs)
+        return DailyReport.objects.create(**defaults)
+
+    def test_duplicate_insert_is_rejected(self):
+        """同日・同売場を直接2件作ろうとすると制約で弾かれること。"""
+        from django.db import IntegrityError, transaction
+        self._make()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self._make()  # 同じ date + location
+
+    def test_update_or_create_updates_not_duplicates(self):
+        """同じキーへの再送信(update_or_create)は行を増やさず上書きすること。"""
+        d = timezone.now().date()
+        DailyReport.objects.update_or_create(
+            date=d, location='本店',
+            defaults={'location_no': 1, 'total_revenue': 10000},
+        )
+        DailyReport.objects.update_or_create(
+            date=d, location='本店',
+            defaults={'location_no': 1, 'total_revenue': 25000},
+        )
+        qs = DailyReport.objects.filter(date=d, location='本店')
+        self.assertEqual(qs.count(), 1)
+        self.assertEqual(int(qs.first().total_revenue), 25000)
+
+    def test_different_location_same_date_is_allowed(self):
+        """同じ日でも売場が違えば別レコードとして共存できること。"""
+        d = timezone.now().date()
+        self._make(date=d, location='本店')
+        self._make(date=d, location='支店')
+        self.assertEqual(DailyReport.objects.filter(date=d).count(), 2)

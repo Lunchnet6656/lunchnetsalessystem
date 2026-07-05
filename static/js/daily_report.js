@@ -134,18 +134,89 @@ function validateTimeOrder() {
     return null;
 }
 
-// 送信ボタンの表示切替
-function toggleSubmitButton() {
-    var closingTimeEl = document.getElementById('closing_time');
-    var locationCheckEl = document.getElementById('location_check');
-    var submitButton = document.getElementById('submit-button');
-    if (!closingTimeEl || !locationCheckEl || !submitButton) return;
-
-    if (closingTimeEl.value && locationCheckEl.checked) {
-        submitButton.classList.remove('btn-submit-hidden');
-    } else {
-        submitButton.classList.add('btn-submit-hidden');
+// 未入力項目を優先順（現金 → 閉店時間 → 確認チェック）で1件返す。全部OKならnull
+function getFirstIncomplete() {
+    var cashEl = document.getElementById('cash');
+    // 現金：欄が存在し、対象外(disabled)でなく、空欄のときだけ未入力扱い（0の入力はOK＝違算許容）
+    if (cashEl && !cashEl.disabled && cashEl.value.trim() === '') {
+        return { el: cashEl, msg: '現金が未入力です' };
     }
+    var closingEl = document.getElementById('closing_time');
+    if (closingEl && !closingEl.value) {
+        return { el: closingEl, msg: '閉店時間が未入力です' };
+    }
+    var checkEl = document.getElementById('location_check');
+    if (checkEl && !checkEl.checked) {
+        return { el: checkEl, msg: '確認チェックが未完了です' };
+    }
+    return null;
+}
+
+// 送信ボタンの見た目（グレー=未完了 / 緑=送信可）を更新
+function updateSubmitButtonState() {
+    var submitButton = document.getElementById('submit-button');
+    if (!submitButton) return;
+    if (getFirstIncomplete()) {
+        submitButton.classList.add('btn-incomplete');
+    } else {
+        submitButton.classList.remove('btn-incomplete');
+    }
+}
+
+// 現金欄の赤枠・「未入力」表示を更新
+function updateCashFieldState() {
+    var cashEl = document.getElementById('cash');
+    if (!cashEl || cashEl.disabled) return;
+    var msgEl = document.getElementById('cash-required-msg');
+    if (cashEl.value.trim() === '') {
+        cashEl.classList.add('cash-empty');
+        if (msgEl) msgEl.classList.remove('hidden');
+    } else {
+        cashEl.classList.remove('cash-empty');
+        if (msgEl) msgEl.classList.add('hidden');
+    }
+}
+
+// 未入力項目へスクロール＋数秒で消えるポップを表示（非モーダル・消すタップ不要）
+function scrollToAndPop(target) {
+    if (!target || !target.el) return;
+    var el = target.el;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('field-flash');
+    setTimeout(function() { el.classList.remove('field-flash'); }, 2500);
+    try { el.focus({ preventScroll: true }); } catch (e) { if (el.focus) el.focus(); }
+
+    var old = document.querySelector('.field-pop');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    // ポップは「画面（ビューポート）基準」で表示する。
+    // scrollIntoView は smooth で非同期のため、要素の座標基準で置くと
+    // スクロール完了前の（画面外の）座標になり見えなくなる。
+    var pop = document.createElement('div');
+    pop.className = 'field-pop';
+    pop.textContent = target.msg;
+    // block:'center' で対象が画面中央に来るので、その少し上に固定表示
+    pop.style.top = '34%';
+    pop.style.left = '50%';
+    pop.style.transform = 'translate(-50%, -50%)';
+    document.body.appendChild(pop);
+    setTimeout(function() { if (pop.parentNode) pop.parentNode.removeChild(pop); }, 2800);
+}
+
+// フォーム送信ガード（グレーボタンのタップ・Enter 送信の両方をここで止める）
+// テンプレの onsubmit="return confirmSubmission(event)" から呼ばれる
+function confirmSubmission(event) {
+    var incomplete = getFirstIncomplete();
+    if (incomplete) {
+        if (event) {
+            event.preventDefault();
+            // 二重送信防止のスピナー等（他のsubmitリスナー）も止める
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        }
+        scrollToAndPop(incomplete);
+        return false;
+    }
+    return true;
 }
 
 // 自動保存（localStorage）
@@ -278,6 +349,10 @@ function restoreDraft() {
             updateFromRemaining(input);
         }
     });
+
+    // 復元後に現金欄の赤枠・送信ボタン状態も反映
+    updateCashFieldState();
+    updateSubmitButtonState();
 }
 
 function clearDraft() {
@@ -378,14 +453,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 送信ボタン表示切替
-    toggleSubmitButton();
+    // 送信ボタンの状態（グレー/緑）と現金欄の赤枠を初期化＋各入力で更新
+    updateCashFieldState();
+    updateSubmitButtonState();
+    var cashEl = document.getElementById('cash');
+    if (cashEl) {
+        cashEl.addEventListener('input', function() {
+            updateCashFieldState();
+            updateSubmitButtonState();
+        });
+    }
     if (closingTimeEl) {
-        closingTimeEl.addEventListener('input', toggleSubmitButton);
+        closingTimeEl.addEventListener('input', updateSubmitButtonState);
     }
     var locationCheckEl = document.getElementById('location_check');
     if (locationCheckEl) {
-        locationCheckEl.addEventListener('change', toggleSubmitButton);
+        locationCheckEl.addEventListener('change', updateSubmitButtonState);
     }
 
     // calculateTotalsとupdateRevenueをデバウンス化（低スペック端末対策）

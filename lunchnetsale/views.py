@@ -1450,6 +1450,7 @@ def location_list_view(request):
                 'service_style': location_data.get(f'location[{i}][service_style]'),
                 'direct_return': location_data.get(f'location[{i}][direct_return]') or 0,
                 'accepts_digital_payment': location_data.get(f'location[{i}][accepts_digital_payment]') == '1',
+                'expects_cash': location_data.get(f'location[{i}][expects_cash]') == '1',
             }
             # データを保存（1行のエラーで全体を止めず、その行だけスキップして続行）
             try:

@@ -124,6 +124,58 @@ tr.sold-out-row input[type="number"] {
     display: none !important;
 }
 
+/* 現金欄 未入力（空欄）の赤枠 */
+.cash-empty {
+    border: 2px solid var(--ln-color-danger) !important;
+    background-color: #fff5f5;
+}
+
+/* 現金ラベル横の「未入力」表示（入力されたら hidden で消す） */
+.cash-required-msg {
+    color: var(--ln-color-danger);
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-left: 4px;
+}
+.cash-required-msg.hidden {
+    display: none;
+}
+
+/* 送信ボタン：未完了時はグレー（押せるが送信はブロックしてスクロール＋ポップ） */
+.btn-incomplete {
+    background-color: var(--ln-color-text-muted) !important;
+    border-color: var(--ln-color-text-muted) !important;
+    color: #fff !important;
+    opacity: 0.75;
+    cursor: not-allowed;
+}
+
+/* 未入力項目へスクロールした時のハイライト（数秒でフェード） */
+.field-flash {
+    animation: field-flash-anim 1.2s ease-out 2;
+}
+@keyframes field-flash-anim {
+    0%   { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
+    50%  { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0.0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.0); }
+}
+
+/* 未入力ポップ（非モーダル・数秒で消える） */
+.field-pop {
+    position: fixed;
+    z-index: 9999;
+    background: var(--ln-color-danger);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    max-width: 80%;
+    text-align: center;
+}
+
 /* セクションナビゲーション（スマホ用固定バー） */
 .section-nav {
     position: fixed;
