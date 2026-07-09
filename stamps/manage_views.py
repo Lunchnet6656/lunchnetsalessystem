@@ -596,6 +596,32 @@ def location_pop(request, location_id):
     })
 
 
+@staff_member_required
+def location_stand_pop(request, location_id):
+    """卓上スタンド版POP（A5横1枚にA6を2面付け・QR込み・印刷用）。
+
+    完成画像 stand_v3.png を背景にまるごと使い、白いQR空枠へ店舗別の本物QRを重ねる
+    （A4版 location_pop と同じ方式）。真ん中で切ればA6の卓上POPが2枚取れる。
+    """
+    loc = get_object_or_404(SalesLocation, pk=location_id)
+    url = _stamp_liff_url(loc.qr_stamp_token)
+
+    import os
+    from django.conf import settings as dj_settings
+    bg_path = os.path.join(dj_settings.BASE_DIR, "static", "images", "pop2", "stand_v4.png")
+    try:
+        bg_version = int(os.path.getmtime(bg_path))
+    except OSError:
+        bg_version = 0
+
+    return render(request, "stamps/manage/pop_stand.html", {
+        "loc": loc,
+        "qr": _qr_data_uri(url),
+        "url": url,
+        "bg_version": bg_version,
+    })
+
+
 def _parse_pt(raw):
     try:
         return max(1, int(raw))
@@ -675,6 +701,15 @@ def _rewards_config(request):
         messages.error(request, "有効日数は1以上の数値で入力してください。")
         return
     cfg.reward_starts_next_day = bool(request.POST.get("reward_starts_next_day"))
+    # スタンプ2倍イベント：雨の日（当日セット）／連続来店。
+    cfg.rain_bonus_date = timezone.localdate() if request.POST.get("rain_bonus_today") else None
+    cfg.streak_bonus_enabled = bool(request.POST.get("streak_bonus_enabled"))
+    try:
+        cfg.streak_bonus_days = max(1, int(request.POST.get("streak_bonus_days")
+                                           or cfg.streak_bonus_days))
+    except (TypeError, ValueError):
+        messages.error(request, "連続来店の節目は1以上の数値で入力してください。")
+        return
     cfg.save()
     messages.success(request, "運用ルールを保存しました。")
 
@@ -720,12 +755,15 @@ def rewards(request):
             "deletable": (s.get("issued") or 0) == 0,   # 発行済みが無ければ削除可
         })
 
+    cfg = StampConfig.get_solo()
     return render(request, "stamps/manage/rewards.html", {
         "nav": "rewards",
         "tier_rows": tier_rows,
         "total_cost": total_cost,
         "cap_pt": cap,
-        "config": StampConfig.get_solo(),
+        "config": cfg,
+        "rain_on_today": cfg.is_rain_bonus_on(timezone.localdate()),
+        "today": timezone.localdate(),
         "kind_discount": RewardTier.KIND_DISCOUNT,
         "kind_free": RewardTier.KIND_FREE,
     })

@@ -23,7 +23,8 @@
   </div>
 
   <p class="mono" style="margin:10px 0 4px;">スタンプURL：<code class="url">{{ row.stamp_url }}</code></p>
-  <a class="btn ghost sm" href="{% url 'stamps:manage_location_pop' location_id=row.loc.id %}" target="_blank">宣伝POPを作成（QR込み・印刷用）</a>
+  <a class="btn ghost sm" href="{% url 'stamps:manage_location_pop' location_id=row.loc.id %}" target="_blank">宣伝POPを作成（A4・QR込み）</a>
+  <a class="btn ghost sm" href="{% url 'stamps:manage_location_stand_pop' location_id=row.loc.id %}" target="_blank">卓上スタンドPOP（A5→A6×2・QR込み）</a>
 
   <form method="post" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:10px;">
     {% csrf_token %}

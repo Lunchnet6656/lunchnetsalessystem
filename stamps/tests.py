@@ -32,6 +32,10 @@ def _dt(y, m, d, hh, mm):
 class StampServiceTests(TestCase):
     def setUp(self):
         RewardTier.ensure_defaults()
+        # 基礎メカニクス（1来店＝1pt）を検証するため、2倍イベントはOFFに固定する。
+        cfg = StampConfig.get_solo()
+        cfg.streak_bonus_enabled = False
+        cfg.save()
         self.loc = SalesLocation.objects.create(no=1, name="テスト本店", type="A", price_type="A")
         self.member = LineMember.objects.create(line_user_id="U_test_1", name="テスト太郎")
 
@@ -145,6 +149,110 @@ class StampServiceTests(TestCase):
         self.assertEqual(reward.status, Reward.STATUS_USED)
         # 二重使用は弾く
         self.assertFalse(services.use_reward(reward, now=later))
+
+
+class StampBonusTests(TestCase):
+    """スタンプ2倍イベント（雨の日・連続来店）の判定。"""
+    def setUp(self):
+        RewardTier.ensure_defaults()
+        self.loc = SalesLocation.objects.create(no=1, name="テスト本店", type="A", price_type="A")
+        self.member = LineMember.objects.create(line_user_id="U_bonus_1", name="ボーナス太郎")
+
+    def _award_day(self, dd, hh=12):
+        return services.award_stamp(self.member, self.loc, now=_dt(2026, 7, dd, hh, 0))
+
+    def _set_config(self, **kw):
+        cfg = StampConfig.get_solo()
+        for k, v in kw.items():
+            setattr(cfg, k, v)
+        cfg.save()
+        return cfg
+
+    # --- 雨の日 -----------------------------------------------------------
+    def test_rain_bonus_doubles(self):
+        self._set_config(streak_bonus_enabled=False, rain_bonus_date=_dt(2026, 7, 1, 0, 0).date())
+        r = self._award_day(1)
+        self.assertTrue(r.ok)
+        self.assertTrue(r.doubled)
+        self.assertEqual(r.points, 2)
+        self.assertEqual(r.bonus_reason, "rain")
+        self.assertEqual(r.card.stamp_count, 2)
+        log = StampLog.objects.get()
+        self.assertEqual(log.points, 2)
+        self.assertEqual(log.bonus_reason, "rain")
+
+    def test_rain_bonus_only_that_day(self):
+        self._set_config(streak_bonus_enabled=False, rain_bonus_date=_dt(2026, 7, 1, 0, 0).date())
+        self.assertTrue(self._award_day(1).doubled)   # 7/1 は2倍
+        r2 = self._award_day(2)                        # 7/2 は通常（対象日は7/1のみ）
+        self.assertFalse(r2.doubled)
+        self.assertEqual(r2.points, 1)
+
+    # --- 連続来店 ---------------------------------------------------------
+    def test_streak_doubles_on_third_day_only(self):
+        # 既定：3日連続の節目（3日目）で2倍。
+        r1 = self._award_day(1); r2 = self._award_day(2); r3 = self._award_day(3)
+        self.assertFalse(r1.doubled)
+        self.assertFalse(r2.doubled)
+        self.assertTrue(r3.doubled)                    # 3日目＝節目
+        self.assertEqual(r3.bonus_reason, "streak")
+        self.assertEqual(r3.card.stamp_count, 4)       # 1+1+2
+        r4 = self._award_day(4)
+        self.assertFalse(r4.doubled)                   # 4日目は据え置き（節目でない）
+        r5 = self._award_day(5)
+        r6 = self._award_day(6)
+        self.assertTrue(r6.doubled)                    # 6日目＝次の節目
+        self.assertEqual(r6.card.stamp_count, 8)       # 4,5,6,8
+
+    def test_streak_resets_after_gap(self):
+        self._award_day(1); self._award_day(2)         # 2日連続
+        # 7/3 を飛ばす → 連続が途切れる
+        r4 = self._award_day(4)
+        self.assertFalse(r4.doubled)                   # 途切れ後の1日目
+        self._award_day(5)
+        r6 = self._award_day(6)
+        self.assertTrue(r6.doubled)                    # 4,5,6で3日連続＝節目
+
+    def test_streak_can_be_disabled(self):
+        self._set_config(streak_bonus_enabled=False)
+        self._award_day(1); self._award_day(2)
+        r3 = self._award_day(3)
+        self.assertFalse(r3.doubled)
+
+    # --- 重複・上限・閾値跨ぎ ---------------------------------------------
+    def test_rain_and_streak_still_max_double(self):
+        # 3日連続の節目かつ雨の日 → 最大2倍で据え置き（3倍にしない）。
+        self._set_config(rain_bonus_date=_dt(2026, 7, 3, 0, 0).date())
+        self._award_day(1); self._award_day(2)
+        r3 = self._award_day(3)
+        self.assertEqual(r3.points, 2)                 # 3倍にはならない
+        self.assertEqual(r3.card.stamp_count, 4)
+
+    def test_reward_issued_when_double_crosses_threshold(self):
+        # 連続OFF・4個まで貯める → 5個目手前(4)で雨の日2倍 → 5ptを跨いで特典発行。
+        self._set_config(streak_bonus_enabled=False)
+        for d in range(1, 5):                           # 7/1..7/4 で4個
+            self._award_day(d)
+        self._set_config(streak_bonus_enabled=False, rain_bonus_date=_dt(2026, 7, 5, 0, 0).date())
+        r = self._award_day(5)
+        self.assertEqual(r.card.stamp_count, 6)         # 4 → 6（5を跨ぐ）
+        self.assertIsNotNone(r.new_reward)
+        self.assertEqual(r.new_reward.threshold_pt, 5)
+        self.assertEqual(Reward.objects.filter(threshold_pt=5).count(), 1)
+
+    def test_double_clamped_at_cap(self):
+        # 19個まで貯めてから雨の日2倍 → 20で打ち止め（21にしない）。
+        self._set_config(streak_bonus_enabled=False)
+        for d in range(1, 20):                           # 7/1..7/19 で19個
+            self._award_day(d)
+        self._set_config(streak_bonus_enabled=False, rain_bonus_date=_dt(2026, 7, 20, 0, 0).date())
+        r = self._award_day(20)
+        self.assertEqual(r.card.stamp_count, CAP_PT)     # 20で頭打ち
+        self.assertEqual(r.points, 1)                    # 2倍でも1しか入らない
+        log = StampLog.objects.get(stamped_on=_dt(2026, 7, 20, 0, 0).date())
+        self.assertEqual(log.points, 1)
+        self.assertEqual(log.bonus_reason, "")           # 実質1個なので理由は付けない
+        self.assertEqual(r.card.status, StampCard.STATUS_COMPLETED)
 
 
 class RichMenuAssignTests(TestCase):
@@ -341,6 +449,10 @@ class FriendsAggregationTests(TestCase):
     """F2：友だち集計がN+1なし・来店数が特典数で水増しされない。"""
     def setUp(self):
         RewardTier.ensure_defaults()
+        # 集計の基礎（1来店＝1pt）を見るため、2倍イベントはOFFに固定する。
+        cfg = StampConfig.get_solo()
+        cfg.streak_bonus_enabled = False
+        cfg.save()
         self.loc = SalesLocation.objects.create(no=1, name="集計店", type="A", price_type="A",
                                                 stamp_enabled=True)
         self.member = LineMember.objects.create(line_user_id="U_agg", name="集計太郎")

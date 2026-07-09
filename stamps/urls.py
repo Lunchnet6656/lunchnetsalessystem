@@ -15,6 +15,7 @@ urlpatterns = [
     path("manage/locations/", manage_views.locations, name="manage_locations"),
     path("manage/locations/qr.pdf", manage_views.location_qr_pdf, name="manage_location_qr_pdf"),
     path("manage/locations/<int:location_id>/pop/", manage_views.location_pop, name="manage_location_pop"),
+    path("manage/locations/<int:location_id>/pop-stand/", manage_views.location_stand_pop, name="manage_location_stand_pop"),
     path("manage/rewards/", manage_views.rewards, name="manage_rewards"),
 
     # --- 開発確認用デモ（本番は404）。token ルートより先に置く。 ---

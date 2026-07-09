@@ -26,6 +26,16 @@ REWARD_VALIDITY_DAYS = 30  # 特典（クーポン）の有効日数＝獲得し
 #   ＝月末ギリギリで獲得しても、獲得日から30日は使える（カード切替後も生きる）。
 CAP_PT = 20                # 付与上限＝20pt（お弁当無料2個で打ち止め。3個目以降のスタンプはしない）。
 
+# --- スタンプ2倍イベント ---------------------------------------------------
+BONUS_MULTIPLIER = 2       # 該当日は1来店＝2pt（重複しても最大2倍で据え置き）。
+BONUS_NONE = ""            # 通常（1pt）。
+BONUS_RAIN = "rain"        # 雨の日ボーナス（スタッフが当日ON）。
+BONUS_STREAK = "streak"    # 連続来店ボーナス（3日ごとの節目）。
+BONUS_REASON_CHOICES = [
+    (BONUS_RAIN, "雨の日"),
+    (BONUS_STREAK, "連続来店"),
+]
+
 
 class RewardTier(models.Model):
     """特典の段階定義。到達ptごとに1行。管理画面（特典管理）で編集できる。
@@ -155,6 +165,15 @@ class StampLog(models.Model):
     )
     stamped_on = models.DateField(db_index=True, verbose_name="来店日")
     stamped_at = models.DateTimeField(verbose_name="来店日時")
+    points = models.PositiveSmallIntegerField(
+        default=1, verbose_name="付与pt",
+        help_text="この来店で押したスタンプ数。通常1、2倍イベント該当日は2（打ち止め手前で1になることもある）。",
+    )
+    bonus_reason = models.CharField(
+        max_length=10, choices=BONUS_REASON_CHOICES, blank=True, default=BONUS_NONE,
+        verbose_name="2倍の理由",
+        help_text="2倍になった要因（雨の日／連続来店）。通常来店は空。集計・検証用。",
+    )
 
     class Meta:
         ordering = ["-stamped_at"]
@@ -333,6 +352,19 @@ class StampConfig(models.Model):
         default=True, verbose_name="クーポンは翌日から",
         help_text="ON＝獲得した来店では使えず次回来店から（10回購入で1個無料を守る）。OFF＝当日から使える。",
     )
+    # --- スタンプ2倍イベント設定 ---------------------------------------------
+    rain_bonus_date = models.DateField(
+        null=True, blank=True, verbose_name="雨の日ボーナス対象日",
+        help_text="この日付の来店はスタンプ2倍。雨の朝にスタッフが当日をセット。翌日は自動でOFF（押し忘れ防止）。",
+    )
+    streak_bonus_enabled = models.BooleanField(
+        default=True, verbose_name="連続来店ボーナス",
+        help_text="ON＝連続来店の節目でスタンプ2倍。",
+    )
+    streak_bonus_days = models.PositiveSmallIntegerField(
+        default=3, verbose_name="連続来店の節目（日）",
+        help_text="何日連続の節目で2倍にするか。3なら3・6・9日目…が2倍。",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -346,3 +378,7 @@ class StampConfig(models.Model):
     def get_solo(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    def is_rain_bonus_on(self, day):
+        """指定日が雨の日ボーナス対象か（当日セットのみ有効・翌日は自動失効）。"""
+        return self.rain_bonus_date is not None and self.rain_bonus_date == day

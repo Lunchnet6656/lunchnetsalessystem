@@ -57,6 +57,13 @@ _RESULT_MESSAGES = {
     services.COMPLETED: ("info", "カードが満了しました（お弁当無料2個ぶん）。次のカードは期限の翌日からです。"),
 }
 
+# スタンプ2倍イベント該当時の文言（通常の「押しました！」を上書き）。
+from stamps.models import BONUS_RAIN, BONUS_STREAK  # noqa: E402
+_BONUS_MESSAGES = {
+    BONUS_RAIN: "☔ 雨の日ボーナス！スタンプ2倍で押しました！",
+    BONUS_STREAK: "🔥 連続来店ボーナス！スタンプ2倍で押しました！",
+}
+
 
 def render_stamp(request, *, location=None, token="", post_action=None, status=200, **extra):
     """stamp.html を統一コンテキストで描画する。
@@ -134,13 +141,18 @@ def stamp_scan(request, token):
         richmenu.assign_on_first_stamp(member)
 
     tone, message = _RESULT_MESSAGES.get(result.status, ("info", ""))
+    # 2倍イベント該当時は専用文言に差し替える。
+    if result.ok and result.doubled:
+        message = _BONUS_MESSAGES.get(result.bonus_reason, message)
     # 時間外などで result.card が無いときも、会員の現行カード（無ければ空カード）を表示する。
     card = result.card or services._current_card(member)
 
     return render_stamp(
         request, location=location, token=token, loaded=True,
-        member=member, card=card, state=card_view_state(card),
+        member=member, card=card,
+        state=card_view_state(card, just_stamped_pt=result.points),
         result_tone=tone, result_message=message, new_reward=result.new_reward,
+        result_doubled=result.doubled,
         popped=result.ok,   # 今スタンプを押せたときだけ「押した感」アニメを出す
         other_coupons=services.usable_rewards(member, exclude_card=card),
     )

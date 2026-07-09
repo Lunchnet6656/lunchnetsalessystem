@@ -14,8 +14,22 @@
       <input type="number" name="reward_validity_days" value="{{ config.reward_validity_days }}" min="1" style="width:80px;"></div>
     <div class="fld"><label class="muted">クーポン利用開始</label>
       <label style="font-size:13px;"><input type="checkbox" name="reward_starts_next_day" {% if config.reward_starts_next_day %}checked{% endif %}> 翌日（次回来店）から</label></div>
+
+    <div style="flex-basis:100%;height:1px;background:#eee;margin:4px 0;"></div>
+    <div class="fld" style="flex-basis:100%;"><b>スタンプ2倍イベント</b></div>
+    <div class="fld"><label class="muted">☔ 雨の日ボーナス（本日 {{ today }}）</label>
+      <label style="font-size:13px;"><input type="checkbox" name="rain_bonus_today" {% if rain_on_today %}checked{% endif %}> 本日の来店を2倍にする</label></div>
+    <div class="fld"><label class="muted">🔥 連続来店ボーナス</label>
+      <label style="font-size:13px;"><input type="checkbox" name="streak_bonus_enabled" {% if config.streak_bonus_enabled %}checked{% endif %}> 有効にする</label></div>
+    <div class="fld"><label class="muted">連続の節目（日）</label>
+      <input type="number" name="streak_bonus_days" value="{{ config.streak_bonus_days }}" min="1" style="width:70px;"></div>
+
     <button class="btn sm" type="submit">保存</button>
   </form>
+  <p class="muted" style="margin:10px 0 0;">
+    ☔ <b>雨の日</b>：チェックを入れて保存すると<b>本日ぶんだけ</b>2倍。翌日は自動でOFFに戻ります（消し忘れなし）。
+    🔥 <b>連続来店</b>：連続来店が節目（既定3日＝3・6・9日目…）に達した日を2倍。両方該当しても<b>最大2倍</b>で据え置きです。
+  </p>
   <p class="muted" style="margin:10px 0 0;">
     カードの満了pt（マス数）は <b>{{ cap_pt }}個</b>。＝有効な段階のうち最大の到達ptで自動決定します（段階を足すとカードも伸びます）。
     基準コストは損益・コスト集計用の想定値（実装には影響しません）。

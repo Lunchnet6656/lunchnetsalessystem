@@ -17,6 +17,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from stamps.models import (
+    BONUS_NONE, BONUS_RAIN, BONUS_STREAK,
     CAP_PT, CARD_VALIDITY_DAYS, REWARD_VALIDITY_DAYS,
     Reward, RewardTier, StampCard, StampConfig, StampLog,
 )
@@ -43,11 +44,17 @@ COMPLETED = "completed"          # 打ち止め（20pt満了・次サイクル�
 class StampResult:
     status: str
     card: StampCard = None
-    new_reward: Reward = None
+    new_reward: Reward = None       # 表示用の代表特典（同時獲得なら最上位）。
+    points: int = 1                 # この来店で実際に押したスタンプ数（1 or 2）。
+    bonus_reason: str = BONUS_NONE  # 2倍になった理由（rain / streak / ""）。
 
     @property
     def ok(self):
         return self.status == STAMPED
+
+    @property
+    def doubled(self):
+        return self.points >= 2
 
 
 def location_open_window(location):
@@ -75,11 +82,8 @@ def _new_card(member, today):
     )
 
 
-def _issue_reward_if_threshold(card, count, now):
-    """到達ちょうどの段階があれば特典を発行して返す（無ければ None）。"""
-    tier = RewardTier.objects.filter(threshold_pt=count, active=True).first()
-    if tier is None:
-        return None
+def _issue_reward_for_tier(card, tier, now):
+    """指定段階の特典を発行して返す（既に発行済みなら再取得して返す）。"""
     # クーポンの利用開始・有効日数は運用設定（StampConfig）に従う。
     #   利用開始＝獲得の翌日（既定）＝次回来店から／期限＝獲得日から N 日（カードと独立）。
     cfg = StampConfig.get_solo()
@@ -101,6 +105,45 @@ def _issue_reward_if_threshold(card, count, now):
     except IntegrityError:
         # 既に同段階を発行済み（競合）。再取得して返す。
         return Reward.objects.filter(card=card, threshold_pt=tier.threshold_pt).first()
+
+
+def _issue_rewards_crossing(card, old_count, new_count, now):
+    """(old_count, new_count] を跨いだ全段階の特典を発行してリストで返す。
+
+    通常は+1なので1段階だが、2倍で+2したときは 4→6 のように5ptを飛び越すことがある。
+    ちょうど到達だけを見ると飛び越した段階の特典が漏れるため、範囲で拾う。
+    """
+    tiers = RewardTier.objects.filter(
+        active=True, threshold_pt__gt=old_count, threshold_pt__lte=new_count,
+    ).order_by("threshold_pt")
+    return [_issue_reward_for_tier(card, t, now) for t in tiers]
+
+
+def _streak_len_including_today(member, today):
+    """今日を含めた連続来店日数。今日はまだ押していない前提で、昨日から遡って数える。"""
+    length = 1  # 今日ぶん
+    day = today - timedelta(days=1)
+    prior = set(
+        StampLog.objects.filter(
+            card__member=member, stamped_on__lt=today,
+            stamped_on__gte=today - timedelta(days=60),
+        ).values_list("stamped_on", flat=True)
+    )
+    while day in prior:
+        length += 1
+        day -= timedelta(days=1)
+    return length
+
+
+def _bonus_for(member, today, cfg):
+    """今日の来店が2倍か判定して (points, reason) を返す。重複しても最大2倍で据え置き。"""
+    if cfg.is_rain_bonus_on(today):
+        return 2, BONUS_RAIN
+    if cfg.streak_bonus_enabled and cfg.streak_bonus_days >= 1:
+        streak = _streak_len_including_today(member, today)
+        if streak % cfg.streak_bonus_days == 0:
+            return 2, BONUS_STREAK
+    return 1, BONUS_NONE
 
 
 @transaction.atomic
@@ -132,24 +175,33 @@ def award_stamp(member, location, now=None):
         # 打ち止め：新カードは作らず据え置き（翌サイクル＝期限後に再スタート）
         return StampResult(COMPLETED, card=card)
 
-    # 4. スタンプ+1
+    # 4. 2倍イベント判定 → スタンプ加算（打ち止めptを超えないようクランプ）
+    bonus_pt, reason = _bonus_for(member, today, StampConfig.get_solo())
+    old_count = card.stamp_count
+    new_count = min(old_count + bonus_pt, cap)
+    applied = new_count - old_count  # cap手前だと2倍でも1しか入らないことがある
+
     try:
         StampLog.objects.create(
             card=card, location=location, stamped_on=today, stamped_at=now,
+            points=applied, bonus_reason=(reason if applied >= 2 else BONUS_NONE),
         )
     except IntegrityError:
         # 同日同カードの二重押し（競合）。現状を返す。
         return StampResult(ALREADY_TODAY, card=card)
 
-    card.stamp_count += 1
+    card.stamp_count = new_count
     update_fields = ["stamp_count"]
-    new_reward = _issue_reward_if_threshold(card, card.stamp_count, now)
+    new_rewards = _issue_rewards_crossing(card, old_count, new_count, now)
     if card.stamp_count >= cap:
         card.status = StampCard.STATUS_COMPLETED
         update_fields.append("status")
     card.save(update_fields=update_fields)
 
-    return StampResult(STAMPED, card=card, new_reward=new_reward)
+    # 表示用は最上位の新規特典（同時に複数跨いだ場合）。
+    new_reward = new_rewards[-1] if new_rewards else None
+    return StampResult(STAMPED, card=card, new_reward=new_reward,
+                       points=applied, bonus_reason=(reason if applied >= 2 else BONUS_NONE))
 
 
 @transaction.atomic
@@ -214,8 +266,11 @@ def usable_rewards(member, exclude_card=None, now=None):
     return list(qs.order_by("expires_on", "threshold_pt"))
 
 
-def card_view_state(card):
-    """カード表示用の状態（スタンプ数・各段階の状態・次ゴールまでの残り）。"""
+def card_view_state(card, just_stamped_pt=1):
+    """カード表示用の状態（スタンプ数・各段階の状態・次ゴールまでの残り）。
+
+    just_stamped_pt は今の来店で押した数（2倍なら2）。押した感アニメで光らせる枠数に使う。
+    """
     tiers = list(RewardTier.objects.filter(active=True).order_by("threshold_pt"))
     rewards = {r.threshold_pt: r for r in card.rewards.all()} if card else {}
     count = card.stamp_count if card else 0
@@ -261,7 +316,8 @@ def card_view_state(card):
             "goal_chip": (_chip_label(tier_at) if tier_at else ""),
             "goal_icon": (_reward_icon(tier_at) if tier_at else ""),
             "just_earned": (tier_at is not None and num == count),
-            "just_stamped": (count > 0 and num == count),  # 今押したばかりの枠（押した感の対象）
+            # 今押したばかりの枠（押した感の対象）。2倍なら直近2枠が対象。
+            "just_stamped": (count > 0 and count - max(1, just_stamped_pt) < num <= count),
         })
 
     return {

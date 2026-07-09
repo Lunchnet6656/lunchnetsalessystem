@@ -1,0 +1,57 @@
+{% load static %}<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>卓上スタンドPOP｜{{ loc.name }}｜ランチネット</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#d7d7d7;}
+  .toolbar{max-width:210mm;margin:0 auto;padding:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .toolbar .btn{padding:10px 18px;border:none;border-radius:10px;background:#1faa4e;
+    color:#fff;font-weight:800;font-size:14px;cursor:pointer;text-decoration:none;}
+  .toolbar .muted{font-size:12px;color:#555;}
+
+  /* A5横1枚に、A6の卓上POPを左右2面付け。真ん中で切ればA6が2枚。 */
+  .sheet{width:210mm;height:148mm;margin:0 auto 30px;display:flex;background:#fff;
+    box-shadow:0 8px 30px rgba(0,0,0,.2);}
+  .half{width:105mm;height:148mm;display:flex;align-items:center;justify-content:center;position:relative;}
+  .half.right{border-left:1px dashed #b0b0b0;}   /* 切り取りガイド */
+
+  /* カードは背景画像(stand_v3)と同じ縦横比(2:3)にして%指定のQR位置を正確に保つ */
+  .card{width:98mm;height:147mm;position:relative;overflow:hidden;}
+  .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;display:block;}
+  /* 焼き込みの白いQR空枠に、店舗別の本物QRを白地ごと重ねる（検出：left15.6% top52.3% ≒正方形55%） */
+  .qr{position:absolute;left:15.6%;top:52.3%;width:55%;z-index:2;
+    background:#fff;padding:0.6%;display:block;}
+  .store{position:absolute;right:3%;bottom:1%;z-index:9;color:#0a5a2a;font-size:6.5pt;font-weight:800;opacity:.75;}
+
+  @media print{
+    body{background:#fff;}
+    .toolbar{display:none;}
+    .sheet{box-shadow:none;margin:0;}
+    @page{size:A5 landscape;margin:0;}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">印刷する</button>
+    <span class="muted">店舗：{{ loc.name }}／ A5横・卓上スタンド版。刷ったら<b>真ん中の点線で半分に切る</b>とA6のPOPが2枚。QRは店舗別の本物（読み取り可能）。</span>
+  </div>
+
+  <div class="sheet">
+    {% for side in "LR" %}
+    <div class="half {% if side == 'R' %}right{% endif %}">
+      <div class="card">
+        <img class="bg" src="{% static 'images/pop2/stand_v4.png' %}?v={{ bg_version }}" alt="ランチネット スタンプカード 卓上POP">
+        <img class="qr" src="{{ qr }}" alt="スタンプQR">
+        <div class="store">{{ loc.name }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>
