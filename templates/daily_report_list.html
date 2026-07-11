@@ -14,7 +14,7 @@
     <hr class="my-4">
     <!-- 検索フォーム -->
     <form method="get" class="mb-4">
-        <div class="row">
+        <div class="row align-items-end g-2">
             <div class="col-md-12">
                 <label for="search_date_start" class="form-label fs-4">日付範囲</label>
             </div>
@@ -33,14 +33,65 @@
                     <input type="date" id="search_date_end" name="search_date_end" value="{{ search_date_end }}" class="form-control">
                 </div>
             </div>
+        </div>
+        <div class="row align-items-end g-2 mt-2">
+            <div class="col-md-4">
+                <label for="search_location" class="form-label">販売場所</label>
+                <select id="search_location" name="search_location" class="form-select">
+                    <option value="">すべて</option>
+                    {% for location in location_choices %}
+                    <option value="{{ location.name }}" {% if location.name == search_location %}selected{% endif %}>{{ location.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="search_person" class="form-label">担当者</label>
+                <select id="search_person" name="search_person" class="form-select">
+                    <option value="">すべて</option>
+                    {% for person in person_choices %}
+                    <option value="{{ person }}" {% if person == search_person %}selected{% endif %}>{{ person }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-md-2">
                 <button class="btn btn-primary w-100" type="submit">検索</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'daily_report_list' %}" class="btn btn-outline-secondary w-100">クリア</a>
             </div>
         </div>
     </form>
 
 
     <!-- レポート一覧 -->
+    {% if is_filtered %}
+    <!-- 販売場所・担当者で絞り込み中：明細行で表示 -->
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>日付</th>
+                <th>販売場所</th>
+                <th>担当者</th>
+                <th>最終更新日時</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in filtered_reports %}
+            <tr>
+                <td><a href="{% url 'daily_report_detail' report.date %}">{{ report.date|japanese_date }}</a></td>
+                <td>{{ report.location }}</td>
+                <td>{{ report.person_in_charge }}</td>
+                <td>{{ report.updated_at|date:"Y/m/d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center">データがありません</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <!-- 絞り込みなし：日付ごとの集約表示 -->
     <table class="table table-striped">
         <thead>
             <tr>
@@ -63,8 +114,9 @@
             {% endfor %}
         </tbody>
     </table>
+    {% endif %}
     <!-- CSV ダウンロードボタン -->
-    <a href="{% url 'download_csv_allreport' %}?search_date_start={{ search_date_start }}&search_date_end={{ search_date_end }}" class="btn btn-secondary">CSVダウンロード</a>
+    <a href="{% url 'download_csv_allreport' %}?search_date_start={{ search_date_start }}&search_date_end={{ search_date_end }}&search_location={{ search_location|urlencode }}&search_person={{ search_person|urlencode }}" class="btn btn-secondary">CSVダウンロード</a>
 
 </div>
 <style>

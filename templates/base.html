@@ -14,6 +14,37 @@
     <link rel="apple-touch-icon" href="{% static 'images/icon-192.png' %}">
     <meta name="theme-color" content="#212529">
 
+    <style>
+        /* サイドバー アコーディオン */
+        .sidebar-section { border: none; }
+        .sidebar-section-header {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #495057;
+            user-select: none;
+        }
+        .sidebar-section-header::-webkit-details-marker { display: none; }
+        .sidebar-section-header:hover { background-color: #f1f3f5; }
+        .sidebar-chevron { transition: transform 0.2s ease; font-size: 0.7em; color: #adb5bd; }
+        details[open] > .sidebar-section-header .sidebar-chevron { transform: rotate(180deg); }
+        /* シンプルモード（項目が少ない従業員向け）: 従来どおり常時開き・見出しは静的 */
+        .sidebar.simple-mode .sidebar-chevron { display: none; }
+        .sidebar.simple-mode .sidebar-section-header { cursor: default; }
+        .sidebar.simple-mode .sidebar-section-header:hover { background-color: transparent; }
+        .sidebar a.list-group-item-action.active {
+            background-color: #0d6efd;
+            color: #fff !important;
+            font-weight: 600;
+        }
+        .sidebar a.list-group-item-action.active i { color: #fff; }
+    </style>
+
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -68,8 +99,13 @@
 
                     <!-- 管理セクション -->
                     {% if user.menu_permission.can_view_mypage or user.menu_permission.can_view_upload or user.menu_permission.can_view_register %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">管理</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-user-cog"></i> 管理</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         {% if user.menu_permission.can_view_mypage %}
                         <a href="{% url 'mypage' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-user"></i> マイページ
@@ -85,13 +121,20 @@
                             <i class="fas fa-user-plus"></i> 新規ユーザー登録
                         </a>
                         {% endif %}
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- データ管理セクション -->
                     {% if user.menu_permission.can_view_user_list or user.menu_permission.can_view_location_list or user.menu_permission.can_view_product_list or user.menu_permission.can_view_item_quantity or user.menu_permission.can_view_others_item or user.menu_permission.can_view_direct_return_attendance %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">データ管理</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-database"></i> データ管理</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         {% if user.menu_permission.can_view_user_list %}
                         <a href="{% url 'user_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-edit"></i> ユーザー管理
@@ -122,13 +165,20 @@
                             <i class="fas fa-calendar-check"></i> 直行直帰出勤記録
                         </a>
                         {% endif %}
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- 実績管理セクション（管理者用） -->
                     {% if user.menu_permission.can_view_dashboard or user.menu_permission.can_view_daily_report_list or user.menu_permission.can_view_performance_data or user.menu_permission.can_view_performance_by_location or user.menu_permission.can_view_menu_history %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">実績管理</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-chart-line"></i> 実績管理</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         {% if user.menu_permission.can_view_dashboard %}
                         <a href="{% url 'sales_dashboard' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-chart-bar"></i> 売上ダッシュボード
@@ -151,19 +201,32 @@
                         <a href="{% url 'performance_by_location' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> 販売場所別実績集計データ（管理者用）
                         </a>
+                        <a href="{% url 'location_ranking' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-trophy"></i> 販売場所別売れ行きランキング
+                        </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_menu_history %}
                         <a href="{% url 'menu_history' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> メニュー別販売履歴
                         </a>
+                        <a href="{% url 'menu_ranking' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-trophy"></i> メニュー売れ行きランキング
+                        </a>
                         {% endif %}
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- 勤怠セクション -->
                     {% if user.attendance_staff.is_active or user.menu_permission.can_view_attendance %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">勤怠</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-clock"></i> 勤怠</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         {% if user.attendance_staff.is_active %}
                         <a href="{% url 'attendance:mypage' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-user-clock"></i> 勤怠マイページ
@@ -174,23 +237,37 @@
                             <i class="fas fa-clock"></i> 勤怠アプリ
                         </a>
                         {% endif %}
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     {% if user.menu_permission.can_view_stamp %}
                     {# 公式LINEセクション（スタンプ・友だち管理）。既定は非表示・権限で解禁 #}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">公式LINE</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fab fa-line"></i> 公式LINE</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         <a href="{% url 'stamps:manage_dashboard' %}" class="list-group-item list-group-item-action">
                             <i class="fab fa-line"></i> スタンプ・友だち管理
                         </a>
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- 一般ユーザー向けデータセクション -->
                     {% if user.menu_permission.can_view_daily_report_rol or user.menu_permission.can_view_performance_by_location_rol %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">データ</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-folder-open"></i> データ</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         {% if user.menu_permission.can_view_daily_report_rol %}
                         <a href="{% url 'daily_report_detail_rol' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                             <span><i class="fas fa-list"></i> 日計表 送信結果（一般用）</span>
@@ -204,46 +281,76 @@
                             <i class="fas fa-list"></i> 販売場所別実績データ（一般用）
                         </a>
                         {% endif %}
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- 日計表セクション -->
                     {% if user.menu_permission.can_view_daily_report_form %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">日計表リンク</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-file-alt"></i> 日計表リンク</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         <a href="{% url 'daily_report' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-alt"></i> 日計表入力フォーム
                         </a>
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- 受注管理セクション -->
                     {% if user.menu_permission.can_view_orders %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">受注管理</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-shopping-cart"></i> 受注管理</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         <a href="{% url 'orders:regular_dashboard' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-shopping-cart"></i> 受注管理
                         </a>
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- シフトセクション -->
                     {% if user.menu_permission.can_view_shift_app %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">シフトリンク</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-calendar-alt"></i> シフトリンク</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         <a href="{% url 'shifts:submit_availability' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-alt"></i> シフトアプリ
                         </a>
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
 
                     <!-- ランチクエストセクション -->
                     {% if user.menu_permission.can_view_quest %}
-                    <li class="list-group-item">
-                        <h6 class="text-uppercase">ランチクエスト</h6>
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-dragon"></i> ランチクエスト</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
                         <a href="{% url 'quest:dashboard' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-dragon"></i> ランチクエスト
                         </a>
+                            </div>
+                        </details>
                     </li>
                     {% endif %}
                 </ul>
@@ -336,6 +443,47 @@
         }
         setupToggle('shift-toggle', 'shift-submenu');
         setupToggle('shift-hope-toggle', 'shift-hope-submenu');
+
+        // サイドバー: 項目数に応じて表示を自動切替（現在地ハイライトは共通）
+        (function () {
+            var sidebar = document.querySelector('.sidebar');
+            if (!sidebar) return;
+            var sections = sidebar.querySelectorAll('details.sidebar-section');
+            var links = sidebar.querySelectorAll('a.list-group-item-action');
+
+            // リンク総数がこれ以上ある人（≒管理者）だけ折りたたみ表示にする
+            // （従業員は多くても数本、管理者は20本超なので確実に分離できる）
+            var COLLAPSE_THRESHOLD = 10;
+            var collapseMode = links.length >= COLLAPSE_THRESHOLD;
+
+            // 現在ページのリンクをハイライトし、対象セクションを特定
+            var path = window.location.pathname;
+            var matched = null, matchedLen = -1;
+            links.forEach(function (a) {
+                var href = a.getAttribute('href') || '';
+                if (!href || href === '#') return;
+                // 完全一致、または「/xxx/」で始まる（詳細ページでも親リンクに当てる）
+                var isMatch = (path === href) || (href.length > 1 && path.indexOf(href) === 0);
+                if (isMatch && href.length > matchedLen) { matched = a; matchedLen = href.length; }
+            });
+            var activeSection = null;
+            if (matched) {
+                matched.classList.add('active');
+                activeSection = matched.closest('details.sidebar-section');
+            }
+
+            if (collapseMode) {
+                // 項目が多い人：現在地のセクションだけ開き、他は畳む
+                sections.forEach(function (d) { d.open = (d === activeSection); });
+            } else {
+                // 項目が少ない人（従業員）：従来どおり全部開いた静的表示・開閉させない
+                sidebar.classList.add('simple-mode');
+                sections.forEach(function (d) { d.open = true; });
+                sidebar.querySelectorAll('.sidebar-section-header').forEach(function (s) {
+                    s.addEventListener('click', function (e) { e.preventDefault(); });
+                });
+            }
+        })();
 
     </script>
 

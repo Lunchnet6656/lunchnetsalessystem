@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}販売場所別売れ行きランキング{% endblock %}
+
+{% block content %}
+
+{% load custom_filters %}
+{% load humanize %}
+
+<div class="container mt-4">
+    <h1 class="mb-1">販売場所別売れ行きランキング</h1>
+    <p class="text-muted">上位ほど「選んだ順」に強い/弱い販売場所。出店の見直し・場所ごとの仕込み調整の判断に使う。</p>
+    <hr class="my-3">
+
+    <!-- 絞り込みフォーム -->
+    <form method="get" class="mb-4">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label for="search_date_start" class="form-label">開始日</label>
+                <input type="date" id="search_date_start" name="search_date_start" value="{{ search_date_start }}" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label for="search_date_end" class="form-label">終了日</label>
+                <input type="date" id="search_date_end" name="search_date_end" value="{{ search_date_end }}" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label for="search_type" class="form-label">販売形式</label>
+                <select id="search_type" name="search_type" class="form-select">
+                    <option value="">すべて</option>
+                    {% for type in type_choices %}
+                    <option value="{{ type }}" {% if type == search_type %}selected{% endif %}>{{ type }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="sort" class="form-label">並べ替え</label>
+                <select id="sort" name="sort" class="form-select">
+                    <optgroup label="⚠️ 不振ワースト">
+                        <option value="waste_desc" {% if sort == 'waste_desc' %}selected{% endif %}>廃棄率が高い順（売れ残りワースト）</option>
+                        <option value="avg_asc" {% if sort == 'avg_asc' %}selected{% endif %}>1日平均販売数が少ない順</option>
+                        <option value="sales_asc" {% if sort == 'sales_asc' %}selected{% endif %}>総販売数が少ない順</option>
+                    </optgroup>
+                    <optgroup label="🔥 好調ベスト">
+                        <option value="waste_asc" {% if sort == 'waste_asc' %}selected{% endif %}>廃棄率が低い順（優等生）</option>
+                        <option value="avg_desc" {% if sort == 'avg_desc' %}selected{% endif %}>1日平均販売数が多い順</option>
+                        <option value="sales_desc" {% if sort == 'sales_desc' %}selected{% endif %}>総販売数が多い順</option>
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+        <div class="row g-2 align-items-end mt-1">
+            <div class="col-md-3">
+                <label for="min_days" class="form-label">最低稼働日数（足切り）</label>
+                <input type="number" id="min_days" name="min_days" value="{{ min_days }}" min="0" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">絞り込む</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'location_ranking' %}" class="btn btn-outline-secondary w-100">クリア</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- 表示中モード（ベスト／ワースト）を明示 -->
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+        {% if ranking_mode == 'good' %}
+        <span class="badge bg-success fs-6 px-3 py-2">🔥 好調ベスト順に表示中</span>
+        {% else %}
+        <span class="badge bg-danger fs-6 px-3 py-2">⚠️ 不振ワースト順に表示中</span>
+        {% endif %}
+        <span class="text-muted small">
+            上から順に{% if ranking_mode == 'good' %}よく売れている販売場所{% else %}売れ残っている・不振な販売場所{% endif %}。
+            対象 {{ menu_count }} 件（{{ min_days }}日以上稼働・持参数1以上のみ）{% if search_type %}／販売形式「{{ search_type }}」で絞り込み中{% endif %}
+        </span>
+    </div>
+
+    <!-- ランキングテーブル -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle">
+            <thead class="table-active">
+                <tr>
+                    <th>順位</th>
+                    <th>販売場所</th>
+                    <th class="text-end">総持参数</th>
+                    <th class="text-end">総販売数</th>
+                    <th class="text-end">1日平均</th>
+                    <th class="text-end">廃棄率</th>
+                    <th class="text-end">完売回数</th>
+                    <th class="text-end">不人気</th>
+                    <th class="text-end">総売上</th>
+                    <th class="text-end">稼働日数</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in ranking %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ entry.report__location }}</td>
+                    <td class="text-end">{{ entry.total_quantity|intcomma }}</td>
+                    <td class="text-end">{{ entry.total_sales_quantity|intcomma }}</td>
+                    <td class="text-end">{{ entry.avg_sales_per_day|floatformat:1 }}</td>
+                    <td class="text-end {% if entry.waste_rate >= 30 %}text-danger fw-bold{% elif entry.waste_rate >= 15 %}text-warning fw-bold{% endif %}">
+                        {{ entry.waste_rate|floatformat:1 }}%
+                    </td>
+                    <td class="text-end">{{ entry.sold_out_count }}</td>
+                    <td class="text-end">{{ entry.unpopular_count }}</td>
+                    <td class="text-end">¥{{ entry.total_sales|intcomma }}</td>
+                    <td class="text-end">{{ entry.day_count }}日</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center">該当する販売場所がありません（足切り日数を下げてみてください）</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small">
+        ※ 廃棄率：<span class="text-danger">30%以上=赤</span> / <span class="text-warning">15%以上=黄</span>。廃棄率＝総残数÷総持参数。
+    </p>
+</div>
+
+{% endblock %}

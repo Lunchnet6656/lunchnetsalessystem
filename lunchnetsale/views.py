@@ -988,36 +988,66 @@ def submission_complete_view(request):
 def daily_report_list(request):
     search_date_start = request.GET.get('search_date_start', '')
     search_date_end = request.GET.get('search_date_end', '')
+    search_location = request.GET.get('search_location', '')
+    search_person = request.GET.get('search_person', '')
+
+    daily_reports = DailyReport.objects.all()
 
     if search_date_start and search_date_end:
         # 範囲指定でフィルタリング
-        daily_reports = DailyReport.objects.filter(date__range=[search_date_start, search_date_end])
-    else:
-        daily_reports = DailyReport.objects.all()
+        daily_reports = daily_reports.filter(date__range=[search_date_start, search_date_end])
+    if search_location:
+        daily_reports = daily_reports.filter(location=search_location)
+    if search_person:
+        daily_reports = daily_reports.filter(person_in_charge=search_person)
 
-    # 日付ごとにレポートを集約
-    aggregated_reports = (
-        daily_reports
-        .values('date')  # 日付ごとにグループ化
-        .annotate(
-            count=Count('id'),  # 各グループの件数
-            latest_update=Max('updated_at')  # 最新の更新日時
+    # 販売場所・担当者で絞り込むと日付ごとの件数集約は意味が薄くなるので、
+    # 絞り込み時は明細行（1レポート＝1行）で表示する
+    is_filtered = bool(search_location or search_person)
+
+    if is_filtered:
+        filtered_reports = daily_reports.order_by('-date', 'location_no')
+        aggregated_reports = None
+    else:
+        filtered_reports = None
+        # 日付ごとにレポートを集約
+        aggregated_reports = (
+            daily_reports
+            .values('date')  # 日付ごとにグループ化
+            .annotate(
+                count=Count('id'),  # 各グループの件数
+                latest_update=Max('updated_at')  # 最新の更新日時
+            )
+            .order_by('-date')
         )
-        .order_by('-date')
-    )
 
     # 送信されたデータを取得
     submitted_locations = daily_reports.values_list('location', flat=True).distinct()
-    all_locations = SalesLocation.objects.all()
+    all_locations = SalesLocation.objects.all().order_by('no')
 
     # 送信されていない場所を特定
     not_submitted_locations = [location.name for location in all_locations if location.name not in submitted_locations]
 
+    # 絞り込み用の担当者リスト（登録済みの担当者名を重複なしで取得）
+    person_choices = (
+        DailyReport.objects
+        .exclude(person_in_charge__isnull=True)
+        .exclude(person_in_charge='')
+        .values_list('person_in_charge', flat=True)
+        .distinct()
+        .order_by('person_in_charge')
+    )
 
     context = {
         'aggregated_reports': aggregated_reports,
+        'filtered_reports': filtered_reports,
+        'is_filtered': is_filtered,
         'search_date_start': search_date_start,
         'search_date_end': search_date_end,
+        'search_location': search_location,
+        'search_person': search_person,
+        'location_choices': all_locations,
+        'person_choices': person_choices,
         'not_submitted_locations': not_submitted_locations,
         'submitted_count': len(submitted_locations),
         'total_locations': all_locations.count(),
@@ -2274,16 +2304,22 @@ def download_csv_allreport(request):
     # ヘッダーを書き込む
     writer.writerow(header)
 
-    # 日付範囲で絞り込み
+    # 日付範囲・販売場所・担当者で絞り込み（一覧画面と同じ条件でCSV出力）
     search_date_start = request.GET.get('search_date_start')
     search_date_end = request.GET.get('search_date_end')
+    search_location = request.GET.get('search_location')
+    search_person = request.GET.get('search_person')
+
+    reports = DailyReport.objects.all()
 
     if search_date_start and search_date_end:
         start_date = datetime.strptime(search_date_start, '%Y-%m-%d')
         end_date = datetime.strptime(search_date_end, '%Y-%m-%d')
-        reports = DailyReport.objects.filter(date__range=(start_date, end_date))
-    else:
-        reports = DailyReport.objects.all()
+        reports = reports.filter(date__range=(start_date, end_date))
+    if search_location:
+        reports = reports.filter(location=search_location)
+    if search_person:
+        reports = reports.filter(person_in_charge=search_person)
 
     # レコードを書き込み（文字列をShift-JISでエンコード）
     for report in reports:
@@ -2422,33 +2458,277 @@ def location_performance_view(request, location_id, search_year, search_month):
 
 @login_required
 def menu_history_view(request):
-    if request.method == "POST":
-        menu_name = request.POST.get('menu_name', '').strip()  # メニュー名を取得し、前後の空白を削除
+    # 絞り込み条件（GETで受け取り、URL共有・戻る操作に対応）
+    menu_name = request.GET.get('menu_name', '').strip()
+    search_date_start = request.GET.get('search_date_start', '')
+    search_date_end = request.GET.get('search_date_end', '')
+    search_location = request.GET.get('search_location', '')
+    sort = request.GET.get('sort', 'date_desc')
 
-        if menu_name:  # メニュー名が空でない場合
-            # メニュー名でフィルタリング
-            daily_reports = DailyReportEntry.objects.filter(product__icontains=menu_name).select_related('report')
+    # 絞り込み用の選択肢
+    menu_choices = (
+        DailyReportEntry.objects
+        .exclude(product__isnull=True)
+        .exclude(product='')
+        .values_list('product', flat=True)
+        .distinct()
+        .order_by('product')
+    )
+    location_choices = SalesLocation.objects.all().order_by('no')
 
-            # 日付ごとに集計
-            summary_data = daily_reports.values('report__date', 'product').annotate(
-                total_quantity=Sum('quantity'),
-                total_sales_quantity=Sum('sales_quantity'),
-                total_remaining=Sum('remaining_number'),
-            ).order_by('report__date')
+    summary_data = []
+    period_summary = None
 
-            # 廃棄率を計算
-            for entry in summary_data:
-                if entry['total_quantity'] > 0:  # 0で割るのを避ける
-                    entry['waste_rate'] = (entry['total_remaining'] / entry['total_quantity']) * 100
-                else:
-                    entry['waste_rate'] = 0  # 持参数が0の場合は廃棄率も0
+    if menu_name:
+        entries = DailyReportEntry.objects.filter(product=menu_name).select_related('report')
+        if search_date_start and search_date_end:
+            entries = entries.filter(report__date__range=[search_date_start, search_date_end])
+        if search_location:
+            entries = entries.filter(report__location=search_location)
 
-            return render(request, 'menu_history_template.html', {'summary_data': summary_data, 'menu_name': menu_name})
-        else:
-            # メニュー名がブランクの場合は何も表示しない
-            return render(request, 'menu_history_template.html', {'summary_data': [], 'menu_name': ''})
+        # 日付ごとに集計（複数拠点分は合算）
+        grouped = entries.values('report__date', 'product').annotate(
+            total_quantity=Sum('quantity'),
+            total_sales_quantity=Sum('sales_quantity'),
+            total_remaining=Sum('remaining_number'),
+            total_sales=Sum('total_sales'),
+            sold_out_count=Count('id', filter=Q(sold_out=True)),
+            popular_count=Count('id', filter=Q(popular=True)),
+            unpopular_count=Count('id', filter=Q(unpopular=True)),
+        )
 
-    return render(request, 'menu_history_template.html')
+        summary_data = list(grouped)
+        for entry in summary_data:
+            q = entry['total_quantity'] or 0
+            r = entry['total_remaining'] or 0
+            entry['waste_rate'] = (r / q * 100) if q > 0 else 0
+
+        # 並べ替え
+        if sort == 'date_asc':
+            summary_data.sort(key=lambda e: e['report__date'])
+        elif sort == 'waste_desc':
+            summary_data.sort(key=lambda e: e['waste_rate'], reverse=True)
+        elif sort == 'sales_desc':
+            summary_data.sort(key=lambda e: e['total_sales_quantity'] or 0, reverse=True)
+        else:  # date_desc（既定）
+            summary_data.sort(key=lambda e: e['report__date'], reverse=True)
+
+        # 期間サマリー（仕込み判断用の集計）
+        agg = entries.aggregate(
+            total_quantity=Sum('quantity'),
+            total_sales_quantity=Sum('sales_quantity'),
+            total_remaining=Sum('remaining_number'),
+            total_sales=Sum('total_sales'),
+            sold_out_count=Count('id', filter=Q(sold_out=True)),
+        )
+        day_count = entries.values('report__date').distinct().count()
+        tq = agg['total_quantity'] or 0
+        tr = agg['total_remaining'] or 0
+        tsq = agg['total_sales_quantity'] or 0
+        period_summary = {
+            'total_quantity': tq,
+            'total_sales_quantity': tsq,
+            'total_remaining': tr,
+            'total_sales': agg['total_sales'] or 0,
+            'sold_out_count': agg['sold_out_count'] or 0,
+            'waste_rate': (tr / tq * 100) if tq > 0 else 0,
+            'day_count': day_count,
+            # 1日あたり平均販売数＝仕込み目安
+            'avg_sales_per_day': (tsq / day_count) if day_count > 0 else 0,
+        }
+
+    context = {
+        'summary_data': summary_data,
+        'period_summary': period_summary,
+        'menu_name': menu_name,
+        'menu_choices': menu_choices,
+        'location_choices': location_choices,
+        'search_date_start': search_date_start,
+        'search_date_end': search_date_end,
+        'search_location': search_location,
+        'sort': sort,
+    }
+    return render(request, 'menu_history_template.html', context)
+
+
+@login_required
+def menu_ranking_view(request):
+    """全メニュー横断で売れ行きをランキング表示（売れ残り・不振メニューの炙り出し用）"""
+    # 絞り込み条件
+    search_date_start = request.GET.get('search_date_start', '')
+    search_date_end = request.GET.get('search_date_end', '')
+    search_location = request.GET.get('search_location', '')
+    sort = request.GET.get('sort', 'waste_desc')
+
+    # 足切り日数（たまにしか出さない商品がノイズで上位に来ないように）
+    try:
+        min_days = int(request.GET.get('min_days', 3))
+    except (TypeError, ValueError):
+        min_days = 3
+
+    location_choices = SalesLocation.objects.all().order_by('no')
+
+    entries = (
+        DailyReportEntry.objects
+        .exclude(product__isnull=True)
+        .exclude(product='')
+        .select_related('report')
+    )
+    if search_date_start and search_date_end:
+        entries = entries.filter(report__date__range=[search_date_start, search_date_end])
+    if search_location:
+        entries = entries.filter(report__location=search_location)
+
+    # メニュー単位で期間集計
+    grouped = entries.values('product').annotate(
+        total_quantity=Sum('quantity'),
+        total_sales_quantity=Sum('sales_quantity'),
+        total_remaining=Sum('remaining_number'),
+        total_sales=Sum('total_sales'),
+        sold_out_count=Count('id', filter=Q(sold_out=True)),
+        popular_count=Count('id', filter=Q(popular=True)),
+        unpopular_count=Count('id', filter=Q(unpopular=True)),
+        day_count=Count('report__date', distinct=True),
+    )
+
+    ranking = []
+    for row in grouped:
+        q = row['total_quantity'] or 0
+        r = row['total_remaining'] or 0
+        s = row['total_sales_quantity'] or 0
+        d = row['day_count'] or 0
+        # 足切り＆持参ゼロ（=実質未提供）を除外
+        if d < min_days or q <= 0:
+            continue
+        row['waste_rate'] = (r / q * 100) if q > 0 else 0          # 廃棄率（売れ残り率）
+        row['avg_sales_per_day'] = (s / d) if d > 0 else 0        # 1日平均販売数
+        ranking.append(row)
+
+    # 並べ替え（既定＝売れ残りワースト）
+    if sort == 'sales_asc':
+        ranking.sort(key=lambda e: e['total_sales_quantity'] or 0)
+    elif sort == 'sales_desc':
+        ranking.sort(key=lambda e: e['total_sales_quantity'] or 0, reverse=True)
+    elif sort == 'avg_asc':
+        ranking.sort(key=lambda e: e['avg_sales_per_day'])
+    elif sort == 'avg_desc':
+        ranking.sort(key=lambda e: e['avg_sales_per_day'], reverse=True)
+    elif sort == 'waste_asc':
+        ranking.sort(key=lambda e: e['waste_rate'])
+    else:  # waste_desc（既定）
+        ranking.sort(key=lambda e: e['waste_rate'], reverse=True)
+
+    # 表示中が「売れ筋ベスト（good）」か「売れ残りワースト（bad）」か
+    good_sorts = {'waste_asc', 'avg_desc', 'sales_desc'}
+    ranking_mode = 'good' if sort in good_sorts else 'bad'
+
+    context = {
+        'ranking': ranking,
+        'menu_count': len(ranking),
+        'location_choices': location_choices,
+        'search_date_start': search_date_start,
+        'search_date_end': search_date_end,
+        'search_location': search_location,
+        'sort': sort,
+        'ranking_mode': ranking_mode,
+        'min_days': min_days,
+    }
+    return render(request, 'menu_ranking_template.html', context)
+
+
+@login_required
+def location_ranking_view(request):
+    """販売場所を横断で売れ行きランキング表示（好調／不振の販売場所を炙り出す）"""
+    # 絞り込み条件
+    search_date_start = request.GET.get('search_date_start', '')
+    search_date_end = request.GET.get('search_date_end', '')
+    search_type = request.GET.get('search_type', '')
+    sort = request.GET.get('sort', 'waste_desc')
+
+    # 足切り日数（稼働の少ない場所がノイズで上位に来ないように）
+    try:
+        min_days = int(request.GET.get('min_days', 3))
+    except (TypeError, ValueError):
+        min_days = 3
+
+    # 販売形式（SalesLocation.type）絞り込み用の選択肢
+    type_choices = (
+        SalesLocation.objects
+        .exclude(type__isnull=True)
+        .exclude(type='')
+        .values_list('type', flat=True)
+        .distinct()
+        .order_by('type')
+    )
+
+    entries = (
+        DailyReportEntry.objects
+        .exclude(report__location__isnull=True)
+        .exclude(report__location='')
+        .select_related('report')
+    )
+    if search_date_start and search_date_end:
+        entries = entries.filter(report__date__range=[search_date_start, search_date_end])
+    if search_type:
+        # 販売形式→対象の販売場所名に展開して絞り込み（type と location は名前で紐づく）
+        type_location_names = SalesLocation.objects.filter(type=search_type).values_list('name', flat=True)
+        entries = entries.filter(report__location__in=list(type_location_names))
+
+    # 販売場所単位で期間集計
+    grouped = entries.values('report__location').annotate(
+        total_quantity=Sum('quantity'),
+        total_sales_quantity=Sum('sales_quantity'),
+        total_remaining=Sum('remaining_number'),
+        total_sales=Sum('total_sales'),
+        sold_out_count=Count('id', filter=Q(sold_out=True)),
+        popular_count=Count('id', filter=Q(popular=True)),
+        unpopular_count=Count('id', filter=Q(unpopular=True)),
+        day_count=Count('report__date', distinct=True),
+    )
+
+    ranking = []
+    for row in grouped:
+        q = row['total_quantity'] or 0
+        r = row['total_remaining'] or 0
+        s = row['total_sales_quantity'] or 0
+        d = row['day_count'] or 0
+        # 足切り＆持参ゼロ（=実質未稼働）を除外
+        if d < min_days or q <= 0:
+            continue
+        row['waste_rate'] = (r / q * 100) if q > 0 else 0          # 廃棄率（売れ残り率）
+        row['avg_sales_per_day'] = (s / d) if d > 0 else 0        # 1日平均販売数
+        ranking.append(row)
+
+    # 並べ替え（既定＝売れ残りワースト）
+    if sort == 'sales_asc':
+        ranking.sort(key=lambda e: e['total_sales_quantity'] or 0)
+    elif sort == 'sales_desc':
+        ranking.sort(key=lambda e: e['total_sales_quantity'] or 0, reverse=True)
+    elif sort == 'avg_asc':
+        ranking.sort(key=lambda e: e['avg_sales_per_day'])
+    elif sort == 'avg_desc':
+        ranking.sort(key=lambda e: e['avg_sales_per_day'], reverse=True)
+    elif sort == 'waste_asc':
+        ranking.sort(key=lambda e: e['waste_rate'])
+    else:  # waste_desc（既定）
+        ranking.sort(key=lambda e: e['waste_rate'], reverse=True)
+
+    # 表示中が「好調ベスト（good）」か「不振ワースト（bad）」か
+    good_sorts = {'waste_asc', 'avg_desc', 'sales_desc'}
+    ranking_mode = 'good' if sort in good_sorts else 'bad'
+
+    context = {
+        'ranking': ranking,
+        'menu_count': len(ranking),
+        'type_choices': type_choices,
+        'search_date_start': search_date_start,
+        'search_date_end': search_date_end,
+        'search_type': search_type,
+        'sort': sort,
+        'ranking_mode': ranking_mode,
+        'min_days': min_days,
+    }
+    return render(request, 'location_ranking_template.html', context)
 
 @login_required
 def performance_by_location_calender_view(request, location_id, search_year, search_month):
