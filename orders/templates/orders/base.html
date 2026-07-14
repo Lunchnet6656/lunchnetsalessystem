@@ -9,12 +9,16 @@
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <link rel="apple-touch-icon" href="{% static 'images/icon-192.png' %}">
     <meta name="theme-color" content="#212529">
+    <style>
+        /* ordersアプリ全ページ共通のコンテンツ幅（統一） */
+        .orders-container { max-width: 96rem; width: 100%; }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen {% block body_class %}{% endblock %}">
     <!-- ナビゲーション -->
     <nav class="bg-gray-800 text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+        <div class="orders-container mx-auto px-4 py-3 flex items-center justify-between gap-2">
             <div class="flex items-center space-x-2 sm:space-x-4 min-w-0">
                 <a href="{% url 'dashboard' %}" class="text-sm text-gray-300 hover:text-white transition whitespace-nowrap shrink-0">
                     &larr; メインへ戻る
@@ -29,7 +33,7 @@
         </div>
         <!-- サブナビ -->
         <div class="bg-gray-700">
-            <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-1 text-sm">
+            <div class="orders-container mx-auto px-4 py-2 flex flex-wrap gap-1 text-sm">
                 {% with perm=user.order_menu_permission %}
                 {% if not perm or perm.can_view_dashboard %}
                 <a href="{% url 'orders:regular_dashboard' %}"
@@ -74,7 +78,7 @@
 
     <!-- メッセージ -->
     {% if messages %}
-    <div class="max-w-7xl mx-auto px-4 mt-4">
+    <div class="orders-container mx-auto px-4 mt-4">
         {% for message in messages %}
         <div class="mb-2 p-3 rounded text-sm
             {% if message.tags == 'error' %}bg-red-100 text-red-700 border border-red-300
@@ -87,7 +91,7 @@
     {% endif %}
 
     <!-- メインコンテンツ -->
-    <main class="max-w-7xl mx-auto px-4 py-6">
+    <main class="orders-container mx-auto px-4 py-6">
         {% block content %}{% endblock %}
     </main>
 

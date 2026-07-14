@@ -75,8 +75,10 @@
     .slip {
         background: #fff;
         width: {% if is_catering %}210mm{% else %}148mm{% endif %};
-        height: {% if is_catering %}297mm{% else %}210mm{% endif %};
-        overflow: hidden;
+        /* 画面プレビューでは1ページ分を最低の高さとして確保しつつ、
+           内容が多い時は切れずに全体が見えるよう伸びる（印刷は @media print で実寸ページ管理） */
+        min-height: {% if is_catering %}297mm{% else %}210mm{% endif %};
+        overflow: visible;
         padding: 12mm 12mm 10mm;
         box-shadow: 0 2px 12px rgba(0,0,0,0.15);
     }
@@ -146,7 +148,8 @@
         text-align: left;
         padding-left: 3mm;
         white-space: nowrap;
-        font-size: 8pt;
+        font-size: 11pt;
+        font-weight: bold;
     }
 
     table.items td.price,
@@ -262,6 +265,7 @@
             box-shadow: none;
             width: 100%;
             height: auto;
+            min-height: 0; /* 画面用の min-height を印刷では無効化（従来の1ページ収まりを維持） */
             overflow: visible;
             padding: 0; /* @page margin が余白を管理 */
         }
@@ -314,7 +318,7 @@
     table.items th,
     table.items td { padding: 3mm 4mm; font-size: 10pt; }
     table.items th { font-size: 10pt; }
-    table.items td.name { font-size: 10pt; }
+    table.items td.name { font-size: 12pt; font-weight: bold; }
     table.tax { margin-top: 8mm; }
     table.tax th,
     table.tax td { padding: 4mm 8mm; }

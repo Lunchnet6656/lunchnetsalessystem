@@ -657,27 +657,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 '<input type="hidden" name="extra_items-' + idx + '-subtotal" value="' + subtotal + '">' +
                 '<input type="hidden" name="extra_items-' + idx + '-DELETE" value="">' +
             '</td>' +
-            '<td class="px-2 py-1.5 border-b border-gray-100">' +
-                '<div class="flex gap-1 items-center">' +
-                    '<select class="extra-product-select text-sm border border-gray-200 rounded px-1 py-0.5 bg-white max-w-xs">' +
+            '<td class="px-3 py-3 border-b border-gray-100">' +
+                '<div class="flex gap-2 items-center">' +
+                    '<select class="extra-product-select text-base border border-gray-300 rounded px-2 py-2 bg-white max-w-xs">' +
                         optionsHtml +
                     '</select>' +
                     '<input type="text" name="extra_items-' + idx + '-product_name" value="' + escapeHtml(name) + '" ' +
-                           'class="flex-1 outline-none text-sm border-b border-gray-200 px-1 min-w-0" placeholder="または直接入力">' +
+                           'class="flex-1 outline-none text-base border-b border-gray-300 px-2 py-2 min-w-0" placeholder="または直接入力">' +
                 '</div>' +
             '</td>' +
-            '<td class="px-2 py-1.5 border-b border-gray-100 text-center">' +
+            '<td class="px-3 py-3 border-b border-gray-100 text-center">' +
                 '<input type="number" name="extra_items-' + idx + '-unit_price" value="' + price + '" min="0" ' +
-                       'class="w-full text-center outline-none text-sm border-b border-gray-200">' +
+                       'class="w-full text-center outline-none text-base border-b border-gray-300 py-2">' +
             '</td>' +
-            '<td class="px-2 py-1.5 border-b border-gray-100 text-center">' +
+            '<td class="px-3 py-3 border-b border-gray-100 text-center">' +
                 '<input type="number" name="extra_items-' + idx + '-quantity" value="' + qty + '" min="1" ' +
-                       'class="w-full text-center outline-none text-sm border-b border-gray-200">' +
+                       'class="w-full text-center outline-none text-base border-b border-gray-300 py-2">' +
             '</td>' +
-            '<td class="px-2 py-1.5 border-b border-gray-100 text-right font-medium text-sm">' +
+            '<td class="px-3 py-3 border-b border-gray-100 text-right font-medium text-base">' +
                 '<span class="extra-subtotal-display">\u00a5' + subtotal.toLocaleString() + '</span>' +
             '</td>' +
-            '<td class="px-2 py-1.5 border-b border-gray-100 text-center">' +
+            '<td class="px-3 py-3 border-b border-gray-100 text-center">' +
                 '<button type="button" class="extra-delete-row text-red-400 hover:text-red-600 text-xl leading-none">&times;</button>' +
             '</td>';
 

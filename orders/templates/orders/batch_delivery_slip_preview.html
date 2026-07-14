@@ -76,7 +76,8 @@
 
     .slip {
         background: #fff;
-        overflow: hidden;
+        /* 画面プレビューは内容が多くても切れず全体表示（印刷は @media print で実寸管理） */
+        overflow: visible;
         padding: 12mm 12mm 10mm;
         box-shadow: 0 2px 12px rgba(0,0,0,0.15);
         box-sizing: border-box;
@@ -146,7 +147,8 @@
         text-align: left;
         padding-left: 3mm;
         white-space: nowrap;
-        font-size: 8pt;
+        font-size: 11pt;
+        font-weight: bold;
     }
 
     table.items td.price,
@@ -246,7 +248,7 @@
     .slip-catering table.items th,
     .slip-catering table.items td { padding: 3mm 4mm; font-size: 10pt; }
     .slip-catering table.items th { font-size: 10pt; }
-    .slip-catering table.items td.name { font-size: 10pt; }
+    .slip-catering table.items td.name { font-size: 12pt; font-weight: bold; }
     .slip-catering table.tax { margin-top: 8mm; }
     .slip-catering table.tax th,
     .slip-catering table.tax td { padding: 4mm 8mm; }
@@ -281,6 +283,7 @@
             box-shadow: none;
             width: 100% !important;
             height: auto !important;
+            min-height: 0 !important; /* 画面用の min-height を印刷では無効化 */
             overflow: visible;
             padding: 0;
             page-break-after: always;
@@ -337,7 +340,7 @@
 <div class="slip-wrapper">
 {% for ctx in orders_contexts %}
 <div class="slip {% if ctx.is_catering %}slip-catering{% endif %}"
-     style="width:{% if ctx.is_catering %}210mm{% else %}148mm{% endif %}; height:{% if ctx.is_catering %}297mm{% else %}210mm{% endif %};">
+     style="width:{% if ctx.is_catering %}210mm{% else %}148mm{% endif %}; min-height:{% if ctx.is_catering %}297mm{% else %}210mm{% endif %};">
 
 <div class="date">{{ ctx.delivery_date }}</div>
 <div class="title">納　品　書</div>

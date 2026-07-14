@@ -4,7 +4,7 @@
 {% block nav_regular %}bg-gray-600 text-white{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
+<div class="orders-container mx-auto">
     <!-- ヘッダー -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800 mb-3 sm:mb-0">{{ order.order_number }}</h1>
@@ -23,6 +23,21 @@
                class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm text-center flex-1 sm:flex-none">編集</a>
             <a href="{% url 'orders:order_delete' order.pk %}"
                class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm text-center flex-1 sm:flex-none">削除</a>
+        </div>
+    </div>
+
+    <!-- 次のアクション導線（登録完了後に続けて入力できるように） -->
+    <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p class="text-sm text-green-800 font-medium">続けて受注を入力できます（納品日 {{ order.delivery_date|date:'n月j日' }} を引き継ぎます）</p>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'orders:order_create' %}?delivery_date={{ order.delivery_date|date:'Y-m-d' }}"
+               class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition font-bold text-sm text-center flex items-center justify-center gap-1">
+                ＋ 続けて新規受注
+            </a>
+            <a href="{% url 'orders:regular_dashboard' %}?date={{ order.delivery_date|date:'Y-m-d' }}"
+               class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm text-center">
+                受注ダッシュボードへ
+            </a>
         </div>
     </div>
 

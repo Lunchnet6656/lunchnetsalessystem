@@ -3,7 +3,7 @@
 {% block nav_new_order %}bg-gray-600 text-white{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto">
+<div class="orders-container mx-auto">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">
         {% if is_edit %}受注編集 - {{ order.order_number }}{% else %}新規受注{% endif %}
     </h1>
@@ -173,13 +173,13 @@
                     </button>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm" id="extra-items-table">
+                    <table class="w-full text-base" id="extra-items-table">
                         <thead>
                             <tr class="bg-teal-50">
-                                <th class="text-left px-3 py-2 border-b border-gray-200 font-semibold text-gray-600">商品名</th>
-                                <th class="text-center px-3 py-2 border-b border-gray-200 font-semibold text-gray-600 w-28">単価（円）</th>
-                                <th class="text-center px-3 py-2 border-b border-gray-200 font-semibold text-gray-600 w-20">数量</th>
-                                <th class="text-center px-3 py-2 border-b border-gray-200 font-semibold text-gray-600 w-28">小計</th>
+                                <th class="text-left px-3 py-3 border-b border-gray-200 font-semibold text-gray-600">商品名</th>
+                                <th class="text-center px-3 py-3 border-b border-gray-200 font-semibold text-gray-600 w-28">単価（円）</th>
+                                <th class="text-center px-3 py-3 border-b border-gray-200 font-semibold text-gray-600 w-24">数量</th>
+                                <th class="text-center px-3 py-3 border-b border-gray-200 font-semibold text-gray-600 w-28">小計</th>
                                 <th class="w-10 border-b border-gray-200"></th>
                             </tr>
                         </thead>

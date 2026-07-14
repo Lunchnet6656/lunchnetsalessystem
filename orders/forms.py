@@ -27,7 +27,7 @@ class CustomerForm(forms.ModelForm):
             'customer_type', 'company_name', 'department', 'contact_person', 'name',
             'postal_code', 'address', 'phone', 'fax', 'email',
             'price_type', 'custom_price_normal', 'custom_price_star', 'custom_price_large',
-            'payment_method', 'delivery_bin', 'bento_type', 'is_regular',
+            'payment_method', 'invoice_timing', 'delivery_bin', 'bento_type', 'is_regular',
             'regular_type',
             'schedule_mon', 'schedule_tue', 'schedule_wed', 'schedule_thu',
             'schedule_fri', 'schedule_sat', 'schedule_sun',
@@ -48,6 +48,14 @@ class CustomerForm(forms.ModelForm):
             self.add_error('company_name', '法人の場合、会社名は必須です。')
         if customer_type == 'INDIVIDUAL' and not cleaned.get('name'):
             self.add_error('name', '個人顧客の場合、顧客名は必須です。')
+
+        # 請求書のときは発行タイミング必須。請求書以外なら発行タイミングは無効化。
+        pm = cleaned.get('payment_method')
+        if pm and pm.name == '請求書':
+            if not cleaned.get('invoice_timing'):
+                self.add_error('invoice_timing', '請求書払いの場合、発行タイミングを選択してください。')
+        else:
+            cleaned['invoice_timing'] = ''
         return cleaned
 
 

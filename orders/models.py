@@ -48,6 +48,10 @@ class Customer(models.Model):
         ('REGULAR', '通常弁当'),
         ('CATERING', '仕出し弁当'),
     ]
+    INVOICE_TIMING_CHOICES = [
+        ('IMMEDIATE', '即時発行'),
+        ('MONTH_END', '月末締め発行'),
+    ]
 
     customer_type = models.CharField(
         max_length=10, choices=CUSTOMER_TYPE_CHOICES, default='B2B',
@@ -81,6 +85,10 @@ class Customer(models.Model):
     payment_method = models.ForeignKey(
         PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name="支払い方法"
+    )
+    invoice_timing = models.CharField(
+        max_length=10, choices=INVOICE_TIMING_CHOICES, blank=True, default='',
+        verbose_name="請求書発行タイミング"
     )
     delivery_bin = models.ForeignKey(
         'DeliveryBin', on_delete=models.SET_NULL, null=True, blank=True,

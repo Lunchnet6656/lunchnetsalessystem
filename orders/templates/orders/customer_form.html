@@ -3,7 +3,7 @@
 {% block nav_customers %}bg-gray-600 text-white{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
+<div class="orders-container mx-auto">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">
         {% if is_edit %}顧客編集{% else %}新規顧客登録{% endif %}
     </h1>
@@ -135,13 +135,26 @@
         <!-- 支払い方法 -->
         <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.payment_method.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>
-            <select name="payment_method"
+            <select name="payment_method" id="id_payment_method"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">---------</option>
                 {% for pm in form.payment_method.field.queryset %}
-                <option value="{{ pm.pk }}" {% if form.payment_method.value|stringformat:"s" == pm.pk|stringformat:"s" %}selected{% endif %}>{{ pm.name }}</option>
+                <option value="{{ pm.pk }}" data-name="{{ pm.name }}" {% if form.payment_method.value|stringformat:"s" == pm.pk|stringformat:"s" %}selected{% endif %}>{{ pm.name }}</option>
                 {% endfor %}
             </select>
+        </div>
+
+        <!-- 請求書の発行タイミング（支払い方法が「請求書」のときのみ表示） -->
+        <div id="invoice-timing-field" class="hidden">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">請求書の発行タイミング<span class="text-red-500 text-xs font-normal ml-1">※請求書のとき必須</span></label>
+            <select name="invoice_timing" id="id_invoice_timing"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">---------</option>
+                {% for value, label in form.fields.invoice_timing.choices %}
+                {% if value %}<option value="{{ value }}" {% if form.invoice_timing.value == value %}selected{% endif %}>{{ label }}</option>{% endif %}
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-400 mt-1">即時発行＝納品都度に請求書を発行 / 月末締め発行＝当月分をまとめて月末に発行</p>
         </div>
 
         <!-- 配達便 -->
@@ -288,6 +301,20 @@ document.addEventListener('DOMContentLoaded', function() {
         customPriceSection.classList.toggle('hidden', priceTypeSelect.value !== 'CUSTOM');
     }
     priceTypeSelect.addEventListener('change', toggleCustomPrice);
+
+    // 請求書のときだけ「発行タイミング」を表示
+    const paymentSelect = document.getElementById('id_payment_method');
+    const invoiceTimingField = document.getElementById('invoice-timing-field');
+    const invoiceTimingSelect = document.getElementById('id_invoice_timing');
+    function toggleInvoiceTiming() {
+        const opt = paymentSelect.options[paymentSelect.selectedIndex];
+        const isInvoice = opt && opt.getAttribute('data-name') === '請求書';
+        invoiceTimingField.classList.toggle('hidden', !isInvoice);
+        // 請求書以外に切り替えたら発行タイミングはクリア（不整合データ防止）
+        if (!isInvoice && invoiceTimingSelect) invoiceTimingSelect.value = '';
+    }
+    paymentSelect.addEventListener('change', toggleInvoiceTiming);
+    toggleInvoiceTiming();
 });
 </script>
 {% endblock %}

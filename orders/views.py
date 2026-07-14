@@ -597,6 +597,8 @@ def regular_order_dashboard(request):
         'menu_summary': menu_summary,
         'menu_totals': menu_totals,
         'today_display': today.strftime('%Y年%m月%d日'),
+        'target_date_display': target_date.strftime('%Y年%m月%d日'),
+        'is_today': target_date == today,
         'payment_method_totals': payment_method_totals,
         'weekday_label': weekday_label,
     }
@@ -942,7 +944,7 @@ def order_csv_export(request):
 
     headers1 = [
         'ORID', '日付', '顧客種別', '顧客名', '部署名', '配達便', 'お弁当種別',
-        '支払い方法', '価格タイプ',
+        '支払い方法', '発行タイミング', '価格タイプ',
         '★お弁当注文数', 'お弁当注文数', '大盛りご飯数', 'お弁当合計金額',
         '追加商品注文数', '追加商品合計金額', '総計金額',
     ]
@@ -957,6 +959,8 @@ def order_csv_export(request):
         customer_name = c.company_name if c.customer_type == 'B2B' else c.name
         delivery_bin  = c.delivery_bin.name if c.delivery_bin else ''
         payment_name  = c.payment_method.name if c.payment_method else ''
+        # 発行タイミングは請求書払いのときだけ意味を持つ
+        invoice_timing = c.get_invoice_timing_display() if payment_name == '請求書' else ''
 
         items = list(order.items.all())
         bento_qty_star   = sum(item.quantity for item in items if '★' in item.product_name)
@@ -976,6 +980,7 @@ def order_csv_export(request):
             delivery_bin,
             c.bento_type,
             payment_name,
+            invoice_timing,
             c.price_type,
             bento_qty_star,
             bento_qty_normal,
