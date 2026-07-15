@@ -503,51 +503,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 '<input type="hidden" name="items-' + idx + '-subtotal" value="' + subtotal + '">' +
                 '<input type="hidden" name="items-' + idx + '-DELETE" value="">' +
 
-                '<!-- Card header -->' +
-                '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;gap:4px;flex-wrap:wrap;">' +
-                    '<div style="display:flex;align-items:center;gap:8px;min-width:0;">' +
-                        '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#374151;color:#fff;font-size:0.8rem;font-weight:700;flex-shrink:0;">' + product.no + '</span>' +
-                        '<span style="font-weight:700;color:#1f2937;font-size:1rem;overflow-wrap:break-word;word-break:break-all;">' + escapeHtml(product.name) + '</span>' +
+                // 1商品=1行: [商品名] | [単価] | [操作ブロック] | [小計] を固定幅の列で揃える（区切りはスペース・線なし）
+                '<div style="display:flex;align-items:center;gap:12px 28px;flex-wrap:wrap;">' +
+                    // 商品名（余った幅はここが吸収）
+                    '<div style="display:flex;align-items:center;gap:8px;flex:1 1 0;min-width:150px;">' +
+                        '<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#374151;color:#fff;font-size:0.85rem;font-weight:700;flex-shrink:0;">' + product.no + '</span>' +
+                        '<span style="font-weight:800;color:#111827;font-size:1.55rem;line-height:1.2;overflow-wrap:break-word;word-break:break-word;">' + escapeHtml(product.name) + '</span>' +
                     '</div>' +
-                    '<span style="font-size:0.875rem;color:#6b7280;white-space:nowrap;">単価 &yen;' + basePrice.toLocaleString() + '</span>' +
-                '</div>' +
 
-                '<!-- 1行目: ラベル -->' +
-                '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px;">' +
-                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#ff0000;">大盛り</div>' +
-                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#b45309;">普通盛り</div>' +
-                    '<div style="text-align:center;font-size:0.875rem;font-weight:600;color:#16a34a;">小盛り</div>' +
-                '</div>' +
+                    // 単価（固定幅・右揃えで行ごとに揃える）
+                    '<div class="card-unit-price" style="width:120px;flex-shrink:0;text-align:right;font-size:0.95rem;color:#6b7280;white-space:nowrap;">単価 &yen;' + basePrice.toLocaleString() + '</div>' +
 
-                '<!-- 2行目: 数量 -->' +
-                '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px;">' +
-                    '<div class="qty-large-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#ff0000;">' + initLarge + '</div>' +
-                    '<div class="qty-regular-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#b45309;">' + initRegular + '</div>' +
-                    '<div class="qty-small-display" style="text-align:center;font-size:1.5rem;font-weight:700;color:#16a34a;">' + initSmall + '</div>' +
-                '</div>' +
-
-                '<!-- 3行目: +-ボタン -->' +
-                '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">' +
-                    '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="large" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#fecaca;color:#cc0000;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="large" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#ff0000;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
+                    // 操作ブロック（ラベル→数量→ボタンの縦積み・元の位置関係のまま固定幅）
+                    '<div style="width:360px;flex-shrink:0;">' +
+                        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:2px;">' +
+                            '<div style="text-align:center;font-size:0.95rem;font-weight:600;color:#ff0000;">大盛り</div>' +
+                            '<div style="text-align:center;font-size:0.95rem;font-weight:600;color:#b45309;">普通盛り</div>' +
+                            '<div style="text-align:center;font-size:0.95rem;font-weight:600;color:#16a34a;">小盛り</div>' +
+                        '</div>' +
+                        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:2px;">' +
+                            '<div class="qty-large-display" style="text-align:center;font-size:1.75rem;font-weight:700;color:#ff0000;">' + initLarge + '</div>' +
+                            '<div class="qty-regular-display" style="text-align:center;font-size:1.75rem;font-weight:700;color:#b45309;">' + initRegular + '</div>' +
+                            '<div class="qty-small-display" style="text-align:center;font-size:1.75rem;font-weight:700;color:#16a34a;">' + initSmall + '</div>' +
+                        '</div>' +
+                        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">' +
+                            qtyBtnCell('large', '#fecaca', '#cc0000', '#ff0000') +
+                            qtyBtnCell('regular', '#fde68a', '#92400e', '#b45309') +
+                            qtyBtnCell('small', '#bbf7d0', '#15803d', '#16a34a') +
+                        '</div>' +
                     '</div>' +
-                    '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="regular" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#fde68a;color:#92400e;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="regular" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#b45309;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
-                    '</div>' +
-                    '<div style="display:flex;justify-content:center;gap:6px;">' +
-                        '<button type="button" class="qty-minus" data-size="small" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#bbf7d0;color:#15803d;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&minus;</button>' +
-                        '<button type="button" class="qty-plus" data-size="small" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:1.125rem;font-weight:700;cursor:pointer;">&plus;</button>' +
-                    '</div>' +
-                '</div>' +
 
-                '<!-- 小計 + リセット -->' +
-                '<div style="display:flex;align-items:center;justify-content:space-between;">' +
-                    '<button type="button" class="card-reset" style="font-size:0.75rem;color:#9ca3af;background:none;border:none;cursor:pointer;">リセット</button>' +
-                    '<div>' +
-                        '<span style="font-size:0.75rem;color:#9ca3af;">小計: </span>' +
-                        '<span class="card-subtotal" style="font-size:0.875rem;font-weight:700;color:#374151;">&yen;' + subtotal.toLocaleString() + '</span>' +
+                    // 小計 + リセット（固定幅・右揃え）
+                    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;width:110px;">' +
+                        '<div style="white-space:nowrap;">' +
+                            '<span style="font-size:0.75rem;color:#9ca3af;">小計 </span>' +
+                            '<span class="card-subtotal" style="font-size:1rem;font-weight:700;color:#374151;">&yen;' + subtotal.toLocaleString() + '</span>' +
+                        '</div>' +
+                        '<button type="button" class="card-reset" style="font-size:0.75rem;color:#9ca3af;background:none;border:none;cursor:pointer;">リセット</button>' +
                     '</div>' +
                 '</div>';
 
@@ -559,6 +551,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function calcCardSubtotal(large, regular, small, basePrice, largePriceTotal) {
         return (large * largePriceTotal) + ((regular + small) * basePrice);
+    }
+
+    // 縦積みレイアウト用: 3列グリッドの1セル分「[−][＋]」ボタン対を生成
+    function qtyBtnCell(size, minusBg, minusColor, plusBg) {
+        var b = 'width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:none;border-radius:8px;font-size:1.35rem;font-weight:700;cursor:pointer;';
+        return '<div style="display:flex;justify-content:center;gap:6px;">' +
+            '<button type="button" class="qty-minus" data-size="' + size + '" style="' + b + 'background:' + minusBg + ';color:' + minusColor + ';">&minus;</button>' +
+            '<button type="button" class="qty-plus" data-size="' + size + '" style="' + b + 'background:' + plusBg + ';color:#fff;">&plus;</button>' +
+        '</div>';
     }
 
     function updateCardDisplay(card) {
@@ -955,22 +956,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 var priceKey = 'price_' + currentPriceType;
                 basePrice = product[priceKey] || 0;
             }
-            var isIntegrated = (product.container_type === '一体型');
-            var largePriceTotal = isIntegrated ? basePrice : basePrice + largeExtraPrice;
             var idx = card.dataset.formIndex;
 
             card.dataset.basePrice = basePrice;
             card.querySelector('[name="items-' + idx + '-unit_price"]').value = basePrice;
 
-            // Update price displays in card
-            var priceDisplays = card.querySelectorAll('.text-xs.text-gray-400');
-            if (priceDisplays[0]) priceDisplays[0].innerHTML = '&yen;' + largePriceTotal.toLocaleString();
-            if (priceDisplays[1]) priceDisplays[1].innerHTML = '&yen;' + basePrice.toLocaleString();
-            if (priceDisplays[2]) priceDisplays[2].innerHTML = '&yen;' + basePrice.toLocaleString();
-
-            // Update header price
-            var headerPrice = card.querySelector('.text-sm.text-gray-500');
-            if (headerPrice) headerPrice.innerHTML = '単価 &yen;' + basePrice.toLocaleString();
+            // 単価表示を更新（横1行レイアウトの .card-unit-price）
+            var unitPriceEl = card.querySelector('.card-unit-price');
+            if (unitPriceEl) unitPriceEl.innerHTML = '単価 &yen;' + basePrice.toLocaleString();
 
             updateCardDisplay(card);
         });
@@ -986,7 +979,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         if (deliveryDateInput.value && !isCateringMode) {
-            fetchProductsForDate(deliveryDateInput.value);
+            // 初回表示はサーバーが埋め込んだメニューを使い、往復通信を1回省く。
+            // 埋め込んだ日付と現在の納品日が一致する時だけ流用（POST再表示等でズレたら通常fetch）。
+            var embeddedDate = orderFormEl ? orderFormEl.dataset.productsDate : '';
+            var embedded = null;
+            try {
+                embedded = orderFormEl ? JSON.parse(orderFormEl.dataset.products || 'null') : null;
+            } catch(e) { embedded = null; }
+            if (embedded && embeddedDate && embeddedDate === deliveryDateInput.value) {
+                currentProducts = embedded;
+                buildProductCards();
+                fetchOrderTotals(deliveryDateInput.value);
+            } else {
+                fetchProductsForDate(deliveryDateInput.value);
+            }
         }
     }
 

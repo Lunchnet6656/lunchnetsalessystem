@@ -26,6 +26,24 @@ def _get_extra_products_json():
     ], ensure_ascii=False)
 
 
+def _get_products_data_for_date(target):
+    """指定した納品日に該当する週のメニューを返す。api_productsと同一ロジック。"""
+    candidates = [(target - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
+    products = Product.objects.filter(week__in=candidates).order_by('no')
+    return [
+        {
+            'id': p.id,
+            'no': p.no,
+            'name': p.name,
+            'price_A': int(p.price_A),
+            'price_B': int(p.price_B),
+            'price_C': int(p.price_C),
+            'container_type': p.container_type,
+        }
+        for p in products
+    ]
+
+
 @login_required
 def order_list(request):
     return redirect('orders:regular_dashboard')
@@ -125,6 +143,8 @@ def order_create(request, customer_id=None):
         'formset': formset,
         'extra_formset': extra_formset,
         'extra_products_json': _get_extra_products_json(),
+        'products_json': json.dumps(_get_products_data_for_date(initial['delivery_date']), ensure_ascii=False),
+        'products_json_date': initial['delivery_date'].strftime('%Y-%m-%d'),
         'customers': customers,
         'is_edit': False,
         'is_catering': is_catering,
@@ -207,6 +227,8 @@ def order_edit(request, pk):
         'formset': formset,
         'extra_formset': extra_formset,
         'extra_products_json': _get_extra_products_json(),
+        'products_json': json.dumps(_get_products_data_for_date(order.delivery_date), ensure_ascii=False),
+        'products_json_date': order.delivery_date.strftime('%Y-%m-%d'),
         'order': order,
         'customers': customers,
         'is_edit': True,
@@ -434,21 +456,7 @@ def api_products(request, date):
     except ValueError:
         return JsonResponse({'products': []})
 
-    candidates = [(target - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
-    products = Product.objects.filter(week__in=candidates).order_by('no')
-    data = [
-        {
-            'id': p.id,
-            'no': p.no,
-            'name': p.name,
-            'price_A': int(p.price_A),
-            'price_B': int(p.price_B),
-            'price_C': int(p.price_C),
-            'container_type': p.container_type,
-        }
-        for p in products
-    ]
-    return JsonResponse({'products': data})
+    return JsonResponse({'products': _get_products_data_for_date(target)})
 
 
 @login_required

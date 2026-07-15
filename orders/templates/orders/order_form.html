@@ -8,7 +8,7 @@
         {% if is_edit %}受注編集 - {{ order.order_number }}{% else %}新規受注{% endif %}
     </h1>
 
-    <form method="post" id="order-form" class="space-y-6" {% if is_edit %}data-order-pk="{{ order.pk }}"{% endif %} data-is-catering="{% if is_catering %}true{% else %}false{% endif %}" data-extra-products="{{ extra_products_json }}">
+    <form method="post" id="order-form" class="space-y-6" {% if is_edit %}data-order-pk="{{ order.pk }}"{% endif %} data-is-catering="{% if is_catering %}true{% else %}false{% endif %}" data-extra-products="{{ extra_products_json }}" data-products="{{ products_json }}" data-products-date="{{ products_json_date }}">
         {% csrf_token %}
 
         {% if form.errors or formset.errors or extra_formset.errors %}
