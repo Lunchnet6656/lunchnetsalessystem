@@ -18,6 +18,7 @@
 <div class="card">
   <h2>来店一覧（{{ total }}件・最新500件まで表示）</h2>
   {% if logs %}
+  <div class="tscroll">
   <table class="grid">
     <thead><tr><th>来店日時</th><th>会員</th><th>店舗</th><th>カード時点pt</th></tr></thead>
     <tbody>
@@ -31,6 +32,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="empty">この期間の来店データはありません。</p>{% endif %}
 </div>
 {% endblock %}

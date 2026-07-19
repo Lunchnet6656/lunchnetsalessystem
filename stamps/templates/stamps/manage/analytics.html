@@ -12,6 +12,7 @@
 <div class="card">
   <h2>店舗別 来店</h2>
   {% if by_loc %}
+  <div class="tscroll">
   <table class="grid">
     <thead><tr><th>店舗</th><th>来店数</th><th>来店人数</th><th>1人あたり来店</th></tr></thead>
     <tbody>
@@ -25,6 +26,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="empty">この期間のデータはありません。</p>{% endif %}
 </div>
 
@@ -38,4 +40,36 @@
   </table>
   <p class="muted" style="margin-top:10px;">※ リピートの厚み（何回来てくれているか）を見る指標。押し上げ率の実測＝損益シミュレーターv2への入力に使う。</p>
 </div>
+
+<div class="card">
+  <h2>特典使用の推移（{% if usage_weekly %}週次・週の月曜{% else %}日次{% endif %}）</h2>
+  {% if usage_total %}
+  <p class="muted" style="margin:0 0 12px;">期間内の使用 <strong>{{ usage_total }}件</strong>／ピーク <strong>{{ usage_peak }}件</strong>（使ったタイミング＝<code class="url">used_at</code>ベース）</p>
+  <table class="grid usage-ts">
+    <thead><tr><th style="width:120px;">{% if usage_weekly %}週（月〜）{% else %}日付{% endif %}</th><th>使用数</th><th style="width:52px;text-align:right;">件</th></tr></thead>
+    <tbody>
+      {% for row in usage_rows %}
+      <tr{% if row.count == usage_peak and usage_peak %} class="peak"{% endif %}>
+        <td class="d">{{ row.date|date:'n/j' }}<span class="wd">（{{ row.date|date:'D' }}）</span></td>
+        <td class="barcell">
+          <span class="bar" style="width:{% if usage_peak %}{% widthratio row.count usage_peak 100 %}{% else %}0{% endif %}%;"></span>
+        </td>
+        <td class="num">{{ row.count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:10px;">※ 雨の日ボーナスやイベントの後にスパイクが出ているか＝施策が「使われた」かを見る。0の日も並べているので谷（使われない期間）も見える。</p>
+  {% else %}<p class="empty">この期間に使われた特典はありません。</p>{% endif %}
+</div>
+
+<style>
+  table.usage-ts td.d{white-space:nowrap;font-size:13px;}
+  table.usage-ts td.d .wd{color:var(--ln-color-text-muted);font-size:11px;margin-left:2px;}
+  table.usage-ts td.barcell{padding-right:0;}
+  table.usage-ts td.num{text-align:right;font-weight:700;color:var(--ln-color-text-strong);}
+  table.usage-ts .bar{display:block;height:14px;min-width:2px;border-radius:4px;background:var(--ln-color-brand);}
+  table.usage-ts tr.peak .bar{background:var(--ln-color-danger,#e8543f);}
+  table.usage-ts tr.peak td.num{color:var(--ln-color-danger,#e8543f);}
+</style>
 {% endblock %}

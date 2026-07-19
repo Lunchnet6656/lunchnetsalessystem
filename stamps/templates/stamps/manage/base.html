@@ -13,8 +13,10 @@
   /* --- プラットフォームのサイドナビ（モジュール切り替え）--- */
   .side{width:200px;flex:0 0 200px;background:var(--ln-color-dark);color:#fff;padding:14px 10px;box-sizing:border-box;
     position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;}
-  .side .brand{font-size:14px;font-weight:800;padding:6px 8px 12px;border-bottom:1px solid var(--ln-color-border-strong);}
+  .side .brand{font-size:14px;font-weight:800;padding:6px 8px 12px;border-bottom:1px solid var(--ln-color-border-strong);
+    display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .side .brand small{display:block;font-weight:normal;color:var(--ln-color-text-dim);font-size:11px;margin-top:3px;}
+  .navbtn{display:none;}   /* ハンバーガー：モバイルのみ表示（下部メディアクエリ） */
   .side .grp{font-size:11px;color:var(--ln-color-text-dim);margin:16px 8px 6px;letter-spacing:.04em;}
   .side a{display:block;padding:9px 10px;border-radius:8px;color:#e9ecef;text-decoration:none;font-size:14px;margin-bottom:2px;}
   .side a:hover{background:rgba(255,255,255,.08);}
@@ -47,6 +49,10 @@
   table.grid th{font-size:11px;color:var(--ln-color-text-muted);text-align:left;
     padding:7px 8px;border-bottom:2px solid var(--ln-color-border);}
   table.grid td{padding:8px;border-bottom:1px solid var(--ln-color-divider);vertical-align:middle;}
+  /* 横に広い表：狭い画面では横スクロール（列を潰さない）。ラッパー .tscroll で囲う。 */
+  .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .tscroll table.grid th,.tscroll table.grid td{white-space:nowrap;}
+  .tscroll table.grid td.wrapok{white-space:normal;}   /* 折り返し許可（タグ編集など） */
   .btn{display:inline-block;padding:8px 13px;border:none;border-radius:8px;font-size:13px;font-weight:bold;
     cursor:pointer;text-decoration:none;background:var(--ln-color-brand);color:#fff;}
   .btn.ghost{background:var(--ln-color-white);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
@@ -54,6 +60,14 @@
   .badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap;}
   .badge.on{background:var(--ln-color-success-bg);color:var(--ln-color-success);border:1px solid var(--ln-color-success);}
   .badge.off{background:var(--ln-color-surface-disabled);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
+  /* 手動タグの色（自動タグ on/off と区別。先頭に●を付けて手動と分かるようにする）。 */
+  .badge.manual::before{content:"●";font-size:8px;margin-right:4px;vertical-align:1px;}
+  .badge.c-blue{background:#e7f0ff;color:#1d4ed8;border:1px solid #bcd3ff;}
+  .badge.c-green{background:var(--ln-color-success-bg);color:var(--ln-color-success);border:1px solid var(--ln-color-success);}
+  .badge.c-orange{background:#fff1e0;color:#c2560c;border:1px solid #ffd6a8;}
+  .badge.c-red{background:#fdecec;color:var(--ln-color-danger);border:1px solid var(--ln-color-danger);}
+  .badge.c-purple{background:#f1e9ff;color:#6d28d9;border:1px solid #d9c4ff;}
+  .badge.c-gray{background:var(--ln-color-surface-muted);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
   .muted{color:var(--ln-color-text-muted);font-size:12px;}
   .flashmsg{padding:11px 16px;border-radius:10px;font-size:14px;font-weight:800;margin-bottom:14px;
     background:var(--ln-color-success-bg);color:var(--ln-color-success);border:1px solid var(--ln-color-success);}
@@ -62,31 +76,63 @@
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ln-color-text-muted);
     word-break:break-all;}
   code.url{background:var(--ln-color-surface-muted);padding:2px 6px;border-radius:6px;}
+  /* ============ レスポンシブ ============ */
+  /* タブレット：サイドバーを詰めて本文を広く使う */
+  @media(max-width:1024px){
+    .side{width:172px;flex-basis:172px;padding:12px 8px;}
+    .side a{font-size:13px;padding:8px 9px;}
+    .main{padding:16px 16px 50px;}
+  }
+  /* モバイル：サイドバー→上部バー＋ハンバーガーで開閉（CSSのみ） */
   @media(max-width:680px){
     .shell{flex-direction:column;}
-    /* スマホは上部固定バーにする（横並び・スクロールはコンテンツ側） */
-    .side{width:auto;flex:none;display:flex;flex-wrap:wrap;gap:4px;
-      position:sticky;top:0;height:auto;align-self:auto;z-index:10;}
-    .side .brand,.side .grp{width:100%;}
+    .side{width:auto;flex:none;position:sticky;top:0;height:auto;align-self:auto;z-index:20;
+      padding:0;overflow:visible;}
+    .side .brand{padding:11px 14px;border-bottom:none;}
+    .navbtn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;
+      border-radius:9px;background:rgba(255,255,255,.12);color:#fff;font-size:20px;cursor:pointer;flex:none;}
+    .navlinks{display:none;padding:2px 10px 12px;border-top:1px solid var(--ln-color-border-strong);}
+    .navtoggle:checked ~ .navlinks{display:block;}
+    .side .grp:first-child{margin-top:8px;}
+    .main{padding:14px 13px 44px;}
+    .topbar{flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:14px;}
+    .topbar h1{font-size:18px;}
+    .filters{padding:10px;gap:8px;}
+    .card{padding:13px;border-radius:10px;}
+    .card h2{font-size:14px;}
+    .summary .stat{min-width:calc(50% - 5px);}
+    .stat .n{font-size:22px;}
+    /* iOSはfont-size<16pxの入力にフォーカスすると自動ズーム→16pxで防ぐ */
+    input,select,textarea{font-size:16px;}
+  }
+  @media(max-width:400px){
+    .summary .stat{min-width:100%;}
   }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="side">
-    <div class="brand">ランチネット LINE運営<small>自作プラットフォーム（β）</small></div>
-    <div class="grp">スタンプカード</div>
-    <a href="{% url 'stamps:manage_dashboard' %}" class="{% if nav == 'dashboard' %}on{% endif %}">ダッシュボード</a>
-    <a href="{% url 'stamps:manage_visits' %}" class="{% if nav == 'visits' %}on{% endif %}">来店データ</a>
-    <a href="{% url 'stamps:manage_analytics' %}" class="{% if nav == 'analytics' %}on{% endif %}">分析</a>
-    <a href="{% url 'stamps:manage_locations' %}" class="{% if nav == 'locations' %}on{% endif %}">店舗QR・出店時間</a>
-    <a href="{% url 'stamps:manage_rewards' %}" class="{% if nav == 'rewards' %}on{% endif %}">特典設定</a>
-    <a href="{% url 'stamps:manage_friends' %}" class="{% if nav == 'friends' %}on{% endif %}">友だち管理</a>
-    <a href="{% url 'stamps:manage_richmenu' %}" class="{% if nav == 'richmenu' %}on{% endif %}">リッチメニュー</a>
-    <div class="grp">今後のモジュール</div>
-    <div class="soon">配信 <span class="tag">準備中</span></div>
-    <div class="soon">セグメント配信 <span class="tag">準備中</span></div>
-    <div class="soon">効果測定 <span class="tag">準備中</span></div>
+    <div class="brand">
+      <span class="brand-t">ランチネット LINE運営<small>自作プラットフォーム（β）</small></span>
+      <label for="navtoggle" class="navbtn" aria-label="メニューを開閉">☰</label>
+    </div>
+    <input type="checkbox" id="navtoggle" class="navtoggle" hidden>
+    <div class="navlinks">
+      <div class="grp">スタンプカード</div>
+      <a href="{% url 'stamps:manage_dashboard' %}" class="{% if nav == 'dashboard' %}on{% endif %}">ダッシュボード</a>
+      <a href="{% url 'stamps:manage_visits' %}" class="{% if nav == 'visits' %}on{% endif %}">来店データ</a>
+      <a href="{% url 'stamps:manage_analytics' %}" class="{% if nav == 'analytics' %}on{% endif %}">分析</a>
+      <a href="{% url 'stamps:manage_locations' %}" class="{% if nav == 'locations' %}on{% endif %}">店舗QR・出店時間</a>
+      <a href="{% url 'stamps:manage_rewards' %}" class="{% if nav == 'rewards' %}on{% endif %}">特典設定</a>
+      <a href="{% url 'stamps:manage_friends' %}" class="{% if nav == 'friends' %}on{% endif %}">友だち管理</a>
+      <a href="{% url 'stamps:manage_tag_settings' %}" class="{% if nav == 'tag_settings' %}on{% endif %}">タグ設定</a>
+      <a href="{% url 'stamps:manage_richmenu' %}" class="{% if nav == 'richmenu' %}on{% endif %}">リッチメニュー</a>
+      <div class="grp">今後のモジュール</div>
+      <div class="soon">配信 <span class="tag">準備中</span></div>
+      <div class="soon">セグメント配信 <span class="tag">準備中</span></div>
+      <div class="soon">効果測定 <span class="tag">準備中</span></div>
+    </div>
   </nav>
   <main class="main">
     <div class="topbar">

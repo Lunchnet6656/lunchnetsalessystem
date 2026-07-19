@@ -33,11 +33,11 @@
     {% if menu.is_registered %}
     <div style="flex:0 0 auto;">
       <img src="{% url 'stamps:manage_richmenu_image' %}?v={{ menu.updated_at|date:'U' }}" alt="現在のメニュー"
-           style="width:300px;border:1px solid var(--ln-color-border);border-radius:8px;">
+           style="width:300px;max-width:100%;border:1px solid var(--ln-color-border);border-radius:8px;">
       <div class="muted" style="text-align:center;margin-top:4px;">登録済み {{ menu.registered_at|date:'n/j H:i' }}</div>
     </div>
     {% endif %}
-    <form method="post" enctype="multipart/form-data" style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:10px;">
+    <form method="post" enctype="multipart/form-data" style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:10px;">
       {% csrf_token %}
       <input type="hidden" name="action" value="register">
       <div class="fld"><label class="muted">リッチメニュー画像（PNG・差し替え時のみ選択）</label>
@@ -74,6 +74,7 @@
 <div class="card">
   <h2>利用者一覧（{{ total }}人）</h2>
   {% if rows %}
+  <div class="tscroll">
   <table class="grid">
     <thead><tr><th>会員</th><th>状態</th><th>適用日時</th><th>操作</th></tr></thead>
     <tbody>
@@ -102,6 +103,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="empty">スタンプ利用者がまだいません。</p>{% endif %}
 </div>
 {% endblock %}

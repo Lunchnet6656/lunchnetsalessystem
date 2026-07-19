@@ -16,7 +16,7 @@
 すべて @staff_member_required（運営限定）。Django admin は使わない（アプリ内画面で実装）。
 """
 import csv
-from datetime import datetime, timedelta
+from datetime import datetime, time as dtime, timedelta
 
 from django.conf import settings
 from django.contrib import messages
@@ -25,12 +25,14 @@ from django.db.models import Count, Max, Q, Sum
 from django.db.models.deletion import ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from sales.models import SalesLocation, _generate_qr_token
 from reservations.models import LineMember
 from stamps.models import (
+    FriendTagConfig, MemberTag, MemberTagLink,
     Reward, RewardTier, RichMenuLink, StampCard, StampConfig, StampLog,
 )
 from stamps.services import (
@@ -151,11 +153,42 @@ def _visits_csv(logs, start, end):
     return resp
 
 
+def _reward_usage_series(start, end):
+    """特典を「使ったタイミング」の推移。used_at のローカル日付でバケットする。
+
+    期間が長い（62日超）ときは週次（月曜起点）に丸めて行数を抑える。戻り値の rows は
+    期間内を欠けなく埋めた連続系列（使用0の日も0で並ぶ＝谷が見える）。
+    """
+    start_dt = timezone.make_aware(datetime.combine(start, dtime.min))
+    end_dt = timezone.make_aware(datetime.combine(end + timedelta(days=1), dtime.min))
+    used = (Reward.objects
+            .filter(status=Reward.STATUS_USED, used_at__gte=start_dt, used_at__lt=end_dt)
+            .only("used_at"))
+
+    weekly = (end - start).days > 62
+    counts = {}
+    for r in used:
+        d = timezone.localtime(r.used_at).date()
+        key = d - timedelta(days=d.weekday()) if weekly else d   # 週次は月曜へ丸める
+        counts[key] = counts.get(key, 0) + 1
+
+    step = timedelta(days=7 if weekly else 1)
+    cur = (start - timedelta(days=start.weekday())) if weekly else start
+    rows = []
+    while cur <= end:
+        rows.append({"date": cur, "count": counts.get(cur, 0), "weekly": weekly})
+        cur += step
+    total = sum(counts.values())
+    peak = max((row["count"] for row in rows), default=0)
+    return rows, total, peak, weekly
+
+
 @staff_member_required
 def analytics(request):
-    """参加率・達成率・来店頻度分布・店舗別比較。CSVは ?export=csv。"""
+    """参加率・達成率・来店頻度分布・店舗別比較・特典使用の推移。CSVは ?export=csv。"""
     start, end = _period(request)
     logs = _logs_in_period(start, end)
+    usage_rows, usage_total, usage_peak, usage_weekly = _reward_usage_series(start, end)
 
     # 店舗別の来店数・参加人数
     by_loc = (logs.values("location_id", "location__name")
@@ -181,7 +214,7 @@ def analytics(request):
             dist["10回以上"] += 1
 
     if request.GET.get("export") == "csv":
-        return _analytics_csv(by_loc, dist, start, end)
+        return _analytics_csv(by_loc, dist, usage_rows, usage_weekly, start, end)
 
     return render(request, "stamps/manage/analytics.html", {
         "nav": "analytics",
@@ -189,10 +222,14 @@ def analytics(request):
         "by_loc": list(by_loc),
         "dist": dist,
         "active_members": per_member.count(),
+        "usage_rows": usage_rows,
+        "usage_total": usage_total,
+        "usage_peak": usage_peak,
+        "usage_weekly": usage_weekly,
     })
 
 
-def _analytics_csv(by_loc, dist, start, end):
+def _analytics_csv(by_loc, dist, usage_rows, usage_weekly, start, end):
     resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
     resp["Content-Disposition"] = (
         f'attachment; filename="stamp_analytics_{start:%Y%m%d}-{end:%Y%m%d}.csv"')
@@ -205,34 +242,41 @@ def _analytics_csv(by_loc, dist, start, end):
     w.writerow(["■来店頻度分布（期間内の来店回数別 人数）"])
     for k, v in dist.items():
         w.writerow([k, v])
+    w.writerow([])
+    w.writerow([f"■特典使用の推移（{'週次・週の月曜' if usage_weekly else '日次'}／使用日ベース）"])
+    w.writerow(["日付", "使用数"])
+    for row in usage_rows:
+        w.writerow([f'{row["date"]:%Y-%m-%d}', row["count"]])
     return resp
 
 
-def _friend_tags(visits, last_visit, registered_on, has_redeemable, today):
-    """来店データから自動でタグ付け（手動タグの土台。将来セグメント配信に使う）。"""
+def _friend_tags(visits, last_visit, registered_on, has_redeemable, today, cfg):
+    """来店データから自動でタグ付け。しきい値は FriendTagConfig（画面で編集可）から取る。"""
     tags = []
-    if registered_on and (today - registered_on).days <= 14 and visits <= 2:
+    if (registered_on and (today - registered_on).days <= cfg.new_within_days
+            and visits <= cfg.new_max_visits):
         tags.append("新規")
-    if visits >= 10:
+    if visits >= cfg.heavy_min_visits:
         tags.append("ヘビー")
-    elif visits >= 5:
+    elif visits >= cfg.regular_min_visits:
         tags.append("常連")
-    elif visits >= 1:
+    elif visits >= cfg.repeater_min_visits:
         tags.append("リピーター")
-    if last_visit and (today - last_visit).days >= 21:
+    if last_visit and (today - last_visit).days >= cfg.dormant_days:
         tags.append("離反ぎみ")
     if has_redeemable:
         tags.append("特典保有")
     return tags
 
 
-def _friend_rows(today):
+def _friend_rows(today, cfg=None):
     """友だち一覧の各行を、会員数によらず一定クエリ数（N+1なし）で組み立てる。
 
-    来店・特典・現在pt・よく行く店舗・利用可能クーポンをそれぞれ1クエリで集計して
+    来店・特典・現在pt・よく行く店舗・利用可能クーポン・手動タグをそれぞれ1クエリで集計して
     member_id で引き当てる。※来店数と特典数を同一annotateで多重JOINすると来店数が
-    水増しされるため、集計は関係ごとに分ける。
+    水増しされるため、集計は関係ごとに分ける。自動タグのしきい値は FriendTagConfig 参照。
     """
+    cfg = cfg or FriendTagConfig.get_solo()
     members = list(LineMember.objects.all())
     ids = [m.id for m in members]
 
@@ -251,6 +295,22 @@ def _friend_rows(today):
         card__member_id__in=ids, status=Reward.STATUS_ISSUED,
         valid_from__lte=today, expires_on__gte=today,
     ).values_list("card__member_id", flat=True))
+
+    # 使用履歴（いつ・何の特典を使ったか）＝会員ごとに1クエリでまとめて引く（N+1なし）。
+    used_history = {}
+    for rw in (Reward.objects.filter(card__member_id__in=ids,
+                                     status=Reward.STATUS_USED, used_at__isnull=False)
+               .values("card__member_id", "used_at", "label")
+               .order_by("card__member_id", "-used_at")):
+        used_history.setdefault(rw["card__member_id"], []).append(rw)
+
+    # 手動タグ（有効なもの）＝会員ごとに1クエリでまとめて引く（N+1なし）。
+    manual_tags = {}
+    for lk in (MemberTagLink.objects.filter(member_id__in=ids, tag__active=True)
+               .values("member_id", "tag_id", "tag__name", "tag__color", "tag__order")
+               .order_by("member_id", "tag__order", "tag_id")):
+        manual_tags.setdefault(lk["member_id"], []).append({
+            "id": lk["tag_id"], "name": lk["tag__name"], "color": lk["tag__color"]})
 
     # 現在pt＝各会員の最新カードの stamp_count。
     latest_pt = {}
@@ -282,8 +342,11 @@ def _friend_rows(today):
             "last_visit": last_visit,
             "registered": registered,
             "fav_store": fav.get(m.id, ""),
+            "used_history": used_history.get(m.id, []),
+            "manual_tags": manual_tags.get(m.id, []),
+            "manual_ids": {mt["id"] for mt in manual_tags.get(m.id, [])},
             "tags": _friend_tags(visits, last_visit, registered,
-                                 m.id in redeemable_ids, today),
+                                 m.id in redeemable_ids, today, cfg),
         })
     return rows
 
@@ -293,15 +356,48 @@ _FRIEND_SORTS = {
     "visits": lambda r: r["visits"],
     "pt": lambda r: r["pt"],
     "registered": lambda r: (r["registered"] is not None, r["registered"]),
+    # 特典の使用：使った回数の多い順／最後に使った日時の新しい順（used_history は降順なので先頭が最新）。
+    "used": lambda r: r["used"],
+    "lastused": lambda r: (bool(r["used_history"]),
+                           r["used_history"][0]["used_at"] if r["used_history"] else None),
 }
 
 
+def _friends_assign_tags(request):
+    """1人の友だちの手動タグを、チェック状態に合わせて付け外し（有効タグのみ対象）。"""
+    member = get_object_or_404(LineMember, pk=request.POST.get("member_id"))
+    active = {t.id: t for t in MemberTag.objects.filter(active=True)}
+    chosen = {int(x) for x in request.POST.getlist("tag_ids") if x.isdigit()} & set(active)
+    existing = set(MemberTagLink.objects.filter(member=member, tag__active=True)
+                  .values_list("tag_id", flat=True))
+    for tid in chosen - existing:
+        MemberTagLink.objects.get_or_create(member=member, tag=active[tid])
+    remove = existing - chosen
+    if remove:
+        MemberTagLink.objects.filter(member=member, tag_id__in=remove).delete()
+    messages.success(request, f"{member.name} のタグを更新しました。")
+
+
+def _friends_redirect(request):
+    """タグ更新後、元の並び替え・絞り込み状態を保ったまま友だち一覧へ戻す。"""
+    params = {k: request.POST.get(k, "") for k in ("sort", "tag", "loc")}
+    qs = "&".join(f"{k}={v}" for k, v in params.items() if v)
+    url = reverse("stamps:manage_friends")
+    return redirect(f"{url}?{qs}" if qs else url)
+
+
 @staff_member_required
+@require_http_methods(["GET", "POST"])
 def friends(request):
-    """友だち（LINE会員）一覧。来店データの自動タグ＋ソート。CSVは ?export=csv。
+    """友だち（LINE会員）一覧。自動タグ＋手動タグ＋ソート。CSVは ?export=csv。
 
     プラットフォームの「友だち中核エンティティ」を一覧化する画面。将来のセグメント配信の土台。
+    手動タグの付け外しは各行から（POST）。しきい値・タグ定義は「タグ設定」画面で編集する。
     """
+    if request.method == "POST":
+        _friends_assign_tags(request)
+        return _friends_redirect(request)
+
     today = timezone.localdate()
     rows = _friend_rows(today)
 
@@ -314,7 +410,9 @@ def friends(request):
 
     tag_filter = request.GET.get("tag") or ""
     if tag_filter:
-        rows = [r for r in rows if tag_filter in r["tags"]]
+        rows = [r for r in rows
+                if tag_filter in r["tags"]
+                or tag_filter in {mt["name"] for mt in r["manual_tags"]}]
 
     sort = request.GET.get("sort", "recent")
     keyfn = _FRIEND_SORTS.get(sort, _FRIEND_SORTS["recent"])
@@ -332,6 +430,7 @@ def friends(request):
         "f_loc": loc_id,
         "locations": SalesLocation.objects.order_by("no", "name"),
         "all_tags": ["新規", "リピーター", "常連", "ヘビー", "離反ぎみ", "特典保有"],
+        "manual_tag_defs": list(MemberTag.objects.filter(active=True)),
     })
 
 
@@ -340,15 +439,106 @@ def _friends_csv(rows):
     resp["Content-Disposition"] = 'attachment; filename="stamp_friends.csv"'
     w = csv.writer(resp)
     w.writerow(["名前", "LINEユーザーID", "登録日", "来店回数", "現在pt",
-                "獲得特典", "使用特典", "最終来店", "よく行く店舗", "タグ"])
+                "獲得特典", "使用特典", "最終来店", "よく行く店舗", "自動タグ", "手動タグ"])
     for r in rows:
         w.writerow([
             r["m"].name, r["m"].line_user_id,
             r["registered"] or "", r["visits"], r["pt"],
             r["earned"], r["used"], r["last_visit"] or "",
             r["fav_store"], "/".join(r["tags"]),
+            "/".join(mt["name"] for mt in r["manual_tags"]),
         ])
     return resp
+
+
+# --- タグ設定（自動タグのしきい値＋手動タグの定義） -----------------------------
+_TAGCFG_FIELDS = [
+    "new_within_days", "new_max_visits", "repeater_min_visits",
+    "regular_min_visits", "heavy_min_visits", "dormant_days",
+]
+
+
+def _tagcfg_save(request):
+    cfg = FriendTagConfig.get_solo()
+    try:
+        for f in _TAGCFG_FIELDS:
+            setattr(cfg, f, max(0, int(request.POST.get(f) or getattr(cfg, f))))
+    except (TypeError, ValueError):
+        messages.error(request, "しきい値は0以上の数値で入力してください。")
+        return
+    cfg.save()
+    messages.success(request, "自動タグのしきい値を保存しました。")
+
+
+def _memtag_apply(request, tag):
+    tag.color = request.POST.get("color") or tag.color
+    tag.active = bool(request.POST.get("active"))
+    try:
+        tag.order = max(0, int(request.POST.get("order") or 0))
+    except (TypeError, ValueError):
+        tag.order = 0
+
+
+def _memtag_add(request):
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        messages.error(request, "タグ名を入力してください。")
+        return
+    if MemberTag.objects.filter(name=name).exists():
+        messages.error(request, f"「{name}」は既にあります。")
+        return
+    tag = MemberTag(name=name)
+    _memtag_apply(request, tag)
+    tag.save()
+    messages.success(request, f"手動タグ「{name}」を追加しました。")
+
+
+def _memtag_save(request):
+    tag = get_object_or_404(MemberTag, pk=request.POST.get("tag_id"))
+    name = (request.POST.get("name") or "").strip()
+    if name and name != tag.name:
+        if MemberTag.objects.filter(name=name).exclude(pk=tag.pk).exists():
+            messages.error(request, f"「{name}」は既にあります。")
+            return
+        tag.name = name
+    _memtag_apply(request, tag)
+    tag.save()
+    messages.success(request, f"手動タグ「{tag.name}」を保存しました。")
+
+
+def _memtag_delete(request):
+    tag = get_object_or_404(MemberTag, pk=request.POST.get("tag_id"))
+    name = tag.name
+    tag.delete()   # 割当て（MemberTagLink）はCASCADEで一緒に消える
+    messages.success(request, f"手動タグ「{name}」を削除しました。")
+
+
+_TAG_ACTIONS = {
+    "config": _tagcfg_save,
+    "add": _memtag_add,
+    "save": _memtag_save,
+    "delete": _memtag_delete,
+}
+
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def tag_settings(request):
+    """友だちタグの設定：自動タグのしきい値と、手動タグ（定義）の追加・編集・削除。"""
+    if request.method == "POST":
+        _TAG_ACTIONS.get(request.POST.get("action") or "config", _tagcfg_save)(request)
+        return redirect("stamps:manage_tag_settings")
+
+    counts = {r["tag_id"]: r["c"] for r in
+              MemberTagLink.objects.values("tag_id").annotate(c=Count("id"))}
+    tag_rows = [{"t": t, "count": counts.get(t.id, 0)}
+                for t in MemberTag.objects.all()]
+    return render(request, "stamps/manage/tag_settings.html", {
+        "nav": "tag_settings",
+        "cfg": FriendTagConfig.get_solo(),
+        "tag_rows": tag_rows,
+        "colors": MemberTag.COLOR_CHOICES,
+    })
 
 
 @staff_member_required

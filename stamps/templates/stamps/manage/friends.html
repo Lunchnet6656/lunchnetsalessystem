@@ -8,13 +8,22 @@
       <option value="recent" {% if sort == 'recent' %}selected{% endif %}>最終来店が新しい順</option>
       <option value="visits" {% if sort == 'visits' %}selected{% endif %}>来店回数が多い順</option>
       <option value="pt" {% if sort == 'pt' %}selected{% endif %}>現在ポイントが多い順</option>
+      <option value="used" {% if sort == 'used' %}selected{% endif %}>特典の使用回数が多い順</option>
+      <option value="lastused" {% if sort == 'lastused' %}selected{% endif %}>特典を最近使った順</option>
       <option value="registered" {% if sort == 'registered' %}selected{% endif %}>登録が新しい順</option>
     </select>
   </div>
   <div class="fld"><label>タグで絞り込み</label>
     <select name="tag" onchange="this.form.submit()">
       <option value="">すべて</option>
-      {% for t in all_tags %}<option value="{{ t }}" {% if tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      <optgroup label="自動タグ">
+        {% for t in all_tags %}<option value="{{ t }}" {% if tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </optgroup>
+      {% if manual_tag_defs %}
+      <optgroup label="手動タグ">
+        {% for d in manual_tag_defs %}<option value="{{ d.name }}" {% if tag == d.name %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+      </optgroup>
+      {% endif %}
     </select>
   </div>
   <div class="fld"><label>店舗で絞り込み</label>
@@ -28,8 +37,9 @@
 
 <div class="card">
   <h2>友だち一覧（{{ total }}人）</h2>
-  <p class="muted" style="margin:-4px 0 12px;">タグは来店データから自動付与。これがそのままセグメント配信（準備中）の絞り込み条件になります。</p>
+  <p class="muted" style="margin:-4px 0 12px;">自動タグ（来店データから自動付与）＋手動タグ（●付き）を各行で編集できます。しきい値やタグの追加は<a href="{% url 'stamps:manage_tag_settings' %}">タグ設定</a>から。これがそのままセグメント配信（準備中）の絞り込み条件になります。</p>
   {% if rows %}
+  <div class="tscroll">
   <table class="grid">
     <thead><tr>
       <th>名前</th><th>タグ</th><th>来店</th><th>現在pt</th>
@@ -39,10 +49,41 @@
       {% for r in rows %}
       <tr>
         <td>{{ r.m.name }}<div class="mono">{{ r.m.line_user_id|slice:':10' }}…</div></td>
-        <td>{% for t in r.tags %}<span class="badge {% if t == '離反ぎみ' %}off{% else %}on{% endif %}" style="margin:1px;">{{ t }}</span>{% endfor %}</td>
+        <td class="tagcell wrapok">
+          {% for t in r.tags %}<span class="badge {% if t == '離反ぎみ' %}off{% else %}on{% endif %}" style="margin:1px;">{{ t }}</span>{% endfor %}
+          {% for mt in r.manual_tags %}<span class="badge manual c-{{ mt.color }}" style="margin:1px;">{{ mt.name }}</span>{% endfor %}
+          {% if manual_tag_defs %}
+          <details class="tagedit">
+            <summary>🏷 タグ編集</summary>
+            <form method="post" class="tagform">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="assign_tags">
+              <input type="hidden" name="member_id" value="{{ r.m.id }}">
+              <input type="hidden" name="sort" value="{{ sort }}">
+              <input type="hidden" name="tag" value="{{ tag }}">
+              <input type="hidden" name="loc" value="{{ f_loc }}">
+              {% for d in manual_tag_defs %}
+              <label class="chk"><input type="checkbox" name="tag_ids" value="{{ d.id }}"{% if d.id in r.manual_ids %} checked{% endif %}><span class="badge manual c-{{ d.color }}">{{ d.name }}</span></label>
+              {% endfor %}
+              <button class="btn sm" type="submit">保存</button>
+            </form>
+          </details>
+          {% endif %}
+        </td>
         <td><b>{{ r.visits }}</b>回</td>
         <td>{{ r.pt }}pt</td>
-        <td>{{ r.earned }} / {{ r.used }}</td>
+        <td>
+          {% if r.used_history %}
+          <details class="usehist">
+            <summary>{{ r.earned }} / <b>{{ r.used }}</b> <span class="hint">▸履歴</span></summary>
+            <ul>
+              {% for u in r.used_history %}
+              <li><span class="dt">{{ u.used_at|date:'n/j H:i' }}</span>{{ u.label }}</li>
+              {% endfor %}
+            </ul>
+          </details>
+          {% else %}{{ r.earned }} / {{ r.used }}{% endif %}
+        </td>
         <td>{{ r.last_visit|date:'n/j'|default:'-' }}</td>
         <td>{{ r.fav_store|default:'-' }}</td>
         <td>{{ r.registered|date:'n/j'|default:'-' }}</td>
@@ -50,6 +91,29 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="empty">該当する友だちがいません。</p>{% endif %}
 </div>
+
+<style>
+  details.usehist > summary{cursor:pointer;list-style:none;white-space:nowrap;}
+  details.usehist > summary::-webkit-details-marker{display:none;}
+  details.usehist .hint{font-size:11px;color:var(--ln-color-text-muted);}
+  details.usehist[open] .hint{color:var(--ln-color-brand);}
+  details.usehist ul{margin:6px 0 2px;padding-left:0;list-style:none;font-size:12px;}
+  details.usehist li{padding:3px 0;border-top:1px solid var(--ln-color-divider);white-space:nowrap;}
+  details.usehist li:first-child{border-top:none;}
+  details.usehist .dt{display:inline-block;min-width:74px;color:var(--ln-color-text-muted);
+    font-variant-numeric:tabular-nums;margin-right:6px;}
+  td.tagcell{min-width:160px;}
+  details.tagedit{margin-top:4px;}
+  details.tagedit > summary{cursor:pointer;list-style:none;font-size:11px;color:var(--ln-color-text-muted);}
+  details.tagedit > summary::-webkit-details-marker{display:none;}
+  details.tagedit[open] > summary{color:var(--ln-color-brand);}
+  .tagform{margin-top:6px;padding:8px;background:var(--ln-color-surface-muted);border-radius:8px;
+    display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
+  .tagform .chk{display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;}
+  .tagform .chk .badge{margin:0;}
+  .tagform button{margin-left:auto;}
+</style>
 {% endblock %}

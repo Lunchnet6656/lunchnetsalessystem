@@ -382,3 +382,94 @@ class StampConfig(models.Model):
     def is_rain_bonus_on(self, day):
         """指定日が雨の日ボーナス対象か（当日セットのみ有効・翌日は自動失効）。"""
         return self.rain_bonus_date is not None and self.rain_bonus_date == day
+
+
+class FriendTagConfig(models.Model):
+    """友だち「自動タグ」のしきい値（シングルトン）。管理画面（タグ設定）から編集する。
+
+    以前はコード直書きだった判定基準（◯日以内・来店◯回…）を、運営が画面から調整できるようにする。
+    保存すると全員の自動タグが即追従する（タグはDB保存せず毎回この基準で計算するため）。
+    行は常に1件（pk=1）。get_solo() で取得する。
+    """
+    new_within_days = models.PositiveIntegerField(
+        default=14, verbose_name="新規：登録からの日数",
+        help_text="登録からこの日数以内、かつ来店が少ない人を「新規」にする。",
+    )
+    new_max_visits = models.PositiveIntegerField(
+        default=2, verbose_name="新規：来店回数の上限",
+        help_text="来店がこの回数以下なら「新規」の対象（超えたらリピーター等に切り替わる）。",
+    )
+    repeater_min_visits = models.PositiveIntegerField(
+        default=1, verbose_name="リピーター：来店回数の下限",
+    )
+    regular_min_visits = models.PositiveIntegerField(
+        default=5, verbose_name="常連：来店回数の下限",
+    )
+    heavy_min_visits = models.PositiveIntegerField(
+        default=10, verbose_name="ヘビー：来店回数の下限",
+    )
+    dormant_days = models.PositiveIntegerField(
+        default=21, verbose_name="離反ぎみ：最終来店からの日数",
+        help_text="最終来店からこの日数以上あいたら「離反ぎみ」にする。",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "友だちタグ設定"
+        verbose_name_plural = "友だちタグ設定"
+
+    def __str__(self):
+        return "友だちタグ設定"
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class MemberTag(models.Model):
+    """手動タグの定義（運営が任意に付けるラベル）。例：VIP／クレーム対応中／試食会来店。
+
+    自動タグ（来店データから毎回計算）とは別枠。定義はここ、付与は MemberTagLink。
+    """
+    COLOR_CHOICES = [
+        ("blue", "青"), ("green", "緑"), ("orange", "オレンジ"),
+        ("red", "赤"), ("purple", "紫"), ("gray", "グレー"),
+    ]
+    name = models.CharField(max_length=20, unique=True, verbose_name="タグ名")
+    color = models.CharField(
+        max_length=10, choices=COLOR_CHOICES, default="blue", verbose_name="色",
+    )
+    order = models.PositiveIntegerField(default=0, verbose_name="表示順")
+    active = models.BooleanField(default=True, verbose_name="有効")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        verbose_name = "手動タグ"
+        verbose_name_plural = "手動タグ"
+
+    def __str__(self):
+        return self.name
+
+
+class MemberTagLink(models.Model):
+    """友だち×手動タグの割当て（誰にどの手動タグが付いているか）。"""
+    member = models.ForeignKey(
+        LineMember, on_delete=models.CASCADE, related_name="tag_links", verbose_name="会員",
+    )
+    tag = models.ForeignKey(
+        MemberTag, on_delete=models.CASCADE, related_name="member_links", verbose_name="手動タグ",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["tag__order", "tag_id"]
+        verbose_name = "手動タグ割当て"
+        verbose_name_plural = "手動タグ割当て"
+        constraints = [
+            models.UniqueConstraint(fields=["member", "tag"], name="uniq_member_tag"),
+        ]
+
+    def __str__(self):
+        return f"{self.member.name}：{self.tag.name}"

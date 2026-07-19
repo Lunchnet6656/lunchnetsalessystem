@@ -1,0 +1,90 @@
+{% extends "stamps/manage/base.html" %}
+{% block title %}タグ設定{% endblock %}
+{% block heading %}タグ設定（友だち管理）{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>自動タグのしきい値</h2>
+  <p class="muted" style="margin:-4px 0 12px;">来店データから自動で付くタグの基準。保存すると<a href="{% url 'stamps:manage_friends' %}">友だち一覧</a>のタグが即追従します（タグはこの基準で毎回計算）。</p>
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="config">
+    <div class="fld"><label class="muted">🆕 新規：登録から◯日以内</label>
+      <input type="number" name="new_within_days" value="{{ cfg.new_within_days }}" min="0" style="width:80px;"></div>
+    <div class="fld"><label class="muted">🆕 新規：来店◯回以下</label>
+      <input type="number" name="new_max_visits" value="{{ cfg.new_max_visits }}" min="0" style="width:80px;"></div>
+    <div style="flex-basis:100%;height:1px;background:#eee;margin:4px 0;"></div>
+    <div class="fld"><label class="muted">🔁 リピーター：来店◯回以上</label>
+      <input type="number" name="repeater_min_visits" value="{{ cfg.repeater_min_visits }}" min="0" style="width:80px;"></div>
+    <div class="fld"><label class="muted">⭐ 常連：来店◯回以上</label>
+      <input type="number" name="regular_min_visits" value="{{ cfg.regular_min_visits }}" min="0" style="width:80px;"></div>
+    <div class="fld"><label class="muted">🔥 ヘビー：来店◯回以上</label>
+      <input type="number" name="heavy_min_visits" value="{{ cfg.heavy_min_visits }}" min="0" style="width:80px;"></div>
+    <div style="flex-basis:100%;height:1px;background:#eee;margin:4px 0;"></div>
+    <div class="fld"><label class="muted">💤 離反ぎみ：最終来店から◯日</label>
+      <input type="number" name="dormant_days" value="{{ cfg.dormant_days }}" min="0" style="width:80px;"></div>
+    <button class="btn sm" type="submit">保存</button>
+  </form>
+  <p class="muted" style="margin:12px 0 0;">
+    リピーター／常連／ヘビーは来店回数でどれか1つに振り分け（下限が大きい方を優先）。
+    「特典保有」（今すぐ使える特典あり）は自動判定で、しきい値はありません。
+  </p>
+</div>
+
+<div class="card">
+  <h2>手動タグ</h2>
+  <p class="muted" style="margin:-4px 0 12px;">運営が任意に付けるラベル（例：VIP／クレーム対応中／試食会来店）。付け外しは<a href="{% url 'stamps:manage_friends' %}">友だち一覧</a>の各行から。有効にしたタグだけ一覧に出ます。</p>
+  {% if tag_rows %}
+  <table class="grid">
+    <thead><tr><th>タグ名</th><th>色</th><th>表示順</th><th>有効</th><th>付与人数</th><th></th></tr></thead>
+    <tbody>
+      {% for row in tag_rows %}
+      <tr>
+        <td colspan="6" style="padding:8px 0;">
+          <form method="post" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save">
+            <input type="hidden" name="tag_id" value="{{ row.t.id }}">
+            <div class="fld"><label class="muted">タグ名</label><input type="text" name="name" value="{{ row.t.name }}" size="16"></div>
+            <div class="fld"><label class="muted">色</label>
+              <select name="color">
+                {% for val, disp in colors %}<option value="{{ val }}" {% if row.t.color == val %}selected{% endif %}>{{ disp }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="fld"><label class="muted">表示順</label><input type="number" name="order" value="{{ row.t.order }}" min="0" style="width:70px;"></div>
+            <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" {% if row.t.active %}checked{% endif %}> 使う</label></div>
+            <div class="fld"><label class="muted">プレビュー</label><span class="badge manual c-{{ row.t.color }}">{{ row.t.name }}</span></div>
+            <div class="fld"><label class="muted">付与</label><span style="font-size:13px;">{{ row.count }}人</span></div>
+            <button class="btn sm" type="submit">保存</button>
+          </form>
+          <form method="post" style="margin-top:6px;" onsubmit="return confirm('「{{ row.t.name }}」を削除しますか？（{{ row.count }}人への付与も消えます）');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="tag_id" value="{{ row.t.id }}">
+            <button class="btn sm ghost" type="submit">このタグを削除</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">まだ手動タグがありません。下から追加してください。</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>手動タグを追加</h2>
+  <form method="post" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <div class="fld"><label class="muted">タグ名</label><input type="text" name="name" size="16" placeholder="例：VIP" required></div>
+    <div class="fld"><label class="muted">色</label>
+      <select name="color">
+        {% for val, disp in colors %}<option value="{{ val }}">{{ disp }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fld"><label class="muted">表示順</label><input type="number" name="order" value="0" min="0" style="width:70px;"></div>
+    <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" checked> 使う</label></div>
+    <button class="btn sm" type="submit">追加する</button>
+  </form>
+</div>
+{% endblock %}
