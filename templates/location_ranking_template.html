@@ -88,7 +88,6 @@
                     <th class="text-end">1日平均</th>
                     <th class="text-end">廃棄率</th>
                     <th class="text-end">完売回数</th>
-                    <th class="text-end">不人気</th>
                     <th class="text-end">総売上</th>
                     <th class="text-end">稼働日数</th>
                 </tr>
@@ -105,20 +104,21 @@
                         {{ entry.waste_rate|floatformat:1 }}%
                     </td>
                     <td class="text-end">{{ entry.sold_out_count }}</td>
-                    <td class="text-end">{{ entry.unpopular_count }}</td>
                     <td class="text-end">¥{{ entry.total_sales|intcomma }}</td>
                     <td class="text-end">{{ entry.day_count }}日</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="10" class="text-center">該当する販売場所がありません（足切り日数を下げてみてください）</td>
+                    <td colspan="9" class="text-center">該当する販売場所がありません（足切り日数を下げてみてください）</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     <p class="text-muted small">
-        ※ 廃棄率：<span class="text-danger">30%以上=赤</span> / <span class="text-warning">15%以上=黄</span>。廃棄率＝総残数÷総持参数。
+        ※ 集計はお弁当（メニュー1〜10）のみ。大盛りごはん(11)は含みません。<br>
+        ※ 廃棄率：<span class="text-danger">30%以上=赤</span> / <span class="text-warning">15%以上=黄</span>。廃棄率＝総残数÷総持参数。<br>
+        ※ 完売回数＝その日のお弁当が全部完売した日数（メニュー別の合計ではないため、稼働日数を超えません）。
     </p>
 </div>
 

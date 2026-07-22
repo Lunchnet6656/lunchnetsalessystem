@@ -2674,17 +2674,31 @@ def location_ranking_view(request):
         type_location_names = SalesLocation.objects.filter(type=search_type).values_list('name', flat=True)
         entries = entries.filter(report__location__in=list(type_location_names))
 
+    # お弁当（メニュー1〜10）だけを集計対象にする。大盛りごはん(11)や空行(product_no=0)は除外。
+    # ＝持参数・販売数・残数・廃棄率・稼働日数すべてお弁当ベースで揃える。
+    entries = entries.filter(product_no__gte=1, product_no__lte=10)
+
     # 販売場所単位で期間集計
     grouped = entries.values('report__location').annotate(
         total_quantity=Sum('quantity'),
         total_sales_quantity=Sum('sales_quantity'),
         total_remaining=Sum('remaining_number'),
         total_sales=Sum('total_sales'),
-        sold_out_count=Count('id', filter=Q(sold_out=True)),
-        popular_count=Count('id', filter=Q(popular=True)),
-        unpopular_count=Count('id', filter=Q(unpopular=True)),
         day_count=Count('report__date', distinct=True),
     )
+
+    # 完売回数＝「その日のお弁当(1〜10)がすべて完売した日」の数（メニュー別完売の合計ではない）。
+    # 日(report)ごとに、持参したお弁当が1つ以上あり、その全部が完売なら“完売日”。
+    # ＝日単位のカウントなので、完売回数が稼働日数を超えることはない。
+    report_rollup = entries.values('report_id', 'report__location').annotate(
+        bento_brought=Count('id', filter=Q(quantity__gt=0)),
+        bento_soldout=Count('id', filter=Q(quantity__gt=0, sold_out=True)),
+    )
+    sold_out_days = {}
+    for rr in report_rollup:
+        if rr['bento_brought'] > 0 and rr['bento_brought'] == rr['bento_soldout']:
+            loc = rr['report__location']
+            sold_out_days[loc] = sold_out_days.get(loc, 0) + 1
 
     ranking = []
     for row in grouped:
@@ -2697,6 +2711,7 @@ def location_ranking_view(request):
             continue
         row['waste_rate'] = (r / q * 100) if q > 0 else 0          # 廃棄率（売れ残り率）
         row['avg_sales_per_day'] = (s / d) if d > 0 else 0        # 1日平均販売数
+        row['sold_out_count'] = sold_out_days.get(row['report__location'], 0)  # お弁当全完売した日数
         ranking.append(row)
 
     # 並べ替え（既定＝売れ残りワースト）
