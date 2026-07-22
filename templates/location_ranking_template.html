@@ -85,6 +85,7 @@
                     <th>販売場所</th>
                     <th class="text-end">総持参数</th>
                     <th class="text-end">総販売数</th>
+                    <th class="text-end">総残数</th>
                     <th class="text-end">1日平均</th>
                     <th class="text-end">廃棄率</th>
                     <th class="text-end">完売回数</th>
@@ -99,6 +100,7 @@
                     <td>{{ entry.report__location }}</td>
                     <td class="text-end">{{ entry.total_quantity|intcomma }}</td>
                     <td class="text-end">{{ entry.total_sales_quantity|intcomma }}</td>
+                    <td class="text-end">{{ entry.total_remaining|intcomma }}</td>
                     <td class="text-end">{{ entry.avg_sales_per_day|floatformat:1 }}</td>
                     <td class="text-end {% if entry.waste_rate >= 30 %}text-danger fw-bold{% elif entry.waste_rate >= 15 %}text-warning fw-bold{% endif %}">
                         {{ entry.waste_rate|floatformat:1 }}%
@@ -109,7 +111,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" class="text-center">該当する販売場所がありません（足切り日数を下げてみてください）</td>
+                    <td colspan="10" class="text-center">該当する販売場所がありません（足切り日数を下げてみてください）</td>
                 </tr>
                 {% endfor %}
             </tbody>
