@@ -842,3 +842,15 @@ class FetchFriendInsightCommandTests(TestCase):
             call_command("fetch_friend_insight", "--date", "2026-07-27")
         s = FriendInsightSnapshot.objects.get()
         self.assertEqual((str(s.date), s.followers, s.targeted_reaches), ("2026-07-27", 300, 250))
+
+    def test_days_backfill(self):
+        from unittest import mock
+        from django.core.management import call_command
+        from stamps.models import FriendInsightSnapshot
+        payload = {"status": "ready", "followers": 300, "targetedReaches": 250, "blocks": 20}
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_insight.requests.get") as g:
+            g.return_value.status_code = 200
+            g.return_value.json.return_value = payload
+            call_command("fetch_friend_insight", "--days", "30")
+        self.assertEqual(FriendInsightSnapshot.objects.count(), 30)  # 30日ぶん保存
