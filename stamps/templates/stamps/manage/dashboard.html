@@ -1,4 +1,5 @@
 {% extends "stamps/manage/base.html" %}
+{% load humanize %}
 {% block title %}ダッシュボード{% endblock %}
 {% block heading %}スタンプカード ダッシュボード{% endblock %}
 {% block content %}
@@ -15,9 +16,84 @@
 </form>
 
 <div class="summary">
-  <div class="stat brand"><div class="n">{{ participation_rate }}%</div><div class="l">参加率（{{ participants }}人 / 友だち{{ friends }}人）</div></div>
-  <div class="stat"><div class="n">{{ visits }}</div><div class="l">期間内の来店数（スタンプ）</div></div>
-  <div class="stat"><div class="n">{{ n_cards }}</div><div class="l">対象カード数</div></div>
+  <div class="stat brand">
+    {% if participation_rate is not None %}
+      <div class="n">{{ participation_rate }}%</div>
+      <div class="l">参加率（{{ participants|intcomma }}人 / 全友だち{{ friend_base|intcomma }}人）</div>
+    {% else %}
+      <div class="n">—</div>
+      <div class="l">参加率（全友だち数の集計待ち）</div>
+    {% endif %}
+  </div>
+  <div class="stat"><div class="n">{{ visits|intcomma }}</div><div class="l">期間内の来店数（スタンプ）</div></div>
+  <div class="stat"><div class="n">{{ n_cards|intcomma }}</div><div class="l">対象カード数</div></div>
+</div>
+
+<div class="card">
+  <h2>友だち・ブロックの状況（公式アカウント全体）
+    {% if friend_snap %}<span class="muted" style="font-weight:normal;">— {{ friend_snap.date|date:'n/j' }}時点</span>{% endif %}
+  </h2>
+  {% if friend_snap %}
+  <div class="summary" style="margin-bottom:14px;">
+    <div class="stat brand"><div class="n">{{ friend_snap.effective_friends|intcomma }}</div><div class="l">実質有効友だち（届く数）</div></div>
+    <div class="stat"><div class="n">{{ friend_snap.followers|intcomma }}</div><div class="l">累計友だち追加（延べ）</div></div>
+    <div class="stat"><div class="n">{{ friend_snap.blocks|intcomma }}</div><div class="l">累計ブロック</div></div>
+    <div class="stat"><div class="n">{{ friend_snap.block_rate }}%</div><div class="l">ブロック率</div></div>
+  </div>
+  {% if friend_combo %}
+  <style>
+    .fchart svg{ width:100%; height:auto; display:block; font-size:11px; }
+    /* PCは全ラベル表示。中画面は偶数番だけ、小画面は6個おきに端折る（両端は常に表示）。 */
+    @media (max-width:1100px){ .fchart text.xl:not(.k2):not(.edge){ display:none; } }
+    @media (max-width:640px){ .fchart text.xl:not(.k6):not(.edge){ display:none; } }
+  </style>
+  <div class="fchart">
+    <svg viewBox="0 0 {{ friend_combo.width }} {{ friend_combo.height }}" role="img"
+         preserveAspectRatio="xMidYMid meet"
+         aria-label="実質有効友だちの推移（左軸）と日次の新規追加・新規ブロック（右軸）">
+      <!-- 左軸グリッド＋目盛り（友だち） -->
+      {% for t in friend_combo.lyticks %}
+        <line x1="{{ friend_combo.axis_x0 }}" y1="{{ t.y }}" x2="{{ friend_combo.axis_x1 }}" y2="{{ t.y }}"
+              stroke="#eceef1" stroke-width="1"/>
+        <text x="{{ friend_combo.axis_x0 }}" y="{{ t.y }}" dx="-6" dy="3" text-anchor="end" fill="#6c757d">{{ t.v|intcomma }}</text>
+      {% endfor %}
+      <!-- 右軸目盛り（日次増減の件数） -->
+      {% for t in friend_combo.ryticks %}
+        <text x="{{ friend_combo.axis_x1 }}" y="{{ t.y }}" dx="6" dy="3" text-anchor="start" fill="#9aa0a6">{{ t.v|intcomma }}</text>
+      {% endfor %}
+      <!-- X軸ラベル（全日付を出力し、狭い画面はCSSで間引く） -->
+      {% for xl in friend_combo.xlabels %}
+        <text class="{{ xl.cls }}" x="{{ xl.x }}" y="{{ friend_combo.axis_y1 }}" dy="16" text-anchor="middle" fill="#6c757d">{{ xl.t }}</text>
+      {% endfor %}
+      <!-- 棒（右軸・日次増減） -->
+      {% for s in friend_combo.bars %}
+        {% for b in s.bars %}<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ s.color }}" rx="1"><title>{{ b.label }}：{{ s.name }}{{ b.v|intcomma }}</title></rect>{% endfor %}
+      {% endfor %}
+      <!-- 折れ線（左軸・友だち推移） -->
+      <polyline points="{{ friend_combo.line.points }}" fill="none" stroke="{{ friend_combo.line.color }}" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round"/>
+      {% for d in friend_combo.line.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.5" fill="{{ friend_combo.line.color }}"><title>{{ d.v|intcomma }}</title></circle>{% endfor %}
+    </svg>
+  </div>
+  <div class="muted" style="margin-top:6px;">
+    <span style="display:inline-block;margin-right:14px;">
+      <span style="display:inline-block;width:12px;height:3px;border-radius:2px;background:{{ friend_combo.line.color }};vertical-align:middle;"></span>
+      {{ friend_combo.line.name }}（左軸）
+    </span>
+    {% for s in friend_combo.bars %}
+      <span style="display:inline-block;margin-right:14px;">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{{ s.color }};vertical-align:middle;"></span>
+        {{ s.name }}（右軸）
+      </span>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin:4px 0 0;">左軸＝実質有効友だちの推移（データ範囲に自動ズーム）。右軸＝その日ごとの新規追加・新規ブロックの件数＝配信との相関が読める。</p>
+  {% else %}
+  <p class="muted" style="margin:0;">推移グラフは2日分以上のデータが貯まると表示されます（毎日自動取得中・{{ friend_points }}日分）。</p>
+  {% endif %}
+  {% else %}
+  <p class="empty" style="margin:0;">まだ友だち統計がありません。毎日1回 <code class="url">fetch_friend_insight</code> が自動取得します（前日ぶんから反映）。</p>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -32,10 +108,10 @@
 <div class="card">
   <h2>特典</h2>
   <div class="summary" style="margin-bottom:0;">
-    <div class="stat"><div class="n">{{ issued }}</div><div class="l">発行された特典</div></div>
-    <div class="stat"><div class="n">{{ used }}</div><div class="l">使用された特典</div></div>
-    <div class="stat brand"><div class="n">¥{{ est_cost }}</div><div class="l">使用済み特典の推定コスト</div></div>
+    <div class="stat"><div class="n">{{ issued|intcomma }}</div><div class="l">発行された特典</div></div>
+    <div class="stat"><div class="n">{{ used|intcomma }}</div><div class="l">使用された特典</div></div>
+    <div class="stat brand"><div class="n">¥{{ est_cost|intcomma }}</div><div class="l">使用済み特典の推定コスト</div></div>
   </div>
-  <p class="muted" style="margin-top:10px;">※ 参加率の分母は現在のLINE会員数（来店計測の自作基盤に紐づく友だち）。パイロットのGO/NO-GO判定はこの画面と「分析」のCSVで行う。</p>
+  <p class="muted" style="margin-top:10px;">※ 参加率の分母は公式アカウント全体の「実質有効友だち数」（LINE Insightから毎日自動取得・ブロック除外）。友だち数・ブロックは累計値（延べ）で前日ぶんまで反映。パイロットのGO/NO-GO判定はこの画面と「分析」のCSVで行う。</p>
 </div>
 {% endblock %}

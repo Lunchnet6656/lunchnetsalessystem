@@ -1,4 +1,5 @@
 {% extends "stamps/manage/base.html" %}
+{% load humanize %}
 {% block title %}来店データ{% endblock %}
 {% block heading %}来店データ（スタンプログ）{% endblock %}
 {% block content %}
@@ -16,7 +17,7 @@
 </form>
 
 <div class="card">
-  <h2>来店一覧（{{ total }}件・最新500件まで表示）</h2>
+  <h2>来店一覧（{{ total|intcomma }}件・最新500件まで表示）</h2>
   {% if logs %}
   <div class="tscroll">
   <table class="grid">
@@ -27,7 +28,7 @@
         <td>{{ lg.stamped_at|date:'Y-m-d H:i' }}</td>
         <td>{{ lg.card.member.name }}<div class="mono">{{ lg.card.member.line_user_id|slice:':12' }}…</div></td>
         <td>{{ lg.location.name }}</td>
-        <td>{{ lg.card.stamp_count }}pt</td>
+        <td>{{ lg.card.stamp_count|intcomma }}pt</td>
       </tr>
       {% endfor %}
     </tbody>

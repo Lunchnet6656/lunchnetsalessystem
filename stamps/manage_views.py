@@ -29,10 +29,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from sales.models import SalesLocation, _generate_qr_token
+from sales.models import DailyReport, SalesLocation, _generate_qr_token
 from reservations.models import LineMember
 from stamps.models import (
-    FriendTagConfig, MemberTag, MemberTagLink,
+    FriendInsightSnapshot, FriendTagConfig, MemberTag, MemberTagLink,
     Reward, RewardTier, RichMenuLink, StampCard, StampConfig, StampLog,
 )
 from stamps.services import (
@@ -63,9 +63,181 @@ def _logs_in_period(start, end, location_id=None):
     return qs
 
 
+def _nice_axis(dmin, dmax, target_ticks=5):
+    """データの最小・最大から、キリの良い(y_min, y_max, step)を算出する（自動ズーム用）。
+
+    上下に少し余白を取り、目盛り幅は 1/2/5×10^k に丸める。両端も step の倍数へ丸める。
+    """
+    import math
+    if dmax <= dmin:
+        dmax = dmin + 1
+    span = dmax - dmin
+    pad = span * 0.15
+    lo, hi = dmin - pad, dmax + pad
+    raw_step = (hi - lo) / target_ticks
+    mag = 10 ** math.floor(math.log10(raw_step)) if raw_step > 0 else 1
+    step = next(m * mag for m in (1, 2, 5, 10) if raw_step <= m * mag)
+    step = max(1, int(step))          # 整数カウント軸なので最小刻みは1（0除算・0刻み防止）
+    y_min = math.floor(lo / step) * step
+    y_max = math.ceil(hi / step) * step
+    return int(y_min), int(y_max), step
+
+
+def _nice_upper(dmax, target_ticks=4):
+    """0..dmax の「キリの良い上限と目盛り幅」を返す（右軸＝カウント用）。"""
+    import math
+    if dmax <= 0:
+        return 1, 1
+    raw = dmax / target_ticks
+    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
+    step = next(m * mag for m in (1, 2, 5, 10) if raw <= m * mag)
+    step = max(1, int(step))          # 整数カウント軸なので最小刻みは1
+    top = math.ceil(dmax / step) * step
+    return int(top), step
+
+
+def _xlabel_keep_class(i, n):
+    """X軸ラベルの間引き用クラス。CSSのメディアクエリで画面幅ごとに表示/非表示を切替える。
+
+    - edge：両端（常に表示）／k2：偶数番（中画面）／k6：6個おき（小画面）
+    PCは全ラベル表示、狭い画面はCSSで端折る（サーバーは全ラベルを出す）。
+    """
+    c = ["xl"]
+    if i == 0 or i == n - 1:
+        c.append("edge")
+    if i % 2 == 0:
+        c.append("k2")
+    if i % 6 == 0:
+        c.append("k6")
+    return " ".join(c)
+
+
+def _svg_combo_chart(rows, line, bars, width=1160, height=300):
+    """2軸コンボチャート：左軸＝折れ線（友だち推移・自動ズーム）／右軸＝グループ棒（日次増減）。
+
+    rows: [{"label", <line.key>, <bar.key>...}, ...]（日付昇順）。棒の値は None 可（初日など）。
+    line: {"key","color","name"}     … 折れ線（実質有効友だち）
+    bars: [{"key","color","name"}, ...] … 棒（新規追加・新規ブロック）
+    横幅は広め（既定1160）。SVGは width:100% でコンテンツ幅いっぱいに伸縮する。
+    """
+    pad_l, pad_r, pad_t, pad_b = 48, 40, 14, 30
+    iw, ih = width - pad_l - pad_r, height - pad_t - pad_b
+    n = len(rows)
+    slot = iw / n
+
+    # 左軸（折れ線＝友だち）：データ範囲へ自動ズーム。
+    lvals = [r[line["key"]] for r in rows]
+    ly_min, ly_max, ly_step = _nice_axis(min(lvals), max(lvals))
+    lspan = (ly_max - ly_min) or 1
+
+    # 右軸（棒＝日次増減）：0起点でキリの良い上限。
+    bvals = [r[b["key"]] for r in rows for b in bars if r.get(b["key"]) is not None]
+    r_max, r_step = _nice_upper(max(bvals + [1]))
+    rspan = r_max or 1
+
+    def cx(i):                       # スロット中心（折れ線・棒・ラベルを揃える）
+        return round(pad_l + slot * i + slot / 2, 1)
+
+    def ly(v):
+        return round(pad_t + ih - ih * (v - ly_min) / lspan, 1)
+
+    def ry_h(v):                     # 右軸：棒の高さ
+        return round(ih * v / rspan, 1)
+
+    # 棒（右軸・日次増減）
+    nb = len(bars)
+    bw = min(slot * 0.6 / nb, 10)
+    group_w = bw * nb
+    bar_out = []
+    for bi, b in enumerate(bars):
+        bb = []
+        for i, r in enumerate(rows):
+            v = r.get(b["key"])
+            if v is None:
+                continue
+            h = ry_h(v)
+            x = pad_l + slot * i + (slot - group_w) / 2 + bw * bi
+            bb.append({"x": round(x, 1), "y": round(pad_t + ih - h, 1),
+                       "w": round(bw, 1), "h": h, "v": v, "label": r["label"]})
+        bar_out.append({"name": b["name"], "color": b["color"], "bars": bb})
+
+    # 折れ線（左軸・友だち推移）
+    pts = [{"x": cx(i), "y": ly(r[line["key"]]), "v": r[line["key"]]} for i, r in enumerate(rows)]
+    line_out = {"name": line["name"], "color": line["color"],
+                "points": " ".join(f"{p['x']},{p['y']}" for p in pts), "dots": pts}
+
+    lyticks = [{"v": v, "y": ly(v)} for v in range(ly_min, ly_max + 1, ly_step)]
+    ryticks = [{"v": v, "y": round(pad_t + ih - ry_h(v), 1)} for v in range(0, r_max + 1, r_step)]
+    # 全ラベルを出し、間引きはCSS（画面幅）に任せる＝PCは30日全部、狭い画面は端折る。
+    xlabels = [{"x": cx(i), "t": r["label"], "cls": _xlabel_keep_class(i, n)}
+               for i, r in enumerate(rows)]
+    return {
+        "width": width, "height": height, "line": line_out, "bars": bar_out,
+        "lyticks": lyticks, "ryticks": ryticks, "xlabels": xlabels,
+        "axis_x0": pad_l, "axis_x1": width - pad_r,
+        "axis_y0": pad_t, "axis_y1": height - pad_b,
+    }
+
+
+def _friend_delta_rows(snaps, prev):
+    """累計スナップショットから日次増減（新規追加・新規ブロック）を計算する。
+
+    followers/blocks は累計（単調増加）なので、前日との差＝その日の新規イベント数。
+    prev は期間開始日より前の直近 ready スナップショット（あれば初日も差分が出せる）。
+    """
+    seq = ([prev] if prev else []) + list(snaps)
+    rows = []
+    for i in range(1, len(seq)):
+        cur, before = seq[i], seq[i - 1]
+        rows.append({
+            "date": cur.date,
+            "label": f"{cur.date.month}/{cur.date.day}",
+            "adds": max(cur.followers - before.followers, 0),
+            "blocks": max(cur.blocks - before.blocks, 0),
+        })
+    return rows
+
+
+def _friend_insight_context(start, end):
+    """全友だち母数のカード値＋推移グラフのコンテキストを組む。
+
+    - base_snap: 期間endに最も近い ready スナップショット（母数・カードの現在値に使う）
+    - chart: 期間内 ready スナップショットの友だち数/ブロック数の推移SVG（2点未満はNone）
+    """
+    base_snap = FriendInsightSnapshot.latest_ready(on_or_before=end)
+    snaps = list(FriendInsightSnapshot.objects
+                 .filter(status=FriendInsightSnapshot.STATUS_READY,
+                         date__gte=start, date__lte=end)
+                 .order_by("date"))
+    # 推移＝2軸コンボ：左軸に友だち折れ線（ブロック線は外した）、右軸に日次増減の棒を統合。
+    combo = None
+    if len(snaps) >= 2:
+        prev = (FriendInsightSnapshot.objects
+                .filter(status=FriendInsightSnapshot.STATUS_READY, date__lt=start)
+                .order_by("-date").first())
+        delta_by_date = {d["date"]: d for d in _friend_delta_rows(snaps, prev)}
+        rows = []
+        for s in snaps:
+            d = delta_by_date.get(s.date)
+            rows.append({
+                "label": f"{s.date.month}/{s.date.day}",
+                "friends": s.effective_friends,
+                "adds": d["adds"] if d else None,     # 初日など差分が出せない日は None（棒を描かない）
+                "blocks": d["blocks"] if d else None,
+            })
+        combo = _svg_combo_chart(
+            rows,
+            {"key": "friends", "color": "#ff0000", "name": "実質有効友だち"},
+            [{"key": "adds", "color": "#2e9e5b", "name": "新規追加"},
+             {"key": "blocks", "color": "#e8830c", "name": "新規ブロック"}],
+        )
+    return {"friend_snap": base_snap, "friend_combo": combo, "friend_points": len(snaps)}
+
+
 @staff_member_required
 def dashboard(request):
-    """KPIサマリー：参加率・各pt達成率・来店数・特典発行/使用・推定特典コスト。"""
+    """KPIサマリー：参加率（全友だちベース）・友だち/ブロック統計とその推移・
+    各pt達成率・来店数・特典発行/使用・推定特典コスト。"""
     start, end = _period(request)
     loc_id = request.GET.get("loc") or ""
 
@@ -73,8 +245,16 @@ def dashboard(request):
     visits = logs.count()
     participant_ids = set(logs.values_list("card__member_id", flat=True))
     participants = len(participant_ids)
-    friends = LineMember.objects.count()
-    participation_rate = round(participants / friends * 100, 1) if friends else 0.0
+
+    # 参加率の母数＝全友だち（実質有効友だち数）。旧・登録者ベース(LineMember数)は廃止。
+    fi = _friend_insight_context(start, end)
+    base_snap = fi["friend_snap"]
+    friend_base = base_snap.effective_friends if base_snap else 0
+    if friend_base:
+        # 母数取得ズレで参加者が上回った場合は100%でクランプ。
+        participation_rate = min(round(participants / friend_base * 100, 1), 100.0)
+    else:
+        participation_rate = None  # 集計待ち（スナップショット未取得）
 
     # 達成率：期間内に来店した参加者のカードのうち、各ptに到達した割合。
     cards = (StampCard.objects
@@ -104,14 +284,117 @@ def dashboard(request):
         "locations": SalesLocation.objects.order_by("no", "name"),
         "visits": visits,
         "participants": participants,
-        "friends": friends,
+        "friend_base": friend_base,
         "participation_rate": participation_rate,
+        "friend_snap": base_snap,
+        "friend_combo": fi["friend_combo"],
+        "friend_points": fi["friend_points"],
         "n_cards": n_cards,
         "reach": reach,
         "issued": issued,
         "used": used,
         "est_cost": est_cost,
     })
+
+
+def _pct(numer, denom):
+    """割合（％・小数1桁）。分母0は None（画面で「-」表示）。"""
+    return round(numer / denom * 100, 1) if denom else None
+
+
+def _sales_correlation_rows(start, end, loc_no=None, stamp_only=True):
+    """売上×スタンプ相関の行を作る（日付×販売場所）。
+
+    - 売上系（持参/販売/残/総売上）は sales.DailyReport（同日・同店で1行）。
+    - スタンプ利用者数は StampLog を (stamped_on, location.no) で distinct member 集計し突き合わせる。
+    - 結合キー：DailyReport.location_no == SalesLocation.no。
+    """
+    enabled_nos = set(SalesLocation.objects.filter(stamp_enabled=True)
+                      .values_list("no", flat=True))
+
+    reports = DailyReport.objects.filter(date__gte=start, date__lte=end)
+    if loc_no is not None:
+        reports = reports.filter(location_no=loc_no)
+    elif stamp_only:
+        reports = reports.filter(location_no__in=enabled_nos)
+    reports = reports.order_by("-date", "location_no")
+
+    # スタンプ利用者数＝(日付, 店no) ごとの distinct 会員数。2クエリで一括取得。
+    usage = (StampLog.objects
+             .filter(stamped_on__gte=start, stamped_on__lte=end)
+             .values("stamped_on", "location__no")
+             .annotate(u=Count("card__member_id", distinct=True)))
+    usage_map = {(r["stamped_on"], r["location__no"]): r["u"] for r in usage}
+
+    rows = []
+    for rep in reports:
+        brought = int(rep.total_quantity or 0)
+        sold = int(rep.total_sales_quantity or 0)
+        remaining = int(rep.total_remaining or 0)
+        users = usage_map.get((rep.date, rep.location_no), 0)
+        rows.append({
+            "date": rep.date,
+            "location": rep.location,
+            "location_no": rep.location_no,
+            "stamp_enabled": rep.location_no in enabled_nos,
+            "brought": brought,
+            "sold": sold,
+            "remaining": remaining,
+            "waste_rate": _pct(remaining, brought),        # 廃棄率＝残数÷持参数
+            "stamp_users": users,
+            "stamp_rate": _pct(users, sold),               # 利用割合＝利用者数÷販売数
+            "revenue": int(rep.total_revenue or 0),
+        })
+    return rows
+
+
+@staff_member_required
+def sales_correlation(request):
+    """売上×スタンプ相関：日付×販売場所で持参/販売/残/廃棄率/スタンプ利用/総売上を並べる。
+
+    期間・店舗フィルタ＋「スタンプ対応店のみ」トグル（既定ON）。CSVは ?export=csv。
+    """
+    start, end = _period(request)
+    loc_id = request.GET.get("loc") or ""
+    # 店舗フィルタは SalesLocation.id → no に変換して DailyReport と結合。
+    loc_no = None
+    if loc_id:
+        loc = SalesLocation.objects.filter(id=loc_id).first()
+        loc_no = loc.no if loc else -1  # 該当なしは -1（0件に）
+    # トグル：未指定は既定ON。store フィルタ時は全店（loc優先）。
+    stamp_only = request.GET.get("stamp_only", "1") == "1"
+
+    rows = _sales_correlation_rows(start, end, loc_no=loc_no, stamp_only=stamp_only)
+
+    if request.GET.get("export") == "csv":
+        return _sales_correlation_csv(rows, start, end)
+
+    return render(request, "stamps/manage/sales_correlation.html", {
+        "nav": "sales_correlation",
+        "start": start, "end": end, "f_loc": loc_id, "stamp_only": stamp_only,
+        "locations": SalesLocation.objects.order_by("no", "name"),
+        "rows": rows,
+        "total": len(rows),
+    })
+
+
+def _sales_correlation_csv(rows, start, end):
+    resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+    resp["Content-Disposition"] = (
+        f'attachment; filename="sales_stamp_correlation_{start:%Y%m%d}-{end:%Y%m%d}.csv"')
+    w = csv.writer(resp)
+    w.writerow(["日付", "販売場所", "持参数", "販売数", "残数", "廃棄率(%)",
+                "スタンプ利用者数", "スタンプ利用割合(%)", "総売上"])
+    for r in rows:
+        w.writerow([
+            r["date"].strftime("%Y-%m-%d"), r["location"],
+            r["brought"], r["sold"], r["remaining"],
+            "" if r["waste_rate"] is None else r["waste_rate"],
+            r["stamp_users"],
+            "" if r["stamp_rate"] is None else r["stamp_rate"],
+            r["revenue"],
+        ])
+    return resp
 
 
 @staff_member_required

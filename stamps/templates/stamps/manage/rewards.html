@@ -1,4 +1,5 @@
 {% extends "stamps/manage/base.html" %}
+{% load humanize %}
 {% block title %}特典設定{% endblock %}
 {% block heading %}特典設定・コスト{% endblock %}
 {% block content %}
@@ -31,7 +32,7 @@
     🔥 <b>連続来店</b>：連続来店が節目（既定3日＝3・6・9日目…）に達した日を2倍。両方該当しても<b>最大2倍</b>で据え置きです。
   </p>
   <p class="muted" style="margin:10px 0 0;">
-    カードの満了pt（マス数）は <b>{{ cap_pt }}個</b>。＝有効な段階のうち最大の到達ptで自動決定します（段階を足すとカードも伸びます）。
+    カードの満了pt（マス数）は <b>{{ cap_pt|intcomma }}個</b>。＝有効な段階のうち最大の到達ptで自動決定します（段階を足すとカードも伸びます）。
     基準コストは損益・コスト集計用の想定値（実装には影響しません）。
   </p>
 </div>
@@ -60,7 +61,7 @@
   <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:12px;">
     <table class="grid" style="margin:0;">
       <thead><tr><th>発行数</th><th>使用数</th><th>使用済みコスト</th></tr></thead>
-      <tbody><tr><td>{{ row.issued }}</td><td>{{ row.used }}</td><td>¥{{ row.cost }}</td></tr></tbody>
+      <tbody><tr><td>{{ row.issued|intcomma }}</td><td>{{ row.used|intcomma }}</td><td>¥{{ row.cost|intcomma }}</td></tr></tbody>
     </table>
     {% if row.deletable %}
     <form method="post" onsubmit="return confirm('到達pt {{ row.tier.threshold_pt }} の段階を削除しますか？');">
@@ -97,6 +98,6 @@
 </div>
 
 <div class="card">
-  <div class="stat brand" style="display:inline-block;"><div class="n">¥{{ total_cost }}</div><div class="l">使用済み特典の総コスト（全段階）</div></div>
+  <div class="stat brand" style="display:inline-block;"><div class="n">¥{{ total_cost|intcomma }}</div><div class="l">使用済み特典の総コスト（全段階）</div></div>
 </div>
 {% endblock %}

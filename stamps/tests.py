@@ -583,3 +583,262 @@ class CouponAccessTests(TestCase):
         with self.settings(STAMP_REQUIRE_LINE=True):
             resp = self.client.get(f"/stamp/reward/{reward.id}/")
         self.assertEqual(resp.status_code, 403)  # 本人特定できない第三者は弾く
+
+
+class SalesCorrelationTests(TestCase):
+    """売上×スタンプ相関：DailyReport と StampLog の突き合わせ。"""
+    def setUp(self):
+        RewardTier.ensure_defaults()
+        self.loc = SalesLocation.objects.create(no=1, name="スタンプ店", type="A",
+                                                price_type="A", stamp_enabled=True)
+        self.other = SalesLocation.objects.create(no=2, name="非対応店", type="A",
+                                                  price_type="A", stamp_enabled=False)
+        User = get_user_model()
+        self.staff = User.objects.create_user(username="sc", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+        self.day = timezone.localdate()
+
+    def _report(self, loc_no, location, brought, sold, remaining, revenue, date=None):
+        from sales.models import DailyReport
+        return DailyReport.objects.create(
+            date=date or self.day, location=location, location_no=loc_no,
+            total_quantity=brought, total_sales_quantity=sold,
+            total_remaining=remaining, total_revenue=revenue)
+
+    def _stamp(self, name, loc):
+        m = LineMember.objects.create(line_user_id=f"U_{name}", name=name)
+        services.award_stamp(m, loc, now=_dt(self.day.year, self.day.month, self.day.day, 12, 0))
+        return m
+
+    def _get(self, **params):
+        params.setdefault("from", self.day.isoformat())
+        params.setdefault("to", self.day.isoformat())
+        return self.client.get("/stamp/manage/sales-correlation/", params)
+
+    def test_row_metrics(self):
+        from stamps.manage_views import _sales_correlation_rows
+        self._report(1, "スタンプ店", brought=100, sold=80, remaining=20, revenue=50000)
+        self._stamp("a", self.loc)
+        self._stamp("b", self.loc)
+        rows = _sales_correlation_rows(self.day, self.day)
+        self.assertEqual(len(rows), 1)
+        r = rows[0]
+        self.assertEqual((r["brought"], r["sold"], r["remaining"]), (100, 80, 20))
+        self.assertEqual(r["waste_rate"], 20.0)      # 20/100
+        self.assertEqual(r["stamp_users"], 2)        # a,b の distinct
+        self.assertEqual(r["stamp_rate"], 2.5)       # 2/80
+        self.assertEqual(r["revenue"], 50000)
+
+    def test_stamp_only_toggle(self):
+        self._report(2, "非対応店", brought=50, sold=40, remaining=10, revenue=20000)
+        # 既定（スタンプ対応店のみON）＝非対応店の行は出ない（0件）。
+        self.assertEqual(self._get().context["total"], 0)
+        # OFF にすると行に出る。
+        locs = [r["location"] for r in self._get(stamp_only="0").context["rows"]]
+        self.assertIn("非対応店", locs)
+
+    def test_zero_division_shows_dash(self):
+        from stamps.manage_views import _sales_correlation_rows
+        self._report(1, "スタンプ店", brought=0, sold=0, remaining=0, revenue=0)
+        r = _sales_correlation_rows(self.day, self.day)[0]
+        self.assertIsNone(r["waste_rate"])           # 持参0 → 廃棄率なし
+        self.assertIsNone(r["stamp_rate"])           # 販売0 → 利用割合なし
+
+    def test_unmatched_location_no_zero(self):
+        # location_no=0（旧データ）はスタンプ0で落ちない。
+        from stamps.manage_views import _sales_correlation_rows
+        self._report(0, "旧データ店", brought=30, sold=30, remaining=0, revenue=9000)
+        rows = _sales_correlation_rows(self.day, self.day, stamp_only=False)
+        r = [x for x in rows if x["location"] == "旧データ店"][0]
+        self.assertEqual(r["stamp_users"], 0)
+
+    def test_csv_export(self):
+        self._report(1, "スタンプ店", brought=100, sold=80, remaining=20, revenue=50000)
+        resp = self._get(export="csv")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+
+    def test_page_opens(self):
+        self.assertEqual(self._get().status_code, 200)
+
+
+class FriendInsightModelTests(TestCase):
+    """友だち統計スナップショットの派生値。"""
+    def _snap(self, **kw):
+        from stamps.models import FriendInsightSnapshot
+        base = dict(date=timezone.localdate(), status="ready",
+                    followers=100, targeted_reaches=80, blocks=20,
+                    fetched_at=timezone.now())
+        base.update(kw)
+        return FriendInsightSnapshot.objects.create(**base)
+
+    def test_effective_friends_prefers_targeted_reaches(self):
+        s = self._snap(targeted_reaches=80, followers=100, blocks=20)
+        self.assertEqual(s.effective_friends, 80)
+
+    def test_effective_friends_fallback(self):
+        # targeted_reaches が0（少人数で欠落）なら followers-blocks で代替。
+        s = self._snap(targeted_reaches=0, followers=100, blocks=30)
+        self.assertEqual(s.effective_friends, 70)
+
+    def test_block_rate(self):
+        s = self._snap(followers=200, blocks=50)
+        self.assertEqual(s.block_rate, 25.0)
+
+    def test_latest_ready_skips_unready(self):
+        from stamps.models import FriendInsightSnapshot
+        today = timezone.localdate()
+        self._snap(date=today - timedelta(days=2), status="ready", followers=90)
+        self._snap(date=today - timedelta(days=1), status="unready", followers=999)
+        latest = FriendInsightSnapshot.latest_ready(on_or_before=today)
+        self.assertEqual(latest.followers, 90)  # unready は母数に採用しない
+
+
+class FriendInsightServiceTests(TestCase):
+    """LINE Insight 取得（requestsをモック）と保存。"""
+    def _resp(self, payload, status_code=200):
+        from unittest import mock
+        m = mock.Mock()
+        m.status_code = status_code
+        m.json.return_value = payload
+        m.text = str(payload)
+        return m
+
+    def test_fetch_parses_ready(self):
+        from unittest import mock
+        from stamps import line_insight
+        payload = {"status": "ready", "followers": 500, "targetedReaches": 420, "blocks": 30}
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_insight.requests.get", return_value=self._resp(payload)):
+            d = line_insight.fetch_friend_insight(timezone.localdate())
+        self.assertEqual((d["status"], d["followers"], d["targeted_reaches"], d["blocks"]),
+                         ("ready", 500, 420, 30))
+
+    def test_fetch_tolerates_missing_fields(self):
+        from unittest import mock
+        from stamps import line_insight
+        # 少人数で targetedReaches / blocks が欠落しても落ちない。
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_insight.requests.get",
+                        return_value=self._resp({"status": "ready", "followers": 12})):
+            d = line_insight.fetch_friend_insight(timezone.localdate())
+        self.assertEqual((d["followers"], d["targeted_reaches"], d["blocks"]), (12, 0, 0))
+
+    def test_fetch_requires_token(self):
+        from unittest import mock
+        from stamps import line_insight
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value=""):
+            with self.assertRaises(line_insight.InsightError):
+                line_insight.fetch_friend_insight(timezone.localdate())
+
+    def test_save_upserts(self):
+        from unittest import mock
+        from stamps import line_insight
+        from stamps.models import FriendInsightSnapshot
+        day = timezone.localdate()
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_insight.requests.get",
+                        return_value=self._resp({"status": "ready", "followers": 100,
+                                                 "targetedReaches": 80, "blocks": 20})):
+            line_insight.save_friend_insight(day)
+            # 同じ日を再取得しても1行のまま更新（重複しない）。
+            with mock.patch("stamps.line_insight.requests.get",
+                            return_value=self._resp({"status": "ready", "followers": 110,
+                                                     "targetedReaches": 88, "blocks": 22})):
+                line_insight.save_friend_insight(day)
+        self.assertEqual(FriendInsightSnapshot.objects.filter(date=day).count(), 1)
+        self.assertEqual(FriendInsightSnapshot.objects.get(date=day).followers, 110)
+
+
+class DashboardFriendBaseTests(TestCase):
+    """ダッシュボードの参加率が全友だち（実質有効）ベースになっているか。"""
+    def setUp(self):
+        RewardTier.ensure_defaults()
+        self.loc = SalesLocation.objects.create(no=1, name="店", type="A", price_type="A",
+                                                stamp_enabled=True)
+        User = get_user_model()
+        self.staff = User.objects.create_user(username="d1", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+
+    def _snap(self, day, **kw):
+        from stamps.models import FriendInsightSnapshot
+        base = dict(date=day, status="ready", followers=100, targeted_reaches=50,
+                    blocks=10, fetched_at=timezone.now())
+        base.update(kw)
+        return FriendInsightSnapshot.objects.create(**base)
+
+    def test_participation_rate_uses_effective_friends(self):
+        # 実質有効友だち50・参加者1 → 2.0%（登録者ベースなら100%になる）。
+        member = LineMember.objects.create(line_user_id="U1", name="来店者")
+        services.award_stamp(member, self.loc,
+                             now=timezone.make_aware(timezone.datetime(2026, 7, 20, 12, 0)))
+        self._snap(timezone.localdate(), targeted_reaches=50)
+        resp = self.client.get("/stamp/manage/?from=2026-07-01&to=2026-08-01")
+        self.assertContains(resp, "全友だち50人")
+        self.assertContains(resp, "2.0%")
+
+    def test_waiting_when_no_snapshot(self):
+        resp = self.client.get("/stamp/manage/")
+        self.assertContains(resp, "集計待ち")  # スナップショット未取得なら参加率は待ち表示
+
+    def test_combo_chart_renders_line_and_bars(self):
+        # 2軸コンボ：友だち折れ線（左軸）＋日次増減の棒（右軸）が1つのチャートに出る。
+        today = timezone.localdate()
+        self._snap(today - timedelta(days=1), targeted_reaches=48, blocks=8)
+        self._snap(today, targeted_reaches=52, blocks=10)
+        resp = self.client.get(f"/stamp/manage/?from={today - timedelta(days=5)}&to={today}")
+        self.assertContains(resp, "<polyline")        # 友だち折れ線
+        self.assertContains(resp, "<rect")            # 日次増減の棒
+        self.assertContains(resp, "実質有効友だち（左軸）")
+        self.assertContains(resp, "新規ブロック（右軸）")
+
+    def test_daily_delta_merged_into_trend(self):
+        # 日次増減がコンボの棒として出る（ブロックのスパイクがツールチップに）。
+        today = timezone.localdate()
+        self._snap(today - timedelta(days=2), followers=100, blocks=10)
+        self._snap(today - timedelta(days=1), followers=105, blocks=24)  # 新規ブロック+14の山
+        self._snap(today, followers=108, blocks=25)
+        resp = self.client.get(f"/stamp/manage/?from={today - timedelta(days=5)}&to={today}")
+        self.assertContains(resp, "新規ブロック14")   # スパイクがツールチップに出る
+        self.assertNotContains(resp, "日次の増減（")   # 別グラフの見出しは無くなった
+
+    def test_delta_uses_prev_snapshot_before_range(self):
+        # 期間開始前の直近スナップショットを使って初日も差分が出る。
+        from stamps.manage_views import _friend_delta_rows
+        from stamps.models import FriendInsightSnapshot
+        today = timezone.localdate()
+        prev = self._snap(today - timedelta(days=3), followers=90, blocks=5)
+        s1 = self._snap(today - timedelta(days=2), followers=100, blocks=8)
+        s2 = self._snap(today - timedelta(days=1), followers=103, blocks=8)
+        rows = _friend_delta_rows([s1, s2], prev)
+        self.assertEqual(len(rows), 2)              # prev利用で初日も差分あり
+        self.assertEqual(rows[0]["adds"], 10)       # 100-90
+        self.assertEqual(rows[0]["blocks"], 3)      # 8-5
+
+
+class FetchFriendInsightCommandTests(TestCase):
+    """管理コマンド fetch_friend_insight。"""
+    def test_dry_run_does_not_save(self):
+        from unittest import mock
+        from django.core.management import call_command
+        from stamps.models import FriendInsightSnapshot
+        payload = {"status": "ready", "followers": 300, "targetedReaches": 250, "blocks": 20}
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_insight.requests.get") as g:
+            g.return_value.status_code = 200
+            g.return_value.json.return_value = payload
+            call_command("fetch_friend_insight", "--date", "2026-07-27", "--dry-run")
+        self.assertEqual(FriendInsightSnapshot.objects.count(), 0)
+
+    def test_saves_specified_date(self):
+        from unittest import mock
+        from django.core.management import call_command
+        from stamps.models import FriendInsightSnapshot
+        payload = {"status": "ready", "followers": 300, "targetedReaches": 250, "blocks": 20}
+        with mock.patch("stamps.line_insight.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_insight.requests.get") as g:
+            g.return_value.status_code = 200
+            g.return_value.json.return_value = payload
+            call_command("fetch_friend_insight", "--date", "2026-07-27")
+        s = FriendInsightSnapshot.objects.get()
+        self.assertEqual((str(s.date), s.followers, s.targeted_reaches), ("2026-07-27", 300, 250))

@@ -1,4 +1,5 @@
 {% extends "stamps/manage/base.html" %}
+{% load humanize %}
 {% block title %}友だち管理{% endblock %}
 {% block heading %}友だち管理（LINE会員）{% endblock %}
 {% block content %}
@@ -36,7 +37,7 @@
 </form>
 
 <div class="card">
-  <h2>友だち一覧（{{ total }}人）</h2>
+  <h2>友だち一覧（{{ total|intcomma }}人）</h2>
   <p class="muted" style="margin:-4px 0 12px;">自動タグ（来店データから自動付与）＋手動タグ（●付き）を各行で編集できます。しきい値やタグの追加は<a href="{% url 'stamps:manage_tag_settings' %}">タグ設定</a>から。これがそのままセグメント配信（準備中）の絞り込み条件になります。</p>
   {% if rows %}
   <div class="tscroll">
@@ -70,19 +71,19 @@
           </details>
           {% endif %}
         </td>
-        <td><b>{{ r.visits }}</b>回</td>
-        <td>{{ r.pt }}pt</td>
+        <td><b>{{ r.visits|intcomma }}</b>回</td>
+        <td>{{ r.pt|intcomma }}pt</td>
         <td>
           {% if r.used_history %}
           <details class="usehist">
-            <summary>{{ r.earned }} / <b>{{ r.used }}</b> <span class="hint">▸履歴</span></summary>
+            <summary>{{ r.earned|intcomma }} / <b>{{ r.used|intcomma }}</b> <span class="hint">▸履歴</span></summary>
             <ul>
               {% for u in r.used_history %}
               <li><span class="dt">{{ u.used_at|date:'n/j H:i' }}</span>{{ u.label }}</li>
               {% endfor %}
             </ul>
           </details>
-          {% else %}{{ r.earned }} / {{ r.used }}{% endif %}
+          {% else %}{{ r.earned|intcomma }} / {{ r.used|intcomma }}{% endif %}
         </td>
         <td>{{ r.last_visit|date:'n/j'|default:'-' }}</td>
         <td>{{ r.fav_store|default:'-' }}</td>

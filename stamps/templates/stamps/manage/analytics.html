@@ -1,4 +1,5 @@
 {% extends "stamps/manage/base.html" %}
+{% load humanize %}
 {% block title %}分析{% endblock %}
 {% block heading %}分析（パイロットGO判定用）{% endblock %}
 {% block content %}
@@ -19,8 +20,8 @@
       {% for r in by_loc %}
       <tr>
         <td>{{ r.location__name }}</td>
-        <td>{{ r.visits }}</td>
-        <td>{{ r.members }}</td>
+        <td>{{ r.visits|intcomma }}</td>
+        <td>{{ r.members|intcomma }}</td>
         <td>{% if r.members %}{% widthratio r.visits r.members 1 %}{% else %}-{% endif %}</td>
       </tr>
       {% endfor %}
@@ -31,11 +32,11 @@
 </div>
 
 <div class="card">
-  <h2>来店頻度分布（期間内・{{ active_members }}人が来店）</h2>
+  <h2>来店頻度分布（期間内・{{ active_members|intcomma }}人が来店）</h2>
   <table class="grid">
     <thead><tr><th>来店回数</th><th>人数</th></tr></thead>
     <tbody>
-      {% for k, v in dist.items %}<tr><td>{{ k }}</td><td>{{ v }}人</td></tr>{% endfor %}
+      {% for k, v in dist.items %}<tr><td>{{ k }}</td><td>{{ v|intcomma }}人</td></tr>{% endfor %}
     </tbody>
   </table>
   <p class="muted" style="margin-top:10px;">※ リピートの厚み（何回来てくれているか）を見る指標。押し上げ率の実測＝損益シミュレーターv2への入力に使う。</p>
@@ -44,7 +45,7 @@
 <div class="card">
   <h2>特典使用の推移（{% if usage_weekly %}週次・週の月曜{% else %}日次{% endif %}）</h2>
   {% if usage_total %}
-  <p class="muted" style="margin:0 0 12px;">期間内の使用 <strong>{{ usage_total }}件</strong>／ピーク <strong>{{ usage_peak }}件</strong>（使ったタイミング＝<code class="url">used_at</code>ベース）</p>
+  <p class="muted" style="margin:0 0 12px;">期間内の使用 <strong>{{ usage_total|intcomma }}件</strong>／ピーク <strong>{{ usage_peak|intcomma }}件</strong>（使ったタイミング＝<code class="url">used_at</code>ベース）</p>
   <table class="grid usage-ts">
     <thead><tr><th style="width:120px;">{% if usage_weekly %}週（月〜）{% else %}日付{% endif %}</th><th>使用数</th><th style="width:52px;text-align:right;">件</th></tr></thead>
     <tbody>
@@ -54,7 +55,7 @@
         <td class="barcell">
           <span class="bar" style="width:{% if usage_peak %}{% widthratio row.count usage_peak 100 %}{% else %}0{% endif %}%;"></span>
         </td>
-        <td class="num">{{ row.count }}</td>
+        <td class="num">{{ row.count|intcomma }}</td>
       </tr>
       {% endfor %}
     </tbody>

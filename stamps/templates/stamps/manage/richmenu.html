@@ -1,4 +1,5 @@
 {% extends "stamps/manage/base.html" %}
+{% load humanize %}
 {% block title %}リッチメニュー{% endblock %}
 {% block heading %}リッチメニュー割当て（スタンプ利用者専用）{% endblock %}
 {% block content %}
@@ -72,7 +73,7 @@
 </div>
 
 <div class="card">
-  <h2>利用者一覧（{{ total }}人）</h2>
+  <h2>利用者一覧（{{ total|intcomma }}人）</h2>
   {% if rows %}
   <div class="tscroll">
   <table class="grid">

@@ -9,6 +9,7 @@ urlpatterns = [
     path("manage/", manage_views.dashboard, name="manage_dashboard"),
     path("manage/visits/", manage_views.visits, name="manage_visits"),
     path("manage/analytics/", manage_views.analytics, name="manage_analytics"),
+    path("manage/sales-correlation/", manage_views.sales_correlation, name="manage_sales_correlation"),
     path("manage/friends/", manage_views.friends, name="manage_friends"),
     path("manage/tag-settings/", manage_views.tag_settings, name="manage_tag_settings"),
     path("manage/richmenu/", manage_views.richmenu, name="manage_richmenu"),

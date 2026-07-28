@@ -453,6 +453,55 @@ class MemberTag(models.Model):
         return self.name
 
 
+class FriendInsightSnapshot(models.Model):
+    """LINE公式アカウント全体の友だち数・ブロック数の日次スナップショット。
+
+    LINE Insight(followers) を日次取得して蓄積し、(1)推移の可視化 (2)参加率の母数 に使う。
+    スタンプ参加者（LineMember）とは別の「公式アカウント全体の母集団」を表す。
+
+    値の性質：followers/blocks は累計（延べ）。targeted_reaches が実質届く友だち（ブロック除外）。
+    status=ready の日だけが確定値。unready は集計未完、out_of_service は対象外日。
+    """
+    STATUS_READY = "ready"
+
+    date = models.DateField(unique=True, db_index=True, verbose_name="集計日")
+    status = models.CharField(max_length=16, default=STATUS_READY, verbose_name="集計状態")
+    followers = models.PositiveIntegerField(default=0, verbose_name="累計友だち追加")
+    targeted_reaches = models.PositiveIntegerField(default=0, verbose_name="実質有効友だち")
+    blocks = models.PositiveIntegerField(default=0, verbose_name="累計ブロック")
+    fetched_at = models.DateTimeField(verbose_name="取得日時")
+
+    class Meta:
+        ordering = ["-date"]
+        verbose_name = "友だち統計スナップショット"
+        verbose_name_plural = "友だち統計スナップショット"
+
+    def __str__(self):
+        return f"{self.date}：友だち{self.effective_friends}／ブロック{self.blocks}"
+
+    @property
+    def is_ready(self):
+        return self.status == self.STATUS_READY
+
+    @property
+    def effective_friends(self):
+        """実質有効友だち数＝targeted_reaches。取れない日は followers−blocks で代替。"""
+        return self.targeted_reaches or max(self.followers - self.blocks, 0)
+
+    @property
+    def block_rate(self):
+        """累計ブロック率（％・累計ブロック÷累計追加）。"""
+        return round(self.blocks / self.followers * 100, 1) if self.followers else 0.0
+
+    @classmethod
+    def latest_ready(cls, on_or_before=None):
+        """指定日以前で最も新しい ready スナップショットを返す（無ければ None）。"""
+        qs = cls.objects.filter(status=cls.STATUS_READY)
+        if on_or_before is not None:
+            qs = qs.filter(date__lte=on_or_before)
+        return qs.order_by("-date").first()
+
+
 class MemberTagLink(models.Model):
     """友だち×手動タグの割当て（誰にどの手動タグが付いているか）。"""
     member = models.ForeignKey(
