@@ -1,0 +1,64 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}月次相殺サマリー - 受注管理{% endblock %}
+{% block nav_adjustments %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
+        <h1 class="text-2xl font-bold text-gray-800">月次相殺サマリー（顧客別）</h1>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'orders:adjustment_list' %}" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm">調整一覧へ</a>
+            <a href="?{% if month %}month={{ month }}&{% endif %}export=csv" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-bold">CSV出力</a>
+        </div>
+    </div>
+    <p class="text-sm text-gray-500 mb-4">「請求相殺」＝月末請求から差し引く額。「現金・振込返金」＝すでに返金済みで請求書には載せない額。</p>
+
+    <form method="get" class="bg-white rounded-lg shadow-sm p-4 mb-4 flex flex-wrap items-end gap-3">
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">対象月</label>
+            <input type="month" name="month" value="{{ month }}" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+        </div>
+        <button type="submit" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm">表示</button>
+        <a href="{% url 'orders:adjustment_monthly_summary' %}" class="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-lg hover:bg-gray-200 transition text-sm">全期間</a>
+    </form>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-lg shadow-sm px-4 py-3">
+            <p class="text-xs text-gray-500">請求相殺 合計</p>
+            <p class="text-xl font-bold text-indigo-700">&yen;{{ credit_total|floatformat:0|intcomma }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm px-4 py-3">
+            <p class="text-xs text-gray-500">現金・振込返金 合計</p>
+            <p class="text-xl font-bold text-green-700">&yen;{{ cash_total|floatformat:0|intcomma }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">対象月</th>
+                    <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">顧客</th>
+                    <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">請求相殺</th>
+                    <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">現金・振込返金</th>
+                    <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">件数</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for r in rows %}
+                <tr>
+                    <td class="px-4 py-2 text-sm whitespace-nowrap">{{ r.month|date:'Y年n月' }}</td>
+                    <td class="px-4 py-2 text-sm">{{ r.customer }}</td>
+                    <td class="px-4 py-2 text-right font-medium text-indigo-700">&yen;{{ r.credit|floatformat:0|intcomma }}</td>
+                    <td class="px-4 py-2 text-right font-medium text-green-700">&yen;{{ r.cash|floatformat:0|intcomma }}</td>
+                    <td class="px-4 py-2 text-right text-sm text-gray-600">{{ r.count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 text-sm">該当するデータはありません。</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

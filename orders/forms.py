@@ -1,5 +1,8 @@
 from django import forms
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin
+from .models import (
+    Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct,
+    OrderExtraItem, DeliveryBin, OrderAdjustment,
+)
 
 
 class OrderSettingsForm(forms.ModelForm):
@@ -62,7 +65,7 @@ class CustomerForm(forms.ModelForm):
 class OrderForm(forms.ModelForm):
     class Meta:
         model = Order
-        fields = ['customer', 'order_date', 'delivery_date', 'notes', 'receipt_memo']
+        fields = ['customer', 'order_date', 'delivery_date', 'billing_pattern', 'notes', 'receipt_memo']
         widgets = {
             'order_date': forms.DateInput(attrs={'type': 'date'}),
             'delivery_date': forms.DateInput(attrs={'type': 'date'}),
@@ -149,3 +152,18 @@ OrderExtraItemFormSet = forms.inlineformset_factory(
     extra=0,
     can_delete=True,
 )
+
+
+class OrderAdjustmentForm(forms.ModelForm):
+    """受注調整のヘッダ入力。amount と明細行はモードに応じてビュー側で組み立てる。"""
+    class Meta:
+        model = OrderAdjustment
+        fields = ['kind', 'settlement', 'reason', 'occurred_on']
+        widgets = {
+            'occurred_on': forms.DateInput(attrs={'type': 'date'}),
+            'reason': forms.Textarea(attrs={'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['reason'].required = True

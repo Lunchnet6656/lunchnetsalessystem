@@ -158,5 +158,77 @@
         <span class="text-lg sm:text-xl font-bold text-gray-800">合計（税込）</span>
         <span class="text-2xl sm:text-3xl font-bold text-blue-700">&yen;{{ order.total|floatformat:0|intcomma }}</span>
     </div>
+
+    <!-- 受注調整（返品・取消・返金・値引き） -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700">受注調整（返品・取消・返金・値引き）</h2>
+                <p class="text-xs text-gray-500 mt-0.5">請求パターン：<span class="font-medium text-gray-700">{{ order.get_billing_pattern_display }}</span></p>
+            </div>
+            <a href="{% url 'orders:adjustment_create' order.pk %}"
+               class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-bold text-center">＋ 調整を追加</a>
+        </div>
+
+        {% if order.adjustments.all %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">発生日</th>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">種別</th>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">返金方法</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">調整額</th>
+                        <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">理由</th>
+                        <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for a in order.adjustments.all %}
+                    <tr>
+                        <td class="px-4 py-2 text-sm">{{ a.occurred_on|date:'Y/m/d' }}</td>
+                        <td class="px-4 py-2">
+                            <span class="inline-block px-2 py-0.5 rounded text-xs font-medium
+                                {% if a.kind == 'RETURN' %}bg-blue-100 text-blue-700
+                                {% elif a.kind == 'CANCEL' %}bg-red-100 text-red-700
+                                {% elif a.kind == 'DISCOUNT' %}bg-yellow-100 text-yellow-700
+                                {% else %}bg-gray-100 text-gray-700{% endif %}">{{ a.get_kind_display }}</span>
+                        </td>
+                        <td class="px-4 py-2">
+                            <span class="inline-block px-2 py-0.5 rounded text-xs font-medium
+                                {% if a.settlement == 'CREDIT' %}bg-indigo-100 text-indigo-700{% else %}bg-green-100 text-green-700{% endif %}">{{ a.get_settlement_display }}</span>
+                        </td>
+                        <td class="px-4 py-2 text-right font-medium text-red-600">−&yen;{{ a.amount|floatformat:0|intcomma }}</td>
+                        <td class="px-4 py-2 text-sm text-gray-600">{{ a.reason|truncatechars:40 }}</td>
+                        <td class="px-4 py-2 text-right whitespace-nowrap">
+                            <a href="{% url 'orders:adjustment_edit' a.pk %}" class="text-blue-600 hover:underline text-sm">編集</a>
+                            <a href="{% url 'orders:adjustment_delete' a.pk %}" class="text-red-500 hover:underline text-sm ml-2">削除</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 純額 -->
+        <div class="mt-4 border-t border-gray-200 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div class="flex justify-between sm:block">
+                <span class="text-gray-500">受注額（税込）</span>
+                <span class="font-medium sm:block sm:mt-1">&yen;{{ order.total|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="flex justify-between sm:block">
+                <span class="text-gray-500">調整（相殺）</span>
+                <span class="font-medium text-red-600 sm:block sm:mt-1">−&yen;{{ order.adjustments_total|floatformat:0|intcomma }}</span>
+            </div>
+            <div class="flex justify-between sm:block bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-2">
+                <span class="text-gray-700 font-semibold">純額</span>
+                <span class="font-bold text-blue-700 text-lg sm:block sm:mt-1">&yen;{{ order.net_total|floatformat:0|intcomma }}</span>
+            </div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">内訳：請求相殺 &yen;{{ order.credit_total|floatformat:0|intcomma }} ／ 現金・振込返金 &yen;{{ order.cash_refund_total|floatformat:0|intcomma }}</p>
+        {% else %}
+        <p class="text-sm text-gray-500">調整はありません。</p>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

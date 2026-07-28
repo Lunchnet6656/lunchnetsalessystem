@@ -1,0 +1,25 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}調整の削除確認 - 受注管理{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto">
+    <div class="bg-white rounded-lg shadow-sm p-6 max-w-xl">
+        <h1 class="text-xl font-bold text-red-600 mb-4">この調整を削除しますか？</h1>
+        <div class="bg-gray-50 rounded p-4 mb-6 text-sm space-y-1">
+            <p><strong>受注番号:</strong> {{ order.order_number }}（{{ order.customer }}）</p>
+            <p><strong>発生日:</strong> {{ adjustment.occurred_on|date:"Y年m月d日" }}</p>
+            <p><strong>種別 / 返金方法:</strong> {{ adjustment.get_kind_display }} / {{ adjustment.get_settlement_display }}</p>
+            <p><strong>調整額:</strong> &yen;{{ adjustment.amount|floatformat:0|intcomma }}</p>
+            <p><strong>理由:</strong> {{ adjustment.reason }}</p>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex gap-3">
+                <button type="submit" class="flex-1 bg-red-600 text-white py-2.5 rounded-lg hover:bg-red-700 transition font-medium">削除する</button>
+                <a href="{% url 'orders:order_detail' order.pk %}" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition text-center font-medium">キャンセル</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

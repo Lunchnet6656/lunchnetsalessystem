@@ -17,6 +17,7 @@ from django.conf import settings
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from sales.models import SalesLocation
@@ -111,11 +112,26 @@ def my_card(request):
         return render_stamp(request, loaded=True, error=str(e), status=400)
 
     card = services._current_card(member)
-    return render_stamp(
-        request, loaded=True, member=member, card=card,
-        state=card_view_state(card), popped=False,
+    ctx = dict(
+        loaded=True, member=member, card=card, popped=False,
+        state=card_view_state(card),
         other_coupons=services.usable_rewards(member, exclude_card=card),
     )
+    # 直前の押印（stamp_scan）から 303 で来た場合、退避した結果で演出を1回だけ再現する。
+    # ts で 60 秒の寿命を持たせ、時間が経ってから開いた時に古い演出が誤表示されるのを防ぐ。
+    flash = request.session.pop("stamp_flash", None)
+    if flash and (timezone.now().timestamp() - flash.get("ts", 0)) <= 60:
+        pts = flash.get("points", 1) or 1
+        ctx.update(
+            popped=True,
+            result_tone=flash.get("tone", "info"),
+            result_message=flash.get("message", ""),
+            result_doubled=flash.get("doubled", False),
+            new_reward=(Reward.objects.filter(pk=flash["new_reward_id"]).first()
+                        if flash.get("new_reward_id") else None),
+            state=card_view_state(card, just_stamped_pt=pts),
+        )
+    return render_stamp(request, **ctx)
 
 
 @require_http_methods(["POST"])
@@ -144,18 +160,22 @@ def stamp_scan(request, token):
     # 2倍イベント該当時は専用文言に差し替える。
     if result.ok and result.doubled:
         message = _BONUS_MESSAGES.get(result.bonus_reason, message)
-    # 時間外などで result.card が無いときも、会員の現行カード（無ければ空カード）を表示する。
-    card = result.card or services._current_card(member)
 
-    return render_stamp(
-        request, location=location, token=token, loaded=True,
-        member=member, card=card,
-        state=card_view_state(card, just_stamped_pt=result.points),
-        result_tone=tone, result_message=message, new_reward=result.new_reward,
-        result_doubled=result.doubled,
-        popped=result.ok,   # 今スタンプを押せたときだけ「押した感」アニメを出す
-        other_coupons=services.usable_rewards(member, exclude_card=card),
-    )
+    # PRG（Post/Redirect/Get）：結果はセッションに退避し、トークンを含まない
+    # カード画面（my_card）へ 303 リダイレクトする。押印後の最終URLからトークンを
+    # 消すことで、画面復元・リロードで入口(/stamp/<token>/)が再実行されて二重押印
+    # されるのを防ぐ。演出（押した感・特典GET・文言）は my_card 側で1回だけ再現する。
+    request.session["stamp_flash"] = {
+        "tone": tone,
+        "message": message,
+        "points": result.points,
+        "doubled": result.doubled,
+        "new_reward_id": result.new_reward.id if result.new_reward else None,
+        "ts": timezone.now().timestamp(),
+    }
+    resp = redirect("stamps:my_card")
+    resp.status_code = 303   # See Other：POST後は必ず GET でカード画面を取得させる
+    return resp
 
 
 def coupon_ctx(reward, member=None):

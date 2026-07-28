@@ -19,6 +19,13 @@ urlpatterns = [
     path('batch/delivery-slip/', views.batch_delivery_slip_pdf, name='batch_delivery_slip'),
     path('batch/receipt/', views.batch_receipt_pdf, name='batch_receipt'),
 
+    # Order adjustments（返品・取消・返金・値引き）
+    path('adjustments/', views.adjustment_list, name='adjustment_list'),
+    path('adjustments/monthly-summary/', views.adjustment_monthly_summary, name='adjustment_monthly_summary'),
+    path('adjustments/<int:pk>/edit/', views.adjustment_edit, name='adjustment_edit'),
+    path('adjustments/<int:pk>/delete/', views.adjustment_delete, name='adjustment_delete'),
+    path('<int:order_pk>/adjustments/create/', views.adjustment_create, name='adjustment_create'),
+
     # Regular order dashboard
     path('regular/', views.regular_order_dashboard, name='regular_dashboard'),
 

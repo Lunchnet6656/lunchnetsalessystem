@@ -76,6 +76,21 @@
                     </p>
                 </div>
 
+                <div>
+                    <label for="id_billing_pattern" class="block text-sm font-semibold text-gray-700 mb-1">請求パターン *</label>
+                    <select name="billing_pattern" id="id_billing_pattern" required
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none {% if billing_fixed %}hidden{% endif %}">
+                        {% for val, label in billing_pattern_choices %}
+                        <option value="{{ val }}" {% if form.billing_pattern.value == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div id="billing_pattern_fixed" class="{% if not billing_fixed %}hidden {% endif %}w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-600 text-sm">
+                        支払い方法：<span id="billing_pattern_fixed_text" class="font-medium">{{ customer_payment_name|default:'未設定' }}</span>
+                        <span class="text-xs text-gray-400 ml-1">（請求書発行なし・請求パターン指定不要）</span>
+                    </div>
+                    <p id="billing_pattern_hint" class="text-xs text-gray-500 mt-1 {% if billing_fixed %}hidden{% endif %}">即時発行は請求漏れ防止のため明記。顧客の既定を初期表示します。</p>
+                </div>
+
                 <div class="sm:col-span-2">
                     <label for="id_notes" class="block text-sm font-semibold text-gray-700 mb-1">備考</label>
                     <textarea name="notes" id="id_notes" rows="2"

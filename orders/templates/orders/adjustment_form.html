@@ -1,0 +1,208 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}{% if is_edit %}調整の編集{% else %}調整を追加{% endif %} - {{ order.order_number }}{% endblock %}
+{% block nav_regular %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto max-w-3xl">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">{% if is_edit %}調整の編集{% else %}調整を追加{% endif %}</h1>
+        <a href="{% url 'orders:order_detail' order.pk %}" class="text-sm text-gray-500 hover:text-gray-700">&larr; 受注に戻る</a>
+    </div>
+
+    <!-- 受注サマリー -->
+    <div class="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-6 text-sm flex flex-wrap gap-x-6 gap-y-1">
+        <span><span class="text-gray-500">受注番号</span> <span class="font-medium">{{ order.order_number }}</span></span>
+        <span><span class="text-gray-500">顧客</span> <span class="font-medium">{{ order.customer }}</span></span>
+        <span><span class="text-gray-500">納品日</span> <span class="font-medium">{{ order.delivery_date|date:'Y/m/d' }}</span></span>
+        <span><span class="text-gray-500">受注額（税込）</span> <span class="font-medium">&yen;{{ order.total|floatformat:0|intcomma }}</span></span>
+    </div>
+
+    <form method="post" class="bg-white rounded-lg shadow-sm p-6 space-y-5">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">種別 *</label>
+                <select name="kind" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                    {% for value, label in form.kind.field.choices %}{% if value %}
+                    <option value="{{ value }}" {% if form.kind.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">返金方法 *</label>
+                <select name="settlement" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                    {% for value, label in form.settlement.field.choices %}{% if value %}
+                    <option value="{{ value }}" {% if form.settlement.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}{% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">請求相殺＝月末請求から差引き／現金・振込返金＝実際に返金</p>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">発生日 *</label>
+            <input type="date" name="occurred_on" required
+                   value="{{ form.occurred_on.value|date:'Y-m-d' }}"
+                   class="w-full sm:w-64 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+
+        {% if not is_edit %}
+        <!-- 金額の決め方（作成時のみ） -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">金額の決め方 *</label>
+            <div class="flex flex-col sm:flex-row gap-2 mb-3">
+                <label class="flex-1 border border-gray-300 rounded-lg px-3 py-2 cursor-pointer text-sm">
+                    <input type="radio" name="mode" value="items" class="mode-radio" {% if mode == 'items' %}checked{% endif %}>
+                    明細から選ぶ（返品・一部取消）
+                </label>
+                <label class="flex-1 border border-gray-300 rounded-lg px-3 py-2 cursor-pointer text-sm">
+                    <input type="radio" name="mode" value="cancel" class="mode-radio" {% if mode == 'cancel' %}checked{% endif %}>
+                    注文まるごと取消
+                </label>
+                <label class="flex-1 border border-gray-300 rounded-lg px-3 py-2 cursor-pointer text-sm">
+                    <input type="radio" name="mode" value="free" class="mode-radio" {% if mode == 'free' %}checked{% endif %}>
+                    金額を自由入力
+                </label>
+            </div>
+
+            <!-- 明細単位 -->
+            <div id="mode-items" class="mode-section hidden">
+                <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-semibold text-gray-600">商品名</th>
+                                <th class="px-3 py-2 text-right font-semibold text-gray-600">単価</th>
+                                <th class="px-3 py-2 text-right font-semibold text-gray-600">注文数</th>
+                                <th class="px-3 py-2 text-right font-semibold text-gray-600">返品/取消数</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            {% for item in order.items.all %}
+                            <tr>
+                                <td class="px-3 py-2">{{ item.product_name }}</td>
+                                <td class="px-3 py-2 text-right">&yen;{{ item.unit_price|floatformat:0|intcomma }}</td>
+                                <td class="px-3 py-2 text-right">{{ item.quantity }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    <input type="number" name="ret_item_{{ item.id }}" min="0" max="{{ item.quantity }}" value="0"
+                                           data-price="{{ item.unit_price|floatformat:0 }}"
+                                           class="ret-qty w-20 border border-gray-300 rounded px-2 py-1 text-right">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% for ei in order.extra_items.all %}
+                            <tr>
+                                <td class="px-3 py-2">{{ ei.product_name }}<span class="text-xs text-teal-600 ml-1">(追加)</span></td>
+                                <td class="px-3 py-2 text-right">&yen;{{ ei.unit_price|floatformat:0|intcomma }}</td>
+                                <td class="px-3 py-2 text-right">{{ ei.quantity }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    <input type="number" name="ret_extra_{{ ei.id }}" min="0" max="{{ ei.quantity }}" value="0"
+                                           data-price="{{ ei.unit_price|floatformat:0 }}"
+                                           class="ret-qty w-20 border border-gray-300 rounded px-2 py-1 text-right">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-right mt-2 text-sm">返金額（自動計算）：<span id="items-total" class="font-bold text-red-600">&yen;0</span></p>
+            </div>
+
+            <!-- まるごと取消 -->
+            <div id="mode-cancel" class="mode-section hidden">
+                <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                    この受注の全明細を取消します（純額0）。返金額：<span class="font-bold">&yen;{{ order.total|floatformat:0|intcomma }}</span><br>
+                    ※ 受注レコード自体は削除されず、記録として残ります。
+                </div>
+            </div>
+
+            <!-- 自由額 -->
+            <div id="mode-free" class="mode-section hidden">
+                <label class="block text-sm text-gray-600 mb-1">調整額（税込・円）</label>
+                <input type="number" name="amount" min="1" step="1" placeholder="例）500"
+                       class="w-full sm:w-64 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+        </div>
+        {% else %}
+        <!-- 編集時：金額 -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">調整額（税込・円）</label>
+            {% if has_lines %}
+            <p class="text-sm">&yen;{{ adjustment.amount|floatformat:0|intcomma }} <span class="text-xs text-gray-500">（明細合計のため固定。数量を変える場合は削除して再登録してください）</span></p>
+            <div class="mt-2 overflow-x-auto border border-gray-200 rounded-lg">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50"><tr>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">商品名</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">単価</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">数量</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">小計</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for l in adjustment.lines.all %}
+                        <tr>
+                            <td class="px-3 py-2">{{ l.label }}</td>
+                            <td class="px-3 py-2 text-right">&yen;{{ l.unit_price|floatformat:0|intcomma }}</td>
+                            <td class="px-3 py-2 text-right">{{ l.quantity }}</td>
+                            <td class="px-3 py-2 text-right">&yen;{{ l.subtotal|floatformat:0|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <input type="number" name="amount" min="1" step="1" required
+                   value="{{ adjustment.amount|floatformat:0 }}"
+                   class="w-full sm:w-64 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">理由 *</label>
+            <textarea name="reason" rows="3" required
+                      class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="クレーム内容・経緯・対応など">{{ form.reason.value|default:'' }}</textarea>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-bold">
+                {% if is_edit %}更新する{% else %}登録する{% endif %}
+            </button>
+            <a href="{% url 'orders:order_detail' order.pk %}" class="bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-50 transition">キャンセル</a>
+        </div>
+    </form>
+</div>
+
+{% if not is_edit %}
+<script>
+(function(){
+  function fmt(n){ return '¥' + n.toLocaleString('ja-JP'); }
+  var radios = document.querySelectorAll('.mode-radio');
+  var sections = { items:document.getElementById('mode-items'),
+                   cancel:document.getElementById('mode-cancel'),
+                   free:document.getElementById('mode-free') };
+  function showMode(m){
+    for(var k in sections){ if(sections[k]){ sections[k].classList.toggle('hidden', k!==m); } }
+  }
+  radios.forEach(function(r){ r.addEventListener('change', function(){ if(r.checked) showMode(r.value); }); });
+  var checked = document.querySelector('.mode-radio:checked');
+  showMode(checked ? checked.value : 'free');
+
+  // 明細モードの返金額ライブ計算
+  var total = document.getElementById('items-total');
+  function recalc(){
+    var sum = 0;
+    document.querySelectorAll('.ret-qty').forEach(function(inp){
+      var q = parseInt(inp.value||'0',10); var p = parseInt(inp.dataset.price||'0',10);
+      if(q>0) sum += q*p;
+    });
+    if(total) total.textContent = fmt(sum);
+  }
+  document.querySelectorAll('.ret-qty').forEach(function(inp){ inp.addEventListener('input', recalc); });
+  recalc();
+})();
+</script>
+{% endif %}
+{% endblock %}

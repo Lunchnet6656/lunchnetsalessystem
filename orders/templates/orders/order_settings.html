@@ -293,6 +293,12 @@
                                class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
                         CSV出力
                     </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="perm_{{ item.user.id }}_adjustments"
+                               {% if item.perm.can_view_adjustments %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer">
+                        受注調整
+                    </label>
                 </div>
             </div>
             {% endfor %}

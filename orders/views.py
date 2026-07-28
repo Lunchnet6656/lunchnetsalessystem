@@ -5,15 +5,17 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
 from django.contrib import messages
 from django.db.models import Count, Sum, Q, Case, When, F, Value, IntegerField, CharField, Exists, OuterRef
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 import csv
 import json
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion
+from decimal import Decimal, InvalidOperation
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion, OrderAdjustment, OrderAdjustmentLine
 from django.contrib.auth import get_user_model
-from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm
+from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm
 from sales.models import Product
 from datetime import datetime, timedelta, date
 
@@ -49,6 +51,19 @@ def order_list(request):
     return redirect('orders:regular_dashboard')
 
 
+def _billing_display(customer):
+    """請求パターンを固定表示にすべきか判定。
+
+    支払いが「請求書」の顧客だけ請求パターンを選ばせる。それ以外（現金等・未設定）は
+    選択肢を出さず、支払い方法名を固定表示する。戻り値 (固定表示か, 支払い方法名)。
+    """
+    if customer is None:
+        return False, ''
+    pm = customer.payment_method
+    is_invoice = bool(pm and pm.name == '請求書')
+    return (not is_invoice), (pm.name if pm else '')
+
+
 @login_required
 def order_create(request, customer_id=None):
     today = timezone.localdate()
@@ -64,6 +79,9 @@ def order_create(request, customer_id=None):
         initial['customer'] = customer
         if customer.notes:
             initial['notes'] = customer.notes
+        # 顧客の請求書発行タイミングを請求パターンの初期値として継承（上書き可）
+        if customer.invoice_timing in ('IMMEDIATE', 'MONTH_END'):
+            initial['billing_pattern'] = customer.invoice_timing
 
     if request.method == 'POST':
         form = OrderForm(request.POST)
@@ -135,9 +153,11 @@ def order_create(request, customer_id=None):
         .order_by('group_order', 'sort_name')
     )
     is_catering = False
+    billing_fixed, customer_payment_name = False, ''
     if customer_id:
         _c = get_object_or_404(Customer, pk=customer_id, is_active=True)
         is_catering = _c.bento_type == 'CATERING'
+        billing_fixed, customer_payment_name = _billing_display(_c)
     context = {
         'form': form,
         'formset': formset,
@@ -148,6 +168,9 @@ def order_create(request, customer_id=None):
         'customers': customers,
         'is_edit': False,
         'is_catering': is_catering,
+        'billing_pattern_choices': Order.BILLING_PATTERN_CHOICES,
+        'billing_fixed': billing_fixed,
+        'customer_payment_name': customer_payment_name,
     }
     return render(request, 'orders/order_form.html', context)
 
@@ -233,6 +256,9 @@ def order_edit(request, pk):
         'customers': customers,
         'is_edit': True,
         'is_catering': order.customer.bento_type == 'CATERING',
+        'billing_pattern_choices': Order.BILLING_PATTERN_CHOICES,
+        'billing_fixed': _billing_display(order.customer)[0],
+        'customer_payment_name': _billing_display(order.customer)[1],
     }
     return render(request, 'orders/order_form.html', context)
 
@@ -240,7 +266,9 @@ def order_edit(request, pk):
 @login_required
 def order_detail(request, pk):
     order = get_object_or_404(
-        Order.objects.select_related('customer').prefetch_related('items', 'extra_items'),
+        Order.objects.select_related('customer').prefetch_related(
+            'items', 'extra_items', 'adjustments__lines'
+        ),
         pk=pk
     )
     return render(request, 'orders/order_detail.html', {'order': order})
@@ -255,6 +283,279 @@ def order_delete(request, pk):
         messages.success(request, f'受注 {order_number} を削除しました。')
         return redirect('orders:regular_dashboard')
     return render(request, 'orders/order_confirm_delete.html', {'order': order})
+
+
+# --- 受注調整（返品・取消・返金・値引き）。元注文は不変・別レコードで相殺 ---
+
+def _build_adjustment_lines(request, order, mode):
+    """入力モードに応じて (明細行データのリスト, 調整額, エラー文字列) を返す。
+
+    - items  : 各明細に入力した返品/取消数から明細行を作り、税込単価×数で自動計算
+    - cancel : 全明細を対象に全額（＝注文まるごと取消・純額0）
+    - free   : 明細なし・金額を手入力（一律値引き等）
+    """
+    lines = []
+    if mode == 'cancel':
+        for item in order.items.all():
+            if item.quantity:
+                lines.append({'order_item': item, 'label': item.product_name,
+                              'quantity': item.quantity, 'unit_price': item.unit_price})
+        for ei in order.extra_items.all():
+            if ei.quantity:
+                lines.append({'order_extra_item': ei, 'label': ei.product_name,
+                              'quantity': ei.quantity, 'unit_price': ei.unit_price})
+        amount = sum((l['unit_price'] * l['quantity'] for l in lines), Decimal('0'))
+        if amount <= 0:
+            return [], Decimal('0'), 'この受注には取消できる明細がありません。'
+        return lines, amount, None
+
+    if mode == 'items':
+        for item in order.items.all():
+            try:
+                qty = int(request.POST.get(f'ret_item_{item.id}', 0) or 0)
+            except ValueError:
+                qty = 0
+            if qty <= 0:
+                continue
+            if qty > item.quantity:
+                return [], Decimal('0'), f'「{item.product_name}」の返品数（{qty}）が注文数（{item.quantity}）を超えています。'
+            lines.append({'order_item': item, 'label': item.product_name,
+                          'quantity': qty, 'unit_price': item.unit_price})
+        for ei in order.extra_items.all():
+            try:
+                qty = int(request.POST.get(f'ret_extra_{ei.id}', 0) or 0)
+            except ValueError:
+                qty = 0
+            if qty <= 0:
+                continue
+            if qty > ei.quantity:
+                return [], Decimal('0'), f'「{ei.product_name}」の返品数（{qty}）が注文数（{ei.quantity}）を超えています。'
+            lines.append({'order_extra_item': ei, 'label': ei.product_name,
+                          'quantity': qty, 'unit_price': ei.unit_price})
+        amount = sum((l['unit_price'] * l['quantity'] for l in lines), Decimal('0'))
+        if amount <= 0:
+            return [], Decimal('0'), '返品/取消する明細の数量を1つ以上入力してください。'
+        return lines, amount, None
+
+    # free
+    raw = (request.POST.get('amount', '') or '').replace(',', '').strip()
+    try:
+        amount = Decimal(raw)
+    except (InvalidOperation, ValueError):
+        return [], Decimal('0'), '調整額を数字で入力してください。'
+    if amount <= 0:
+        return [], Decimal('0'), '調整額は1円以上で入力してください。'
+    return [], amount, None
+
+
+@login_required
+def adjustment_create(request, order_pk):
+    order = get_object_or_404(
+        Order.objects.select_related('customer').prefetch_related('items', 'extra_items', 'adjustments'),
+        pk=order_pk
+    )
+    mode = request.POST.get('mode', 'free') if request.method == 'POST' else 'free'
+    if request.method == 'POST':
+        form = OrderAdjustmentForm(request.POST)
+        lines_data, amount, mode_error = _build_adjustment_lines(request, order, mode)
+        if mode_error:
+            messages.error(request, mode_error)
+        elif form.is_valid():
+            adj = form.save(commit=False)
+            adj.order = order
+            adj.amount = amount
+            adj.created_by = request.user
+            adj.save()
+            for ld in lines_data:
+                OrderAdjustmentLine.objects.create(adjustment=adj, **ld)
+            if order.adjustments_total > order.total:
+                messages.warning(
+                    request,
+                    f'調整の累計（¥{order.adjustments_total:,.0f}）が受注額（¥{order.total:,.0f}）を超えています。内容をご確認ください。'
+                )
+            messages.success(
+                request,
+                f'{order.order_number} に調整（{adj.get_kind_display()}・¥{adj.amount:,.0f}）を登録しました。'
+            )
+            return redirect('orders:order_detail', pk=order.pk)
+    else:
+        form = OrderAdjustmentForm(initial={'occurred_on': timezone.localdate()})
+
+    context = {
+        'order': order,
+        'form': form,
+        'mode': mode,
+        'is_edit': False,
+    }
+    return render(request, 'orders/adjustment_form.html', context)
+
+
+@login_required
+def adjustment_edit(request, pk):
+    adj = get_object_or_404(
+        OrderAdjustment.objects.select_related('order__customer').prefetch_related('lines'), pk=pk
+    )
+    has_lines = adj.lines.exists()
+    error = None
+    if request.method == 'POST':
+        form = OrderAdjustmentForm(request.POST, instance=adj)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            if not has_lines:
+                # 自由額のみ編集可（明細ありは金額＝行合計で固定）
+                raw = (request.POST.get('amount', '') or '').replace(',', '').strip()
+                try:
+                    amt = Decimal(raw)
+                except (InvalidOperation, ValueError):
+                    amt = Decimal('0')
+                if amt <= 0:
+                    error = '調整額は1円以上で入力してください。'
+                else:
+                    obj.amount = amt
+            if error is None:
+                obj.save()
+                messages.success(request, f'{adj.order.order_number} の調整を更新しました。')
+                return redirect('orders:order_detail', pk=adj.order.pk)
+            messages.error(request, error)
+    else:
+        form = OrderAdjustmentForm(instance=adj)
+
+    context = {
+        'order': adj.order,
+        'form': form,
+        'adjustment': adj,
+        'has_lines': has_lines,
+        'is_edit': True,
+    }
+    return render(request, 'orders/adjustment_form.html', context)
+
+
+@login_required
+def adjustment_delete(request, pk):
+    adj = get_object_or_404(OrderAdjustment.objects.select_related('order'), pk=pk)
+    order_pk = adj.order.pk
+    if request.method == 'POST':
+        adj.delete()
+        messages.success(request, '調整を削除しました。')
+        return redirect('orders:order_detail', pk=order_pk)
+    return render(request, 'orders/adjustment_confirm_delete.html', {'adjustment': adj, 'order': adj.order})
+
+
+def _adjustment_filtered_qs(request):
+    """一覧・CSV共通の絞り込み済みクエリと、選択値を返す。"""
+    qs = OrderAdjustment.objects.select_related('order__customer', 'created_by').order_by('-occurred_on', '-created_at')
+    f = {
+        'date_from': request.GET.get('date_from', '').strip(),
+        'date_to': request.GET.get('date_to', '').strip(),
+        'customer': request.GET.get('customer', '').strip(),
+        'kind': request.GET.get('kind', '').strip(),
+        'settlement': request.GET.get('settlement', '').strip(),
+    }
+    if f['date_from']:
+        qs = qs.filter(occurred_on__gte=f['date_from'])
+    if f['date_to']:
+        qs = qs.filter(occurred_on__lte=f['date_to'])
+    if f['customer']:
+        qs = qs.filter(order__customer_id=f['customer'])
+    if f['kind']:
+        qs = qs.filter(kind=f['kind'])
+    if f['settlement']:
+        qs = qs.filter(settlement=f['settlement'])
+    return qs, f
+
+
+@login_required
+def adjustment_list(request):
+    qs, f = _adjustment_filtered_qs(request)
+
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+        response['Content-Disposition'] = 'attachment; filename="order_adjustments.csv"'
+        response.write('﻿')
+        w = csv.writer(response)
+        w.writerow(['発生日', '受注番号', '顧客', '種別', '返金方法', '調整額(税込)', '理由', '登録者', '登録日時'])
+        for a in qs:
+            w.writerow([
+                a.occurred_on.strftime('%Y-%m-%d'), a.order.order_number, str(a.order.customer),
+                a.get_kind_display(), a.get_settlement_display(), int(a.amount),
+                a.reason.replace('\n', ' '), (str(a.created_by) if a.created_by else ''),
+                timezone.localtime(a.created_at).strftime('%Y-%m-%d %H:%M'),
+            ])
+        return response
+
+    total = qs.aggregate(
+        total=Sum('amount'),
+        credit=Sum('amount', filter=Q(settlement=OrderAdjustment.SETTLEMENT_CREDIT)),
+        cash=Sum('amount', filter=Q(settlement=OrderAdjustment.SETTLEMENT_CASH)),
+    )
+    context = {
+        'adjustments': qs,
+        'filters': f,
+        'total_amount': total['total'] or 0,
+        'credit_amount': total['credit'] or 0,
+        'cash_amount': total['cash'] or 0,
+        'customers': Customer.objects.filter(is_active=True).order_by('company_name', 'name'),
+        'kind_choices': OrderAdjustment.KIND_CHOICES,
+        'settlement_choices': OrderAdjustment.SETTLEMENT_CHOICES,
+    }
+    return render(request, 'orders/adjustment_list.html', context)
+
+
+@login_required
+def adjustment_monthly_summary(request):
+    """顧客×月の相殺サマリー。CREDIT合計（請求から差し引く額）とCASH合計（返金実績）。"""
+    month = request.GET.get('month', '').strip()  # 'YYYY-MM'（任意）
+    qs = OrderAdjustment.objects.all()
+    if month:
+        try:
+            y, m = month.split('-')
+            qs = qs.filter(occurred_on__year=int(y), occurred_on__month=int(m))
+        except (ValueError, TypeError):
+            month = ''
+
+    rows_qs = (
+        qs.annotate(bmonth=TruncMonth('occurred_on'))
+          .values('bmonth', 'order__customer')
+          .annotate(
+              credit=Sum('amount', filter=Q(settlement=OrderAdjustment.SETTLEMENT_CREDIT)),
+              cash=Sum('amount', filter=Q(settlement=OrderAdjustment.SETTLEMENT_CASH)),
+              cnt=Count('id'),
+          )
+          .order_by('-bmonth')
+    )
+    cust_map = {c.id: c for c in Customer.objects.all()}
+    rows = []
+    for r in rows_qs:
+        c = cust_map.get(r['order__customer'])
+        rows.append({
+            'month': r['bmonth'],
+            'customer': c,
+            'credit': r['credit'] or 0,
+            'cash': r['cash'] or 0,
+            'count': r['cnt'],
+        })
+    rows.sort(key=lambda x: (x['month'], str(x['customer'])), reverse=True)
+
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+        response['Content-Disposition'] = 'attachment; filename="adjustment_monthly_summary.csv"'
+        response.write('﻿')
+        w = csv.writer(response)
+        w.writerow(['対象月', '顧客', '請求相殺合計(税込)', '現金・振込返金合計(税込)', '件数'])
+        for r in rows:
+            w.writerow([
+                r['month'].strftime('%Y-%m'), str(r['customer']),
+                int(r['credit']), int(r['cash']), r['count'],
+            ])
+        return response
+
+    context = {
+        'rows': rows,
+        'month': month,
+        'credit_total': sum(r['credit'] for r in rows),
+        'cash_total': sum(r['cash'] for r in rows),
+    }
+    return render(request, 'orders/adjustment_monthly_summary.html', context)
 
 
 @login_required
@@ -443,6 +744,9 @@ def api_customer_info(request, pk):
         'customer_type': customer.customer_type,
         'bento_type': customer.bento_type,
         'notes': customer.notes,
+        'invoice_timing': customer.invoice_timing,  # '' / IMMEDIATE / MONTH_END → 請求パターン初期化に使う
+        'payment_method_name': customer.payment_method.name if customer.payment_method else '',
+        'is_invoice_payment': bool(customer.payment_method and customer.payment_method.name == '請求書'),
     })
 
 
@@ -754,6 +1058,7 @@ def order_settings(request):
                 perm.can_view_customers = f'perm_{u.id}_customers' in request.POST
                 perm.can_view_settings = f'perm_{u.id}_settings' in request.POST
                 perm.can_view_csv_export = f'perm_{u.id}_csv_export' in request.POST
+                perm.can_view_adjustments = f'perm_{u.id}_adjustments' in request.POST
                 perm.save()
             messages.success(request, 'ユーザーメニュー設定を保存しました。')
             return redirect('orders:order_settings')

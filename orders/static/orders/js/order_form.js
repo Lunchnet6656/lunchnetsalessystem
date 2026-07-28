@@ -269,6 +269,26 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (notesField && !notesField.value.trim() && data.notes) {
                             notesField.value = data.notes;
                         }
+                        // 請求パターン：請求書払いの顧客のみ選択可。それ以外は支払い方法を固定表示に切替。
+                        var bpSelect = document.getElementById('id_billing_pattern');
+                        var bpFixed = document.getElementById('billing_pattern_fixed');
+                        var bpFixedText = document.getElementById('billing_pattern_fixed_text');
+                        var bpHint = document.getElementById('billing_pattern_hint');
+                        if (bpSelect && bpFixed) {
+                            if (data.is_invoice_payment) {
+                                bpSelect.classList.remove('hidden');
+                                bpFixed.classList.add('hidden');
+                                if (bpHint) bpHint.classList.remove('hidden');
+                                if (data.invoice_timing === 'IMMEDIATE' || data.invoice_timing === 'MONTH_END') {
+                                    bpSelect.value = data.invoice_timing;
+                                }
+                            } else {
+                                bpSelect.classList.add('hidden');
+                                bpFixed.classList.remove('hidden');
+                                if (bpHint) bpHint.classList.add('hidden');
+                                if (bpFixedText) bpFixedText.textContent = data.payment_method_name || '未設定';
+                            }
+                        }
                     })
                     .catch(function() { notifyFetchError(); });
             } else {

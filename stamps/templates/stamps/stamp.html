@@ -318,6 +318,8 @@
       var LIFF_ID = JSON.parse(document.getElementById('stamp-liff-id').textContent);
       var REQUIRE = {{ require_line|yesno:"true,false" }};
       var loaded = {{ loaded|yesno:"true,false" }};
+      var TOKEN = "{{ token|escapejs }}";              // 店舗トークン入口なら非空
+      var MYCARD_URL = "{% url 'stamps:my_card' %}";   // トークン無しカード画面
       function setTokens(at){
         var f = document.getElementById('line_access_token'); if(f){ f.value = at; }
         var ls = document.getElementsByClassName('latoken');
@@ -351,7 +353,16 @@
         if(!liff.isLoggedIn()){ if(REQUIRE){ liff.login(); return; } showDevOrError('（開発確認）'); return; }
         var at = liff.getAccessToken();
         if(at){ setTokens(at); }
-        if(!loaded){ var form = document.getElementById('scanform'); if(form){ form.submit(); } }
+        if(!loaded){
+          var form = document.getElementById('scanform');
+          if(form){
+            // 店舗トークンの入口を履歴から外す：押印後にカード画面から「戻る」で
+            // 入口(/stamp/<token>/)へ戻って自動送信が再発火し、二重押印されるのを防ぐ。
+            // form.action は絶対パスなので送信先(/scan/)は変わらない（アドレスと履歴だけ差し替え）。
+            if(TOKEN){ try{ history.replaceState(null, '', MYCARD_URL); }catch(e){} }
+            form.submit();
+          }
+        }
       }).catch(function(){
         if(!loaded){ showDevOrError('読み込みに失敗しました（LINE外）。'); }
       });

@@ -321,7 +321,8 @@ class RichMenuAssignTests(TestCase):
             self.loc.stamp_close_time = time(23, 59)
             self.loc.save(update_fields=["stamp_open_time", "stamp_close_time"])
             resp = self.client.post(f"/stamp/{self.loc.qr_stamp_token}/scan/")
-            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.status_code, 303)          # PRG：トークン無しカードへ
+            self.assertIn("/stamp/me/", resp["Location"])
             # 初回スタンプで割当てが1回呼ばれる
             self.assertEqual(link.call_count, 1)
 
@@ -434,14 +435,37 @@ class StampCustomerViewTests(TestCase):
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(StampLog.objects.count(), 0)  # 来店せず＝スタンプは増えない
 
+    def _open_all_day(self):
+        self.loc.stamp_open_time = time(0, 0)
+        self.loc.stamp_close_time = time(23, 59)
+        self.loc.save(update_fields=["stamp_open_time", "stamp_close_time"])
+
     def test_scan_dev_fallback_awards(self):
         # STAMP_REQUIRE_LINE=False（dev）＝トークン無しでも仮会員で押せる
         with self.settings(STAMP_REQUIRE_LINE=False):
-            self.loc.stamp_open_time = time(0, 0)
-            self.loc.stamp_close_time = time(23, 59)
-            self.loc.save(update_fields=["stamp_open_time", "stamp_close_time"])
+            self._open_all_day()
             resp = self.client.post(f"/stamp/{self.loc.qr_stamp_token}/scan/")
-            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.status_code, 303)          # PRG リダイレクト
+            self.assertEqual(StampLog.objects.count(), 1)
+
+    def test_scan_redirects_to_tokenless_card(self):
+        # PRG：押印後の最終URLに店舗トークンを残さない（復元/リロードでの再押印を防ぐ）
+        with self.settings(STAMP_REQUIRE_LINE=False):
+            self._open_all_day()
+            resp = self.client.post(f"/stamp/{self.loc.qr_stamp_token}/scan/")
+            self.assertEqual(resp.status_code, 303)
+            self.assertNotIn(self.loc.qr_stamp_token, resp["Location"])
+            self.assertIn("/stamp/me/", resp["Location"])
+
+    def test_prg_flash_shown_once_on_card(self):
+        # 押印の演出はリダイレクト先カードで1回だけ出て、次に開くと出ない（＆再表示で増えない）
+        with self.settings(STAMP_REQUIRE_LINE=False):
+            self._open_all_day()
+            self.client.post(f"/stamp/{self.loc.qr_stamp_token}/scan/")   # 押印→session flash
+            r1 = self.client.post("/stamp/me/")
+            self.assertContains(r1, "スタンプを押しました")
+            r2 = self.client.post("/stamp/me/")
+            self.assertNotContains(r2, "スタンプを押しました")
             self.assertEqual(StampLog.objects.count(), 1)
 
 
