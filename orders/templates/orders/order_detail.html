@@ -19,6 +19,10 @@
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v5a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9a1 1 0 112 0 1 1 0 01-2 0zm2 2H8v2h4v-2h-4z" clip-rule="evenodd"/></svg>
                 領収書 印刷
             </a>
+            {% if not order.is_invoiced %}
+            <a href="{% url 'orders:invoice_issue_order' order.pk %}"
+               class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-bold text-center flex-1 sm:flex-none">この受注を請求</a>
+            {% endif %}
             <a href="{% url 'orders:order_edit' order.pk %}"
                class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm text-center flex-1 sm:flex-none">編集</a>
             <a href="{% url 'orders:order_delete' order.pk %}"
@@ -164,7 +168,15 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
             <div>
                 <h2 class="text-lg font-semibold text-gray-700">受注調整（返品・取消・返金・値引き）</h2>
-                <p class="text-xs text-gray-500 mt-0.5">請求パターン：<span class="font-medium text-gray-700">{{ order.get_billing_pattern_display }}</span></p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    請求パターン：<span class="font-medium text-gray-700">{{ order.get_billing_pattern_display }}</span>
+                    ／ 請求状況：
+                    {% if order.is_invoiced %}
+                    <a href="{% url 'orders:invoice_detail' order.invoice_id %}" class="font-medium text-green-700 hover:underline">請求済み（{{ order.invoice.invoice_number }}）</a>
+                    {% else %}
+                    <span class="font-medium text-orange-600">未請求</span>
+                    {% endif %}
+                </p>
             </div>
             <a href="{% url 'orders:adjustment_create' order.pk %}"
                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-bold text-center">＋ 調整を追加</a>

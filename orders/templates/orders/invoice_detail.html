@@ -1,0 +1,85 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}{{ invoice.invoice_number }} - 請求書{% endblock %}
+{% block nav_invoices %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto max-w-4xl">
+    <div class="flex items-center justify-between mb-4 gap-2">
+        <a href="{% url 'orders:invoice_list' %}" class="text-sm text-gray-500 hover:text-gray-700">&larr; 請求書一覧</a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'orders:invoice_pdf' invoice.pk %}" target="_blank" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-bold">請求書PDF</a>
+            {% if invoice.status != 'VOID' %}
+            <form method="post" action="{% url 'orders:invoice_mark_paid' invoice.pk %}" class="inline">
+                {% csrf_token %}
+                {% if invoice.status == 'PAID' %}
+                <button class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition text-sm">未入金に戻す</button>
+                {% else %}
+                <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-bold">入金済みにする</button>
+                {% endif %}
+            </form>
+            <a href="{% url 'orders:invoice_void' invoice.pk %}" class="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition text-sm">取消</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if invoice.status == 'VOID' %}
+    <div class="mb-4 p-3 rounded bg-gray-200 text-gray-600 text-sm">
+        この請求書は取消済みです。対象受注は未請求に戻っています。{% if invoice.void_reason %}<br>取消理由：{{ invoice.void_reason }}{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-lg shadow-sm p-5 mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between gap-3 mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">{{ invoice.invoice_number }}</h1>
+                <p class="text-gray-600 mt-1">{{ invoice.customer }}</p>
+            </div>
+            <div class="text-sm text-gray-600 sm:text-right">
+                <p>発行日：{{ invoice.issue_date|date:'Y年m月d日' }}</p>
+                {% if invoice.due_date %}<p>支払期日：{{ invoice.due_date|date:'Y年m月d日' }}</p>{% endif %}
+                {% if invoice.period_start %}<p>対象期間：{{ invoice.period_start|date:'Y/m/d' }}〜{{ invoice.period_end|date:'Y/m/d' }}</p>{% endif %}
+                <p>状態：<span class="font-medium">{{ invoice.get_status_display }}</span></p>
+            </div>
+        </div>
+
+        <!-- 明細（単価別マトリクス・対象月の全日付） -->
+        {% include "orders/_invoice_matrix.html" %}
+
+        <!-- 集計 -->
+        <div class="flex justify-end mt-4">
+            <table class="text-sm w-full sm:w-80">
+                <tr><td class="py-1 text-gray-600">受注小計（税込）</td><td class="py-1 text-right">&yen;{{ invoice.charge_total|floatformat:0|intcomma }}</td></tr>
+                {% if invoice.credit_total %}<tr><td class="py-1 text-gray-600">控除</td><td class="py-1 text-right text-red-600">&minus;&yen;{{ invoice.credit_total|floatformat:0|intcomma }}</td></tr>{% endif %}
+                <tr><td class="py-1 text-gray-600">税抜金額（{{ invoice.tax_rate }}%対象＊）</td><td class="py-1 text-right">&yen;{{ invoice.tax_excluded|intcomma }}</td></tr>
+                <tr><td class="py-1 text-gray-600">消費税額等（{{ invoice.tax_rate }}%＊）</td><td class="py-1 text-right">&yen;{{ invoice.tax_amount|floatformat:0|intcomma }}</td></tr>
+                <tr class="border-t-2 border-gray-300"><td class="py-2 font-bold text-gray-800">合計（税込）</td><td class="py-2 text-right font-bold text-lg">&yen;{{ invoice.net_amount|floatformat:0|intcomma }}</td></tr>
+                <tr><td colspan="2" class="pt-1 text-right text-xs text-gray-500">＊軽減税率対象</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- 発行元・振込先 -->
+    <div class="bg-white rounded-lg shadow-sm p-5 mb-4 text-sm text-gray-700">
+        <p>登録番号：<span class="font-medium">{{ invoice.registration_number|default:'—' }}</span></p>
+        {% if invoice.bank_info %}
+        <div class="mt-2">
+            <p class="font-bold text-gray-700">お振込先</p>
+            <p class="whitespace-pre-line">{{ invoice.bank_info }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 対象受注 -->
+    <div class="bg-white rounded-lg shadow-sm p-5">
+        <h2 class="font-bold text-gray-700 mb-2">この請求書に含まれる受注</h2>
+        <div class="flex flex-wrap gap-2">
+            {% for o in invoice.orders.all %}
+            <a href="{% url 'orders:order_detail' o.pk %}" class="text-blue-600 hover:underline text-sm border border-gray-200 rounded px-2 py-1">{{ o.order_number }}（{{ o.delivery_date|date:'m/d' }}）</a>
+            {% empty %}
+            <p class="text-gray-400 text-sm">（取消により受注はこの請求書から外れています）</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

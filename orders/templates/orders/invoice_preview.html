@@ -1,0 +1,75 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}請求書プレビュー - 受注管理{% endblock %}
+{% block nav_invoices %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto max-w-4xl">
+    <div class="flex items-center justify-between mb-4 gap-2">
+        <a href="{{ back_url }}" class="text-sm text-gray-500 hover:text-gray-700">&larr; 戻る</a>
+        <h1 class="text-xl font-bold text-gray-800">請求書プレビュー（未発行）</h1>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm p-5 mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between gap-2 mb-4">
+            <div>
+                <p class="text-lg font-bold text-gray-800">{{ customer }}</p>
+                <p class="text-sm text-gray-500">
+                    {% if pattern == 'MONTH_END' %}月末締め{% else %}即時／スポット{% endif %}
+                    {% if period_start %}／対象期間 {{ period_start }}〜{{ period_end }}{% endif %}
+                </p>
+            </div>
+        </div>
+
+        {% if not has_orders %}
+        <div class="p-4 bg-yellow-50 text-yellow-700 rounded text-sm">請求対象の未請求受注がありません。</div>
+        {% else %}
+        <!-- 明細（単価別マトリクス・対象月の全日付） -->
+        {% include "orders/_invoice_matrix.html" %}
+
+        {% if preview.credits %}
+        <p class="text-xs text-red-600 mt-2">※ 控除 {{ preview.credits|length }} 件（繰越分を含む）を反映しています。</p>
+        {% endif %}
+
+        <!-- 集計 -->
+        <div class="flex justify-end mt-4">
+            <table class="text-sm w-full sm:w-80">
+                <tr><td class="py-1 text-gray-600">受注小計（税込）</td><td class="py-1 text-right">&yen;{{ preview.charge_total|floatformat:0|intcomma }}</td></tr>
+                {% if preview.credit_total %}<tr><td class="py-1 text-gray-600">控除</td><td class="py-1 text-right text-red-600">&minus;&yen;{{ preview.credit_total|floatformat:0|intcomma }}</td></tr>{% endif %}
+                <tr><td class="py-1 text-gray-600">税抜金額（{{ preview.tax_rate }}%対象＊）</td><td class="py-1 text-right">&yen;{{ preview.tax_excluded|intcomma }}</td></tr>
+                <tr><td class="py-1 text-gray-600">消費税額等（{{ preview.tax_rate }}%＊）</td><td class="py-1 text-right">&yen;{{ preview.tax_amount|floatformat:0|intcomma }}</td></tr>
+                <tr class="border-t-2 border-gray-300"><td class="py-2 font-bold text-gray-800">ご請求金額（税込）</td><td class="py-2 text-right font-bold text-lg">&yen;{{ preview.net_amount|floatformat:0|intcomma }}</td></tr>
+                <tr><td colspan="2" class="pt-1 text-right text-xs text-gray-500">＊軽減税率対象</td></tr>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if has_orders %}
+    <form method="post" action="{% url 'orders:invoice_issue_confirm' %}" class="bg-white rounded-lg shadow-sm p-5">
+        {% csrf_token %}
+        <input type="hidden" name="customer_id" value="{{ customer.pk }}">
+        {% for oid in order_ids %}<input type="hidden" name="order_ids" value="{{ oid }}">{% endfor %}
+        {% for cid in extra_credit_ids %}<input type="hidden" name="extra_credit_ids" value="{{ cid }}">{% endfor %}
+        <input type="hidden" name="pattern" value="{{ pattern }}">
+        <input type="hidden" name="period_start" value="{{ period_start }}">
+        <input type="hidden" name="period_end" value="{{ period_end }}">
+        <input type="hidden" name="back_url" value="{{ back_url }}">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">支払期日</label>
+                <input type="date" name="due_date" value="{{ due_date }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">備考（任意）</label>
+                <input type="text" name="notes" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="振込先など">
+            </div>
+        </div>
+        <div class="flex gap-2 justify-end">
+            <a href="{{ back_url }}" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 transition text-sm">キャンセル</a>
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-bold">この内容で発行する</button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

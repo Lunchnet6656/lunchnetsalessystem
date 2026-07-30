@@ -1,0 +1,9 @@
+{# 請求書PDFの「1日ぶん」のセル群（左右2段・単段で共通利用）。d=day_row #}
+<td class="c-day{% if d.is_weekend %} wke{% endif %}{% if not d.has_order and not d.blank %} emp{% endif %}">{{ d.day }}</td>
+<td class="c-wd{% if d.is_weekend %} wke wkd{% endif %}">{{ d.weekday }}</td>
+<td class="c-label{% if d.is_weekend %} wke{% endif %}{% if not d.has_order and not d.blank %} emp{% endif %}">{% if d.has_order %}お弁当{% endif %}</td>
+{% for c in d.cells %}<td class="c-price{% if d.is_weekend %} wke{% endif %}">{{ c }}</td>{% endfor %}
+<td class="c-price c-sum{% if d.is_weekend %} wke{% endif %}">{{ d.qty }}</td>
+{% if has_large %}<td class="c-price{% if d.is_weekend %} wke{% endif %}">{{ d.large }}</td>{% endif %}
+{% if has_extras %}<td class="c-extra{% if d.is_weekend %} wke{% endif %}">{% for x in d.extras_items %}{{ x }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>{% endif %}
+<td class="c-amount{% if d.is_weekend %} wke{% endif %}">{{ d.amount_formatted }}</td>

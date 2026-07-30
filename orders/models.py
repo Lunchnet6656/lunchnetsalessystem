@@ -18,6 +18,23 @@ class PaymentMethod(models.Model):
         return self.name
 
 
+class BankAccount(models.Model):
+    """振込先口座。複数持ち、顧客ごとに紐づけて請求書に印字する。"""
+    label = models.CharField(max_length=100, verbose_name="口座の識別名")
+    info = models.TextField(verbose_name="振込先（請求書印字用）")
+    is_active = models.BooleanField(default=True, verbose_name="有効")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="表示順")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'label']
+        verbose_name = "振込先口座"
+        verbose_name_plural = "振込先口座"
+
+    def __str__(self):
+        return self.label
+
+
 class DeliveryBin(models.Model):
     name = models.CharField(max_length=50, unique=True, verbose_name="便名")
     is_active = models.BooleanField(default=True, verbose_name="有効")
@@ -51,6 +68,10 @@ class Customer(models.Model):
     INVOICE_TIMING_CHOICES = [
         ('IMMEDIATE', '即時発行'),
         ('MONTH_END', '月末締め発行'),
+    ]
+    INVOICE_DELIVERY_CHOICES = [
+        ('MAIL', '郵送（原本）'),
+        ('EMAIL', 'メール配信'),
     ]
 
     customer_type = models.CharField(
@@ -89,6 +110,14 @@ class Customer(models.Model):
     invoice_timing = models.CharField(
         max_length=10, choices=INVOICE_TIMING_CHOICES, blank=True, default='',
         verbose_name="請求書発行タイミング"
+    )
+    bank_account = models.ForeignKey(
+        'BankAccount', on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="振込先口座"
+    )
+    invoice_delivery = models.CharField(
+        max_length=10, choices=INVOICE_DELIVERY_CHOICES, default='MAIL',
+        verbose_name="請求書の配信方法"
     )
     delivery_bin = models.ForeignKey(
         'DeliveryBin', on_delete=models.SET_NULL, null=True, blank=True,
@@ -141,6 +170,18 @@ class Customer(models.Model):
         return self.name or ''
 
 
+class OrderManager(models.Manager):
+    """請求状況で受注を絞り込むためのマネージャ（請求書発行v2）。"""
+
+    def uninvoiced(self):
+        """未請求（有効な請求書に載っていない）受注。"""
+        return self.filter(invoice__isnull=True)
+
+    def pending_immediate(self):
+        """即時発行の予定なのに未請求の受注（＝要即時請求）。"""
+        return self.filter(billing_pattern='IMMEDIATE', invoice__isnull=True)
+
+
 class Order(models.Model):
     # 請求パターンの軸は「月末締め（定期）」か「即時発行（都度）」の2択。顧客の invoice_timing と一致。
     # スポットまとめ（複数受注を1枚に束ねる）は v2 の請求書発行時の操作で実現するため、受注フラグは持たない。
@@ -148,6 +189,8 @@ class Order(models.Model):
         ('MONTH_END', '月末締め'),
         ('IMMEDIATE', '即時発行'),
     ]
+
+    objects = OrderManager()
 
     order_number = models.CharField(max_length=20, unique=True, verbose_name="受注番号")
     customer = models.ForeignKey(
@@ -161,6 +204,11 @@ class Order(models.Model):
     billing_pattern = models.CharField(
         max_length=10, choices=BILLING_PATTERN_CHOICES, default='MONTH_END',
         verbose_name="請求パターン"
+    )
+    # この受注が載っている（有効な）請求書。未請求ならNULL。請求書VOID時にNULLへ戻す＝二重請求防止。
+    invoice = models.ForeignKey(
+        'Invoice', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='orders', verbose_name="請求書"
     )
     pdf_printed_at = models.DateTimeField(null=True, blank=True, verbose_name="PDF出力日時")
     created_by = models.ForeignKey(
@@ -221,6 +269,16 @@ class Order(models.Model):
     def net_total(self):
         """純額 ＝ 受注額 − 調整額（将来の請求対象額）。"""
         return self.total - self.adjustments_total
+
+    # --- 請求状況（請求書発行v2） ---
+    @property
+    def is_invoiced(self):
+        """有効な請求書に載っているか。VOID時は invoice=NULL に戻すため invoice_id で判定できる。"""
+        return self.invoice_id is not None
+
+    @property
+    def invoice_status_label(self):
+        return '請求済み' if self.is_invoiced else '未請求'
 
     def save(self, *args, **kwargs):
         if not self.order_number:
@@ -345,6 +403,11 @@ class OrderAdjustment(models.Model):
     order = models.ForeignKey(
         Order, on_delete=models.PROTECT, related_name='adjustments', verbose_name="受注"
     )
+    # このCREDIT調整を取り込んだ請求書（発行後ロック＋繰越の二重取込防止）。CASHは常にNULL。
+    billed_invoice = models.ForeignKey(
+        'Invoice', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='adjustments', verbose_name="取込請求書"
+    )
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, verbose_name="種別")
     settlement = models.CharField(max_length=10, choices=SETTLEMENT_CHOICES, verbose_name="返金方法")
     amount = models.DecimalField(max_digits=10, decimal_places=0, verbose_name="調整額（税込）")
@@ -404,6 +467,134 @@ class OrderAdjustmentLine(models.Model):
         super().save(*args, **kwargs)
 
 
+class Invoice(models.Model):
+    """請求書（v2）。顧客×対象受注群を集計し、CREDIT調整を控除して発行・記録するスナップショット。
+
+    仕様: 請求書発行_要件定義.md
+    - 選択駆動：発行時に「その顧客の未請求受注」を選んで1枚に束ねる（月末締め/即時/スポット）。
+    - 発行後は不変。訂正は VOID → 作り直し（適格請求書の実務どおり）。
+    - 発行時点の登録番号(T番号)・税率・金額をスナップショットする。
+    """
+    STATUS_DRAFT = 'DRAFT'
+    STATUS_ISSUED = 'ISSUED'
+    STATUS_PAID = 'PAID'
+    STATUS_VOID = 'VOID'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, '下書き'),
+        (STATUS_ISSUED, '発行済み'),
+        (STATUS_PAID, '入金済み'),
+        (STATUS_VOID, '取消'),
+    ]
+    PATTERN_MONTH_END = 'MONTH_END'
+    PATTERN_IMMEDIATE = 'IMMEDIATE'
+    PATTERN_CHOICES = [
+        (PATTERN_MONTH_END, '月末締め'),
+        (PATTERN_IMMEDIATE, '即時/スポット'),
+    ]
+
+    invoice_number = models.CharField(max_length=30, unique=True, verbose_name="請求書番号")
+    customer = models.ForeignKey(
+        Customer, on_delete=models.PROTECT, related_name='invoices', verbose_name="顧客"
+    )
+    pattern = models.CharField(max_length=10, choices=PATTERN_CHOICES, default=PATTERN_MONTH_END, verbose_name="発行パターン")
+    period_start = models.DateField(null=True, blank=True, verbose_name="対象期間（開始）")
+    period_end = models.DateField(null=True, blank=True, verbose_name="対象期間（終了）")
+    issue_date = models.DateField(default=timezone.localdate, verbose_name="発行日")
+    due_date = models.DateField(null=True, blank=True, verbose_name="支払期日")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ISSUED, db_index=True, verbose_name="状態")
+
+    # 発行時点のスナップショット（後で設定が変わっても請求書は不変）
+    registration_number = models.CharField(max_length=20, blank=True, verbose_name="登録番号（T番号）")
+    bank_info = models.TextField(blank=True, default="", verbose_name="振込先")
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=8, verbose_name="税率（%）")
+    charge_total = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name="受注合計（税込）")
+    credit_total = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name="控除合計（税込）")
+    net_amount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name="請求金額（税込）")
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name="消費税額")
+
+    notes = models.TextField(blank=True, verbose_name="備考")
+    void_reason = models.TextField(blank=True, verbose_name="取消理由")
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='issued_invoices', verbose_name="発行者"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-issue_date', '-created_at']
+        verbose_name = "請求書"
+        verbose_name_plural = "請求書"
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.customer}"
+
+    @property
+    def is_void(self):
+        return self.status == self.STATUS_VOID
+
+    @property
+    def tax_excluded(self):
+        return int(self.net_amount) - int(self.tax_amount)
+
+    @staticmethod
+    def generate_invoice_number(issue_date):
+        """INV-YYYYMM-#### を月内連番で採番する。"""
+        prefix = f"INV-{issue_date.strftime('%Y%m')}"
+        last = Invoice.objects.filter(
+            invoice_number__startswith=prefix
+        ).order_by('-invoice_number').first()
+        seq = int(last.invoice_number.split('-')[-1]) + 1 if last else 1
+        return f"{prefix}-{seq:04d}"
+
+
+class InvoiceLine(models.Model):
+    """請求明細（日別）。受注明細を1行ずつ展開し、控除（CREDIT調整）はマイナス行で載せる。"""
+    SOURCE_ORDER = 'ORDER'
+    SOURCE_ADJUSTMENT = 'ADJUSTMENT'
+    SOURCE_CHOICES = [
+        (SOURCE_ORDER, '受注'),
+        (SOURCE_ADJUSTMENT, '調整（控除）'),
+    ]
+
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.CASCADE, related_name='lines', verbose_name="請求書"
+    )
+    source_type = models.CharField(max_length=12, choices=SOURCE_CHOICES, verbose_name="種別")
+    # スナップショット（label/quantity/unit_price/amount）を保持するため、元レコード削除時は
+    # リンクを外すだけにする（SET_NULL）。取消済み請求書の履歴を残しつつ、元の受注/調整を削除できる。
+    order = models.ForeignKey(
+        Order, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='invoice_lines', verbose_name="元受注"
+    )
+    order_item = models.ForeignKey(
+        OrderItem, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="元受注明細"
+    )
+    adjustment = models.ForeignKey(
+        OrderAdjustment, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='invoice_lines', verbose_name="元調整"
+    )
+    line_date = models.DateField(verbose_name="日付")
+    label = models.CharField(max_length=255, verbose_name="内容")
+    quantity = models.PositiveIntegerField(null=True, blank=True, verbose_name="数量")
+    quantity_large = models.PositiveIntegerField(null=True, blank=True, verbose_name="うち大盛り数")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True, verbose_name="単価（税込）")
+    amount = models.DecimalField(max_digits=12, decimal_places=0, verbose_name="金額（税込）")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="表示順")
+
+    class Meta:
+        ordering = ['sort_order', 'line_date', 'id']
+        verbose_name = "請求明細"
+        verbose_name_plural = "請求明細"
+
+    def __str__(self):
+        return f"{self.line_date} {self.label} ¥{self.amount}"
+
+    @property
+    def is_credit(self):
+        return self.source_type == self.SOURCE_ADJUSTMENT
+
+
 class OrderSettings(models.Model):
     tax_rate = models.DecimalField(
         max_digits=5, decimal_places=2, default=8,
@@ -428,6 +619,11 @@ class OrderSettings(models.Model):
     invoice_number = models.CharField(
         max_length=20, default="T4020002059715", verbose_name="登録番号"
     )
+    bank_info = models.TextField(
+        blank=True, default="", verbose_name="デフォルト振込先"
+    )
+    # 社印画像を data URI（data:image/png;base64,...）でDB保持。Herokuでも消えない・PDFに埋め込み。
+    seal_image_data = models.TextField(blank=True, default="", verbose_name="社印画像")
 
     class Meta:
         verbose_name = "受注設定"
@@ -474,6 +670,7 @@ class OrderUserMenuPermission(models.Model):
     can_view_settings = models.BooleanField(default=True, verbose_name="設定")
     can_view_csv_export = models.BooleanField(default=True, verbose_name="CSVエクスポート")
     can_view_adjustments = models.BooleanField(default=True, verbose_name="受注調整")
+    can_view_invoices = models.BooleanField(default=True, verbose_name="請求書")
 
     class Meta:
         verbose_name = "受注メニュー表示設定"

@@ -1,0 +1,87 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}月末締め発行 - 受注管理{% endblock %}
+{% block nav_invoices %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto max-w-4xl">
+    <div class="flex items-center justify-between mb-4 gap-2">
+        <a href="{% url 'orders:invoice_list' %}" class="text-sm text-gray-500 hover:text-gray-700">&larr; 請求書一覧</a>
+        <h1 class="text-xl font-bold text-gray-800">月末締めで発行</h1>
+    </div>
+
+    <!-- 月・顧客セレクタ -->
+    <form method="get" class="bg-white rounded-lg shadow-sm p-4 mb-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">対象月</label>
+                <input type="month" name="month" value="{{ month_str }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">顧客（1社を発行）</label>
+                <select name="customer" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                    <option value="">— 顧客を選ぶ —</option>
+                    {% for c in customers %}
+                    <option value="{{ c.pk }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="w-full bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm font-bold">プレビュー</button>
+            </div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">顧客を選ぶとその1社をプレビュー。未選択のまま月だけ選ぶと、下に対象月の未請求サマリーが出ます。</p>
+    </form>
+
+    <!-- 対象月の未請求サマリー＋一括発行 -->
+    <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="font-bold text-gray-700">{{ month_str }} の未請求（月末締め対象）</h2>
+            {% if summary_rows %}
+            <form method="post" action="{% url 'orders:invoice_issue_monthly_batch' %}"
+                  onsubmit="return confirm('{{ summary_rows|length }} 社に月末締め請求書を一括発行します。よろしいですか？');">
+                {% csrf_token %}
+                <input type="hidden" name="month" value="{{ month_str }}">
+                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-bold">全 {{ summary_rows|length }} 社を一括発行</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">顧客</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">未請求受注</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">受注合計（税込）</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for r in summary_rows %}
+                    <tr>
+                        <td class="px-3 py-2">{{ r.customer }}</td>
+                        <td class="px-3 py-2 text-right">{{ r.count }} 件</td>
+                        <td class="px-3 py-2 text-right whitespace-nowrap">&yen;{{ r.charge|floatformat:0|intcomma }}</td>
+                        <td class="px-3 py-2 text-right">
+                            <a href="?month={{ month_str }}&customer={{ r.customer.pk }}" class="text-blue-600 hover:underline">プレビュー</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="px-3 py-8 text-center text-gray-400">対象月に未請求受注はありません。</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if summary_rows %}
+                <tfoot class="bg-gray-50 font-bold">
+                    <tr>
+                        <td class="px-3 py-2">合計</td>
+                        <td class="px-3 py-2"></td>
+                        <td class="px-3 py-2 text-right whitespace-nowrap">&yen;{{ summary_total|floatformat:0|intcomma }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

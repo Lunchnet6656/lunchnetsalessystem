@@ -1,0 +1,54 @@
+{% load humanize %}
+{# 単価別マトリクス明細（請求書詳細・発行プレビュー共通）。コンテキスト変数 matrix を使う。 #}
+<p class="text-xs text-gray-500 text-right mb-1">※ 表内の金額（販売価格・金額等）は全て税込表示です</p>
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm border-collapse">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-2 py-1.5 text-left font-semibold text-gray-600 border-b border-gray-200" rowspan="2">日</th>
+                <th class="px-1 py-1.5 text-center font-semibold text-gray-600 border-b border-gray-200" rowspan="2">曜</th>
+                <th class="px-2 py-1.5 text-left font-semibold text-gray-600 border-b border-gray-200" rowspan="2">摘要</th>
+                <th class="px-2 py-1 text-center font-semibold text-gray-600 border-b border-gray-200" colspan="{{ matrix.price_columns|length }}">販売価格</th>
+                <th class="px-2 py-1.5 text-right font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap" rowspan="2">計<br><span class="text-xs font-normal text-gray-400">(食)</span></th>
+                {% if matrix.has_large %}<th class="px-2 py-1.5 text-right font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap" rowspan="2">大盛り<br><span class="text-xs font-normal text-gray-400">+&yen;{{ matrix.large_unit|intcomma }}</span></th>{% endif %}
+                {% if matrix.has_extras %}<th class="px-2 py-1.5 text-right font-semibold text-gray-600 border-b border-gray-200" rowspan="2">その他</th>{% endif %}
+                <th class="px-2 py-1.5 text-right font-semibold text-gray-600 border-b border-gray-200" rowspan="2">金額</th>
+            </tr>
+            <tr>
+                {% for p in matrix.price_columns %}<th class="px-2 py-1 text-right font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">&yen;{{ p|intcomma }}</th>{% endfor %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for r in matrix.day_rows %}
+            <tr class="{% if r.weekday == '土' or r.weekday == '日' %}bg-gray-50{% endif %}{% if not r.has_order %} text-gray-300{% endif %}">
+                <td class="px-2 py-1 whitespace-nowrap">{{ r.date|date:'n/j' }}</td>
+                <td class="px-1 py-1 text-center {% if r.weekday == '土' or r.weekday == '日' %}text-red-500{% endif %}">{{ r.weekday }}</td>
+                <td class="px-2 py-1">{% if r.has_order %}お弁当{% endif %}</td>
+                {% for c in r.cells_list %}<td class="px-2 py-1 text-right">{{ c|default_if_none:'' }}</td>{% endfor %}
+                <td class="px-2 py-1 text-right font-medium bg-gray-50">{{ r.day_qty|default_if_none:'' }}</td>
+                {% if matrix.has_large %}<td class="px-2 py-1 text-right text-red-600">{{ r.large|default_if_none:'' }}</td>{% endif %}
+                {% if matrix.has_extras %}<td class="px-2 py-1 text-right whitespace-nowrap leading-tight">{% for it in r.extra_items %}{{ it.name }}{% if it.qty %}&times;{{ it.qty }}{% endif %} &yen;{{ it.amount|floatformat:0|intcomma }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>{% endif %}
+                <td class="px-2 py-1 text-right whitespace-nowrap">{% if r.amount != None %}&yen;{{ r.amount|floatformat:0|intcomma }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            <tr class="bg-gray-100 font-bold">
+                <td class="px-2 py-1.5" colspan="3">合計</td>
+                {% for t in matrix.col_totals_list %}<td class="px-2 py-1.5 text-right">{{ t }}</td>{% endfor %}
+                <td class="px-2 py-1.5 text-right bg-gray-200">{{ matrix.bento_total_qty }}</td>
+                {% if matrix.has_large %}<td class="px-2 py-1.5 text-right text-red-600">{{ matrix.large_total }}</td>{% endif %}
+                {% if matrix.has_extras %}<td class="px-2 py-1.5 text-right whitespace-nowrap">&yen;{{ matrix.extras_total|floatformat:0|intcomma }}</td>{% endif %}
+                <td class="px-2 py-1.5 text-right whitespace-nowrap">&yen;{{ matrix.charge_total|floatformat:0|intcomma }}</td>
+            </tr>
+            {% for r in matrix.credit_rows %}
+            <tr class="text-red-600">
+                <td class="px-2 py-1 whitespace-nowrap" colspan="3">{{ r.date|date:'n/j' }}（{{ r.weekday }}）{{ r.label }}</td>
+                {% for p in matrix.price_columns %}<td></td>{% endfor %}
+                <td></td>
+                {% if matrix.has_large %}<td></td>{% endif %}
+                {% if matrix.has_extras %}<td></td>{% endif %}
+                <td class="px-2 py-1 text-right whitespace-nowrap">&minus;&yen;{{ r.amount|floatformat:0|intcomma|cut:'-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

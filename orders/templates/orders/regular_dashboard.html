@@ -26,6 +26,49 @@
         </div>
     </div>
 
+    <!-- 要即時請求（即時発行の予定なのに未請求の受注） -->
+    {% if pending_immediate_count %}
+    <div class="bg-white rounded-lg shadow-sm border-l-4 border-orange-400 p-4 mb-6">
+        <form method="post" action="{% url 'orders:invoice_issue_spot' %}">
+            {% csrf_token %}
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 class="font-bold text-orange-700 flex items-center gap-2">
+                    要即時請求
+                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">{{ pending_immediate_count }} 件</span>
+                </h3>
+                <button type="submit" class="bg-indigo-600 text-white px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition text-sm font-bold">選択した受注をまとめて請求</button>
+            </div>
+            <p class="text-xs text-gray-400 mb-2">同じ顧客の受注だけを選ぶと1枚にまとめられます（スポット発行）。1件だけ選べば即時発行。</p>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-orange-50">
+                        <tr>
+                            <th class="px-2 py-1.5 w-8"></th>
+                            <th class="px-2 py-1.5 text-left font-semibold text-gray-600">受注番号</th>
+                            <th class="px-2 py-1.5 text-left font-semibold text-gray-600">納品日</th>
+                            <th class="px-2 py-1.5 text-left font-semibold text-gray-600">顧客</th>
+                            <th class="px-2 py-1.5 text-right font-semibold text-gray-600">金額</th>
+                            <th class="px-2 py-1.5 text-right font-semibold text-gray-600"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for o in pending_immediate %}
+                        <tr>
+                            <td class="px-2 py-1.5 text-center"><input type="checkbox" name="order_pks" value="{{ o.pk }}" class="w-4 h-4"></td>
+                            <td class="px-2 py-1.5"><a href="{% url 'orders:order_detail' o.pk %}" class="text-blue-600 hover:underline">{{ o.order_number }}</a></td>
+                            <td class="px-2 py-1.5 whitespace-nowrap">{{ o.delivery_date|date:'m/d' }}</td>
+                            <td class="px-2 py-1.5">{{ o.customer }}</td>
+                            <td class="px-2 py-1.5 text-right whitespace-nowrap">&yen;{{ o.total|floatformat:0 }}</td>
+                            <td class="px-2 py-1.5 text-right"><a href="{% url 'orders:invoice_issue_order' o.pk %}" class="text-blue-600 hover:underline font-medium">請求</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- サマリーカード -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-blue-500">

@@ -157,6 +157,33 @@
             <p class="text-xs text-gray-400 mt-1">即時発行＝納品都度に請求書を発行 / 月末締め発行＝当月分をまとめて月末に発行</p>
         </div>
 
+        <!-- 振込先口座（請求書に印字する口座。未選択は設定のデフォルト振込先） -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.bank_account.label }}</label>
+            <select name="bank_account"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">（デフォルト振込先を使用）</option>
+                {% for ba in form.bank_account.field.queryset %}
+                <option value="{{ ba.pk }}" {% if form.bank_account.value|stringformat:"s" == ba.pk|stringformat:"s" %}selected{% endif %}>{{ ba.label }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-400 mt-1">この顧客の請求書に印字する振込先。取引先によって口座を分けている場合に選択します。</p>
+            {% if form.bank_account.errors %}<p class="text-red-600 text-xs mt-1">{{ form.bank_account.errors.0 }}</p>{% endif %}
+        </div>
+
+        <!-- 請求書の配信方法（メール＝社印を押した状態でPDF生成／郵送＝社印なし） -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.invoice_delivery.label }}</label>
+            <select name="invoice_delivery"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                {% for value, label in form.fields.invoice_delivery.choices %}
+                <option value="{{ value }}" {% if form.invoice_delivery.value|stringformat:"s" == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-400 mt-1">メール配信＝社印を押した状態でPDF生成／郵送＝社印なし（原本に手押し）。</p>
+            {% if form.invoice_delivery.errors %}<p class="text-red-600 text-xs mt-1">{{ form.invoice_delivery.errors.0 }}</p>{% endif %}
+        </div>
+
         <!-- 配達便 -->
         <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">{{ form.delivery_bin.label }}<span class="text-red-500 text-xs font-normal ml-1">※必須</span></label>

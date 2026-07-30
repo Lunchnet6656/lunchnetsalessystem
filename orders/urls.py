@@ -26,6 +26,19 @@ urlpatterns = [
     path('adjustments/<int:pk>/delete/', views.adjustment_delete, name='adjustment_delete'),
     path('<int:order_pk>/adjustments/create/', views.adjustment_create, name='adjustment_create'),
 
+    # Invoices（請求書発行 v2）
+    path('invoices/', views.invoice_list, name='invoice_list'),
+    path('invoices/issue/monthly/', views.invoice_issue_monthly, name='invoice_issue_monthly'),
+    path('invoices/issue/monthly/batch/', views.invoice_issue_monthly_batch, name='invoice_issue_monthly_batch'),
+    path('invoices/issue/spot/', views.invoice_issue_spot, name='invoice_issue_spot'),
+    path('invoices/issue/confirm/', views.invoice_issue_confirm, name='invoice_issue_confirm'),
+    path('invoices/batch/zip/', views.invoice_batch_zip, name='invoice_batch_zip'),
+    path('invoices/<int:pk>/', views.invoice_detail, name='invoice_detail'),
+    path('invoices/<int:pk>/pdf/', views.invoice_pdf, name='invoice_pdf'),
+    path('invoices/<int:pk>/void/', views.invoice_void, name='invoice_void'),
+    path('invoices/<int:pk>/mark-paid/', views.invoice_mark_paid, name='invoice_mark_paid'),
+    path('<int:order_pk>/invoice/', views.invoice_issue_order, name='invoice_issue_order'),
+
     # Regular order dashboard
     path('regular/', views.regular_order_dashboard, name='regular_dashboard'),
 
@@ -53,6 +66,11 @@ urlpatterns = [
 
     # Settings
     path('settings/', views.order_settings, name='order_settings'),
+
+    # Bank Accounts（振込先口座）
+    path('bank-accounts/create/', views.bank_account_create, name='bank_account_create'),
+    path('bank-accounts/<int:pk>/edit/', views.bank_account_edit, name='bank_account_edit'),
+    path('bank-accounts/<int:pk>/delete/', views.bank_account_delete, name='bank_account_delete'),
 
     # Extra Products
     path('extra-products/create/', views.extra_product_create, name='extra_product_create'),

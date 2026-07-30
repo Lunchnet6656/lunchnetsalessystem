@@ -65,6 +65,12 @@
                     受注調整
                 </a>
                 {% endif %}
+                {% if not perm or perm.can_view_invoices %}
+                <a href="{% url 'orders:invoice_list' %}"
+                   class="px-3 py-1.5 rounded transition {% block nav_invoices %}text-gray-300 hover:bg-gray-600{% endblock %}">
+                    請求書
+                </a>
+                {% endif %}
                 {% if not perm or perm.can_view_settings %}
                 <a href="{% url 'orders:order_settings' %}"
                    class="px-3 py-1.5 rounded transition {% block nav_settings %}text-gray-300 hover:bg-gray-600{% endblock %}">

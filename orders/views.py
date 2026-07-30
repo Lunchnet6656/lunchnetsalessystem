@@ -13,11 +13,13 @@ import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from decimal import Decimal, InvalidOperation
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion, OrderAdjustment, OrderAdjustmentLine
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion, OrderAdjustment, OrderAdjustmentLine, Invoice, InvoiceLine, BankAccount
 from django.contrib.auth import get_user_model
-from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm
+from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm, BankAccountForm
+from . import services
 from sales.models import Product
 from datetime import datetime, timedelta, date
+import calendar
 
 
 def _get_extra_products_json():
@@ -178,6 +180,9 @@ def order_create(request, customer_id=None):
 @login_required
 def order_edit(request, pk):
     order = get_object_or_404(Order, pk=pk)
+    if order.is_invoiced:
+        messages.error(request, f'受注 {order.order_number} は請求済み（{order.invoice.invoice_number}）のため編集できません。請求書を取消してから編集してください。')
+        return redirect('orders:order_detail', pk=order.pk)
     if request.method == 'POST':
         form = OrderForm(request.POST, instance=order)
         formset = OrderItemFormSet(request.POST, instance=order, prefix='items')
@@ -277,6 +282,9 @@ def order_detail(request, pk):
 @login_required
 def order_delete(request, pk):
     order = get_object_or_404(Order, pk=pk)
+    if order.is_invoiced:
+        messages.error(request, f'受注 {order.order_number} は請求済みのため削除できません。請求書を取消してから削除してください。')
+        return redirect('orders:order_detail', pk=order.pk)
     if request.method == 'POST':
         order_number = order.order_number
         order.delete()
@@ -354,6 +362,10 @@ def adjustment_create(request, order_pk):
         Order.objects.select_related('customer').prefetch_related('items', 'extra_items', 'adjustments'),
         pk=order_pk
     )
+    # 請求済み受注でも「後から発生したクレーム」は新規調整として登録できる（適格返還請求書＝繰越の入口）。
+    # 既存の請求済み調整の書き換えだけを禁じる（adjustment_edit/delete で billed_invoice をブロック）。
+    if order.is_invoiced and request.method != 'POST':
+        messages.info(request, f'この受注は請求済み（{order.invoice.invoice_number}）です。ここで登録した請求相殺（CREDIT）は次回の請求書に繰越されます。')
     mode = request.POST.get('mode', 'free') if request.method == 'POST' else 'free'
     if request.method == 'POST':
         form = OrderAdjustmentForm(request.POST)
@@ -395,6 +407,9 @@ def adjustment_edit(request, pk):
     adj = get_object_or_404(
         OrderAdjustment.objects.select_related('order__customer').prefetch_related('lines'), pk=pk
     )
+    if adj.billed_invoice_id is not None:
+        messages.error(request, 'この調整は請求書に取込済みのため編集できません。請求書を取消してから操作してください。')
+        return redirect('orders:order_detail', pk=adj.order.pk)
     has_lines = adj.lines.exists()
     error = None
     if request.method == 'POST':
@@ -434,6 +449,9 @@ def adjustment_edit(request, pk):
 def adjustment_delete(request, pk):
     adj = get_object_or_404(OrderAdjustment.objects.select_related('order'), pk=pk)
     order_pk = adj.order.pk
+    if adj.billed_invoice_id is not None:
+        messages.error(request, 'この調整は請求書に取込済みのため削除できません。請求書を取消してから操作してください。')
+        return redirect('orders:order_detail', pk=order_pk)
     if request.method == 'POST':
         adj.delete()
         messages.success(request, '調整を削除しました。')
@@ -556,6 +574,364 @@ def adjustment_monthly_summary(request):
         'cash_total': sum(r['cash'] for r in rows),
     }
     return render(request, 'orders/adjustment_monthly_summary.html', context)
+
+
+# --- 請求書発行（v2）。未請求受注＋CREDIT調整を集計して発行・記録 ---
+
+def _month_range(year, month):
+    """指定年月の初日・末日を返す。"""
+    first = date(year, month, 1)
+    last = date(year, month, calendar.monthrange(year, month)[1])
+    return first, last
+
+
+def _default_due_date(issue_date):
+    """支払期日の既定＝翌月末（決定事項B）。"""
+    y = issue_date.year + (1 if issue_date.month == 12 else 0)
+    m = 1 if issue_date.month == 12 else issue_date.month + 1
+    return date(y, m, calendar.monthrange(y, m)[1])
+
+
+def _parse_month(s, fallback):
+    """'YYYY-MM' を (year, month) に。失敗時は fallback(date) の年月。"""
+    try:
+        y, m = s.split('-')
+        return int(y), int(m)
+    except (ValueError, AttributeError):
+        return fallback.year, fallback.month
+
+
+@login_required
+def invoice_list(request):
+    qs = Invoice.objects.select_related('customer').order_by('-issue_date', '-created_at')
+    f = {
+        'date_from': request.GET.get('date_from', '').strip(),
+        'date_to': request.GET.get('date_to', '').strip(),
+        'customer': request.GET.get('customer', '').strip(),
+        'status': request.GET.get('status', '').strip(),
+    }
+    if f['date_from']:
+        qs = qs.filter(issue_date__gte=f['date_from'])
+    if f['date_to']:
+        qs = qs.filter(issue_date__lte=f['date_to'])
+    if f['customer']:
+        qs = qs.filter(customer_id=f['customer'])
+    if f['status']:
+        qs = qs.filter(status=f['status'])
+
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+        response['Content-Disposition'] = 'attachment; filename="invoices.csv"'
+        response.write('﻿')
+        w = csv.writer(response)
+        w.writerow(['請求書番号', '発行日', '顧客', '状態', '対象期間', '受注合計', '控除', '請求金額(税込)', '消費税', '支払期日'])
+        for inv in qs:
+            period = ''
+            if inv.period_start and inv.period_end:
+                period = f"{inv.period_start:%Y-%m-%d}〜{inv.period_end:%Y-%m-%d}"
+            w.writerow([
+                inv.invoice_number, inv.issue_date.strftime('%Y-%m-%d'), str(inv.customer),
+                inv.get_status_display(), period, int(inv.charge_total), int(inv.credit_total),
+                int(inv.net_amount), int(inv.tax_amount),
+                inv.due_date.strftime('%Y-%m-%d') if inv.due_date else '',
+            ])
+        return response
+
+    # 取消(VOID)以外を集計対象に
+    active = qs.exclude(status=Invoice.STATUS_VOID)
+    totals = active.aggregate(net=Sum('net_amount'), cnt=Count('id'))
+    unpaid = active.exclude(status=Invoice.STATUS_PAID).aggregate(net=Sum('net_amount'))
+    context = {
+        'invoices': qs,
+        'filters': f,
+        'total_net': totals['net'] or 0,
+        'total_count': totals['cnt'] or 0,
+        'unpaid_net': unpaid['net'] or 0,
+        'customers': Customer.objects.filter(is_active=True).order_by('company_name', 'name'),
+        'status_choices': Invoice.STATUS_CHOICES,
+    }
+    return render(request, 'orders/invoice_list.html', context)
+
+
+@login_required
+def invoice_detail(request, pk):
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('customer').prefetch_related('lines', 'orders'),
+        pk=pk
+    )
+    matrix = services.build_price_matrix(
+        services.lines_as_entries(invoice.lines.all()),
+        invoice.period_start, invoice.period_end,
+    )
+    return render(request, 'orders/invoice_detail.html', {
+        'invoice': invoice, 'matrix': matrix,
+    })
+
+
+@login_required
+def invoice_pdf(request, pk):
+    invoice = get_object_or_404(Invoice.objects.select_related('customer').prefetch_related('lines'), pk=pk)
+    from .pdf import generate_invoice
+    buffer = generate_invoice(invoice)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="invoice_{invoice.invoice_number}.pdf"'
+    return response
+
+
+@login_required
+def invoice_batch_zip(request):
+    """選択した請求書PDFを個別ファイルのZIPでまとめて保存する（メール配信顧客は社印付き）。"""
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    pks = [int(v) for v in request.POST.getlist('invoice_pks') if v.strip().isdigit()]
+    invoices = (Invoice.objects.filter(pk__in=pks)
+                .select_related('customer').prefetch_related('lines'))
+    if not invoices:
+        messages.error(request, '請求書が選択されていません。')
+        return redirect('orders:invoice_list')
+    import zipfile
+    from .pdf import generate_invoice
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for inv in invoices:
+            safe_customer = str(inv.customer.display_name()).replace('/', '_').replace('\\', '_')
+            fname = f"{inv.invoice_number}_{safe_customer}.pdf"
+            z.writestr(fname, generate_invoice(inv).getvalue())
+    buf.seek(0)
+    response = HttpResponse(buf.read(), content_type='application/zip')
+    response['Content-Disposition'] = 'attachment; filename="invoices.zip"'
+    return response
+
+
+@login_required
+def invoice_void(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if request.method == 'POST':
+        reason = request.POST.get('void_reason', '').strip()
+        try:
+            services.void_invoice(invoice, reason=reason, user=request.user)
+            messages.success(request, f'請求書 {invoice.invoice_number} を取消しました。対象受注は未請求に戻りました。')
+        except services.InvoiceError as e:
+            messages.error(request, str(e))
+        return redirect('orders:invoice_detail', pk=invoice.pk)
+    return render(request, 'orders/invoice_confirm_void.html', {'invoice': invoice})
+
+
+@login_required
+def invoice_mark_paid(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if request.method == 'POST':
+        if invoice.status == Invoice.STATUS_ISSUED:
+            invoice.status = Invoice.STATUS_PAID
+            invoice.save(update_fields=['status', 'updated_at'])
+            messages.success(request, f'請求書 {invoice.invoice_number} を入金済みにしました。')
+        elif invoice.status == Invoice.STATUS_PAID:
+            invoice.status = Invoice.STATUS_ISSUED
+            invoice.save(update_fields=['status', 'updated_at'])
+            messages.success(request, f'請求書 {invoice.invoice_number} を未入金（発行済み）に戻しました。')
+    return redirect('orders:invoice_detail', pk=invoice.pk)
+
+
+def _render_preview(request, customer, orders, extra_credits, *, pattern,
+                    period_start, period_end, due_date, back_url):
+    """発行プレビュー（未確定）を描画。確定フォームに order_ids 等を埋める。"""
+    orders = list(orders)
+    data = services.preview_invoice(orders, extra_credits)
+    matrix = services.build_price_matrix(data['lines'], period_start, period_end)
+    context = {
+        'customer': customer,
+        'preview': data,
+        'matrix': matrix,
+        'order_ids': [o.pk for o in orders],
+        'extra_credit_ids': [c.pk for c in (extra_credits or [])],
+        'pattern': pattern,
+        'period_start': period_start.strftime('%Y-%m-%d') if period_start else '',
+        'period_end': period_end.strftime('%Y-%m-%d') if period_end else '',
+        'due_date': due_date.strftime('%Y-%m-%d') if due_date else '',
+        'back_url': back_url,
+        'has_orders': len(orders) > 0,
+    }
+    return render(request, 'orders/invoice_preview.html', context)
+
+
+@login_required
+def invoice_issue_monthly(request):
+    """月末締め発行：対象月＋顧客を選び、未請求受注＋繰越を集計してプレビュー→発行。"""
+    today = timezone.localdate()
+    month_str = request.GET.get('month') or today.strftime('%Y-%m')
+    year, month = _parse_month(month_str, today)
+    customer_id = request.GET.get('customer', '').strip()
+
+    customers = Customer.objects.filter(is_active=True).order_by('company_name', 'name')
+
+    if customer_id:
+        customer = get_object_or_404(Customer, pk=customer_id, is_active=True)
+        first, last = _month_range(year, month)
+        orders = (Order.objects.uninvoiced()
+                  .filter(customer=customer, delivery_date__gte=first, delivery_date__lte=last)
+                  .prefetch_related('items', 'extra_items', 'adjustments')
+                  .order_by('delivery_date'))
+        carry = services.carryover_credits_for_customer(customer)
+        return _render_preview(
+            request, customer, orders, carry,
+            pattern=Invoice.PATTERN_MONTH_END,
+            period_start=first, period_end=last,
+            due_date=_default_due_date(today),
+            back_url=reverse('orders:invoice_issue_monthly') + f'?month={month_str}',
+        )
+
+    # 顧客未選択：セレクタ＋対象月の未請求サマリー
+    first, last = _month_range(year, month)
+    summary_rows = []
+    month_customers = (Customer.objects.filter(
+        is_active=True,
+        orders__delivery_date__gte=first, orders__delivery_date__lte=last,
+        orders__invoice__isnull=True,
+    ).distinct().order_by('company_name', 'name'))
+    for c in month_customers:
+        c_orders = list(Order.objects.uninvoiced().filter(
+            customer=c, delivery_date__gte=first, delivery_date__lte=last
+        ).prefetch_related('items', 'extra_items'))
+        charge = sum((o.total for o in c_orders), Decimal('0'))
+        summary_rows.append({'customer': c, 'count': len(c_orders), 'charge': charge})
+
+    context = {
+        'month_str': month_str,
+        'customers': customers,
+        'summary_rows': summary_rows,
+        'summary_total': sum((r['charge'] for r in summary_rows), Decimal('0')),
+    }
+    return render(request, 'orders/invoice_issue_monthly.html', context)
+
+
+@login_required
+def invoice_issue_monthly_batch(request):
+    """対象月の未請求受注を持つ全顧客に、各社1枚ずつ月末締め請求書を発行（決定事項F）。"""
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    today = timezone.localdate()
+    month_str = request.POST.get('month') or today.strftime('%Y-%m')
+    year, month = _parse_month(month_str, today)
+    first, last = _month_range(year, month)
+    due = _default_due_date(today)
+
+    month_customers = (Customer.objects.filter(
+        is_active=True,
+        orders__delivery_date__gte=first, orders__delivery_date__lte=last,
+        orders__invoice__isnull=True,
+    ).distinct())
+
+    issued = 0
+    for c in month_customers:
+        order_ids = list(Order.objects.uninvoiced().filter(
+            customer=c, delivery_date__gte=first, delivery_date__lte=last
+        ).values_list('pk', flat=True))
+        if not order_ids:
+            continue
+        carry_ids = [a.pk for a in services.carryover_credits_for_customer(c)]
+        try:
+            services.issue_invoice(
+                c, order_ids, carry_ids,
+                pattern=Invoice.PATTERN_MONTH_END,
+                issue_date=today, period_start=first, period_end=last,
+                due_date=due, issued_by=request.user,
+            )
+            issued += 1
+        except services.InvoiceError as e:
+            messages.error(request, f'{c}: {e}')
+    if issued:
+        messages.success(request, f'{month_str} の月末締め請求書を {issued} 件発行しました。')
+    else:
+        messages.info(request, '発行対象の未請求受注がありませんでした。')
+    return redirect('orders:invoice_list')
+
+
+@login_required
+def invoice_issue_spot(request):
+    """スポット発行：受注一覧でチェックした未請求受注を1枚にまとめてプレビュー→発行。"""
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    pks = [int(v) for v in request.POST.getlist('order_pks') if v.strip().isdigit()]
+    orders = list(Order.objects.filter(pk__in=pks)
+                  .select_related('customer')
+                  .prefetch_related('items', 'extra_items', 'adjustments')
+                  .order_by('delivery_date'))
+    if not orders:
+        messages.error(request, '受注が選択されていません。')
+        return redirect('orders:order_list')
+    customer_ids = {o.customer_id for o in orders}
+    if len(customer_ids) > 1:
+        messages.error(request, '請求書は顧客ごとに作成します。同じ顧客の受注だけを選択してください。')
+        return redirect('orders:order_list')
+    invoiced = [o.order_number for o in orders if o.invoice_id is not None]
+    if invoiced:
+        messages.error(request, f'請求済みの受注が含まれています：{", ".join(invoiced)}')
+        return redirect('orders:order_list')
+
+    customer = orders[0].customer
+    today = timezone.localdate()
+    return _render_preview(
+        request, customer, orders, None,
+        pattern=Invoice.PATTERN_IMMEDIATE,
+        period_start=None, period_end=None,
+        due_date=_default_due_date(today),
+        back_url=reverse('orders:order_list'),
+    )
+
+
+@login_required
+def invoice_issue_order(request, order_pk):
+    """即時発行：受注詳細からその1件を請求書化（プレビュー→発行）。"""
+    order = get_object_or_404(
+        Order.objects.select_related('customer').prefetch_related('items', 'extra_items', 'adjustments'),
+        pk=order_pk
+    )
+    if order.invoice_id is not None:
+        messages.error(request, 'この受注は既に請求済みです。')
+        return redirect('orders:order_detail', pk=order.pk)
+    today = timezone.localdate()
+    return _render_preview(
+        request, order.customer, [order], None,
+        pattern=Invoice.PATTERN_IMMEDIATE,
+        period_start=None, period_end=None,
+        due_date=_default_due_date(today),
+        back_url=reverse('orders:order_detail', kwargs={'pk': order.pk}),
+    )
+
+
+@login_required
+def invoice_issue_confirm(request):
+    """プレビューの確定。order_ids を再ロックして請求書を発行する。"""
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    customer = get_object_or_404(Customer, pk=request.POST.get('customer_id'))
+    order_ids = [int(v) for v in request.POST.getlist('order_ids') if v.strip().isdigit()]
+    extra_credit_ids = [int(v) for v in request.POST.getlist('extra_credit_ids') if v.strip().isdigit()]
+    pattern = request.POST.get('pattern', Invoice.PATTERN_MONTH_END)
+
+    def _d(key):
+        v = request.POST.get(key, '').strip()
+        try:
+            return datetime.strptime(v, '%Y-%m-%d').date()
+        except ValueError:
+            return None
+
+    try:
+        invoice = services.issue_invoice(
+            customer, order_ids, extra_credit_ids,
+            pattern=pattern,
+            issue_date=timezone.localdate(),
+            period_start=_d('period_start'),
+            period_end=_d('period_end'),
+            due_date=_d('due_date'),
+            issued_by=request.user,
+            notes=request.POST.get('notes', '').strip(),
+        )
+    except services.InvoiceError as e:
+        messages.error(request, str(e))
+        return redirect(request.POST.get('back_url') or reverse('orders:invoice_list'))
+    messages.success(request, f'請求書 {invoice.invoice_number} を発行しました。')
+    return redirect('orders:invoice_detail', pk=invoice.pk)
 
 
 @login_required
@@ -896,10 +1272,20 @@ def regular_order_dashboard(request):
         _pm_map[_key]['count'] += 1
     payment_method_totals = sorted(_pm_map.values(), key=lambda x: x['sort_order'])
 
+    # 要即時請求：即時発行の予定なのに未請求の受注（選択駆動の漏れ検知）
+    pending_immediate = (
+        Order.objects.pending_immediate()
+        .select_related('customer')
+        .prefetch_related('items', 'extra_items')
+        .order_by('customer__company_name', 'customer__name', 'delivery_date')
+    )
+
     context = {
         'target_date': target_date,
         'target_date_str': target_date.strftime('%Y-%m-%d'),
         'dashboard_rows': dashboard_rows,
+        'pending_immediate': pending_immediate,
+        'pending_immediate_count': pending_immediate.count(),
         'total_customers': total_customers,
         'ordered_count': ordered_count,
         'not_ordered_count': total_customers - ordered_count,
@@ -1042,6 +1428,7 @@ def order_settings(request):
     payment_methods = PaymentMethod.objects.all()
     extra_products = ExtraProduct.objects.all()
     delivery_bins = DeliveryBin.objects.all()
+    bank_accounts = BankAccount.objects.all()
 
     orders_users = User.objects.filter(
         menu_permission__can_view_orders=True,
@@ -1059,13 +1446,25 @@ def order_settings(request):
                 perm.can_view_settings = f'perm_{u.id}_settings' in request.POST
                 perm.can_view_csv_export = f'perm_{u.id}_csv_export' in request.POST
                 perm.can_view_adjustments = f'perm_{u.id}_adjustments' in request.POST
+                perm.can_view_invoices = f'perm_{u.id}_invoices' in request.POST
                 perm.save()
             messages.success(request, 'ユーザーメニュー設定を保存しました。')
             return redirect('orders:order_settings')
         else:
             form = OrderSettingsForm(request.POST, instance=settings_obj)
             if form.is_valid():
-                form.save()
+                obj = form.save()
+                # 社印画像：アップロードは data URI（base64）にしてDB保存。Herokuでも消えない。
+                seal = request.FILES.get('seal_image')
+                if seal:
+                    import base64
+                    ctype = seal.content_type or 'image/png'
+                    b64 = base64.b64encode(seal.read()).decode('ascii')
+                    obj.seal_image_data = f'data:{ctype};base64,{b64}'
+                    obj.save(update_fields=['seal_image_data'])
+                elif request.POST.get('remove_seal'):
+                    obj.seal_image_data = ''
+                    obj.save(update_fields=['seal_image_data'])
                 messages.success(request, '設定を保存しました。')
                 return redirect('orders:order_settings')
     else:
@@ -1081,9 +1480,50 @@ def order_settings(request):
         'payment_methods': payment_methods,
         'extra_products': extra_products,
         'delivery_bins': delivery_bins,
+        'bank_accounts': bank_accounts,
         'user_perms': user_perms,
     }
     return render(request, 'orders/order_settings.html', context)
+
+
+# --- BankAccount views（振込先口座） ---
+
+@login_required
+def bank_account_create(request):
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'振込先口座「{form.instance.label}」を登録しました。')
+            return redirect('orders:order_settings')
+    else:
+        form = BankAccountForm()
+    return render(request, 'orders/bank_account_form.html', {'form': form, 'is_edit': False})
+
+
+@login_required
+def bank_account_edit(request, pk):
+    bank_account = get_object_or_404(BankAccount, pk=pk)
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST, instance=bank_account)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'振込先口座「{bank_account.label}」を更新しました。')
+            return redirect('orders:order_settings')
+    else:
+        form = BankAccountForm(instance=bank_account)
+    return render(request, 'orders/bank_account_form.html', {'form': form, 'bank_account': bank_account, 'is_edit': True})
+
+
+@login_required
+def bank_account_delete(request, pk):
+    bank_account = get_object_or_404(BankAccount, pk=pk)
+    if request.method == 'POST':
+        bank_account.is_active = False
+        bank_account.save()
+        messages.success(request, f'振込先口座「{bank_account.label}」を無効にしました。')
+        return redirect('orders:order_settings')
+    return render(request, 'orders/bank_account_confirm_delete.html', {'bank_account': bank_account})
 
 
 # --- ExtraProduct views ---

@@ -1,0 +1,116 @@
+{% extends "orders/base.html" %}
+{% load humanize %}
+{% block title %}請求書一覧 - 受注管理{% endblock %}
+{% block nav_invoices %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-2">
+        <h1 class="text-2xl font-bold text-gray-800">請求書一覧</h1>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'orders:invoice_issue_monthly' %}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-bold">＋ 月末締めで発行</a>
+            <a href="?{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}{% if filters.customer %}customer={{ filters.customer }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}export=csv"
+               class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-bold">CSV出力</a>
+        </div>
+    </div>
+
+    <!-- 絞り込み -->
+    <form method="get" class="bg-white rounded-lg shadow-sm p-4 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">発行日（開始）</label>
+                <input type="date" name="date_from" value="{{ filters.date_from }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">発行日（終了）</label>
+                <input type="date" name="date_to" value="{{ filters.date_to }}" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">顧客</label>
+                <select name="customer" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                    <option value="">すべて</option>
+                    {% for c in customers %}
+                    <option value="{{ c.pk }}" {% if filters.customer == c.pk|stringformat:'s' %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">状態</label>
+                <select name="status" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                    <option value="">すべて</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="flex-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm">絞り込む</button>
+                <a href="{% url 'orders:invoice_list' %}" class="flex-1 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition text-sm text-center">クリア</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- 合計 -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div class="bg-white rounded-lg shadow-sm px-4 py-3">
+            <p class="text-xs text-gray-500">請求金額合計（税込・取消除く）</p>
+            <p class="text-xl font-bold text-gray-800">&yen;{{ total_net|floatformat:0|intcomma }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm px-4 py-3">
+            <p class="text-xs text-gray-500">未入金合計</p>
+            <p class="text-xl font-bold text-orange-600">&yen;{{ unpaid_net|floatformat:0|intcomma }}</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm px-4 py-3">
+            <p class="text-xs text-gray-500">件数</p>
+            <p class="text-xl font-bold text-gray-800">{{ total_count }} 件</p>
+        </div>
+    </div>
+
+    <!-- 一覧（チェックして一括ZIP保存） -->
+    <form method="post" action="{% url 'orders:invoice_batch_zip' %}">
+        {% csrf_token %}
+        <div class="flex justify-end mb-2">
+            <button type="submit" class="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition text-sm font-bold">選択をZIP保存（PDF）</button>
+        </div>
+    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-2 py-2 text-center"><input type="checkbox" onclick="document.querySelectorAll('.inv-chk').forEach(c=>c.checked=this.checked)" class="w-4 h-4"></th>
+                    <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">請求書番号</th>
+                    <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">発行日</th>
+                    <th class="px-4 py-2 text-left text-sm font-semibold text-gray-600">顧客</th>
+                    <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">請求金額</th>
+                    <th class="px-4 py-2 text-center text-sm font-semibold text-gray-600">状態</th>
+                    <th class="px-4 py-2 text-right text-sm font-semibold text-gray-600">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for inv in invoices %}
+                <tr class="{% if inv.status == 'VOID' %}opacity-50{% endif %}">
+                    <td class="px-2 py-2 text-center">{% if inv.status != 'VOID' %}<input type="checkbox" name="invoice_pks" value="{{ inv.pk }}" class="inv-chk w-4 h-4">{% endif %}</td>
+                    <td class="px-4 py-2 text-sm whitespace-nowrap"><a href="{% url 'orders:invoice_detail' inv.pk %}" class="text-blue-600 hover:underline font-medium">{{ inv.invoice_number }}</a></td>
+                    <td class="px-4 py-2 text-sm whitespace-nowrap">{{ inv.issue_date|date:'Y/m/d' }}</td>
+                    <td class="px-4 py-2 text-sm">{{ inv.customer }}</td>
+                    <td class="px-4 py-2 text-right font-medium whitespace-nowrap">&yen;{{ inv.net_amount|floatformat:0|intcomma }}</td>
+                    <td class="px-4 py-2 text-center">
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium
+                            {% if inv.status == 'ISSUED' %}bg-blue-100 text-blue-700
+                            {% elif inv.status == 'PAID' %}bg-green-100 text-green-700
+                            {% elif inv.status == 'VOID' %}bg-gray-200 text-gray-500
+                            {% else %}bg-yellow-100 text-yellow-700{% endif %}">{{ inv.get_status_display }}</span>
+                    </td>
+                    <td class="px-4 py-2 text-right whitespace-nowrap">
+                        <a href="{% url 'orders:invoice_pdf' inv.pk %}" target="_blank" class="text-blue-600 hover:underline text-sm">PDF</a>
+                        <a href="{% url 'orders:invoice_detail' inv.pk %}" class="text-gray-600 hover:underline text-sm ml-2">詳細</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">請求書はまだありません。</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    </form>
+</div>
+{% endblock %}

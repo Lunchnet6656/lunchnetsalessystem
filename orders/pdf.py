@@ -136,3 +136,112 @@ def generate_receipt(order):
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
     buffer = io.BytesIO(pdf_bytes)
     return buffer
+
+
+def build_invoice_context(invoice):
+    """請求書（適格請求書）テンプレート用コンテキストを生成する。
+
+    金額は発行時点のスナップショット（Invoice）を使う。明細は日別（納品日順）。
+    """
+    from . import services
+    settings = OrderSettings.load()
+    customer = invoice.customer
+
+    # 単価別マトリクスに集計（月末締めは対象月の全日付を並べる）
+    matrix = services.build_price_matrix(
+        services.lines_as_entries(invoice.lines.all()),
+        invoice.period_start, invoice.period_end,
+    )
+    price_columns = [f"¥{p:,}" for p in matrix['price_columns']]
+    def _extras_text(items):
+        # 品名×数量 ＋ 金額（数量なしは品名＋金額）。複数種は行で分ける。
+        out = []
+        for it in items:
+            amt = f"¥{int(it['amount']):,}"
+            if it['qty']:
+                out.append(f"{it['name']}×{it['qty']} {amt}")
+            else:
+                out.append(f"{it['name']} {amt}")
+        return out
+
+    day_rows = []
+    for r in matrix['day_rows']:
+        day_rows.append({
+            'day': r['date'].strftime('%-d'),
+            'weekday': r['weekday'],
+            'is_weekend': r['date'].weekday() >= 5,
+            'has_order': r['has_order'],
+            'cells': [(c if c else '') for c in r['cells_list']],
+            'qty': r['day_qty'] if r['day_qty'] else '',
+            'large': r['large'] if r['large'] else '',
+            'extras_items': _extras_text(r['extra_items']),
+            'amount_formatted': f"¥{int(r['amount']):,}" if r['amount'] is not None else '',
+        })
+    col_totals = [f"{t:,}" for t in matrix['col_totals_list']]
+    credit_rows = []
+    for r in matrix['credit_rows']:
+        credit_rows.append({
+            'date': r['date'].strftime('%-m/%-d'),
+            'weekday': r['weekday'],
+            'label': r['label'],
+            'amount_formatted': f"△{int(-r['amount']):,}",
+        })
+
+    period = ''
+    title_month = ''
+    if invoice.period_start and invoice.period_end:
+        period = (f"{invoice.period_start.strftime('%Y年%m月%d日')}"
+                  f"〜{invoice.period_end.strftime('%Y年%m月%d日')}")
+        # タイトルの「◯月分」＝対象月（月末締めの請求月）
+        title_month = f"{invoice.period_start.month}月分"
+
+    return {
+        'invoice': invoice,
+        'settings': settings,
+        'customer_name': customer.display_name(),
+        'customer_department': customer.department if customer.customer_type == 'B2B' else '',
+        'customer_name_font_size': f"{_customer_name_font_size(customer.display_name(), customer.department, 14) + 3}pt",
+        'customer_dept_font_size': "10.5pt",
+        'title_month': title_month,
+        # 社印：顧客が「メール配信」かつ社印画像が登録済みのとき、発行元に重ねて押印する
+        'seal_data': (settings.seal_image_data
+                      if customer.invoice_delivery == 'EMAIL' and settings.seal_image_data
+                      else ''),
+        'price_columns': price_columns,
+        'day_rows': day_rows,
+        'col_totals': col_totals,
+        'bento_total_qty': matrix['bento_total_qty'],
+        'charge_total_matrix_formatted': f"{int(matrix['charge_total']):,}",
+        'has_large': matrix['has_large'],
+        'large_unit': f"{matrix['large_unit']:,}",
+        'large_total': matrix['large_total'],
+        'extras_total_formatted': f"¥{int(matrix['extras_total']):,}" if matrix['has_extras'] else '',
+        'extra_totals': [
+            (f"{t['name']}×{t['qty']}（¥{int(t['amount']):,}）" if t['qty']
+             else f"{t['name']}（¥{int(t['amount']):,}）")
+            for t in matrix['extra_name_totals']
+        ],
+        'has_extras': matrix['has_extras'],
+        'credit_rows': credit_rows,
+        'period': period,
+        'issue_date': invoice.issue_date.strftime('%Y年%m月%d日'),
+        'due_date': invoice.due_date.strftime('%Y年%m月%d日') if invoice.due_date else '',
+        'charge_total_formatted': f'{int(invoice.charge_total):,}',
+        'credit_total_formatted': f'{int(invoice.credit_total):,}',
+        'net_amount_formatted': f'{int(invoice.net_amount):,}',
+        'tax_excluded_formatted': f'{invoice.tax_excluded:,}',
+        'tax_amount_formatted': f'{int(invoice.tax_amount):,}',
+        'tax_rate': invoice.tax_rate,
+        'has_credit': int(invoice.credit_total) > 0,
+        'payment_method': customer.payment_method,
+        'font_dir': FONTS_DIR,
+    }
+
+
+def generate_invoice(invoice):
+    """請求書PDFを生成してBytesIOバッファを返す"""
+    context = build_invoice_context(invoice)
+    html = render_to_string('orders/invoice.html', context)
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    buffer = io.BytesIO(pdf_bytes)
+    return buffer

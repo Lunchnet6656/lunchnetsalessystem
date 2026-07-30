@@ -1,14 +1,27 @@
 from django import forms
 from .models import (
     Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct,
-    OrderExtraItem, DeliveryBin, OrderAdjustment,
+    OrderExtraItem, DeliveryBin, OrderAdjustment, BankAccount,
 )
+
+
+class BankAccountForm(forms.ModelForm):
+    class Meta:
+        model = BankAccount
+        fields = ['label', 'info', 'sort_order', 'is_active']
+        widgets = {
+            'info': forms.Textarea(attrs={'rows': 3}),
+        }
 
 
 class OrderSettingsForm(forms.ModelForm):
     class Meta:
         model = OrderSettings
-        fields = ['tax_rate', 'company_name', 'postal_code', 'address', 'tel', 'fax']
+        fields = ['tax_rate', 'company_name', 'postal_code', 'address', 'tel', 'fax',
+                  'invoice_number', 'bank_info']
+        widgets = {
+            'bank_info': forms.Textarea(attrs={'rows': 3}),
+        }
 
 
 class PaymentMethodForm(forms.ModelForm):
@@ -30,7 +43,7 @@ class CustomerForm(forms.ModelForm):
             'customer_type', 'company_name', 'department', 'contact_person', 'name',
             'postal_code', 'address', 'phone', 'fax', 'email',
             'price_type', 'custom_price_normal', 'custom_price_star', 'custom_price_large',
-            'payment_method', 'invoice_timing', 'delivery_bin', 'bento_type', 'is_regular',
+            'payment_method', 'invoice_timing', 'bank_account', 'invoice_delivery', 'delivery_bin', 'bento_type', 'is_regular',
             'regular_type',
             'schedule_mon', 'schedule_tue', 'schedule_wed', 'schedule_thu',
             'schedule_fri', 'schedule_sat', 'schedule_sun',
@@ -42,6 +55,7 @@ class CustomerForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['payment_method'].queryset = PaymentMethod.objects.filter(is_active=True)
         self.fields['delivery_bin'].queryset = DeliveryBin.objects.filter(is_active=True)
+        self.fields['bank_account'].queryset = BankAccount.objects.filter(is_active=True)
         self.fields['name'].required = False
 
     def clean(self):
