@@ -33,6 +33,7 @@ urlpatterns = [
     path('invoices/issue/spot/', views.invoice_issue_spot, name='invoice_issue_spot'),
     path('invoices/issue/confirm/', views.invoice_issue_confirm, name='invoice_issue_confirm'),
     path('invoices/batch/zip/', views.invoice_batch_zip, name='invoice_batch_zip'),
+    path('invoices/batch/print/', views.invoice_batch_print, name='invoice_batch_print'),
     path('invoices/<int:pk>/', views.invoice_detail, name='invoice_detail'),
     path('invoices/<int:pk>/pdf/', views.invoice_pdf, name='invoice_pdf'),
     path('invoices/<int:pk>/void/', views.invoice_void, name='invoice_void'),

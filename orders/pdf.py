@@ -245,3 +245,16 @@ def generate_invoice(invoice):
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
     buffer = io.BytesIO(pdf_bytes)
     return buffer
+
+
+def generate_invoices_combined(invoices):
+    """複数の請求書を1つのPDF（各請求書＝改ページ）に結合してBytesIOで返す。印刷向け。"""
+    docs = []
+    for inv in invoices:
+        html = render_to_string('orders/invoice.html', build_invoice_context(inv))
+        docs.append(weasyprint.HTML(string=html).render())
+    if not docs:
+        return io.BytesIO()
+    all_pages = [page for doc in docs for page in doc.pages]
+    pdf_bytes = docs[0].copy(all_pages).write_pdf()
+    return io.BytesIO(pdf_bytes)

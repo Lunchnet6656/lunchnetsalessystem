@@ -674,7 +674,27 @@ def invoice_pdf(request, pk):
     from .pdf import generate_invoice
     buffer = generate_invoice(invoice)
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="invoice_{invoice.invoice_number}.pdf"'
+    # ?dl=1 で保存（添付）、それ以外はインライン表示（印刷向け）
+    disposition = 'attachment' if request.GET.get('dl') else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="invoice_{invoice.invoice_number}.pdf"'
+    return response
+
+
+@login_required
+def invoice_batch_print(request):
+    """選択した請求書を1つのPDF（各請求書＝1ページ）に結合してインライン表示（郵送＝印刷向け）。"""
+    if request.method != 'POST':
+        return HttpResponseBadRequest('POST required')
+    pks = [int(v) for v in request.POST.getlist('invoice_pks') if v.strip().isdigit()]
+    invoices = list(Invoice.objects.filter(pk__in=pks)
+                    .select_related('customer').prefetch_related('lines'))
+    if not invoices:
+        messages.error(request, '請求書が選択されていません。')
+        return redirect('orders:invoice_list')
+    from .pdf import generate_invoices_combined
+    buffer = generate_invoices_combined(invoices)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="invoices_print.pdf"'
     return response
 
 
@@ -762,7 +782,9 @@ def invoice_issue_monthly(request):
     year, month = _parse_month(month_str, today)
     customer_id = request.GET.get('customer', '').strip()
 
-    customers = Customer.objects.filter(is_active=True).order_by('company_name', 'name')
+    # 請求書払いの顧客のみ（現金等は請求書発行の対象外）
+    customers = (Customer.objects.filter(is_active=True, payment_method__name='請求書')
+                 .order_by('company_name', 'name'))
 
     if customer_id:
         customer = get_object_or_404(Customer, pk=customer_id, is_active=True)
@@ -785,6 +807,7 @@ def invoice_issue_monthly(request):
     summary_rows = []
     month_customers = (Customer.objects.filter(
         is_active=True,
+        payment_method__name='請求書',   # 請求書払いのみ（現金等は除外）
         orders__delivery_date__gte=first, orders__delivery_date__lte=last,
         orders__invoice__isnull=True,
     ).distinct().order_by('company_name', 'name'))
@@ -817,6 +840,7 @@ def invoice_issue_monthly_batch(request):
 
     month_customers = (Customer.objects.filter(
         is_active=True,
+        payment_method__name='請求書',   # 請求書払いのみ（現金等は除外）
         orders__delivery_date__gte=first, orders__delivery_date__lte=last,
         orders__invoice__isnull=True,
     ).distinct())

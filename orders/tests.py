@@ -564,6 +564,27 @@ class InvoiceTest(TestCase):
         self.assertEqual(len(zf.namelist()), 2)
         self.assertTrue(all(zf.read(n)[:4] == b'%PDF' for n in zf.namelist()))
 
+    def test_batch_print_combined_and_dl(self):
+        from . import services
+        from .pdf import generate_invoices_combined
+        o1 = self._order(self.d1); self._item(o1, '弁当', 500, 5)
+        o2 = self._order(self.d2); self._item(o2, '弁当', 600, 3)
+        i1 = services.issue_invoice(self.customer, [o1.pk], issued_by=self.user)
+        i2 = services.issue_invoice(self.customer, [o2.pk], issued_by=self.user)
+        combined = generate_invoices_combined([i1, i2]).getvalue()
+        self.assertTrue(combined.startswith(b'%PDF'))
+        # batch print はインラインPDF
+        resp = self.client.post(reverse('orders:invoice_batch_print'),
+                                {'invoice_pks': [i1.pk, i2.pk]})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertIn('inline', resp['Content-Disposition'])
+        # ?dl=1 は添付（保存）、無しはインライン
+        r_dl = self.client.get(reverse('orders:invoice_pdf', kwargs={'pk': i1.pk}) + '?dl=1')
+        self.assertIn('attachment', r_dl['Content-Disposition'])
+        r_in = self.client.get(reverse('orders:invoice_pdf', kwargs={'pk': i1.pk}))
+        self.assertIn('inline', r_in['Content-Disposition'])
+
     def test_bank_account_crud_views(self):
         from .models import BankAccount
         # 作成
@@ -774,6 +795,26 @@ class InvoiceTest(TestCase):
         self.assertRedirects(resp, reverse('orders:invoice_detail', kwargs={'pk': inv.pk}))
         inv.refresh_from_db()
         self.assertEqual(inv.status, 'VOID')
+
+    def test_monthly_page_lists_invoice_payers_only(self):
+        """未請求サマリーは請求書払いの顧客のみ（現金等は除外）。"""
+        from .models import PaymentMethod
+        cash = PaymentMethod.objects.create(name='現金')
+        cash_cust = Customer.objects.create(customer_type='B2B', company_name='現金商店',
+                                            price_type='A', bento_type='REGULAR', payment_method=cash)
+        oc = Order.objects.create(customer=cash_cust, order_date=self.d1, delivery_date=self.d1)
+        self._item(oc, '弁当', 500, 5)
+        # 請求書払いの self.customer にも未請求受注
+        oi = self._order(self.d1); self._item(oi, '弁当', 500, 5)
+        resp = self.client.get(reverse('orders:invoice_issue_monthly'), {'month': self.month_str})
+        self.assertEqual(resp.status_code, 200)
+        rows = resp.context['summary_rows']
+        names = {str(r['customer']) for r in rows}
+        self.assertIn(str(self.customer), names)       # 請求書払いは出る
+        self.assertNotIn('現金商店', names)             # 現金は出ない
+        # 顧客ドロップダウンにも現金顧客は出ない
+        cust_names = {str(c) for c in resp.context['customers']}
+        self.assertNotIn('現金商店', cust_names)
 
     def test_monthly_batch_issues_per_customer(self):
         from .models import Invoice
