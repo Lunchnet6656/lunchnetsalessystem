@@ -9,8 +9,30 @@
         <h1 class="text-2xl font-bold text-gray-800">請求書一覧</h1>
         <div class="flex flex-wrap gap-2">
             <a href="{% url 'orders:invoice_issue_monthly' %}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-bold">＋ 月末締めで発行</a>
-            <a href="?{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}{% if filters.customer %}customer={{ filters.customer }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}export=csv"
+            <a href="?{% if filters.month %}month={{ filters.month }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}{% if filters.customer %}customer={{ filters.customer }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}export=csv"
                class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-bold">CSV出力</a>
+        </div>
+    </div>
+
+    <!-- 締め作業：発行月でワンクリック絞り込み -->
+    <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-semibold text-gray-600 mr-1">締め作業：</span>
+            <a href="?month={{ this_month }}"
+               class="px-4 py-2 rounded-lg text-sm font-bold transition
+                      {% if filters.month == this_month %}bg-blue-600 text-white{% else %}bg-blue-50 text-blue-700 hover:bg-blue-100{% endif %}">今月分</a>
+            <a href="?month={{ last_month }}"
+               class="px-4 py-2 rounded-lg text-sm font-bold transition
+                      {% if filters.month == last_month %}bg-blue-600 text-white{% else %}bg-blue-50 text-blue-700 hover:bg-blue-100{% endif %}">先月分</a>
+            <form method="get" class="flex items-center gap-2 ml-1">
+                <input type="month" name="month" value="{{ filters.month }}"
+                       class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <button type="submit" class="bg-gray-700 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition text-sm">この月で絞る</button>
+            </form>
+            {% if filters.month %}
+            <a href="{% url 'orders:invoice_list' %}" class="text-gray-500 hover:underline text-sm ml-1">解除</a>
+            <span class="ml-auto text-sm text-gray-600">発行月：<span class="font-bold text-gray-800">{{ filters.month }}</span> の {{ total_count }} 件</span>
+            {% endif %}
         </div>
     </div>
 

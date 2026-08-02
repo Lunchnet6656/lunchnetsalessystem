@@ -605,15 +605,26 @@ def _parse_month(s, fallback):
 def invoice_list(request):
     qs = Invoice.objects.select_related('customer').order_by('-issue_date', '-created_at')
     f = {
+        'month': request.GET.get('month', '').strip(),
         'date_from': request.GET.get('date_from', '').strip(),
         'date_to': request.GET.get('date_to', '').strip(),
         'customer': request.GET.get('customer', '').strip(),
         'status': request.GET.get('status', '').strip(),
     }
-    if f['date_from']:
-        qs = qs.filter(issue_date__gte=f['date_from'])
-    if f['date_to']:
-        qs = qs.filter(issue_date__lte=f['date_to'])
+    # 発行月で絞り込み（締め作業用：YYYY-MM）。月指定時は日付範囲より優先。
+    if f['month']:
+        try:
+            y, m = map(int, f['month'].split('-'))
+            last_day = calendar.monthrange(y, m)[1]
+            qs = qs.filter(issue_date__gte=date(y, m, 1),
+                           issue_date__lte=date(y, m, last_day))
+        except (ValueError, TypeError):
+            f['month'] = ''
+    else:
+        if f['date_from']:
+            qs = qs.filter(issue_date__gte=f['date_from'])
+        if f['date_to']:
+            qs = qs.filter(issue_date__lte=f['date_to'])
     if f['customer']:
         qs = qs.filter(customer_id=f['customer'])
     if f['status']:
@@ -641,6 +652,10 @@ def invoice_list(request):
     active = qs.exclude(status=Invoice.STATUS_VOID)
     totals = active.aggregate(net=Sum('net_amount'), cnt=Count('id'))
     unpaid = active.exclude(status=Invoice.STATUS_PAID).aggregate(net=Sum('net_amount'))
+    # 締め作業用のワンクリック月ショートカット
+    today = timezone.localdate()
+    this_month = today.strftime('%Y-%m')
+    last_month = (today.replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
     context = {
         'invoices': qs,
         'filters': f,
@@ -649,6 +664,8 @@ def invoice_list(request):
         'unpaid_net': unpaid['net'] or 0,
         'customers': Customer.objects.filter(is_active=True).order_by('company_name', 'name'),
         'status_choices': Invoice.STATUS_CHOICES,
+        'this_month': this_month,
+        'last_month': last_month,
     }
     return render(request, 'orders/invoice_list.html', context)
 

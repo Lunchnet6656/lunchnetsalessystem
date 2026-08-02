@@ -656,6 +656,25 @@ class InvoiceTest(TestCase):
         self.assertEqual(self.client.get(reverse('orders:invoice_detail', kwargs={'pk': inv.pk})).status_code, 200)
         self.assertEqual(self.client.get(reverse('orders:invoice_issue_monthly')).status_code, 200)
 
+    def test_invoice_list_month_filter(self):
+        """締め作業用：発行月(YYYY-MM)で当月分だけに絞り込める。"""
+        from . import services
+        from datetime import date
+        o_now = self._order(self.d1); self._item(o_now, '弁当', 500, 5)
+        inv_now = services.issue_invoice(
+            self.customer, [o_now.pk], issued_by=self.user,
+            issue_date=date(2026, 6, 15))
+        o_old = self._order(self.d2); self._item(o_old, '弁当', 500, 3)
+        inv_old = services.issue_invoice(
+            self.customer, [o_old.pk], issued_by=self.user,
+            issue_date=date(2026, 5, 20))
+        resp = self.client.get(reverse('orders:invoice_list'), {'month': '2026-06'})
+        self.assertEqual(resp.status_code, 200)
+        pks = {i.pk for i in resp.context['invoices']}
+        self.assertIn(inv_now.pk, pks)
+        self.assertNotIn(inv_old.pk, pks)
+        self.assertEqual(resp.context['total_count'], 1)
+
     def test_price_matrix_columns_and_cells(self):
         from . import services
         from datetime import date
