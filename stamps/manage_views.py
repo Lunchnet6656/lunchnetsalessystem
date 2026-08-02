@@ -466,70 +466,429 @@ def _reward_usage_series(start, end):
     return rows, total, peak, weekly
 
 
+# --- CRM分析ダッシュボード（第3弾） -----------------------------------------
+# 仕様: lunchnetsale-スタンプCRM分析ダッシュボード-要件定義.md / -画面設計.md
+# 会員単位で「リピート率・来店間隔・コホート継続・RFM/離反」を期間スコープで算出する。
+# すべて既存モデル（StampLog）から計算。ログを一括取得しPythonで集計（N+1回避）。
+
+BENTO_PRICE = 650   # 弁当売価（KPI記録・しょうへい確定）。M軸の簡易金額換算に使う（実購入額ではない）。
+
+
+def _median(vals):
+    s = sorted(vals)
+    n = len(s)
+    if not n:
+        return None
+    mid = n // 2
+    if n % 2:
+        return round(float(s[mid]), 1)
+    return round((s[mid - 1] + s[mid]) / 2, 1)
+
+
+def _monday(d):
+    return d - timedelta(days=d.weekday())
+
+
+def _weeks(start, end):
+    """期間を覆う週（月曜起点）の並び。"""
+    cur, out = _monday(start), []
+    while cur <= end:
+        out.append(cur)
+        cur += timedelta(days=7)
+    return out
+
+
+def _svg_line_chart(rows, width=1160, height=240, unit=""):
+    """1本の折れ線（推移用）。rows=[{"label","y"}]（yは数値）。2点未満は None（描画しない）。
+
+    friend推移の _svg_combo_chart から棒を外した軽量版。軸の自動ズームは _nice_axis を流用。
+    """
+    if len(rows) < 2:
+        return None
+    pad_l, pad_r, pad_t, pad_b = 48, 20, 14, 30
+    iw, ih = width - pad_l - pad_r, height - pad_t - pad_b
+    n = len(rows)
+    slot = iw / n
+    yvals = [r["y"] for r in rows]
+    y_min, y_max, y_step = _nice_axis(min(yvals), max(yvals))
+    span = (y_max - y_min) or 1
+
+    def cx(i):
+        return round(pad_l + slot * i + slot / 2, 1)
+
+    def cy(v):
+        return round(pad_t + ih - ih * (v - y_min) / span, 1)
+
+    pts = [{"x": cx(i), "y": cy(r["y"]), "v": r["y"]} for i, r in enumerate(rows)]
+    return {
+        "width": width, "height": height, "unit": unit,
+        "points": " ".join(f"{p['x']},{p['y']}" for p in pts), "dots": pts,
+        "yticks": [{"v": v, "y": cy(v)} for v in range(y_min, y_max + 1, y_step)],
+        "xlabels": [{"x": cx(i), "t": r["label"], "cls": _xlabel_keep_class(i, n)}
+                    for i, r in enumerate(rows)],
+        "axis_x0": pad_l, "axis_x1": width - pad_r,
+        "axis_y0": pad_t, "axis_y1": height - pad_b,
+    }
+
+
+def _heat_shade(offset, pct):
+    """コホートセルのヒートマップ濃淡クラス。W0(基準・常に100%)はグレー、以降は割合で5段階。"""
+    if offset == 0:
+        return "base"
+    if pct is None:
+        return ""
+    for lim, cls in ((20, "s1"), (40, "s2"), (60, "s3"), (80, "s4")):
+        if pct <= lim:
+            return cls
+    return "s5"
+
+
+def _cohort_matrix(dates_by_member, cohort_members, end, unit="week"):
+    """初来店の単位でグループ化し、経過単位ごとの再来店率（％）と実人数を返す（三角行列）。
+
+    cohort_members＝この期間で初めて来店した会員（＝新規）。経過単位が end を超えるセルは作らない。
+    """
+    if unit == "month":
+        def keyfn(d):
+            return d.replace(day=1)
+
+        def offset(a, b):
+            return (a.year - b.year) * 12 + (a.month - b.month)
+
+        def addk(base, k):
+            total = base.month - 1 + k
+            return base.replace(year=base.year + total // 12, month=total % 12 + 1)
+
+        def label(d):
+            return f"{d.year % 100:02d}/{d.month}月"
+
+        end_key = end.replace(day=1)
+    else:
+        keyfn = _monday
+
+        def offset(a, b):
+            return (a - b).days // 7
+
+        def addk(base, k):
+            return base + timedelta(days=7 * k)
+
+        def label(d):
+            return f"{d.month}/{d.day}週"
+
+        end_key = _monday(end)
+
+    groups = {}
+    for m in cohort_members:
+        groups.setdefault(keyfn(dates_by_member[m][0]), []).append(m)
+
+    keys = sorted(groups)[-8:]          # 直近8コホートに絞る
+    rows, max_off = [], 0
+    for c in keys:
+        mem = groups[c]
+        size = len(mem)
+        active = [set(keyfn(d) for d in dates_by_member[m]) for m in mem]
+        row_max = offset(end_key, c)
+        max_off = max(max_off, row_max)
+        cells = []
+        for k in range(row_max + 1):
+            target = addk(c, k)
+            num = sum(1 for a in active if target in a)
+            pct = round(num / size * 100, 1) if size else None
+            cells.append({"pct": pct, "num": num, "denom": size, "off": k,
+                          "shade": _heat_shade(k, pct), "empty": False})
+        rows.append({"label": label(c), "size": size, "cells": cells})
+
+    # 経過が end を超える列は「未到来」＝空セルで埋め、全行を同じ列数に揃える（三角形の表示）。
+    for row in rows:
+        row["cells"] += [{"empty": True} for _ in range(max_off + 1 - len(row["cells"]))]
+    return {"unit": unit, "rows": rows, "cols": list(range(max_off + 1))}
+
+
+def _rfm_grid(dates_by_member, end, dormant_days):
+    """R（最終来店からの日数）×F（通算来店回数）の 4×4 会員数マトリクス。
+
+    離反ラインは FriendTagConfig.dormant_days に追従（友だち管理の「離反ぎみ」と揃える）。
+    concept 上バケットが潰れないよう最小16日でクランプ。金額は来店回数×売価の概算（実額ではない）。
+    """
+    d = max(dormant_days, 16)
+    r_bounds = [(0, 7), (8, 14), (15, d - 1), (d, 10 ** 9)]
+    r_labels = ["0-7日", "8-14日", f"15-{d - 1}日", f"{d}日以上"]
+    f_bounds = [(1, 1), (2, 4), (5, 9), (10, 10 ** 9)]
+    f_labels = ["1回", "2-4回", "5-9回", "10回以上"]
+    grid = [[{"count": 0, "yen": 0, "good": False, "follow": False}
+             for _ in f_bounds] for _ in r_bounds]
+    for m, ds in dates_by_member.items():
+        f, r = len(ds), (end - ds[-1]).days
+        ri = next(i for i, (lo, hi) in enumerate(r_bounds) if lo <= r <= hi)
+        fi = next(i for i, (lo, hi) in enumerate(f_bounds) if lo <= f <= hi)
+        grid[ri][fi]["count"] += 1
+        grid[ri][fi]["yen"] += f * BENTO_PRICE
+    followup = 0
+    rows = []
+    for ri in range(len(r_bounds)):
+        for fi in range(len(f_bounds)):
+            cell = grid[ri][fi]
+            cell["good"] = (ri == 0 and fi >= 1)          # 最近×リピート＝優良
+            cell["follow"] = (ri == 3 and fi >= 2)        # 離反×元常連（5回以上）＝要フォロー
+            if cell["follow"]:
+                followup += cell["count"]
+        rows.append({"label": r_labels[ri], "cells": grid[ri]})
+    return {"rows": rows, "r_labels": r_labels, "f_labels": f_labels,
+            "followup": followup, "dormant_days": d}
+
+
+def _crm_metrics(start, end, location_id=None, cohort_unit="week", light=False):
+    """会員単位のCRM指標（期間スコープ）。light=Trueは前期比較用にリピート/間隔のみ返す。"""
+    logs = _logs_in_period(start, end, location_id).values_list("card__member_id", "stamped_on")
+    dates_by_member = {}
+    for mid, d in logs:
+        dates_by_member.setdefault(mid, set()).add(d)
+    dates_by_member = {mid: sorted(ds) for mid, ds in dates_by_member.items()}
+    members = list(dates_by_member)
+    n_members = len(members)
+
+    # 期間より前に来店歴がある会員＝この期間の「新規」ではない（初来店コホート・新規再来から除外）。
+    before_ids = set()
+    if members:
+        bq = StampLog.objects.filter(stamped_on__lt=start, card__member_id__in=members)
+        if location_id:
+            bq = bq.filter(location_id=location_id)
+        before_ids = set(bq.values_list("card__member_id", flat=True))
+
+    # ① リピート率
+    ge2 = sum(1 for ds in dates_by_member.values() if len(ds) >= 2)
+    period_rate = _pct(ge2, n_members)
+
+    new_members = [m for m in members if m not in before_ids]
+    new_ge2 = sum(1 for m in new_members if len(dates_by_member[m]) >= 2)
+    new_rate = _pct(new_ge2, len(new_members))
+
+    within_days = 14                    # 初回からN日経った会員のみで算出（観測日数不足は分母外）。
+    obs = [m for m in members if (end - dates_by_member[m][0]).days >= within_days]
+    within_hit = sum(1 for m in obs
+                     if len(dates_by_member[m]) >= 2
+                     and (dates_by_member[m][1] - dates_by_member[m][0]).days <= within_days)
+    within_rate = _pct(within_hit, len(obs))
+
+    repeat_trend = []
+    for wk in _weeks(start, end):
+        w_end = wk + timedelta(days=6)
+        wk_ge1 = wk_ge2 = 0
+        for ds in dates_by_member.values():
+            c = sum(1 for x in ds if wk <= x <= w_end)
+            if c >= 1:
+                wk_ge1 += 1
+            if c >= 2:
+                wk_ge2 += 1
+        rate = _pct(wk_ge2, wk_ge1)
+        if rate is not None:
+            repeat_trend.append({"label": f"{wk.month}/{wk.day}", "y": rate})
+
+    # ② 来店間隔
+    member_avg, gaps_by_week = {}, {}
+    for m, ds in dates_by_member.items():
+        if len(ds) < 2:
+            continue
+        gaps = [(ds[i] - ds[i - 1]).days for i in range(1, len(ds))]
+        member_avg[m] = sum(gaps) / len(gaps)
+        for i in range(1, len(ds)):
+            gaps_by_week.setdefault(_monday(ds[i]), []).append((ds[i] - ds[i - 1]).days)
+    avgs = list(member_avg.values())
+    # 平均は小数になるため半開区間 lo<=v<hi で隙間なく分類する（2.5日等が漏れない）。
+    interval_dist = [{"label": lb, "count": sum(1 for v in avgs if lo <= v < hi)}
+                     for lb, lo, hi in [("1-2日", 0, 3), ("3-4日", 3, 5), ("5-7日", 5, 8),
+                                        ("8-14日", 8, 15), ("15日以上", 15, 10 ** 9)]]
+    interval_trend = [{"label": f"{wk.month}/{wk.day}", "y": _median(gaps_by_week[wk])}
+                      for wk in _weeks(start, end) if gaps_by_week.get(wk)]
+
+    metrics = {
+        "n_members": n_members,
+        "period_rate": period_rate,
+        "new_rate": new_rate, "new_count": len(new_members),
+        "within_rate": within_rate, "within_obs": len(obs), "within_days": within_days,
+        "repeat_trend": repeat_trend,
+        "interval_median": _median(avgs),
+        "interval_mean": round(sum(avgs) / len(avgs), 1) if avgs else None,
+        "interval_target": len(member_avg), "interval_single": n_members - len(member_avg),
+        "interval_dist": interval_dist, "interval_trend": interval_trend,
+        "interval_dist_max": max((x["count"] for x in interval_dist), default=0),
+    }
+    if light:
+        return metrics
+
+    # ③ コホート ④ RFM/離反
+    cfg = FriendTagConfig.get_solo()
+    metrics["cohort"] = _cohort_matrix(dates_by_member, new_members, end, cohort_unit)
+    metrics["rfm"] = _rfm_grid(dates_by_member, end, cfg.dormant_days)
+    return metrics
+
+
+def _crm_deltas(cur, prev):
+    """前期比デルタを、符号・矢印・良し悪しクラス付きの表示用文字列にする。"""
+    def d(key, unit, better):
+        c, p = cur.get(key), prev.get(key)
+        if c is None or p is None:
+            return {"txt": "— 前期比なし", "cls": "muted"}
+        diff = round(c - p, 1)
+        if diff == 0:
+            return {"txt": f"± 0{unit}", "cls": "muted"}
+        up = diff > 0
+        good = up if better == "up" else not up
+        sign = f"+{diff}" if up else f"{diff}"
+        return {"txt": f"{'▲' if up else '▼'} {sign}{unit}", "cls": "up" if good else "down"}
+    return {
+        "period_rate": d("period_rate", "pt", "up"),
+        "within_rate": d("within_rate", "pt", "up"),
+        "new_rate": d("new_rate", "pt", "up"),
+        "interval_median": d("interval_median", "日", "down"),   # 間隔は短いほど良い
+    }
+
+
+def _crm_insights(cur, prev):
+    """数字から気づき文を生成（ルールベース・最大5件）。因果は主張しない＝記述に徹する。
+
+    将来：ここを LLM 呼び出しに差し替える（cur/prev をそのままプロンプト化）＝AI改善提案の入口。
+    """
+    out = []
+    r, pr = cur["period_rate"], prev.get("period_rate")
+    if r is not None:
+        if pr is not None:
+            diff = round(r - pr, 1)
+            lvl = "success" if diff > 0 else "danger" if diff < 0 else "muted"
+            sign = f"+{diff}" if diff > 0 else f"{diff}"
+            out.append({"level": lvl, "text": f"期間内リピート率は {r}%（前期比 {sign}pt）。"})
+        else:
+            out.append({"level": "muted", "text": f"期間内リピート率は {r}%（前期比なし）。"})
+
+    im, pm = cur["interval_median"], prev.get("interval_median")
+    if im is not None:
+        if pm is not None:
+            lvl, word = (("success", "短縮") if im < pm else
+                         ("danger", "拡大") if im > pm else ("muted", "横ばい"))
+            out.append({"level": lvl,
+                        "text": f"平均来店間隔の中央値は {im}日（前期 {pm}日／{word}）。"})
+        else:
+            out.append({"level": "muted", "text": f"平均来店間隔の中央値は {im}日。"})
+
+    rfm = cur.get("rfm")
+    if rfm:
+        fu, dd = rfm["followup"], rfm["dormant_days"]
+        if fu:
+            out.append({"level": "danger",
+                        "text": (f"要フォロー：以前は常連（5回以上）で{dd}日以上"
+                                 f"来ていない会員が {fu}人。→ 友だち管理で確認")})
+        else:
+            out.append({"level": "muted",
+                        "text": "元常連で長期未来店（離反ぎみ）の会員は現在いません。"})
+
+    coh = cur.get("cohort")
+    if coh and coh["rows"]:
+        w1 = [(row["label"], row["cells"][1]["pct"]) for row in coh["rows"]
+              if len(row["cells"]) > 1 and row["cells"][1]["pct"] is not None]
+        if w1:
+            latest_label, latest_pct = w1[-1]
+            avg = round(sum(p for _, p in w1) / len(w1), 1)
+            uw = "翌月" if coh["unit"] == "month" else "翌週"
+            ge = latest_pct >= avg
+            out.append({"level": "success" if ge else "danger",
+                        "text": (f"直近コホート（{latest_label} 初来店）の{uw}継続率は "
+                                 f"{latest_pct}%（過去平均 {avg}% を{'上回る' if ge else '下回る'}）。")})
+
+    nr = cur.get("new_rate")
+    if nr is not None:
+        out.append({"level": "muted",
+                    "text": f"新規客の再来率は {nr}%（新規 {cur['new_count']}人）。"})
+    return out[:5]
+
+
 @staff_member_required
 def analytics(request):
-    """参加率・達成率・来店頻度分布・店舗別比較・特典使用の推移。CSVは ?export=csv。"""
-    start, end = _period(request)
-    logs = _logs_in_period(start, end)
+    """CRM分析ダッシュボード：リピート率・来店間隔・コホート継続・RFM/離反＋自動サマリー。
+
+    既存「分析」を刷新・統合。店舗別来店・特典使用推移は下部「内訳」に吸収。CSVは ?export=csv。
+    """
+    start, end = _period(request, default_days=90)     # コホート・間隔の観測窓を確保。
+    loc_raw = request.GET.get("loc") or ""
+    loc_id = int(loc_raw) if loc_raw.isdigit() else None
+    cohort_unit = "month" if request.GET.get("cohort") == "month" else "week"
+
+    cur = _crm_metrics(start, end, loc_id, cohort_unit=cohort_unit)
+    span = (end - start).days
+    prev_end = start - timedelta(days=1)
+    prev = _crm_metrics(prev_end - timedelta(days=span), prev_end, loc_id, light=True)
+
+    # ⑥ その他の内訳（既存吸収）：店舗別来店・特典使用推移。
+    logs = _logs_in_period(start, end, loc_id)
+    by_loc = list(logs.values("location_id", "location__name")
+                  .annotate(visits=Count("id"),
+                            members=Count("card__member_id", distinct=True))
+                  .order_by("-visits"))
     usage_rows, usage_total, usage_peak, usage_weekly = _reward_usage_series(start, end)
 
-    # 店舗別の来店数・参加人数
-    by_loc = (logs.values("location_id", "location__name")
-              .annotate(visits=Count("id"),
-                        members=Count("card__member_id", distinct=True))
-              .order_by("-visits"))
-
-    # 来店頻度分布（期間内の会員ごとの来店回数）
-    per_member = (logs.values("card__member_id")
-                  .annotate(n=Count("id")))
-    dist = {"1回": 0, "2回": 0, "3-4回": 0, "5-9回": 0, "10回以上": 0}
-    for row in per_member:
-        n = row["n"]
-        if n == 1:
-            dist["1回"] += 1
-        elif n == 2:
-            dist["2回"] += 1
-        elif n <= 4:
-            dist["3-4回"] += 1
-        elif n <= 9:
-            dist["5-9回"] += 1
-        else:
-            dist["10回以上"] += 1
-
     if request.GET.get("export") == "csv":
-        return _analytics_csv(by_loc, dist, usage_rows, usage_weekly, start, end)
+        return _crm_csv(cur, by_loc, start, end)
 
     return render(request, "stamps/manage/analytics.html", {
         "nav": "analytics",
-        "start": start, "end": end,
-        "by_loc": list(by_loc),
-        "dist": dist,
-        "active_members": per_member.count(),
-        "usage_rows": usage_rows,
-        "usage_total": usage_total,
-        "usage_peak": usage_peak,
-        "usage_weekly": usage_weekly,
+        "start": start, "end": end, "f_loc": loc_raw,
+        "locations": SalesLocation.objects.order_by("no", "name"),
+        "cohort_unit": cohort_unit,
+        "m": cur,
+        "deltas": _crm_deltas(cur, prev),
+        "insights": _crm_insights(cur, prev),
+        "repeat_chart": _svg_line_chart(cur["repeat_trend"], unit="%"),
+        "interval_chart": _svg_line_chart(cur["interval_trend"], unit="日"),
+        "by_loc": by_loc,
+        "usage_rows": usage_rows, "usage_total": usage_total,
+        "usage_peak": usage_peak, "usage_weekly": usage_weekly,
     })
 
 
-def _analytics_csv(by_loc, dist, usage_rows, usage_weekly, start, end):
+def _crm_csv(m, by_loc, start, end):
+    def v(x):
+        return "-" if x is None else x
+
     resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
     resp["Content-Disposition"] = (
-        f'attachment; filename="stamp_analytics_{start:%Y%m%d}-{end:%Y%m%d}.csv"')
+        f'attachment; filename="stamp_crm_{start:%Y%m%d}-{end:%Y%m%d}.csv"')
     w = csv.writer(resp)
-    w.writerow(["■店舗別"])
+    w.writerow([f"CRM分析 {start:%Y-%m-%d}〜{end:%Y-%m-%d}（会員単位・期間スコープ）"])
+    w.writerow([])
+    w.writerow(["■リピート率"])
+    w.writerow(["指標", "値(%)", "母数(人)"])
+    w.writerow(["期間内リピート率", v(m["period_rate"]), m["n_members"]])
+    w.writerow([f'{m["within_days"]}日以内再来率', v(m["within_rate"]), m["within_obs"]])
+    w.writerow(["新規再来率", v(m["new_rate"]), m["new_count"]])
+    w.writerow([])
+    w.writerow(["■来店間隔"])
+    w.writerow(["中央値(日)", v(m["interval_median"])])
+    w.writerow(["平均(日)", v(m["interval_mean"])])
+    w.writerow(["算出対象(人)", m["interval_target"]])
+    w.writerow(["来店1回のみ(人)", m["interval_single"]])
+    for row in m["interval_dist"]:
+        w.writerow([row["label"], row["count"]])
+    w.writerow([])
+    coh = m["cohort"]
+    unitname = "月次" if coh["unit"] == "month" else "週次"
+    w.writerow([f"■コホート継続（{unitname}・％）"])
+    w.writerow([f'初来店{"月" if coh["unit"] == "month" else "週"}', "人数"]
+               + [f"+{k}" for k in coh["cols"]])
+    for row in coh["rows"]:
+        cells = [row["cells"][k]["pct"] if k < len(row["cells"]) else ""
+                 for k in coh["cols"]]
+        w.writerow([row["label"], row["size"]] + cells)
+    w.writerow([])
+    rfm = m["rfm"]
+    w.writerow(["■RFM（会員数）　行=最終来店／列=通算来店"])
+    w.writerow([""] + rfm["f_labels"])
+    for row in rfm["rows"]:
+        w.writerow([row["label"]] + [cell["count"] for cell in row["cells"]])
+    w.writerow(["要フォロー（元常連・長期未来店）", rfm["followup"]])
+    w.writerow([])
+    w.writerow(["■店舗別 来店"])
     w.writerow(["店舗", "来店数", "来店人数"])
     for r in by_loc:
         w.writerow([r["location__name"], r["visits"], r["members"]])
-    w.writerow([])
-    w.writerow(["■来店頻度分布（期間内の来店回数別 人数）"])
-    for k, v in dist.items():
-        w.writerow([k, v])
-    w.writerow([])
-    w.writerow([f"■特典使用の推移（{'週次・週の月曜' if usage_weekly else '日次'}／使用日ベース）"])
-    w.writerow(["日付", "使用数"])
-    for row in usage_rows:
-        w.writerow([f'{row["date"]:%Y-%m-%d}', row["count"]])
     return resp
 
 

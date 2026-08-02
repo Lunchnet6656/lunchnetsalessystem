@@ -1,76 +1,261 @@
 {% extends "stamps/manage/base.html" %}
 {% load humanize %}
-{% block title %}分析{% endblock %}
-{% block heading %}分析（パイロットGO判定用）{% endblock %}
+{% block title %}CRM分析{% endblock %}
+{% block heading %}CRM分析（リピート・定着・離反）{% endblock %}
 {% block content %}
+<style>
+  /* 折れ線（既存ダッシュボードと同じ間引きルール） */
+  .fchart svg{ width:100%; height:auto; display:block; font-size:11px; }
+  @media (max-width:1100px){ .fchart text.xl:not(.k2):not(.edge){ display:none; } }
+  @media (max-width:640px){ .fchart text.xl:not(.k6):not(.edge){ display:none; } }
+
+  /* ① 気づき（言語化） */
+  .insights{list-style:none;margin:0;padding:0;}
+  .insights li{display:flex;gap:9px;align-items:flex-start;padding:7px 0;
+    border-bottom:1px solid var(--ln-color-divider);font-size:13.5px;line-height:1.55;}
+  .insights li:last-child{border-bottom:none;}
+  .insights .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px;}
+  .insights .success .dot{background:var(--ln-color-success);}
+  .insights .danger  .dot{background:var(--ln-color-danger);}
+  .insights .muted   .dot{background:var(--ln-color-text-muted);}
+  .autotag{font-size:11px;font-weight:normal;color:var(--ln-color-text-muted);
+    border:1px solid var(--ln-color-border);border-radius:999px;padding:1px 8px;}
+
+  /* 前期比デルタ */
+  .delta{font-size:12px;font-weight:700;margin-top:3px;}
+  .delta.up{color:var(--ln-color-success);}
+  .delta.down{color:var(--ln-color-danger);}
+  .delta.muted{color:var(--ln-color-text-muted);font-weight:normal;}
+
+  /* 来店間隔の分布バー */
+  table.ibars td.barcell{padding-right:0;width:100%;}
+  table.ibars .bar{display:block;height:14px;min-width:2px;border-radius:4px;background:var(--ln-color-brand);}
+  table.ibars td.num{text-align:right;font-weight:700;color:var(--ln-color-text-strong);white-space:nowrap;}
+
+  /* コホート ヒートマップ（tokens の success をアルファ5段階＝新色を足さない） */
+  table.cohort td, table.cohort th{text-align:center;font-size:12px;}
+  table.cohort td.cell{font-weight:700;color:var(--ln-color-text-strong);}
+  table.cohort td.cell .sub{display:block;font-size:10px;font-weight:normal;color:var(--ln-color-text-muted);}
+  table.cohort td.base{background:var(--ln-color-surface-muted);}
+  table.cohort td.s1{background:rgba(31,157,87,.08);}
+  table.cohort td.s2{background:rgba(31,157,87,.20);}
+  table.cohort td.s3{background:rgba(31,157,87,.34);}
+  table.cohort td.s4{background:rgba(31,157,87,.50);}
+  table.cohort td.s5{background:rgba(31,157,87,.68);}
+  table.cohort td.empty-cell{background:var(--ln-color-surface-muted);opacity:.4;}
+
+  /* RFM グリッド */
+  table.rfm td, table.rfm th{text-align:center;font-size:12px;}
+  table.rfm th.rowh, table.rfm td.rowh{text-align:left;color:var(--ln-color-text-muted);white-space:nowrap;}
+  table.rfm td.cell{font-weight:700;color:var(--ln-color-text-strong);}
+  table.rfm td.cell .yen{display:block;font-size:10px;font-weight:normal;color:var(--ln-color-text-muted);}
+  table.rfm td.good{background:var(--ln-color-success-bg);}
+  table.rfm td.follow{background:rgba(220,53,69,.12);}
+  .followcard{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;padding:12px;
+    border:1px solid var(--ln-color-border);border-radius:10px;background:rgba(220,53,69,.06);}
+  .followcard .txt{font-size:13px;color:var(--ln-color-text-strong);}
+  .followcard .txt strong{color:var(--ln-color-danger);font-size:18px;}
+  .toggle{font-size:12px;}
+  .toggle a{color:var(--ln-color-text-muted);text-decoration:none;padding:3px 9px;border:1px solid var(--ln-color-border);border-radius:999px;}
+  .toggle a.on{background:var(--ln-color-dark);color:var(--ln-color-white);border-color:var(--ln-color-dark);}
+</style>
+
 <form method="get" class="filters">
   <div class="fld"><label>期間（から）</label><input type="date" name="from" value="{{ start|date:'Y-m-d' }}"></div>
   <div class="fld"><label>期間（まで）</label><input type="date" name="to" value="{{ end|date:'Y-m-d' }}"></div>
+  <div class="fld"><label>店舗</label>
+    <select name="loc">
+      <option value="">全店</option>
+      {% for l in locations %}<option value="{{ l.id }}" {% if f_loc == l.id|stringformat:'s' %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <input type="hidden" name="cohort" value="{{ cohort_unit }}">
   <button class="btn" type="submit">表示</button>
-  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&export=csv">CSVダウンロード</a>
+  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort={{ cohort_unit }}&export=csv">CSVダウンロード</a>
 </form>
 
+{% if m.n_members %}
+
+{# ① 今の気づき（自動サマリー・言語化） #}
 <div class="card">
-  <h2>店舗別 来店</h2>
-  {% if by_loc %}
-  <div class="tscroll">
-  <table class="grid">
-    <thead><tr><th>店舗</th><th>来店数</th><th>来店人数</th><th>1人あたり来店</th></tr></thead>
+  <h2>今の気づき <span class="autotag" style="float:right;">自動生成</span></h2>
+  {% if insights %}
+  <ul class="insights">
+    {% for i in insights %}<li class="{{ i.level }}"><span class="dot"></span><span>{{ i.text }}</span></li>{% endfor %}
+  </ul>
+  {% else %}<p class="empty" style="margin:0;">まだ十分なデータがありません。</p>{% endif %}
+</div>
+
+{# ② リピート率 #}
+<div class="card">
+  <h2>リピート率</h2>
+  <div class="summary">
+    <div class="stat brand">
+      <div class="n">{% if m.period_rate is not None %}{{ m.period_rate }}%{% else %}-{% endif %}</div>
+      <div class="l">期間内リピート率（{{ m.n_members|intcomma }}人中）</div>
+      <div class="delta {{ deltas.period_rate.cls }}">{{ deltas.period_rate.txt }}</div>
+    </div>
+    <div class="stat">
+      <div class="n">{% if m.within_rate is not None %}{{ m.within_rate }}%{% else %}-{% endif %}</div>
+      <div class="l">{{ m.within_days }}日以内再来率（対象{{ m.within_obs|intcomma }}人）</div>
+      <div class="delta {{ deltas.within_rate.cls }}">{{ deltas.within_rate.txt }}</div>
+    </div>
+    <div class="stat">
+      <div class="n">{% if m.new_rate is not None %}{{ m.new_rate }}%{% else %}-{% endif %}</div>
+      <div class="l">新規客の再来率（新規{{ m.new_count|intcomma }}人）</div>
+      <div class="delta {{ deltas.new_rate.cls }}">{{ deltas.new_rate.txt }}</div>
+    </div>
+  </div>
+  {% if repeat_chart %}
+    <div style="margin-top:14px;">{% include "stamps/manage/_line_chart.html" with chart=repeat_chart %}</div>
+    <p class="muted" style="margin:6px 0 0;">週次の期間内リピート率（その週に2回以上来た人の割合）。</p>
+  {% endif %}
+  <p class="muted" style="margin-top:8px;">※ {{ m.within_days }}日以内再来率は初回から{{ m.within_days }}日以上経った会員のみで算出。数字は記述であり、原因（スタンプ効果など）は特定しない。</p>
+</div>
+
+{# ③ 来店間隔 #}
+<div class="card">
+  <h2>来店間隔</h2>
+  <div class="summary">
+    <div class="stat brand">
+      <div class="n">{% if m.interval_median is not None %}{{ m.interval_median }}日{% else %}-{% endif %}</div>
+      <div class="l">来店間隔の中央値</div>
+      <div class="delta {{ deltas.interval_median.cls }}">{{ deltas.interval_median.txt }}</div>
+    </div>
+    <div class="stat">
+      <div class="n">{% if m.interval_mean is not None %}{{ m.interval_mean }}日{% else %}-{% endif %}</div>
+      <div class="l">来店間隔の平均</div>
+    </div>
+  </div>
+  {% if m.interval_target %}
+  <table class="grid ibars" style="margin-top:14px;">
     <tbody>
-      {% for r in by_loc %}
+      {% for row in m.interval_dist %}
       <tr>
-        <td>{{ r.location__name }}</td>
-        <td>{{ r.visits|intcomma }}</td>
-        <td>{{ r.members|intcomma }}</td>
-        <td>{% if r.members %}{% widthratio r.visits r.members 1 %}{% else %}-{% endif %}</td>
+        <td style="width:80px;white-space:nowrap;">{{ row.label }}</td>
+        <td class="barcell"><span class="bar" style="width:{% if m.interval_dist_max %}{% widthratio row.count m.interval_dist_max 100 %}{% else %}0{% endif %}%;"></span></td>
+        <td class="num">{{ row.count|intcomma }}人</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% if interval_chart %}
+    <div style="margin-top:14px;">{% include "stamps/manage/_line_chart.html" with chart=interval_chart %}</div>
+    <p class="muted" style="margin:6px 0 0;">週次・その週に発生した来店間隔の中央値。短縮＝定着傾向だが、原因は特定しない。</p>
+  {% endif %}
+  <p class="muted" style="margin-top:8px;">※ 算出対象 {{ m.interval_target|intcomma }}人／来店1回のみ {{ m.interval_single|intcomma }}人（間隔は算出不可のため対象外）。</p>
+  {% else %}<p class="empty">間隔を算出できる会員（2回以上来店）がまだいません。</p>{% endif %}
+</div>
+
+{# ④ コホート継続マトリクス #}
+<div class="card">
+  <h2>コホート継続（{% if cohort_unit == 'month' %}月次{% else %}週次{% endif %}）
+    <span class="toggle" style="float:right;">
+      <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=week" class="{% if cohort_unit != 'month' %}on{% endif %}">週次</a>
+      <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=month" class="{% if cohort_unit == 'month' %}on{% endif %}">月次</a>
+    </span>
+  </h2>
+  {% if m.cohort.rows %}
+  <div class="tscroll">
+    <table class="grid cohort">
+      <thead>
+        <tr>
+          <th style="text-align:left;">初来店{% if cohort_unit == 'month' %}月{% else %}週{% endif %}</th>
+          <th>人数</th>
+          {% for k in m.cohort.cols %}<th>{% if k == 0 %}初回{% else %}+{{ k }}{% endif %}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in m.cohort.rows %}
+        <tr>
+          <td class="rowh" style="text-align:left;white-space:nowrap;">{{ row.label }}</td>
+          <td>{{ row.size|intcomma }}</td>
+          {% for cell in row.cells %}
+            {% if cell.empty %}<td class="empty-cell"></td>
+            {% else %}<td class="cell {{ cell.shade }}">{{ cell.pct }}%<span class="sub">{{ cell.num }}/{{ cell.denom }}</span></td>{% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="margin-top:10px;">※ 各セル＝その{% if cohort_unit == 'month' %}月{% else %}週{% endif %}に初来店した会員が、経過{% if cohort_unit == 'month' %}月{% else %}週{% endif %}に1回でも来た割合（下段＝実人数）。母数の少ない行は割合が振れる。</p>
+  {% else %}<p class="empty">この期間に初来店した新規会員がまだいません。</p>{% endif %}
+</div>
+
+{# ⑤ RFM / 離反セグメント #}
+<div class="card">
+  <h2>RFM / 離反セグメント</h2>
+  <div class="tscroll">
+    <table class="grid rfm">
+      <thead>
+        <tr>
+          <th class="rowh">最終来店＼通算来店</th>
+          {% for f in m.rfm.f_labels %}<th>{{ f }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in m.rfm.rows %}
+        <tr>
+          <td class="rowh">{{ row.label }}</td>
+          {% for cell in row.cells %}
+          <td class="cell{% if cell.good %} good{% elif cell.follow %} follow{% endif %}">
+            {{ cell.count|intcomma }}{% if cell.count %}<span class="yen">概算¥{{ cell.yen|intcomma }}</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="followcard">
+    <div class="txt">要フォロー：以前は常連（5回以上）で{{ m.rfm.dormant_days }}日以上来ていない会員 <strong>{{ m.rfm.followup|intcomma }}</strong>人</div>
+    <a class="btn sm" href="{% url 'stamps:manage_friends' %}?tag={{ '離反ぎみ'|urlencode }}&sort=visits">友だち管理で見る（離反ぎみ）</a>
+  </div>
+  <p class="muted" style="margin-top:10px;">※ 概算¥は「来店回数×弁当{{ 650 }}円」の目安（実購入額ではない）。緑＝最近×リピートの優良層／赤＝元常連の離脱。離反ラインはタグ設定の日数に追従。</p>
+</div>
+
+{# ⑥ その他の内訳（既存吸収） #}
+<div class="card">
+  <h2>店舗別 来店（内訳）</h2>
+  {% if by_loc %}
+  <div class="tscroll">
+    <table class="grid">
+      <thead><tr><th>店舗</th><th>来店数</th><th>来店人数</th><th>1人あたり来店</th></tr></thead>
+      <tbody>
+        {% for r in by_loc %}
+        <tr>
+          <td>{{ r.location__name }}</td>
+          <td>{{ r.visits|intcomma }}</td>
+          <td>{{ r.members|intcomma }}</td>
+          <td>{% if r.members %}{% widthratio r.visits r.members 1 %}{% else %}-{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% else %}<p class="empty">この期間のデータはありません。</p>{% endif %}
 </div>
 
 <div class="card">
-  <h2>来店頻度分布（期間内・{{ active_members|intcomma }}人が来店）</h2>
-  <table class="grid">
-    <thead><tr><th>来店回数</th><th>人数</th></tr></thead>
-    <tbody>
-      {% for k, v in dist.items %}<tr><td>{{ k }}</td><td>{{ v|intcomma }}人</td></tr>{% endfor %}
-    </tbody>
-  </table>
-  <p class="muted" style="margin-top:10px;">※ リピートの厚み（何回来てくれているか）を見る指標。押し上げ率の実測＝損益シミュレーターv2への入力に使う。</p>
-</div>
-
-<div class="card">
-  <h2>特典使用の推移（{% if usage_weekly %}週次・週の月曜{% else %}日次{% endif %}）</h2>
+  <h2>特典使用の推移（内訳・{% if usage_weekly %}週次{% else %}日次{% endif %}）</h2>
   {% if usage_total %}
-  <p class="muted" style="margin:0 0 12px;">期間内の使用 <strong>{{ usage_total|intcomma }}件</strong>／ピーク <strong>{{ usage_peak|intcomma }}件</strong>（使ったタイミング＝<code class="url">used_at</code>ベース）</p>
-  <table class="grid usage-ts">
-    <thead><tr><th style="width:120px;">{% if usage_weekly %}週（月〜）{% else %}日付{% endif %}</th><th>使用数</th><th style="width:52px;text-align:right;">件</th></tr></thead>
+  <p class="muted" style="margin:0 0 12px;">期間内の使用 <strong>{{ usage_total|intcomma }}件</strong>／ピーク <strong>{{ usage_peak|intcomma }}件</strong>（使用日ベース）</p>
+  <table class="grid ibars">
     <tbody>
       {% for row in usage_rows %}
-      <tr{% if row.count == usage_peak and usage_peak %} class="peak"{% endif %}>
-        <td class="d">{{ row.date|date:'n/j' }}<span class="wd">（{{ row.date|date:'D' }}）</span></td>
-        <td class="barcell">
-          <span class="bar" style="width:{% if usage_peak %}{% widthratio row.count usage_peak 100 %}{% else %}0{% endif %}%;"></span>
-        </td>
+      <tr>
+        <td style="width:120px;white-space:nowrap;font-size:13px;">{{ row.date|date:'n/j' }}<span class="muted">（{{ row.date|date:'D' }}）</span></td>
+        <td class="barcell"><span class="bar" style="width:{% if usage_peak %}{% widthratio row.count usage_peak 100 %}{% else %}0{% endif %}%;{% if row.count == usage_peak and usage_peak %}background:var(--ln-color-danger);{% endif %}"></span></td>
         <td class="num">{{ row.count|intcomma }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="muted" style="margin-top:10px;">※ 雨の日ボーナスやイベントの後にスパイクが出ているか＝施策が「使われた」かを見る。0の日も並べているので谷（使われない期間）も見える。</p>
   {% else %}<p class="empty">この期間に使われた特典はありません。</p>{% endif %}
 </div>
 
-<style>
-  table.usage-ts td.d{white-space:nowrap;font-size:13px;}
-  table.usage-ts td.d .wd{color:var(--ln-color-text-muted);font-size:11px;margin-left:2px;}
-  table.usage-ts td.barcell{padding-right:0;}
-  table.usage-ts td.num{text-align:right;font-weight:700;color:var(--ln-color-text-strong);}
-  table.usage-ts .bar{display:block;height:14px;min-width:2px;border-radius:4px;background:var(--ln-color-brand);}
-  table.usage-ts tr.peak .bar{background:var(--ln-color-danger,#e8543f);}
-  table.usage-ts tr.peak td.num{color:var(--ln-color-danger,#e8543f);}
-</style>
+{% else %}
+<div class="card"><p class="empty">この期間の来店データがありません。期間や店舗を変えて確認してください。</p></div>
+{% endif %}
 {% endblock %}

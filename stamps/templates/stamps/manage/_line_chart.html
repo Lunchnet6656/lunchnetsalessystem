@@ -1,0 +1,17 @@
+{% load humanize %}
+{# 単線の推移グラフ。context: chart（_svg_line_chart の戻り値）。呼び元で {% include %} する。 #}
+<div class="fchart">
+  <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" preserveAspectRatio="xMidYMid meet"
+       aria-label="推移グラフ">
+    {% for t in chart.yticks %}
+      <line x1="{{ chart.axis_x0 }}" y1="{{ t.y }}" x2="{{ chart.axis_x1 }}" y2="{{ t.y }}" stroke="#eceef1" stroke-width="1"/>
+      <text x="{{ chart.axis_x0 }}" y="{{ t.y }}" dx="-6" dy="3" text-anchor="end" fill="#6c757d">{{ t.v|intcomma }}{{ chart.unit }}</text>
+    {% endfor %}
+    {% for xl in chart.xlabels %}
+      <text class="{{ xl.cls }}" x="{{ xl.x }}" y="{{ chart.axis_y1 }}" dy="16" text-anchor="middle" fill="#6c757d">{{ xl.t }}</text>
+    {% endfor %}
+    <polyline points="{{ chart.points }}" fill="none" stroke="var(--ln-color-brand)" stroke-width="2"
+              stroke-linejoin="round" stroke-linecap="round"/>
+    {% for d in chart.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.5" fill="var(--ln-color-brand)"><title>{{ d.v }}{{ chart.unit }}</title></circle>{% endfor %}
+  </svg>
+</div>

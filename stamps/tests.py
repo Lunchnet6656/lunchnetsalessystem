@@ -772,7 +772,8 @@ class DashboardFriendBaseTests(TestCase):
         member = LineMember.objects.create(line_user_id="U1", name="来店者")
         services.award_stamp(member, self.loc,
                              now=timezone.make_aware(timezone.datetime(2026, 7, 20, 12, 0)))
-        self._snap(timezone.localdate(), targeted_reaches=50)
+        # スナップショットは要求期間内の固定日に置く（実行日に依存しない＝毎日安定して通す）。
+        self._snap(_dt(2026, 8, 1, 0, 0).date(), targeted_reaches=50)
         resp = self.client.get("/stamp/manage/?from=2026-07-01&to=2026-08-01")
         self.assertContains(resp, "全友だち50人")
         self.assertContains(resp, "2.0%")
@@ -854,3 +855,125 @@ class FetchFriendInsightCommandTests(TestCase):
             g.return_value.json.return_value = payload
             call_command("fetch_friend_insight", "--days", "30")
         self.assertEqual(FriendInsightSnapshot.objects.count(), 30)  # 30日ぶん保存
+
+
+class CrmAnalyticsTests(TestCase):
+    """CRM分析ダッシュボード（第3弾）：会員単位のリピート率・来店間隔・コホート・RFM・言語化。
+
+    仕様: lunchnetsale-スタンプCRM分析ダッシュボード-要件定義.md §5・§9
+    """
+
+    def setUp(self):
+        RewardTier.ensure_defaults()
+        self.loc = SalesLocation.objects.create(no=1, name="CRM店", type="A", price_type="A",
+                                                stamp_enabled=True)
+        User = get_user_model()
+        self.staff = User.objects.create_user(username="crm", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+
+    def _visit(self, member, y, m, d):
+        return services.award_stamp(member, self.loc, now=_dt(y, m, d, 12, 0))
+
+    def _seed(self):
+        """会員5人・来店を作り込む（期待値が明快になるデータ）。"""
+        mk = lambda uid, name: LineMember.objects.create(line_user_id=uid, name=name)
+        a, b, c, d, f = (mk("U_a", "Aさん"), mk("U_b", "Bさん"), mk("U_c", "Cさん"),
+                         mk("U_d", "Dさん"), mk("U_f", "Fさん"))
+        for day in (1, 3, 6):
+            self._visit(a, 2026, 7, day)          # A：3回（間隔2,3）
+        self._visit(b, 2026, 7, 1)                # B：1回のみ
+        self._visit(c, 2026, 7, 2)
+        self._visit(c, 2026, 7, 6)                # C：2回（間隔4）
+        self._visit(d, 2026, 6, 1)               # D：期間前に来店＝新規ではない
+        self._visit(d, 2026, 7, 5)               # D：期間内は1回
+        for day in (1, 2, 3, 4, 5):
+            self._visit(f, 2026, 7, day)          # F：5回・最終7/5＝要フォロー候補
+        return dict(a=a, b=b, c=c, d=d, f=f)
+
+    def _metrics(self):
+        from stamps.manage_views import _crm_metrics
+        from datetime import date
+        return _crm_metrics(date(2026, 7, 1), date(2026, 7, 31))
+
+    def test_repeat_rates(self):
+        self._seed()
+        m = self._metrics()
+        self.assertEqual(m["n_members"], 5)
+        self.assertEqual(m["period_rate"], 60.0)      # A,C,F が2回以上 / 5人
+        self.assertEqual(m["new_count"], 4)           # D は期間前来店ありで除外
+        self.assertEqual(m["new_rate"], 75.0)         # 新規4人中 A,C,F の3人が再来
+        self.assertEqual(m["within_obs"], 5)
+        self.assertEqual(m["within_rate"], 60.0)      # 14日以内に2回目：A,C,F
+
+    def test_interval(self):
+        self._seed()
+        m = self._metrics()
+        self.assertEqual(m["interval_target"], 3)     # A,C,F（2回以上）
+        self.assertEqual(m["interval_single"], 2)     # B,D（1回のみ）
+        self.assertIsNotNone(m["interval_median"])
+        self.assertEqual(sum(x["count"] for x in m["interval_dist"]), 3)
+
+    def test_rfm_followup(self):
+        self._seed()
+        m = self._metrics()
+        rfm = m["rfm"]
+        # 最終来店から21日以上（7/31基準）かつ5回以上＝F さん1人が要フォロー
+        self.assertEqual(rfm["followup"], 1)
+        total = sum(cell["count"] for row in rfm["rows"] for cell in row["cells"])
+        self.assertEqual(total, 5)                    # 全会員がどこかのセルに1人ずつ
+
+    def test_cohort_matrix(self):
+        self._seed()
+        m = self._metrics()
+        coh = m["cohort"]
+        self.assertTrue(coh["rows"])                  # 新規4人ぶんのコホートができる
+        self.assertEqual(coh["rows"][0]["cells"][0]["pct"], 100.0)  # W0は必ず100%
+
+    def test_new_visit_excluded_from_cohort(self):
+        """期間前に来店した会員（D）は当期の新規コホート母数に入らない。"""
+        self._seed()
+        m = self._metrics()
+        cohort_total = sum(r["size"] for r in m["cohort"]["rows"])
+        self.assertEqual(cohort_total, 4)             # A,B,C,F のみ（D除外）
+
+    def test_insights_no_causal_claims(self):
+        """自動サマリーは記述に徹し、因果（おかげ/効果で/が原因）を主張しない。"""
+        from stamps.manage_views import _crm_metrics, _crm_insights
+        from datetime import date
+        self._seed()
+        cur = _crm_metrics(date(2026, 7, 1), date(2026, 7, 31))
+        prev = _crm_metrics(date(2026, 6, 1), date(2026, 6, 30), light=True)
+        texts = " ".join(i["text"] for i in _crm_insights(cur, prev))
+        for banned in ("おかげ", "効果で", "が原因"):
+            self.assertNotIn(banned, texts)
+        self.assertTrue(_crm_insights(cur, prev))     # 何かしら気づき文が出る
+
+    def test_empty_period(self):
+        """来店ゼロでも落ちない（率は None、要フォロー0）。"""
+        m = self._metrics()
+        self.assertEqual(m["n_members"], 0)
+        self.assertIsNone(m["period_rate"])
+        self.assertEqual(m["rfm"]["followup"], 0)
+
+    def test_dashboard_view_opens_with_data(self):
+        self._seed()
+        resp = self.client.get("/stamp/manage/analytics/?from=2026-07-01&to=2026-07-31")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "リピート率")
+        self.assertContains(resp, "コホート継続")
+        self.assertContains(resp, "RFM")
+
+    def test_cohort_month_toggle(self):
+        self._seed()
+        resp = self.client.get("/stamp/manage/analytics/?from=2026-07-01&to=2026-07-31&cohort=month")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_csv_export(self):
+        self._seed()
+        resp = self.client.get("/stamp/manage/analytics/?from=2026-07-01&to=2026-07-31&export=csv")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+        body = resp.content.decode("utf-8-sig")
+        self.assertIn("リピート率", body)
+        self.assertIn("コホート継続", body)
+        self.assertIn("RFM", body)
