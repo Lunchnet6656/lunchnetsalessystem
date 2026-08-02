@@ -783,8 +783,9 @@ def _crm_insights(cur, prev):
 
     coh = cur.get("cohort")
     if coh and coh["rows"]:
+        # cells[1] は「未到来」でパディングされた空セル（pctキー無し）のことがある＝.get で守る。
         w1 = [(row["label"], row["cells"][1]["pct"]) for row in coh["rows"]
-              if len(row["cells"]) > 1 and row["cells"][1]["pct"] is not None]
+              if len(row["cells"]) > 1 and row["cells"][1].get("pct") is not None]
         if w1:
             latest_label, latest_pct = w1[-1]
             avg = round(sum(p for _, p in w1) / len(w1), 1)
@@ -874,7 +875,7 @@ def _crm_csv(m, by_loc, start, end):
     w.writerow([f'初来店{"月" if coh["unit"] == "month" else "週"}', "人数"]
                + [f"+{k}" for k in coh["cols"]])
     for row in coh["rows"]:
-        cells = [row["cells"][k]["pct"] if k < len(row["cells"]) else ""
+        cells = [row["cells"][k].get("pct", "") if k < len(row["cells"]) else ""
                  for k in coh["cols"]]
         w.writerow([row["label"], row["size"]] + cells)
     w.writerow([])

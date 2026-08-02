@@ -948,6 +948,21 @@ class CrmAnalyticsTests(TestCase):
             self.assertNotIn(banned, texts)
         self.assertTrue(_crm_insights(cur, prev))     # 何かしら気づき文が出る
 
+    def test_insights_with_padded_cohort(self):
+        """直近1週だけのコホート行（未到来セルでパディング）でも落ちない（本番500の回帰防止）。"""
+        from stamps.manage_views import _crm_metrics, _crm_insights
+        from datetime import date
+        early = LineMember.objects.create(line_user_id="U_e", name="早期")
+        self._visit(early, 2026, 6, 1)
+        self._visit(early, 2026, 6, 8)               # 幅のあるコホート（複数経過週）
+        late = LineMember.objects.create(line_user_id="U_l", name="直近")
+        self._visit(late, 2026, 7, 30)               # 最終週に初来店＝row_max=0でパディングされる行
+        cur = _crm_metrics(date(2026, 6, 1), date(2026, 7, 31))
+        _crm_insights(cur, {})                       # KeyError:'pct' を出さない
+        resp = self.client.get(
+            "/stamp/manage/analytics/?from=2026-06-01&to=2026-07-31&export=csv")
+        self.assertEqual(resp.status_code, 200)      # CSVも空セルで落ちない
+
     def test_empty_period(self):
         """来店ゼロでも落ちない（率は None、要フォロー0）。"""
         m = self._metrics()
