@@ -602,14 +602,25 @@ def _cohort_matrix(dates_by_member, cohort_members, end, unit="week"):
             target = addk(c, k)
             num = sum(1 for a in active if target in a)
             pct = round(num / size * 100, 1) if size else None
-            cells.append({"pct": pct, "num": num, "denom": size, "off": k,
-                          "shade": _heat_shade(k, pct), "empty": False})
+            # その経過週(月)がまだ締まっていない＝集計途中。判定にも表示のヒートにも使わない
+            # （今週に初来店した層の翌週など、"当たり月"で0%に見えて誤判定するのを防ぐ）。
+            partial = k >= 1 and (addk(c, k + 1) - timedelta(days=1)) > end
+            cells.append({"pct": pct, "num": num, "denom": size, "off": k, "empty": False,
+                          "partial": partial, "shade": "" if partial else _heat_shade(k, pct)})
         rows.append({"label": label(c), "size": size, "cells": cells})
 
     # 経過が end を超える列は「未到来」＝空セルで埋め、全行を同じ列数に揃える（三角形の表示）。
     for row in rows:
         row["cells"] += [{"empty": True} for _ in range(max_off + 1 - len(row["cells"]))]
-    return {"unit": unit, "rows": rows, "cols": list(range(max_off + 1))}
+
+    # 判定用：翌週(月)継続が「締まった」コホートだけを集める（集計途中・未到来は除外）。
+    judge = [(row["label"], row["cells"][1]["pct"]) for row in rows
+             if len(row["cells"]) > 1 and not row["cells"][1].get("empty")
+             and not row["cells"][1].get("partial") and row["cells"][1].get("pct") is not None]
+    return {"unit": unit, "rows": rows, "cols": list(range(max_off + 1)),
+            "judge_latest": judge[-1][1] if judge else None,
+            "judge_label": judge[-1][0] if judge else None,
+            "judge_avg": round(sum(p for _, p in judge) / len(judge), 1) if judge else None}
 
 
 def _rfm_grid(dates_by_member, end, dormant_days):
@@ -791,18 +802,13 @@ def _crm_insights(cur, prev):
                         "text": "元常連で長期未来店（離反ぎみ）の会員は現在いません。"})
 
     coh = cur.get("cohort")
-    if coh and coh["rows"]:
-        # cells[1] は「未到来」でパディングされた空セル（pctキー無し）のことがある＝.get で守る。
-        w1 = [(row["label"], row["cells"][1]["pct"]) for row in coh["rows"]
-              if len(row["cells"]) > 1 and row["cells"][1].get("pct") is not None]
-        if w1:
-            latest_label, latest_pct = w1[-1]
-            avg = round(sum(p for _, p in w1) / len(w1), 1)
-            uw = "翌月" if coh["unit"] == "month" else "翌週"
-            ge = latest_pct >= avg
-            out.append({"level": "success" if ge else "danger",
-                        "text": (f"直近コホート（{latest_label} 初来店）の{uw}継続率は "
-                                 f"{latest_pct}%（過去平均 {avg}% を{'上回る' if ge else '下回る'}）。")})
+    if coh and coh.get("judge_latest") is not None:
+        latest_pct, avg, latest_label = coh["judge_latest"], coh["judge_avg"], coh["judge_label"]
+        uw = "翌月" if coh["unit"] == "month" else "翌週"
+        ge = latest_pct >= avg
+        out.append({"level": "success" if ge else "danger",
+                    "text": (f"直近コホート（{latest_label} 初来店）の{uw}継続率は "
+                             f"{latest_pct}%（過去平均 {avg}% を{'上回る' if ge else '下回る'}）。")})
 
     nr = cur.get("new_rate")
     if nr is not None:
@@ -826,12 +832,8 @@ def _verdict_lo(value, lo, hi):
 
 
 def _latest_cohort_w1(coh):
-    """直近コホートの「翌週継続率」（未到来でパディングされた空セルは除外）。"""
-    if not coh or not coh["rows"]:
-        return None
-    w1 = [row["cells"][1]["pct"] for row in coh["rows"]
-          if len(row["cells"]) > 1 and row["cells"][1].get("pct") is not None]
-    return w1[-1] if w1 else None
+    """判定用：締まった直近コホートの翌週継続率（集計途中・未到来は _cohort_matrix で除外済み）。"""
+    return coh.get("judge_latest") if coh else None
 
 
 def _pace_word(days):
@@ -960,8 +962,8 @@ def _crm_csv(m, by_loc, start, end):
     w.writerow([f'初来店{"月" if coh["unit"] == "month" else "週"}', "人数"]
                + [f"+{k}" for k in coh["cols"]])
     for row in coh["rows"]:
-        cells = [row["cells"][k].get("pct", "") if k < len(row["cells"]) else ""
-                 for k in coh["cols"]]
+        # 全行はパディング済で cols と同じ長さ。集計途中(partial)/空(empty)は空欄で出す。
+        cells = ["" if c.get("partial") else c.get("pct", "") for c in row["cells"]]
         w.writerow([row["label"], row["size"]] + cells)
     w.writerow([])
     rfm = m["rfm"]

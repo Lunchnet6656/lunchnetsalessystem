@@ -6,7 +6,7 @@
   - 出店時間内のみ付与／時間外は弾く
   - 1日1回（同日2回目は弾く・翌日は押せる）
   - 5/10/20pt で特典が発行される
-  - 20pt 打ち止め（以降は新カードを作らず据え置き）
+  - 20pt 満了（満了カードは据え置き・次回来店から新カードで再スタート）
   - 期限切れ→新カードで再スタート
   - 特典使用（B案）と二重使用防止
 管理画面はスモークテスト（200で開く・CSVが返る）。
@@ -92,16 +92,22 @@ class StampServiceTests(TestCase):
         self._stamp_n_days(10)
         self.assertEqual(Reward.objects.filter(threshold_pt=10).count(), 1)
 
-    def test_cap_at_20_then_no_more(self):
+    def test_cap_at_20_then_next_visit_starts_new_card(self):
         r20 = self._stamp_n_days(20)
         self.assertTrue(r20.ok)
         self.assertEqual(r20.card.stamp_count, CAP_PT)
         self.assertEqual(r20.card.status, StampCard.STATUS_COMPLETED)
-        # 21日目：打ち止め＝新カードを作らず据え置き
+        # 満了後の次回来店（21日目・まだ期限内）＝期限を待たず新カードで再スタート
         r21 = self._stamp_n_days(1, start_day=21)
-        self.assertEqual(r21.status, services.COMPLETED)
-        self.assertEqual(StampCard.objects.filter(member=self.member).count(), 1)
-        # お弁当無料は2個まで
+        self.assertTrue(r21.ok)
+        self.assertEqual(r21.status, services.STAMPED)
+        self.assertEqual(r21.card.stamp_count, 1)
+        self.assertNotEqual(r21.card.pk, r20.card.pk)
+        self.assertEqual(StampCard.objects.filter(member=self.member).count(), 2)
+        # 満了カードは COMPLETED のまま履歴に残す（据え置き）
+        old = StampCard.objects.get(pk=r20.card.pk)
+        self.assertEqual(old.status, StampCard.STATUS_COMPLETED)
+        # お弁当無料は1サイクル2個まで（＝満了カードの2個。新カードではまだ発行されない）
         self.assertEqual(Reward.objects.filter(kind="free").count(), 2)
 
     def test_expiry_starts_new_card(self):
@@ -983,6 +989,21 @@ class CrmAnalyticsTests(TestCase):
         self.assertEqual(v["churn"]["level"], "watch")     # 元常連(F・5回)が離反
         self.assertIn("リピーター", v["repeat"]["text"])   # 数字入りの翻訳文
         self.assertIn(v["overall"]["level"], ("good", "ok", "watch"))
+
+    def test_cohort_partial_week_not_judged(self):
+        """集計途中の週（当たり月で0%に見える）を現在地判定・翌週継続から除外（本番8/4の回帰）。"""
+        from stamps.manage_views import _crm_metrics, _crm_verdicts
+        from datetime import date
+        y = LineMember.objects.create(line_user_id="U_y", name="定着Y")
+        self._visit(y, 2026, 7, 6)
+        self._visit(y, 2026, 7, 13)               # 7/6週初来店→7/13週も来店（W1締まり=100%）
+        z = LineMember.objects.create(line_user_id="U_z", name="直近Z")
+        self._visit(z, 2026, 7, 13)               # 7/13週初来店（W1=7/20週はまだ未締め）
+        m = _crm_metrics(date(2026, 7, 1), date(2026, 7, 22))
+        coh = m["cohort"]
+        self.assertEqual(coh["judge_latest"], 100.0)          # 締まった7/6週のみで判定
+        self.assertTrue(coh["rows"][-1]["cells"][1]["partial"])  # 7/13コホートのW1は集計途中
+        self.assertEqual(_crm_verdicts(m)["cohort"]["level"], "good")
 
     def test_dashboard_shows_verdict_pills(self):
         self._seed()

@@ -200,6 +200,7 @@
           <td>{{ row.size|intcomma }}</td>
           {% for cell in row.cells %}
             {% if cell.empty %}<td class="empty-cell"></td>
+            {% elif cell.partial %}<td class="cell" style="color:var(--ln-color-text-muted);font-weight:normal;">集計中<span class="sub">{{ cell.num }}/{{ cell.denom }}</span></td>
             {% else %}<td class="cell {{ cell.shade }}">{{ cell.pct }}%<span class="sub">{{ cell.num }}/{{ cell.denom }}</span></td>{% endif %}
           {% endfor %}
         </tr>
