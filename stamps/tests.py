@@ -964,11 +964,32 @@ class CrmAnalyticsTests(TestCase):
         self.assertEqual(resp.status_code, 200)      # CSVも空セルで落ちない
 
     def test_empty_period(self):
-        """来店ゼロでも落ちない（率は None、要フォロー0）。"""
+        """来店ゼロでも落ちない（率は None、要フォロー0、現在地判定も例外なし）。"""
+        from stamps.manage_views import _crm_verdicts
         m = self._metrics()
         self.assertEqual(m["n_members"], 0)
         self.assertIsNone(m["period_rate"])
         self.assertEqual(m["rfm"]["followup"], 0)
+        _crm_verdicts(m)                              # データ無しでも落ちない
+
+    def test_verdicts(self):
+        """目標ラインで🟢🟡🔴が正しく付く＋翻訳文が出る。"""
+        from stamps.manage_views import _crm_metrics, _crm_verdicts
+        from datetime import date
+        self._seed()
+        v = _crm_verdicts(_crm_metrics(date(2026, 7, 1), date(2026, 7, 31)))
+        self.assertEqual(v["repeat"]["level"], "ok")       # 60% は 50〜65
+        self.assertEqual(v["interval"]["level"], "good")   # 中央値2.5日 ≤4
+        self.assertEqual(v["churn"]["level"], "watch")     # 元常連(F・5回)が離反
+        self.assertIn("リピーター", v["repeat"]["text"])   # 数字入りの翻訳文
+        self.assertIn(v["overall"]["level"], ("good", "ok", "watch"))
+
+    def test_dashboard_shows_verdict_pills(self):
+        self._seed()
+        resp = self.client.get("/stamp/manage/analytics/?from=2026-07-01&to=2026-07-31")
+        self.assertContains(resp, "総合の現在地")
+        self.assertContains(resp, "リピーター")            # 翻訳文が画面に出る
+        self.assertContains(resp, "目安")                  # 目標ラインの併記
 
     def test_dashboard_view_opens_with_data(self):
         self._seed()

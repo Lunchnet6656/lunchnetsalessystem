@@ -473,6 +473,14 @@ def _reward_usage_series(start, end):
 
 BENTO_PRICE = 650   # 弁当売価（KPI記録・しょうへい確定）。M軸の簡易金額換算に使う（実購入額ではない）。
 
+# 「現在地」判定の目標ライン（しょうへい合意・2026-08-04）。業界標準でなく実データ＋理屈から引いた暫定値。
+# 後で設定画面に出せるようここで一元管理。値は (黄の下限, 緑の下限)。来店間隔だけ「短いほど良い」で逆向き。
+CRM_TARGETS = {
+    "repeat": (50, 65),     # 期間内リピート率 %：<50赤 / 50〜65黄 / >65緑
+    "interval": (4, 7),     # 来店間隔中央値 日：≤4緑 / 5〜7黄 / >7赤（短いほど良い）
+    "cohort": (35, 50),     # 翌週継続率 %：<35赤 / 35〜50黄 / >50緑
+}
+
 
 def _median(vals):
     s = sorted(vals)
@@ -633,8 +641,9 @@ def _rfm_grid(dates_by_member, end, dormant_days):
             if cell["follow"]:
                 followup += cell["count"]
         rows.append({"label": r_labels[ri], "cells": grid[ri]})
+    dormant_total = sum(c["count"] for c in grid[-1])   # 広義の離反ぎみ（最終行＝dormant日以上）
     return {"rows": rows, "r_labels": r_labels, "f_labels": f_labels,
-            "followup": followup, "dormant_days": d}
+            "followup": followup, "dormant_total": dormant_total, "dormant_days": d}
 
 
 def _crm_metrics(start, end, location_id=None, cohort_unit="week", light=False):
@@ -802,6 +811,81 @@ def _crm_insights(cur, prev):
     return out[:5]
 
 
+def _verdict_hi(value, lo, hi):
+    """高いほど良い指標の判定：hi超=好調 / lo以上=ふつう / lo未満=要注意。"""
+    if value is None:
+        return "none"
+    return "good" if value > hi else "ok" if value >= lo else "watch"
+
+
+def _verdict_lo(value, lo, hi):
+    """低いほど良い指標（来店間隔）の判定：lo以下=好調 / hi以下=ふつう / hi超=要注意。"""
+    if value is None:
+        return "none"
+    return "good" if value <= lo else "ok" if value <= hi else "watch"
+
+
+def _latest_cohort_w1(coh):
+    """直近コホートの「翌週継続率」（未到来でパディングされた空セルは除外）。"""
+    if not coh or not coh["rows"]:
+        return None
+    w1 = [row["cells"][1]["pct"] for row in coh["rows"]
+          if len(row["cells"]) > 1 and row["cells"][1].get("pct") is not None]
+    return w1[-1] if w1 else None
+
+
+def _pace_word(days):
+    return "週2以上" if days <= 4 else "週1前後" if days <= 7 else "週1未満"
+
+
+def _crm_verdicts(m):
+    """各指標を目標ライン（CRM_TARGETS）で🟢🟡🔴判定し、意味の翻訳文＋目安を付ける。
+
+    現在地を「知識ゼロでも良い/悪いが分かる」ようにする層。数字は記述に徹し因果は主張しない。
+    """
+    lab = {"good": "好調", "ok": "ふつう", "watch": "要注意", "none": "データ待ち"}
+    rlo, rhi = CRM_TARGETS["repeat"]
+    ilo, ihi = CRM_TARGETS["interval"]
+    clo, chi = CRM_TARGETS["cohort"]
+
+    rr = m["period_rate"]
+    rlvl = _verdict_hi(rr, rlo, rhi)
+    repeat = {"level": rlvl, "label": lab[rlvl],
+              "text": (f"来た人10人のうち約{round(rr / 10)}人がリピーター（残りは一見客）。"
+                       if rr is not None else "来店データがまだありません。"),
+              "scale": f"目安 🟢>{rhi}% ／ 🟡{rlo}〜{rhi}% ／ 🔴<{rlo}%"}
+
+    im = m["interval_median"]
+    ilvl = _verdict_lo(im, ilo, ihi)
+    interval = {"level": ilvl, "label": lab[ilvl],
+                "text": (f"常連は約{im}日に1回＝{_pace_word(im)}ペース。"
+                         if im is not None else "間隔を出せる会員がまだいません。"),
+                "scale": f"目安 🟢≤{ilo}日 ／ 🟡{ilo + 1}〜{ihi}日 ／ 🔴>{ihi}日"}
+
+    latest = _latest_cohort_w1(m.get("cohort"))
+    clvl = _verdict_hi(latest, clo, chi)
+    cohort = {"level": clvl, "label": lab[clvl],
+              "text": (f"初来店した人の約{round(latest / 10)}割が翌週も再来（残りは今のところ1回きり）。"
+                       if latest is not None else "翌週を判定できるコホートがまだありません。"),
+              "scale": f"目安 🟢>{chi}% ／ 🟡{clo}〜{chi}% ／ 🔴<{clo}%"}
+
+    rfm = m.get("rfm", {})
+    fu, broad = rfm.get("followup", 0), rfm.get("dormant_total", 0)
+    if fu:
+        churn = {"level": "watch", "label": lab["watch"],
+                 "text": f"元常連が{fu}人離反＝大事な客が離れ始めた。掘り起こし優先。"}
+    else:
+        churn = {"level": "good", "label": lab["good"],
+                 "text": f"離反ぎみ{broad}人は軽い一見客が中心。常連の離脱は0。"}
+    churn["scale"] = "目安 🟢 元常連の離反0 ／ 🔴 元常連が離反したら赤"
+
+    order = {"watch": 0, "ok": 1, "good": 2, "none": 3}
+    worst = min((v["level"] for v in (repeat, interval, cohort, churn)),
+                key=lambda lv: order[lv])
+    return {"repeat": repeat, "interval": interval, "cohort": cohort,
+            "churn": churn, "overall": {"level": worst, "label": lab[worst]}}
+
+
 @staff_member_required
 def analytics(request):
     """CRM分析ダッシュボード：リピート率・来店間隔・コホート継続・RFM/離反＋自動サマリー。
@@ -836,6 +920,7 @@ def analytics(request):
         "cohort_unit": cohort_unit,
         "m": cur,
         "deltas": _crm_deltas(cur, prev),
+        "verdicts": _crm_verdicts(cur),
         "insights": _crm_insights(cur, prev),
         "repeat_chart": _svg_line_chart(cur["repeat_trend"], unit="%"),
         "interval_chart": _svg_line_chart(cur["interval_trend"], unit="日"),

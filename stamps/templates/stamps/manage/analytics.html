@@ -21,6 +21,25 @@
   .autotag{font-size:11px;font-weight:normal;color:var(--ln-color-text-muted);
     border:1px solid var(--ln-color-border);border-radius:999px;padding:1px 8px;}
 
+  /* 現在地ピル（🟢🟡🔴）＝目標ライン判定。黄はbase.htmlのc-orange系を流用（新色を足さない）。 */
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;
+    padding:3px 11px;border-radius:999px;vertical-align:middle;}
+  .pill .d{width:8px;height:8px;border-radius:50%;flex:none;}
+  .pill.good{background:var(--ln-color-success-bg);color:var(--ln-color-success);}
+  .pill.good .d{background:var(--ln-color-success);}
+  .pill.ok{background:#fff1e0;color:#c2560c;}
+  .pill.ok .d{background:#c2560c;}
+  .pill.watch{background:#fdecec;color:var(--ln-color-danger);}
+  .pill.watch .d{background:var(--ln-color-danger);}
+  .pill.none{background:var(--ln-color-surface-muted);color:var(--ln-color-text-muted);}
+  .pill.none .d{background:var(--ln-color-text-muted);}
+  /* 意味の翻訳文＝数字が「要するに何か」を一言で。太字で目立たせる。 */
+  .readout{margin:12px 0 2px;font-size:13.5px;color:var(--ln-color-text-strong);font-weight:700;line-height:1.5;}
+  .readout .scale{display:block;font-size:11px;font-weight:normal;color:var(--ln-color-text-muted);margin-top:3px;}
+  .overall{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;
+    padding-bottom:12px;border-bottom:1px solid var(--ln-color-divider);}
+  .overall .lead{font-size:13px;font-weight:700;color:var(--ln-color-text-strong);}
+
   /* 前期比デルタ */
   .delta{font-size:12px;font-weight:700;margin-top:3px;}
   .delta.up{color:var(--ln-color-success);}
@@ -79,6 +98,11 @@
 {# ① 今の気づき（自動サマリー・言語化） #}
 <div class="card">
   <h2>今の気づき <span class="autotag" style="float:right;">自動生成</span></h2>
+  <div class="overall">
+    <span class="lead">総合の現在地</span>
+    <span class="pill {{ verdicts.overall.level }}"><span class="d"></span>{{ verdicts.overall.label }}</span>
+    <span class="muted">各項目を目標ライン（暫定・後で調整可）で判定。緑=好調／橙=ふつう／赤=要注意。</span>
+  </div>
   {% if insights %}
   <ul class="insights">
     {% for i in insights %}<li class="{{ i.level }}"><span class="dot"></span><span>{{ i.text }}</span></li>{% endfor %}
@@ -88,7 +112,8 @@
 
 {# ② リピート率 #}
 <div class="card">
-  <h2>リピート率</h2>
+  <h2>リピート率 <span class="pill {{ verdicts.repeat.level }}" style="float:right;"><span class="d"></span>{{ verdicts.repeat.label }}</span></h2>
+  <p class="readout">{{ verdicts.repeat.text }}<span class="scale">{{ verdicts.repeat.scale }}</span></p>
   <div class="summary">
     <div class="stat brand">
       <div class="n">{% if m.period_rate is not None %}{{ m.period_rate }}%{% else %}-{% endif %}</div>
@@ -115,7 +140,8 @@
 
 {# ③ 来店間隔 #}
 <div class="card">
-  <h2>来店間隔</h2>
+  <h2>来店間隔 <span class="pill {{ verdicts.interval.level }}" style="float:right;"><span class="d"></span>{{ verdicts.interval.label }}</span></h2>
+  <p class="readout">{{ verdicts.interval.text }}<span class="scale">{{ verdicts.interval.scale }}</span></p>
   <div class="summary">
     <div class="stat brand">
       <div class="n">{% if m.interval_median is not None %}{{ m.interval_median }}日{% else %}-{% endif %}</div>
@@ -150,11 +176,13 @@
 {# ④ コホート継続マトリクス #}
 <div class="card">
   <h2>コホート継続（{% if cohort_unit == 'month' %}月次{% else %}週次{% endif %}）
+    <span class="pill {{ verdicts.cohort.level }}" style="margin-left:6px;"><span class="d"></span>{{ verdicts.cohort.label }}</span>
     <span class="toggle" style="float:right;">
       <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=week" class="{% if cohort_unit != 'month' %}on{% endif %}">週次</a>
       <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=month" class="{% if cohort_unit == 'month' %}on{% endif %}">月次</a>
     </span>
   </h2>
+  <p class="readout">{{ verdicts.cohort.text }}<span class="scale">{{ verdicts.cohort.scale }}</span></p>
   {% if m.cohort.rows %}
   <div class="tscroll">
     <table class="grid cohort">
@@ -185,7 +213,8 @@
 
 {# ⑤ RFM / 離反セグメント #}
 <div class="card">
-  <h2>RFM / 離反セグメント</h2>
+  <h2>RFM / 離反セグメント <span class="pill {{ verdicts.churn.level }}" style="float:right;"><span class="d"></span>{{ verdicts.churn.label }}</span></h2>
+  <p class="readout">{{ verdicts.churn.text }}<span class="scale">{{ verdicts.churn.scale }}</span></p>
   <div class="tscroll">
     <table class="grid rfm">
       <thead>
