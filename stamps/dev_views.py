@@ -55,6 +55,21 @@ def stamp_demo(request):
             day = (now_local - timedelta(days=d)).replace(hour=12, minute=0, second=0, microsecond=0)
             services.award_stamp(member, location, now=day)
 
+    # ?completed=1：先に「20pt満了カード」を近い過去に作る（満了→次回来店で新カード の確認用）。
+    # 満了カードのクーポン（5/10/20pt・獲得から30日内）が新カードへ繰り越して表示されるのを見る。
+    # 続く n ループ（下）が“満了後の次回来店”に相当し、新カードが自動発行される。n は6以下推奨。
+    if request.GET.get("completed") == "1":
+        n = min(n, 6)
+        cap = services.effective_cap()
+        # 2倍デー(streak/雨)が乗っても“1枚ちょうど”で止める：満了した瞬間にループを抜ける。
+        # 26日前から降順に押す＝満了は概ね10日前前後に着地し、5/10/20ptのクーポンは全て30日内で繰り越す。
+        for d in range(26, 6, -1):
+            c = services._current_card(member)
+            if c is not None and c.stamp_count >= cap:
+                break
+            day = (now_local - timedelta(days=d)).replace(hour=12, minute=0, second=0, microsecond=0)
+            services.award_stamp(member, location, now=day)
+
     # ?fresh=1：最後の1個を「今日」にして、当日獲得＝利用開始前(pending)の状態を再現する。
     fresh = request.GET.get("fresh") == "1"
     last_offset = 0 if fresh else 1
@@ -67,7 +82,10 @@ def stamp_demo(request):
 
     # ?use=<pt> で、その段階の特典を「使用済み」にした画面（クーポン使用後）を再現する。
     tone = "info"
-    message = f"デモ：スタンプ{n}個のカード（?n=0〜20 で切替）"
+    if request.GET.get("completed") == "1":
+        message = f"デモ：満了カードの次回来店＝新カード（{n}個）で再スタート。下に前カードのクーポン繰り越し"
+    else:
+        message = f"デモ：スタンプ{n}個のカード（?n=0〜20 で切替）"
     use_pt = request.GET.get("use")
     if use_pt and card:
         reward = card.rewards.filter(threshold_pt=use_pt, status="issued").first()

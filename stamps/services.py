@@ -5,7 +5,7 @@
 来店スタンプの付与は次の順で判定する：
   1. 出店時間内か（店舗ごとの時間帯制限。GPSは使わない＝スピード優先）
   2. 同日すでに押していないか（1日1回／会員単位）
-  3. 利用できるカードがあるか（満了＝打ち止めなら新カードは作らず据え置き／期限切れ＝新カード）
+  3. 利用できるカードがあるか（満了・期限切れなら新カードで再スタート＝次回来店から）
   4. スタンプ+1 → 到達ptで特典発行
 
 結果は StampResult（status＋カード＋新規特典）で返す。view はこれを文言に変換して表示する。
@@ -37,7 +37,7 @@ DEFAULT_CLOSE_TIME = time(13, 30)
 STAMPED = "stamped"             # 押せた
 ALREADY_TODAY = "already_today"  # 本日すでに押印済み
 OUTSIDE_HOURS = "outside_hours"  # 出店時間外
-COMPLETED = "completed"          # 打ち止め（20pt満了・次サイクル待ち）
+COMPLETED = "completed"          # （旧）打ち止め据え置き。満了→次回新カードへ変更し未使用。互換のため残置
 
 
 @dataclass
@@ -165,15 +165,15 @@ def award_stamp(member, location, now=None):
     # 3. 利用できるカードを決める
     cap = effective_cap()
     card = _current_card(member)
-    if card is None or card.is_expired_on(today):
-        # 期限切れカードを片付けて新サイクルへ
+    if card is None or card.is_expired_on(today) or card.stamp_count >= cap:
+        # このサイクルを閉じて新カードで再スタートする。閉じる理由は2つ：
+        #   ・満了(20pt)  … 満了した次回来店から新カード（2倍デー等で早く貯めても即再スタート）。
+        #                   満了カードは COMPLETED のまま履歴に残す（据え置き）。
+        #   ・期限切れ    … 有効(ACTIVE)なまま期限を過ぎたカードは EXPIRED に片付ける。
         if card is not None and card.status == StampCard.STATUS_ACTIVE:
             card.status = StampCard.STATUS_EXPIRED
             card.save(update_fields=["status"])
         card = _new_card(member, today)
-    elif card.stamp_count >= cap:
-        # 打ち止め：新カードは作らず据え置き（翌サイクル＝期限後に再スタート）
-        return StampResult(COMPLETED, card=card)
 
     # 4. 2倍イベント判定 → スタンプ加算（打ち止めptを超えないようクランプ）
     bonus_pt, reason = _bonus_for(member, today, StampConfig.get_solo())

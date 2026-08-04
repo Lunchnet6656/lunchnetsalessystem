@@ -55,7 +55,7 @@ _RESULT_MESSAGES = {
     services.STAMPED: ("ok", "スタンプを押しました！"),
     services.ALREADY_TODAY: ("info", "本日はもう押印済みです。また明日のご来店をお待ちしています。"),
     services.OUTSIDE_HOURS: ("warn", "ただいまは出店時間外です。出店時間内にスタンプできます。"),
-    services.COMPLETED: ("info", "カードが満了しました（お弁当無料2個ぶん）。次のカードは期限の翌日からです。"),
+    # 満了は STAMPED（20個目を押した瞬間）として演出。次回来店からは自動で新カードになる。
 }
 
 # スタンプ2倍イベント該当時の文言（通常の「押しました！」を上書き）。
