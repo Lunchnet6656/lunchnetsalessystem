@@ -120,23 +120,23 @@
 </div>
 
 <div class="card">
-  <h2>⑤ 曜日固定の会員（「◯曜の人」）</h2>
-  <p class="muted" style="margin:0 0 10px;">通算{{ t.fixed_min_visits }}回以上来ていて、来店の{{ t.fixed_min_share_pct }}%以上が同じ曜日に集中している会員。「この人は水曜の人」がわかると、来ない曜日の読み・狙い撃ち配信に使える（毎日来る常連は曜日が散るので出てこない）。</p>
-  {% if t.fixed_members %}
+  <h2>⑤ 会員の来やすい曜日（複数曜日を追跡）</h2>
+  <p class="muted" style="margin:0 0 10px;">通算{{ t.habit_min_visits }}回以上来ている会員について、在籍期間（初回〜最終来店）中の<b>各曜日の来店率</b>（来た回数÷その曜日の営業日数）を出し、<b>{{ t.habit_rate_high_pct }}%以上の曜日をまとめて</b>表示。例：「月・水」＝その2曜日に来る可能性が高い／「月・水・金」＝3曜日高い。仕込み・欠品読み・狙い撃ち配信に使える。</p>
+  {% if t.habit_members %}
   <div class="tscroll">
     <table class="grid">
-      <tr><th>会員</th><th>最頻曜日</th><th>集中度</th><th>通算来店</th></tr>
-      {% for m in t.fixed_members %}
+      <tr><th>会員</th><th>来やすい曜日</th><th>各曜日の来店率</th><th>通算来店</th></tr>
+      {% for m in t.habit_members %}
       <tr>
         <td>{{ m.name }}</td>
-        <td><span class="badge on">{{ m.wd }}曜</span></td>
-        <td><b>{{ m.pct }}%</b> <span class="muted">（{{ m.total }}回中{{ m.count }}回）</span></td>
+        <td>{% if m.everyday %}<span class="badge on">ほぼ毎日（月〜金）</span>{% else %}{% for d in m.days %}<span class="badge on">{{ d.wd }}曜</span> {% endfor %}{% endif %}</td>
+        <td class="muted">{% for d in m.days %}{{ d.wd }} <b>{{ d.rate }}%</b>（{{ d.count }}/{{ d.chances }}）{% if not forloop.last %}　{% endif %}{% endfor %}</td>
         <td>{{ m.total }}回</td>
       </tr>
       {% endfor %}
     </table>
   </div>
-  <p class="muted" style="margin:10px 0 0;">該当 {{ t.fixed_members|length }}人</p>
+  <p class="muted" style="margin:10px 0 0;">該当 {{ t.habit_members|length }}人（来やすい曜日が多い順）</p>
   {% else %}
   <p class="empty" style="margin:0;">条件に合う会員がまだいません（データが貯まると出てきます）。</p>
   {% endif %}

@@ -989,9 +989,12 @@ def _crm_csv(m, by_loc, start, end):
 WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 MONTH_THIRD_LABELS = ["前半（1〜10日）", "中旬（11〜20日）", "後半（21日〜末）"]
 
-# 個人の「曜日固定」判定：この回数以上来ていて、最頻曜日が全来店のこの割合以上なら固定客。
-FIXED_MIN_VISITS = 5
-FIXED_MIN_SHARE = 0.5
+# 個人の「来やすい曜日」判定（複数曜日を追う）：
+#   在籍期間(初回来店〜最終来店)中の各曜日について、来店率＝来た回数÷その曜日の営業日数 を出し、
+#   HABIT_RATE_HIGH 以上の曜日を「来やすい曜日」として束ねる（月・水／月・水・金 のように複数可）。
+HABIT_MIN_VISITS = 5     # この回数以上来ている会員だけ対象（少なすぎると偶然に振り回される）。
+HABIT_MIN_CHANCES = 3    # その曜日が在籍期間中に最低この回数あること（母数が小さすぎる曜日は判定しない）。
+HABIT_RATE_HIGH = 0.6    # その曜日の来店率がこの値以上なら「来やすい曜日」。
 
 
 def _month_third(day):
@@ -1109,25 +1112,41 @@ def _timing_analysis(start, end, location_id=None):
     top_combo = max(all_cells, key=lambda x: x[2]["index"], default=None)
     low_combo = min(all_cells, key=lambda x: x[2]["index"], default=None)
 
-    # --- 個人の曜日固定（○曜の人） -------------------------------------------
-    fixed_members = []
+    # --- 個人の来やすい曜日（複数曜日を追う：「月・水」「月・水・金」等） ---------
+    # 母数＝その会員の在籍期間(初回来店〜最終来店)にあった各曜日の営業日数。
+    # 来店率＝来た回数 ÷ その曜日の営業日数。HABIT_RATE_HIGH 以上の曜日を束ねる。
+    biz_by_wd = {w: [] for w in range(7)}
+    for d in biz_days:
+        biz_by_wd[d.weekday()].append(d)
+
+    habit_members = []
     for mid, dates in member_dates.items():
         n = len(dates)
-        if n < FIXED_MIN_VISITS:
+        if n < HABIT_MIN_VISITS:
             continue
-        cnt = [0] * 7
+        first, last = min(dates), max(dates)
+        vcnt = [0] * 7
         for d in dates:
-            cnt[d.weekday()] += 1
-        peak_wd = max(range(7), key=lambda i: cnt[i])
-        share = cnt[peak_wd] / n
-        if share < FIXED_MIN_SHARE:
+            vcnt[d.weekday()] += 1
+        days = []
+        for w in range(5):                             # 平日のみ（土日は営業なし）
+            chances = sum(1 for d in biz_by_wd[w] if first <= d <= last)
+            if chances < HABIT_MIN_CHANCES:
+                continue
+            rate = vcnt[w] / chances
+            if rate >= HABIT_RATE_HIGH:
+                days.append({"wd": WEEKDAY_JA[w], "rate": round(rate * 100),
+                             "count": vcnt[w], "chances": chances})
+        if not days:
             continue
-        fixed_members.append({
+        habit_members.append({
             "name": member_name[mid], "total": n,
-            "wd": WEEKDAY_JA[peak_wd], "count": cnt[peak_wd],
-            "pct": round(share * 100),
+            "days": days,
+            "label": "・".join(d["wd"] for d in days),
+            "everyday": len(days) >= 5,
         })
-    fixed_members.sort(key=lambda m: (-m["pct"], -m["total"]))
+    # 束ねた曜日数が多い→総来店多い順。
+    habit_members.sort(key=lambda m: (-len(m["days"]), -m["total"]))
 
     return {
         "total_visits": total_visits, "total_bizdays": total_bizdays,
@@ -1136,9 +1155,9 @@ def _timing_analysis(start, end, location_id=None):
         "dom_rows": dom_rows,
         "matrix_rows": matrix_rows, "third_labels": MONTH_THIRD_LABELS,
         "top_combo": top_combo, "low_combo": low_combo,
-        "fixed_members": fixed_members,
-        "fixed_min_visits": FIXED_MIN_VISITS,
-        "fixed_min_share_pct": round(FIXED_MIN_SHARE * 100),
+        "habit_members": habit_members,
+        "habit_min_visits": HABIT_MIN_VISITS,
+        "habit_rate_high_pct": round(HABIT_RATE_HIGH * 100),
     }
 
 
@@ -1162,10 +1181,11 @@ def _timing_csv(t, start, end):
     for r in t["matrix_rows"]:
         w.writerow([r["name"]] + [c["index"] if c["bizdays"] else "-" for c in r["cells"]])
     w.writerow([])
-    w.writerow([f"■曜日固定の会員（{t['fixed_min_visits']}回以上・最頻曜日{t['fixed_min_share_pct']}%以上）"])
-    w.writerow(["会員", "通算来店", "最頻曜日", "その曜日の回数", "割合%"])
-    for m in t["fixed_members"]:
-        w.writerow([m["name"], m["total"], m["wd"], m["count"], m["pct"]])
+    w.writerow([f"■来やすい曜日（{t['habit_min_visits']}回以上・来店率{t['habit_rate_high_pct']}%以上の曜日を抽出）"])
+    w.writerow(["会員", "来やすい曜日", "各曜日の来店率", "通算来店"])
+    for m in t["habit_members"]:
+        rates = " / ".join(f"{d['wd']}{d['rate']}%({d['count']}/{d['chances']})" for d in m["days"])
+        w.writerow([m["name"], m["label"], rates, m["total"]])
     return resp
 
 
