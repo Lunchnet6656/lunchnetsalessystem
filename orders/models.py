@@ -538,9 +538,14 @@ class Invoice(models.Model):
         return int(self.net_amount) - int(self.tax_amount)
 
     @staticmethod
-    def generate_invoice_number(issue_date):
-        """INV-YYYYMM-#### を月内連番で採番する。"""
-        prefix = f"INV-{issue_date.strftime('%Y%m')}"
+    def generate_invoice_number(order_month_date):
+        """INV-YYYYMM-#### を月内連番で採番する。
+
+        YYYYMM は「オーダー月（請求対象月）」。締めた日（発行日）ではなく、
+        請求対象の受注が属する月に合わせる（月末締めは対象期間の月、
+        即時/スポットは受注の納品月）。
+        """
+        prefix = f"INV-{order_month_date.strftime('%Y%m')}"
         last = Invoice.objects.filter(
             invoice_number__startswith=prefix
         ).order_by('-invoice_number').first()

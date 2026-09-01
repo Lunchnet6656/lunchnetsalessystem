@@ -312,8 +312,12 @@ def issue_invoice(customer, order_ids, extra_credit_ids=None, *,
 
     data = preview_invoice(orders, extra_credits)
 
+    # 請求書番号のオーダー月：締めた日（発行日）ではなく請求対象月に合わせる。
+    # 月末締めは対象期間、無ければ（即時/スポット）受注の納品月を使う。
+    order_month = period_end or period_start or max(o.delivery_date for o in orders)
+
     invoice = Invoice.objects.create(
-        invoice_number=Invoice.generate_invoice_number(issue_date),
+        invoice_number=Invoice.generate_invoice_number(order_month),
         customer=customer,
         pattern=pattern,
         period_start=period_start,

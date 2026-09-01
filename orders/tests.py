@@ -407,6 +407,36 @@ class InvoiceTest(TestCase):
         self.assertTrue(o1.is_invoiced)
         self.assertFalse(Order.objects.uninvoiced().filter(pk=o1.pk).exists())
 
+    def test_invoice_number_uses_order_month_not_issue_month(self):
+        """請求書番号のYYYYMMは締めた日ではなくオーダー（対象）月に合わせる。"""
+        from datetime import date
+        from . import services
+        from .models import Invoice
+        # 7月分の受注を、締め（発行）が8/1にずれても番号は INV-2026 07 になる
+        july = date(2026, 7, 10)
+        o1 = self._order(july); self._item(o1, '弁当', 500, 5)
+        inv = services.issue_invoice(
+            self.customer, [o1.pk], pattern=Invoice.PATTERN_MONTH_END,
+            issue_date=date(2026, 8, 1),
+            period_start=date(2026, 7, 1), period_end=date(2026, 7, 31),
+            issued_by=self.user,
+        )
+        self.assertTrue(inv.invoice_number.startswith('INV-202607-'),
+                        inv.invoice_number)
+
+    def test_invoice_number_immediate_uses_delivery_month(self):
+        """即時/スポット（対象期間なし）は受注の納品月で採番する。"""
+        from datetime import date
+        from . import services
+        from .models import Invoice
+        o1 = self._order(date(2026, 7, 20)); self._item(o1, '弁当', 500, 5)
+        inv = services.issue_invoice(
+            self.customer, [o1.pk], pattern=Invoice.PATTERN_IMMEDIATE,
+            issue_date=date(2026, 8, 3), issued_by=self.user,
+        )
+        self.assertTrue(inv.invoice_number.startswith('INV-202607-'),
+                        inv.invoice_number)
+
     def test_daily_line_has_qty_and_unit_price(self):
         from . import services
         o1 = self._order(self.d1); self._item(o1, '幕の内', 500, 5)
