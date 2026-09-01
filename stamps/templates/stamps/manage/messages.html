@@ -1,0 +1,189 @@
+{% extends "stamps/manage/base.html" %}
+{% load humanize %}
+{% block title %}配信{% endblock %}
+{% block heading %}狙い撃ち配信（設定）{% endblock %}
+{% block content %}
+<style>
+  .warnbar{background:#fdecec;color:var(--ln-color-danger);border:1px solid var(--ln-color-danger);
+    border-radius:10px;padding:11px 14px;font-size:13px;font-weight:700;margin-bottom:16px;}
+  .sc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+  .sc-head h2{margin:0;}
+  .cond{font-size:12px;color:var(--ln-color-text-muted);margin:0 0 12px;}
+  /* トグル（有効/停止） */
+  .toggle-sw{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;cursor:pointer;}
+  .toggle-sw input{display:none;}
+  .toggle-sw .track{width:40px;height:22px;border-radius:999px;background:var(--ln-color-surface-disabled);
+    position:relative;transition:background .15s;}
+  .toggle-sw .track::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .15s;}
+  .toggle-sw input:checked + .track{background:var(--ln-color-success);}
+  .toggle-sw input:checked + .track::after{left:20px;}
+  .toggle-sw .lbl-off{color:var(--ln-color-text-muted);}
+  .sc-body.off{opacity:.55;}
+  /* 変数チップ */
+  .varchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
+  .varchip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid #bcd3ff;background:#e7f0ff;
+    color:#1d4ed8;cursor:pointer;font-family:ui-monospace,Menlo,monospace;}
+  .varchip:hover{background:#d6e6ff;}
+  .varhelp{font-size:11px;color:var(--ln-color-text-muted);margin:2px 0 8px;}
+  textarea.tpl{width:100%;box-sizing:border-box;min-height:96px;font-size:14px;padding:9px;
+    border:1px solid var(--ln-color-border);border-radius:8px;line-height:1.5;resize:vertical;}
+  .fld-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin:12px 0;}
+  .fld-row .fld{display:flex;flex-direction:column;gap:3px;}
+  .fld-row label{font-size:11px;color:var(--ln-color-text-muted);}
+  .num{width:70px;}
+  .warn-inline{font-size:11px;color:var(--ln-color-danger);}
+  .preview{background:var(--ln-color-surface-muted);border:1px dashed var(--ln-color-border);border-radius:8px;
+    padding:10px 12px;font-size:13.5px;white-space:pre-wrap;line-height:1.55;color:var(--ln-color-text-strong);}
+  .preview-h{font-size:11px;color:var(--ln-color-text-muted);margin:14px 0 4px;}
+  .result{font-size:13px;margin-top:12px;padding-top:10px;border-top:1px solid var(--ln-color-divider);}
+  .result .up{color:var(--ln-color-success);font-weight:700;}
+  .result .down{color:var(--ln-color-danger);font-weight:700;}
+  .result .flat{color:var(--ln-color-text-muted);}
+  .sc-foot{margin-top:12px;text-align:right;}
+</style>
+
+{% if not line_ok %}
+<div class="warnbar">配信は現在停止中：LINEのチャネルアクセストークンが未設定です（設定するまで送信されません）。</div>
+{% endif %}
+
+{{ sample|json_script:"sample-data" }}
+
+{# 共通設定 #}
+<div class="card">
+  <h2>共通設定</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="common">
+    <div class="fld-row">
+      <div class="fld" style="flex:1;min-width:220px;">
+        <label>メニューリンクURL（文面の {メニューリンク} に入る）</label>
+        <input type="url" name="menu_url" value="{{ cfg.menu_url }}" placeholder="https://…" style="width:100%;">
+      </div>
+      <button class="btn" type="submit">保存</button>
+    </div>
+  </form>
+</div>
+
+{# 3シナリオ #}
+{% for s in scenarios %}
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ s.kind }}">
+    <div class="sc-head">
+      <h2>{{ s.get_kind_display }}</h2>
+      <label class="toggle-sw">
+        <input type="checkbox" name="enabled" {% if s.enabled %}checked{% endif %}
+               onchange="this.closest('form').querySelector('.sc-body').classList.toggle('off', !this.checked)">
+        <span class="track"></span>
+        <span>{% if s.enabled %}有効{% else %}<span class="lbl-off">停止中</span>{% endif %}</span>
+      </label>
+    </div>
+    <p class="cond">発動条件：<span data-cond="{{ s.kind }}">{{ s.condition_text }}</span></p>
+    {% if s.kind == 'welcome' %}<p class="cond" style="margin-top:-8px;">※感謝のみ・来店は生みません。次回後押しに統合も可。</p>{% endif %}
+
+    <div class="sc-body {% if not s.enabled %}off{% endif %}">
+      <div class="varchips">
+        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="名前">{名前}</button>
+        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="現在pt">{現在pt}</button>
+        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="次の特典まで">{次の特典まで}</button>
+        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="次の特典">{次の特典}</button>
+        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="メニューリンク">{メニューリンク}</button>
+      </div>
+      <div class="varhelp">{名前}=会員名／{現在pt}=今のスタンプ数／{次の特典まで}=あと何個で次の特典か／{次の特典}=次の特典名／{メニューリンク}=共通設定のURL</div>
+      <textarea class="tpl" id="tpl-{{ s.kind }}" name="template"
+                data-cond-kind="{{ s.kind }}" oninput="pvRender('{{ s.kind }}')">{{ s.template }}</textarea>
+
+      <div class="fld-row">
+        <div class="fld">
+          <label>送信タイミング</label>
+          {% if s.kind == 'welcome' %}
+            <span>
+              <label><input type="radio" name="offset_days" value="0" {% if s.offset_days == 0 %}checked{% endif %}> 当日夜</label>
+              <label style="margin-left:10px;"><input type="radio" name="offset_days" value="1" {% if s.offset_days == 1 %}checked{% endif %}> 翌朝</label>
+            </span>
+          {% elif s.kind == 'second_visit' %}
+            <span>初回から <input class="num" type="number" min="0" name="offset_days" value="{{ s.offset_days }}"
+                   oninput="condDays('{{ s.kind }}', this.value)"> 日後</span>
+          {% else %}
+            <span>最終来店から <input class="num" type="number" min="0" name="offset_days" value="{{ s.offset_days }}"
+                   oninput="condDays('{{ s.kind }}', this.value)"> 日</span>
+          {% endif %}
+        </div>
+        <div class="fld">
+          <label>対照群（送らず残す）</label>
+          <span><input class="num" type="number" min="0" max="50" name="holdout_pct" value="{{ s.holdout_pct }}"
+                oninput="holdWarn('{{ s.kind }}', this.value)">%
+            <span class="warn-inline" id="hw-{{ s.kind }}" {% if s.holdout_pct %}style="display:none;"{% endif %}>0%だと効果を測れません</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="preview-h">プレビュー（サンプル値・実データではありません）</div>
+      <div class="preview" id="pv-{{ s.kind }}"></div>
+
+      {% with r=s.result %}
+      <div class="result">
+        {% if r.sent or r.held %}
+          送信 <strong>{{ r.sent|intcomma }}</strong>人／対照 <strong>{{ r.held|intcomma }}</strong>人｜
+          再来率
+          {% if r.sent_rate is not None %}送信 {{ r.sent_rate }}%{% else %}送信 -{% endif %}
+          vs
+          {% if r.held_rate is not None %}対照 {{ r.held_rate }}%{% else %}対照 -{% endif %}
+          {% if r.sent_rate is not None and r.held_rate is not None %}
+            {% if r.sent_rate > r.held_rate %}<span class="up">🟢効いてる</span>
+            {% elif r.sent_rate < r.held_rate %}<span class="down">🔴効いてない</span>
+            {% else %}<span class="flat">差なし</span>{% endif %}
+          {% endif %}
+          <span class="cond">（再来率＝配信後{{ measure_days }}日以内の来店）</span>
+        {% else %}
+          <span class="cond">まだ配信データがありません。</span>
+        {% endif %}
+      </div>
+      {% endwith %}
+
+      <div class="sc-foot"><button class="btn" type="submit">保存</button></div>
+    </div>
+  </form>
+</div>
+{% endfor %}
+
+<script>
+  var SAMPLE = JSON.parse(document.getElementById('sample-data').textContent);
+  // {変数} をサンプル値に置換してプレビュー表示
+  function pvRender(kind){
+    var ta = document.getElementById('tpl-' + kind);
+    var out = ta.value.replace(/\{([^}]+)\}/g, function(m, k){
+      return (k in SAMPLE) ? SAMPLE[k] : m;
+    });
+    document.getElementById('pv-' + kind).textContent = out;
+  }
+  // 変数チップ：カーソル位置に挿入
+  document.querySelectorAll('.varchip').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var ta = document.getElementById(btn.dataset.t);
+      var ins = '{' + btn.dataset.v + '}';
+      var s = ta.selectionStart, e = ta.selectionEnd;
+      ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+      ta.selectionStart = ta.selectionEnd = s + ins.length;
+      ta.focus();
+      pvRender(btn.dataset.t.replace('tpl-', ''));
+    });
+  });
+  // 発動条件文の日数を追従（表示のみ・保存で確定）
+  function condDays(kind, v){
+    var el = document.querySelector('[data-cond="' + kind + '"]');
+    if(!el) return;
+    if(kind === 'second_visit') el.textContent = '初回来店から' + v + '日後・まだ2回目が無い会員へ・1回だけ';
+    else el.textContent = '最終来店から' + v + '日・通算2回以上・離反ライン前の会員へ・1サイクル1回';
+  }
+  function holdWarn(kind, v){
+    document.getElementById('hw-' + kind).style.display = (parseInt(v,10) > 0) ? 'none' : 'inline';
+  }
+  // 初期プレビュー
+  ['welcome','second_visit','winback'].forEach(function(k){
+    if(document.getElementById('tpl-' + k)) pvRender(k);
+  });
+</script>
+{% endblock %}

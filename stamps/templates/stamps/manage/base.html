@@ -123,14 +123,15 @@
       <a href="{% url 'stamps:manage_dashboard' %}" class="{% if nav == 'dashboard' %}on{% endif %}">ダッシュボード</a>
       <a href="{% url 'stamps:manage_visits' %}" class="{% if nav == 'visits' %}on{% endif %}">来店データ</a>
       <a href="{% url 'stamps:manage_analytics' %}" class="{% if nav == 'analytics' %}on{% endif %}">分析</a>
+      <a href="{% url 'stamps:manage_timing' %}" class="{% if nav == 'timing' %}on{% endif %}">来店タイミング</a>
       <a href="{% url 'stamps:manage_sales_correlation' %}" class="{% if nav == 'sales_correlation' %}on{% endif %}">売上×スタンプ</a>
       <a href="{% url 'stamps:manage_locations' %}" class="{% if nav == 'locations' %}on{% endif %}">店舗QR・出店時間</a>
       <a href="{% url 'stamps:manage_rewards' %}" class="{% if nav == 'rewards' %}on{% endif %}">特典設定</a>
       <a href="{% url 'stamps:manage_friends' %}" class="{% if nav == 'friends' %}on{% endif %}">友だち管理</a>
       <a href="{% url 'stamps:manage_tag_settings' %}" class="{% if nav == 'tag_settings' %}on{% endif %}">タグ設定</a>
       <a href="{% url 'stamps:manage_richmenu' %}" class="{% if nav == 'richmenu' %}on{% endif %}">リッチメニュー</a>
+      <a href="{% url 'stamps:manage_messages' %}" class="{% if nav == 'messages' %}on{% endif %}">配信</a>
       <div class="grp">今後のモジュール</div>
-      <div class="soon">配信 <span class="tag">準備中</span></div>
       <div class="soon">セグメント配信 <span class="tag">準備中</span></div>
       <div class="soon">効果測定 <span class="tag">準備中</span></div>
     </div>

@@ -32,9 +32,10 @@ from django.views.decorators.http import require_http_methods
 from sales.models import DailyReport, SalesLocation, _generate_qr_token
 from reservations.models import LineMember
 from stamps.models import (
-    FriendInsightSnapshot, FriendTagConfig, MemberTag, MemberTagLink,
-    Reward, RewardTier, RichMenuLink, StampCard, StampConfig, StampLog,
+    FollowupSendLog, FriendInsightSnapshot, FriendTagConfig, MemberTag, MemberTagLink,
+    MessageScenario, Reward, RewardTier, RichMenuLink, StampCard, StampConfig, StampLog,
 )
+from stamps import messaging
 from stamps.services import (
     DEFAULT_CLOSE_TIME, DEFAULT_OPEN_TIME, location_open_window, reward_short_label,
 )
@@ -980,6 +981,215 @@ def _crm_csv(m, by_loc, start, end):
     return resp
 
 
+# ============ 来店タイミング分析（廃棄率削減・需要予測） ============
+# 仕様: 曜日・月内タイミング・その掛け合わせで「いつ仕込みを厚く/薄く」を読む。
+# すべて「1営業日あたり平均」で母数補正する（曜日・時期で営業日数が違うため、
+# 単純合計だと営業日数の多いバケツが実力以上に多く見えてしまう）。
+
+WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
+MONTH_THIRD_LABELS = ["前半（1〜10日）", "中旬（11〜20日）", "後半（21日〜末）"]
+
+# 個人の「曜日固定」判定：この回数以上来ていて、最頻曜日が全来店のこの割合以上なら固定客。
+FIXED_MIN_VISITS = 5
+FIXED_MIN_SHARE = 0.5
+
+
+def _month_third(day):
+    """月内3分割インデックス。0=前半(1-10) / 1=中旬(11-20) / 2=後半(21-末)。"""
+    if day <= 10:
+        return 0
+    if day <= 20:
+        return 1
+    return 2
+
+
+def _timing_bucket(visits, bizdays, overall_avg):
+    """1バケツ分の平均・指数・水準を組み立てる（母数=営業日数）。
+
+    index は全体平均を100とした相対値（120なら全体の1.2倍来る＝仕込み厚め）。
+    """
+    avg = visits / bizdays if bizdays else 0.0
+    index = round(avg / overall_avg * 100) if overall_avg else 0
+    if not bizdays:
+        level = "none"
+    elif index >= 115:
+        level = "high"
+    elif index <= 85:
+        level = "low"
+    else:
+        level = "mid"
+    return {"visits": visits, "bizdays": bizdays,
+            "avg": round(avg, 1), "index": index, "level": level}
+
+
+def _timing_analysis(start, end, location_id=None):
+    """来店タイミングの傾向を集計して返す（曜日／月内／曜日×月内／個人の曜日固定）。"""
+    logs = _logs_in_period(start, end, location_id)
+    rows = list(logs.values_list("stamped_on", "card__member_id", "card__member__name"))
+
+    biz_days = {d for d, _, _ in rows}                 # 実際に営業した（来店のあった）日
+    total_visits = len(rows)
+    total_bizdays = len(biz_days)
+    overall_avg = total_visits / total_bizdays if total_bizdays else 0.0
+
+    # --- 母数（営業日数）を各バケツで数える -----------------------------------
+    wd_bizdays = [0] * 7
+    third_bizdays = [0] * 3
+    dom_bizdays = [0] * 32                              # index=日(1-31)
+    cell_bizdays = {}                                  # (wd, third) -> 営業日数
+    for d in biz_days:
+        wd, th = d.weekday(), _month_third(d.day)
+        wd_bizdays[wd] += 1
+        third_bizdays[th] += 1
+        dom_bizdays[d.day] += 1
+        cell_bizdays[(wd, th)] = cell_bizdays.get((wd, th), 0) + 1
+
+    # --- 来店数を各バケツで数える ---------------------------------------------
+    wd_visits = [0] * 7
+    third_visits = [0] * 3
+    dom_visits = [0] * 32
+    cell_visits = {}
+    member_dates = {}                                  # mid -> [dates]
+    member_name = {}
+    for d, mid, name in rows:
+        wd, th = d.weekday(), _month_third(d.day)
+        wd_visits[wd] += 1
+        third_visits[th] += 1
+        dom_visits[d.day] += 1
+        cell_visits[(wd, th)] = cell_visits.get((wd, th), 0) + 1
+        member_dates.setdefault(mid, []).append(d)
+        member_name[mid] = name or "（名前未取得）"
+
+    # --- 曜日別（営業曜日のみ） -----------------------------------------------
+    weekday_rows = []
+    for wd in range(7):
+        if not wd_bizdays[wd]:
+            continue
+        b = _timing_bucket(wd_visits[wd], wd_bizdays[wd], overall_avg)
+        b["name"] = WEEKDAY_JA[wd]
+        weekday_rows.append(b)
+    max_wd_avg = max((r["avg"] for r in weekday_rows), default=0) or 1
+    for r in weekday_rows:
+        r["bar"] = round(r["avg"] / max_wd_avg * 100)
+
+    # --- 月内3分割 -------------------------------------------------------------
+    third_rows = []
+    for th in range(3):
+        b = _timing_bucket(third_visits[th], third_bizdays[th], overall_avg)
+        b["name"] = MONTH_THIRD_LABELS[th]
+        third_rows.append(b)
+    max_third_avg = max((r["avg"] for r in third_rows), default=0) or 1
+    for r in third_rows:
+        r["bar"] = round(r["avg"] / max_third_avg * 100)
+
+    # --- 日別（1〜31・信頼性は低め・注記付きで表示） ---------------------------
+    dom_rows = []
+    for day in range(1, 32):
+        if not dom_bizdays[day]:
+            continue
+        b = _timing_bucket(dom_visits[day], dom_bizdays[day], overall_avg)
+        b["day"] = day
+        dom_rows.append(b)
+
+    # --- 曜日×月内 クロス（仕込み目安マトリクス） -----------------------------
+    matrix_rows = []
+    for wd in range(7):
+        if not wd_bizdays[wd]:
+            continue
+        cells = []
+        for th in range(3):
+            b = _timing_bucket(cell_visits.get((wd, th), 0),
+                               cell_bizdays.get((wd, th), 0), overall_avg)
+            b["th"] = th
+            cells.append(b)
+        matrix_rows.append({"name": WEEKDAY_JA[wd], "cells": cells})
+    # 最も厚い/薄い組み合わせ（営業実績のあるセルのみ）
+    all_cells = [(r["name"], MONTH_THIRD_LABELS[c["th"]], c)
+                 for r in matrix_rows for c in r["cells"] if c["bizdays"]]
+    top_combo = max(all_cells, key=lambda x: x[2]["index"], default=None)
+    low_combo = min(all_cells, key=lambda x: x[2]["index"], default=None)
+
+    # --- 個人の曜日固定（○曜の人） -------------------------------------------
+    fixed_members = []
+    for mid, dates in member_dates.items():
+        n = len(dates)
+        if n < FIXED_MIN_VISITS:
+            continue
+        cnt = [0] * 7
+        for d in dates:
+            cnt[d.weekday()] += 1
+        peak_wd = max(range(7), key=lambda i: cnt[i])
+        share = cnt[peak_wd] / n
+        if share < FIXED_MIN_SHARE:
+            continue
+        fixed_members.append({
+            "name": member_name[mid], "total": n,
+            "wd": WEEKDAY_JA[peak_wd], "count": cnt[peak_wd],
+            "pct": round(share * 100),
+        })
+    fixed_members.sort(key=lambda m: (-m["pct"], -m["total"]))
+
+    return {
+        "total_visits": total_visits, "total_bizdays": total_bizdays,
+        "overall_avg": round(overall_avg, 1),
+        "weekday_rows": weekday_rows, "third_rows": third_rows,
+        "dom_rows": dom_rows,
+        "matrix_rows": matrix_rows, "third_labels": MONTH_THIRD_LABELS,
+        "top_combo": top_combo, "low_combo": low_combo,
+        "fixed_members": fixed_members,
+        "fixed_min_visits": FIXED_MIN_VISITS,
+        "fixed_min_share_pct": round(FIXED_MIN_SHARE * 100),
+    }
+
+
+def _timing_csv(t, start, end):
+    resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+    resp["Content-Disposition"] = (
+        f'attachment; filename="stamp_timing_{start:%Y%m%d}-{end:%Y%m%d}.csv"')
+    w = csv.writer(resp)
+    w.writerow([f"来店タイミング分析　{start:%Y-%m-%d}〜{end:%Y-%m-%d}",
+                f"全体平均 {t['overall_avg']}/営業日", f"総来店 {t['total_visits']}"])
+    w.writerow([])
+    w.writerow(["■曜日別（1営業日あたり）", "来店数", "営業日数", "平均/日", "指数(全体=100)"])
+    for r in t["weekday_rows"]:
+        w.writerow([r["name"], r["visits"], r["bizdays"], r["avg"], r["index"]])
+    w.writerow([])
+    w.writerow(["■月内タイミング", "来店数", "営業日数", "平均/日", "指数"])
+    for r in t["third_rows"]:
+        w.writerow([r["name"], r["visits"], r["bizdays"], r["avg"], r["index"]])
+    w.writerow([])
+    w.writerow(["■曜日×月内 仕込み指数（全体=100）", *t["third_labels"]])
+    for r in t["matrix_rows"]:
+        w.writerow([r["name"]] + [c["index"] if c["bizdays"] else "-" for c in r["cells"]])
+    w.writerow([])
+    w.writerow([f"■曜日固定の会員（{t['fixed_min_visits']}回以上・最頻曜日{t['fixed_min_share_pct']}%以上）"])
+    w.writerow(["会員", "通算来店", "最頻曜日", "その曜日の回数", "割合%"])
+    for m in t["fixed_members"]:
+        w.writerow([m["name"], m["total"], m["wd"], m["count"], m["pct"]])
+    return resp
+
+
+@staff_member_required
+def timing(request):
+    """来店タイミング分析：曜日・月内・その掛け合わせ＋個人の曜日固定。廃棄率削減の仕込み判断用。
+
+    すべて母数補正（1営業日あたり平均）。CSVは ?export=csv。既定は直近180日（貯まった全期間を見る）。
+    """
+    start, end = _period(request, default_days=180)
+    loc_id = request.GET.get("loc") or ""
+    t = _timing_analysis(start, end, loc_id)
+
+    if request.GET.get("export") == "csv":
+        return _timing_csv(t, start, end)
+
+    return render(request, "stamps/manage/timing.html", {
+        "nav": "timing",
+        "start": start, "end": end, "f_loc": loc_id,
+        "locations": SalesLocation.objects.order_by("no", "name"),
+        "t": t,
+    })
+
+
 def _friend_tags(visits, last_visit, registered_on, has_redeemable, today, cfg):
     """来店データから自動でタグ付け。しきい値は FriendTagConfig（画面で編集可）から取る。"""
     tags = []
@@ -1686,4 +1896,54 @@ def rewards(request):
         "today": timezone.localdate(),
         "kind_discount": RewardTier.KIND_DISCOUNT,
         "kind_free": RewardTier.KIND_FREE,
+    })
+
+
+# --- 狙い撃ち配信「配信設定」画面（ナビ「配信」） --------------------------------
+# 仕様: lunchnetsale-スタンプ狙い撃ち配信-要件定義.md / -画面設計.md
+from reservations.line_notify import is_configured as _line_configured
+
+# プレビューJSに渡すサンプル値（実データではないと画面に明記する）。
+_PREVIEW_SAMPLE = {"名前": "田中", "現在pt": "1", "次の特典まで": "4",
+                   "次の特典": "50円引き", "メニューリンク": "https://example.com/menu"}
+
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def message_settings(request):
+    """狙い撃ち配信の設定画面。3シナリオのON/OFF・文面・タイミング・対照群をここで運用する。"""
+    MessageScenario.ensure_defaults()
+    cfg = StampConfig.get_solo()
+
+    if request.method == "POST":
+        action = request.POST.get("action") or ""
+        if action == "common":
+            cfg.menu_url = (request.POST.get("menu_url") or "").strip()
+            cfg.save(update_fields=["menu_url", "updated_at"])
+            messages.success(request, "保存しました。")
+        else:
+            sc = get_object_or_404(MessageScenario, kind=action)
+            sc.enabled = bool(request.POST.get("enabled"))
+            sc.template = (request.POST.get("template") or "").strip()
+            try:
+                sc.offset_days = max(0, int(request.POST.get("offset_days") or sc.offset_days))
+                sc.holdout_pct = min(50, max(0, int(request.POST.get("holdout_pct") or 0)))
+            except (TypeError, ValueError):
+                messages.error(request, "日数・対照群は0以上の数値で入力してください。")
+                return redirect("stamps:manage_messages")
+            sc.save()
+            messages.success(request, f"「{sc.get_kind_display()}」を保存しました。")
+        return redirect("stamps:manage_messages")
+
+    results = messaging.results_by_kind()
+    scenarios = MessageScenario.ordered()
+    for s in scenarios:               # テンプレで s.result として参照する（動的キー参照を回避）。
+        s.result = results.get(s.kind)
+    return render(request, "stamps/manage/messages.html", {
+        "nav": "messages",
+        "scenarios": scenarios,
+        "cfg": cfg,
+        "line_ok": _line_configured(),
+        "sample": _PREVIEW_SAMPLE,
+        "measure_days": messaging.MEASURE_WINDOW_DAYS,
     })

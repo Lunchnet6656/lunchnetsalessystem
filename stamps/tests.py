@@ -1034,3 +1034,147 @@ class CrmAnalyticsTests(TestCase):
         self.assertIn("リピート率", body)
         self.assertIn("コホート継続", body)
         self.assertIn("RFM", body)
+
+
+class FollowupMessagingTests(TestCase):
+    """狙い撃ち配信（お礼/次回後押し/離反フォロー）の送信ロジック。
+
+    仕様: lunchnetsale-スタンプ狙い撃ち配信-要件定義.md §5,§7,§8,§10
+    """
+    def setUp(self):
+        RewardTier.ensure_defaults()
+        cfg = StampConfig.get_solo()
+        cfg.streak_bonus_enabled = False   # 1来店=1ptに固定（pt計算を明快に）
+        cfg.menu_url = "https://lunchnet.example/menu"
+        cfg.save()
+        self.loc = SalesLocation.objects.create(no=1, name="配信店", type="A", price_type="A",
+                                                stamp_enabled=True)
+
+    def _mk(self, uid, name="客"):
+        return LineMember.objects.create(line_user_id=uid, name=name)
+
+    def _visit(self, m, y, mo, d):
+        return services.award_stamp(m, self.loc, now=_dt(y, mo, d, 12, 0))
+
+    def _scenario(self, kind, **kw):
+        from stamps.models import MessageScenario
+        MessageScenario.ensure_defaults()
+        s = MessageScenario.objects.get(kind=kind)
+        s.enabled = kw.get("enabled", True)
+        s.offset_days = kw.get("offset_days", s.offset_days)
+        s.holdout_pct = kw.get("holdout_pct", 0)
+        if "template" in kw:
+            s.template = kw["template"]
+        s.save()
+        return s
+
+    # --- 変数展開 --------------------------------------------------------
+    def test_expand_variables(self):
+        from stamps.messaging import expand_template
+        m = self._mk("U1", "田中")
+        self._visit(m, 2026, 8, 20)   # pt=1
+        txt = expand_template("{名前}さん pt{現在pt} あと{次の特典まで}個で{次の特典}",
+                              m, "https://x")
+        self.assertEqual(txt, "田中さん pt1 あと4個で50円引き")
+
+    def test_expand_capped_and_unknown(self):
+        from stamps.messaging import expand_template
+        from stamps.models import StampCard
+        m = self._mk("U2", "佐藤")
+        StampCard.objects.create(member=m, started_on=_dt(2026, 8, 1, 12, 0).date(),
+                                 expires_on=_dt(2026, 8, 31, 12, 0).date(), stamp_count=20)
+        # 打ち止め＝次の特典なし→空文字。未知変数は素通し。
+        txt = expand_template("残り[{次の特典まで}]次[{次の特典}]謎[{未知}]", m, "")
+        self.assertEqual(txt, "残り[]次[]謎[{未知}]")
+
+    # --- 対照群 ----------------------------------------------------------
+    def test_holdout_deterministic(self):
+        from stamps.messaging import is_held_out
+        self.assertFalse(is_held_out(123, "welcome", 0))      # 0%は常に送る
+        # 同じ入力は毎回同じ判定（決定的）
+        a = is_held_out(123, "welcome", 50)
+        self.assertEqual(a, is_held_out(123, "welcome", 50))
+
+    # --- トリガー（push をモックして sent を検証）------------------------
+    def _run(self, today):
+        from unittest import mock
+        from stamps import messaging
+        with mock.patch("stamps.messaging.is_configured", return_value=True), \
+             mock.patch("stamps.messaging.push_text", return_value=True) as p:
+            summary = messaging.run_followups(today=today)
+        return summary, p
+
+    def test_welcome_trigger(self):
+        from stamps.models import FollowupSendLog
+        m = self._mk("Uw"); self._visit(m, 2026, 8, 20)
+        self._scenario("welcome", offset_days=0)
+        summary, push = self._run(_dt(2026, 8, 20, 9, 0).date())
+        self.assertEqual(summary["welcome"]["sent"], 1)
+        self.assertTrue(push.called)
+        self.assertEqual(FollowupSendLog.objects.filter(kind="welcome", status="sent").count(), 1)
+
+    def test_second_visit_trigger_only_if_no_revisit(self):
+        # B：初回8/17のみ（3日後8/20に後押し対象）／C：初回8/17＋再来済み（対象外）
+        b = self._mk("Ub"); self._visit(b, 2026, 8, 17)
+        c = self._mk("Uc"); self._visit(c, 2026, 8, 17); self._visit(c, 2026, 8, 19)
+        self._scenario("second_visit", offset_days=3)
+        summary, _ = self._run(_dt(2026, 8, 20, 9, 0).date())
+        self.assertEqual(summary["second_visit"]["sent"], 1)  # Bのみ
+
+    def test_winback_trigger(self):
+        m = self._mk("Uwb"); self._visit(m, 2026, 7, 20); self._visit(m, 2026, 8, 2)
+        self._scenario("winback", offset_days=18)   # 最終8/2から18日=8/20
+        summary, _ = self._run(_dt(2026, 8, 20, 9, 0).date())
+        self.assertEqual(summary["winback"]["sent"], 1)
+
+    def test_dedup_no_double_send(self):
+        from stamps.models import FollowupSendLog
+        m = self._mk("Ud"); self._visit(m, 2026, 8, 20)
+        self._scenario("welcome", offset_days=0)
+        self._run(_dt(2026, 8, 20, 9, 0).date())
+        self._run(_dt(2026, 8, 20, 9, 0).date())   # 同日2回目
+        self.assertEqual(FollowupSendLog.objects.filter(kind="welcome").count(), 1)
+
+    def test_holdout_records_held_out(self):
+        from stamps.models import FollowupSendLog
+        # 100%対照＝全員送らずログのみ
+        m = self._mk("Uh"); self._visit(m, 2026, 8, 20)
+        self._scenario("welcome", offset_days=0, holdout_pct=50)
+        # holdout=50で振り分け。少なくとも重複なく1件はログされる
+        self._run(_dt(2026, 8, 20, 9, 0).date())
+        self.assertEqual(FollowupSendLog.objects.filter(kind="welcome").count(), 1)
+
+    def test_revisit_measurement(self):
+        from stamps.models import FollowupSendLog
+        from stamps import messaging
+        m = self._mk("Ur"); self._visit(m, 2026, 8, 20)
+        self._scenario("welcome", offset_days=0)
+        self._run(_dt(2026, 8, 20, 9, 0).date())
+        self._visit(m, 2026, 8, 25)   # 配信後に再来
+        # 計測窓(14日)が締まった後に更新
+        n = messaging.update_revisits(today=_dt(2026, 9, 10, 9, 0).date())
+        self.assertEqual(n, 1)
+        self.assertTrue(FollowupSendLog.objects.get(kind="welcome").revisited)
+
+    def test_disabled_scenario_not_sent(self):
+        m = self._mk("Ux"); self._visit(m, 2026, 8, 20)
+        self._scenario("welcome", enabled=False, offset_days=0)
+        summary, push = self._run(_dt(2026, 8, 20, 9, 0).date())
+        self.assertEqual(summary["welcome"]["sent"], 0)
+        self.assertFalse(push.called)
+
+    # --- 画面 ------------------------------------------------------------
+    def test_message_screen_opens_and_saves(self):
+        from stamps.models import MessageScenario
+        User = get_user_model()
+        staff = User.objects.create_user(username="m1", password="x", is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get("/stamp/manage/messages/").status_code, 200)
+        resp = self.client.post("/stamp/manage/messages/", {
+            "action": "welcome", "enabled": "on", "template": "{名前}さんありがとう",
+            "offset_days": "1", "holdout_pct": "30"})
+        self.assertEqual(resp.status_code, 302)
+        s = MessageScenario.objects.get(kind="welcome")
+        self.assertTrue(s.enabled)
+        self.assertEqual(s.offset_days, 1)
+        self.assertEqual(s.holdout_pct, 30)

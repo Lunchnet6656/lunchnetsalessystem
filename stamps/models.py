@@ -365,6 +365,11 @@ class StampConfig(models.Model):
         default=3, verbose_name="連続来店の節目（日）",
         help_text="何日連続の節目で2倍にするか。3なら3・6・9日目…が2倍。",
     )
+    # --- 狙い撃ち配信の共通設定 -----------------------------------------------
+    menu_url = models.URLField(
+        blank=True, verbose_name="メニューリンクURL",
+        help_text="配信文面の {メニューリンク} に差し込むURL（今週のメニュー等）。",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -522,3 +527,131 @@ class MemberTagLink(models.Model):
 
     def __str__(self):
         return f"{self.member.name}：{self.tag.name}"
+
+
+class MessageScenario(models.Model):
+    """狙い撃ち配信の1シナリオ分の設定（画面で編集）。kindごとに1行（3種固定）。
+
+    仕様: lunchnetsale-スタンプ狙い撃ち配信-要件定義.md
+    トリガーの基準（初回来店/最終来店）はコード固定。日数(offset_days)・文面・対照群%・ON/OFFを画面で運用。
+    """
+    KIND_WELCOME = "welcome"
+    KIND_SECOND = "second_visit"
+    KIND_WINBACK = "winback"
+    KIND_CHOICES = [
+        (KIND_WELCOME, "お礼"),
+        (KIND_SECOND, "次回後押し"),
+        (KIND_WINBACK, "離反フォロー"),
+    ]
+    # 画面の並び順（welcome→second→winback）。
+    KIND_ORDER = [KIND_WELCOME, KIND_SECOND, KIND_WINBACK]
+    DEFAULTS = {
+        KIND_WELCOME: dict(
+            offset_days=0,
+            template=("{名前}さん、本日はランチネットのお弁当をご利用いただき"
+                      "ありがとうございました。スタンプが1つ貯まりました。"
+                      "またお会いできるのを楽しみにしています。"),
+        ),
+        KIND_SECOND: dict(
+            offset_days=3,
+            template=("{名前}さん、こんにちは。先日はご来店ありがとうございました。"
+                      "今週の日替わりメニューはこちらです → {メニューリンク}\n"
+                      "スタンプは今{現在pt}個。あと{次の特典まで}個で{次の特典}です。"
+                      "お近くにお越しの際は、ぜひお立ち寄りください。"),
+        ),
+        KIND_WINBACK: dict(
+            offset_days=18,
+            template=("{名前}さん、お久しぶりです。しばらくお会いできておらず、"
+                      "気にかけていました。今週のメニューはこちら → {メニューリンク}\n"
+                      "またお昼にお立ち寄りいただけたら嬉しいです。"),
+        ),
+    }
+
+    kind = models.CharField(
+        max_length=20, choices=KIND_CHOICES, unique=True, verbose_name="種類",
+    )
+    enabled = models.BooleanField(default=False, verbose_name="有効")
+    template = models.TextField(
+        verbose_name="文面",
+        help_text="変数 {名前}{現在pt}{次の特典まで}{次の特典}{メニューリンク} が使える。",
+    )
+    offset_days = models.PositiveSmallIntegerField(
+        default=0, verbose_name="日数",
+        help_text="トリガー基準日からの経過日数（お礼=0/1、次回後押し=初回から◯日、離反=最終来店から◯日）。",
+    )
+    holdout_pct = models.PositiveSmallIntegerField(
+        default=20, verbose_name="対照群（％）",
+        help_text="この割合は送らず残す＝送った人との再来率比較に使う（0だと効果を測れない）。",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "配信シナリオ"
+        verbose_name_plural = "配信シナリオ"
+
+    def __str__(self):
+        return f"{self.get_kind_display()}（{'有効' if self.enabled else '停止'}）"
+
+    @classmethod
+    def ensure_defaults(cls):
+        """3シナリオを既定文面で無ければ作る。"""
+        for kind, d in cls.DEFAULTS.items():
+            cls.objects.get_or_create(kind=kind, defaults=d)
+
+    @classmethod
+    def ordered(cls):
+        cls.ensure_defaults()
+        rows = {s.kind: s for s in cls.objects.all()}
+        return [rows[k] for k in cls.KIND_ORDER if k in rows]
+
+    @property
+    def condition_text(self):
+        """発動条件の日本語（画面に常時表示）。"""
+        if self.kind == self.KIND_WELCOME:
+            return "初回来店した会員へ・1回だけ"
+        if self.kind == self.KIND_SECOND:
+            return f"初回来店から{self.offset_days}日後・まだ2回目が無い会員へ・1回だけ"
+        return f"最終来店から{self.offset_days}日・通算2回以上・離反ライン前の会員へ・1サイクル1回"
+
+
+class FollowupSendLog(models.Model):
+    """狙い撃ち配信の送信ログ。重複防止（サイクル単位で1回）＋効果測定（送信/対照/再来）の土台。"""
+    STATUS_SENT = "sent"
+    STATUS_HELD = "held_out"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_SENT, "送信"),
+        (STATUS_HELD, "対照（送らず）"),
+        (STATUS_FAILED, "失敗"),
+    ]
+
+    member = models.ForeignKey(
+        LineMember, on_delete=models.CASCADE, related_name="followup_logs", verbose_name="会員",
+    )
+    kind = models.CharField(max_length=20, choices=MessageScenario.KIND_CHOICES, verbose_name="種類")
+    cycle_key = models.DateField(
+        verbose_name="基準日",
+        help_text="この配信機会を識別する基準日（お礼/次回後押し＝初回来店日、離反＝最終来店日）。重複防止に使う。",
+    )
+    decided_on = models.DateField(db_index=True, verbose_name="判定日")
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default=STATUS_SENT, db_index=True, verbose_name="状態",
+    )
+    sent_at = models.DateTimeField(null=True, blank=True, verbose_name="送信日時")
+    detail = models.CharField(max_length=255, blank=True, verbose_name="詳細/エラー")
+    revisited = models.BooleanField(default=False, verbose_name="配信後に再来")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-decided_on", "-created_at"]
+        verbose_name = "配信ログ"
+        verbose_name_plural = "配信ログ"
+        constraints = [
+            # 同じ会員・種類・サイクルは1回だけ（送信も対照も含めて重複させない）。
+            models.UniqueConstraint(
+                fields=["member", "kind", "cycle_key"], name="uniq_followup_per_cycle",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.member.name}：{self.get_kind_display()}／{self.get_status_display()}"
