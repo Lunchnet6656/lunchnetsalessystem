@@ -92,6 +92,12 @@ LINE_STAMP_RICHMENU_ID = os.environ.get("LINE_STAMP_RICHMENU_ID", "")
 # 初回スタンプ時に自動でスタンプ用リッチメニューを本人へ割り当てるか。
 STAMP_RICHMENU_AUTO_ASSIGN = os.environ.get("STAMP_RICHMENU_AUTO_ASSIGN", "True") == "True"
 
+# 友だち追加ゲート（案A）：スタンプ押印前に、公式LINE未友だちなら認可フローを再実行して
+# 純正の「友だち追加」プロンプトを出す。LIFFコンソールの「友だち追加オプション」=Aggressive が前提。
+# テスト中は STAMP_FRIEND_GATE_TEST_UID に自分の userId を入れ、そのIDだけに効かせる（本番客に影響させない）。
+STAMP_FRIEND_GATE_ENABLED = os.environ.get("STAMP_FRIEND_GATE_ENABLED", "False") == "True"
+STAMP_FRIEND_GATE_TEST_UID = os.environ.get("STAMP_FRIEND_GATE_TEST_UID", "")
+
 # --- Heroku で HTTPS を正しく認識させる（超重要） ---
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
