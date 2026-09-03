@@ -22,16 +22,27 @@
 
     {% for day in fc.days %}
     <div class="card mb-4 shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap {% if day.heavy %}bg-warning-subtle{% endif %}">
             <span>
                 <strong class="fs-5">{{ day.date|date:'n月j日' }}（{{ day.weekday }}）</strong>
                 <span class="text-muted ms-2">
                     {% if forloop.first %}あす{% elif forloop.counter == 2 %}あさって{% else %}{{ forloop.counter }}営業日後{% endif %}
                 </span>
+                {% if day.heavy %}<span class="badge bg-danger ms-2"><i class="fas fa-cloud-showers-heavy"></i> 大雨予報</span>{% endif %}
             </span>
-            <span class="text-muted">この日の合計予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong> 食</span>
+            <span class="text-muted">
+                この日の合計予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong> 食
+                {% if day.heavy %}<span class="ms-2">→ 大雨時の目安 <strong class="fs-4 text-danger">{{ day.adj_total|intcomma }}</strong> 食</span>{% endif %}
+            </span>
         </div>
         <div class="card-body p-0">
+            {% if day.heavy %}
+            <div class="alert alert-warning m-3 mb-2 py-2 small">
+                <i class="fas fa-cloud-showers-heavy"></i>
+                <strong>昼どき大雨の予報です</strong>（昼11〜14時の予想降水量 {{ day.weather.precip }}mm{% if day.weather.snow %}・雪 {{ day.weather.snow }}cm{% endif %}）。
+                過去データでは昼に強い雨だと食数が<strong>約{{ fc.heavy_pct }}％落ちます</strong>。右列の「大雨時の目安（{{ fc.heavy_pct }}％減）」を上限に仕込みを絞るのがおすすめ。最後は現場判断で。
+            </div>
+            {% endif %}
             {% if day.locs %}
             <div class="table-responsive">
                 <table class="table table-hover table-striped mb-0 align-middle">
@@ -39,6 +50,7 @@
                         <tr>
                             <th>店舗</th>
                             <th class="text-end">予測食数</th>
+                            {% if day.heavy %}<th class="text-end text-danger">大雨時の目安（{{ fc.heavy_pct }}％減）</th>{% endif %}
                             <th>直近同曜日の実績（新→古）</th>
                             <th class="text-end">直近の平均残</th>
                             <th class="text-end">実績数</th>
@@ -49,6 +61,7 @@
                         <tr>
                             <td><strong>{{ l.name }}</strong></td>
                             <td class="text-end"><span class="fs-5 fw-bold text-primary">{{ l.pred }}</span></td>
+                            {% if day.heavy %}<td class="text-end"><span class="fs-5 fw-bold text-danger">{{ l.adj }}</span></td>{% endif %}
                             <td class="text-muted small">
                                 {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}食{% if not forloop.last %}　/　{% endif %}{% endfor %}
                             </td>
@@ -68,7 +81,7 @@
 
     <div class="alert alert-warning small">
         ⚠️ 予測は「販売数（実際に売れた数）」の見込みです。ほぼ完売の店は実需がこれより上のことも（＝もう少し積める余地）、
-        残りがちな店は予測どおりかやや下で。天気・イベント・給料日などのブレは加味していないので、最後は現場判断で微調整してください。
+        残りがちな店は予測どおりかやや下で。<strong>昼どきの大雨・雪は自動でアラートを出します</strong>（予測は約2割減が目安）が、イベント・給料日などのブレは加味していないので、最後は現場判断で微調整してください。
         「直近の平均残」が<span class="text-danger fw-bold">赤（6食以上）</span>の店は仕込み過多ぎみ＝削りどころ。
     </div>
 </div>

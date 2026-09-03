@@ -3261,6 +3261,59 @@ def _forecast_weighted_recent(values):
     return sum(w * v for w, v in zip(weights, values)) / sum(weights)
 
 
+# --- 大雨アラート（Open-Meteo・時間別予報） -------------------------------------
+# 実データ校正：昼(11-14時)の合計降水量が 8mm 以上／降雪ありの日は食数が約2割落ちる
+# （日合計mmでは捉えられず"昼に降るか"で決まる）。普段の予測はいじらず、この日だけ減の目安を出す。
+FORECAST_LUNCH_HOURS = (11, 12, 13, 14)
+FORECAST_HEAVY_PRECIP_MM = 8.0     # 昼合計がこれ以上で「大雨」＝約-20%水準
+FORECAST_HEAVY_FACTOR = 0.80       # 大雨予報日の仕込み目安＝予測×0.8
+FORECAST_OPEN_METEO_LAT = 35.667   # 東京（都心店舗の代表点）
+FORECAST_OPEN_METEO_LON = 139.75
+
+
+def _fetch_heavy_lunch_days(today):
+    """Open-Meteoの時間別予報から各日の昼(11-14時)降水量・降雪を集計し大雨判定を返す。
+
+    返り値: {'YYYY-MM-DD': {'precip': mm, 'snow': cm, 'heavy': bool}, ...}。
+    取得失敗時は {}（＝天気補正なしで安全側に倒す）。日次でキャッシュしてAPI負荷を抑える。
+    """
+    import urllib.request
+    from django.core.cache import cache
+
+    cache_key = "meal_forecast_heavy_%s" % today.isoformat()
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = {}
+    try:
+        url = (
+            "https://api.open-meteo.com/v1/forecast"
+            "?latitude=%s&longitude=%s&hourly=precipitation,snowfall"
+            "&timezone=Asia%%2FTokyo&forecast_days=7"
+            % (FORECAST_OPEN_METEO_LAT, FORECAST_OPEN_METEO_LON)
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        hourly = data.get("hourly", {})
+        precip_by_day, snow_by_day = {}, {}
+        for t, p, s in zip(hourly.get("time", []),
+                           hourly.get("precipitation", []),
+                           hourly.get("snowfall", [])):
+            if int(t[11:13]) in FORECAST_LUNCH_HOURS:
+                day = t[:10]
+                precip_by_day[day] = precip_by_day.get(day, 0.0) + (p or 0)
+                snow_by_day[day] = snow_by_day.get(day, 0.0) + (s or 0)
+        for day, mm in precip_by_day.items():
+            snow = snow_by_day.get(day, 0.0)
+            result[day] = {"precip": round(mm, 1), "snow": round(snow, 1),
+                           "heavy": mm >= FORECAST_HEAVY_PRECIP_MM or snow > 0}
+    except Exception:
+        result = {}                                    # ネット/APIエラー時は補正なし
+    cache.set(cache_key, result, 3 * 3600)
+    return result
+
+
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの食数（販売数）を店舗別に予測。直近28日バックテスト誤差も同梱。"""
     since = today - timedelta(days=FORECAST_HISTORY_DAYS)
@@ -3310,6 +3363,8 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             target_dates.append(d)
         d += timedelta(days=1)
 
+    heavy_map = _fetch_heavy_lunch_days(today)         # 大雨予報（Open-Meteo・失敗時は空）
+
     forecast_days = []
     for td in target_dates:
         wd = td.weekday()
@@ -3327,9 +3382,22 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                          "pred": int(pred + 0.5), "avg_rem": round(avg_rem, 1),
                          "last3": last3, "samples": len(same)})
         locs.sort(key=lambda x: -x["pred"])
-        forecast_days.append({"date": td, "weekday": FORECAST_WEEKDAY_JA[wd],
-                              "locs": locs, "total": sum(l["pred"] for l in locs)})
-    return {"days": forecast_days, "backtest": backtest}
+        day = {"date": td, "weekday": FORECAST_WEEKDAY_JA[wd],
+               "locs": locs, "total": sum(l["pred"] for l in locs)}
+
+        # 大雨予報の日だけ「2割減の目安」を併記（普段の予測値はそのまま）
+        wx = heavy_map.get(td.isoformat())
+        day["weather"] = wx
+        if wx and wx["heavy"]:
+            day["heavy"] = True
+            day["adj_total"] = int(day["total"] * FORECAST_HEAVY_FACTOR + 0.5)
+            for l in locs:
+                l["adj"] = int(l["pred"] * FORECAST_HEAVY_FACTOR + 0.5)
+        else:
+            day["heavy"] = False
+        forecast_days.append(day)
+    return {"days": forecast_days, "backtest": backtest,
+            "heavy_pct": int((1 - FORECAST_HEAVY_FACTOR) * 100)}
 
 
 @login_required
