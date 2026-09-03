@@ -10,7 +10,6 @@ urlpatterns = [
     path("manage/visits/", manage_views.visits, name="manage_visits"),
     path("manage/analytics/", manage_views.analytics, name="manage_analytics"),
     path("manage/timing/", manage_views.timing, name="manage_timing"),
-    path("manage/forecast/", manage_views.forecast, name="manage_forecast"),
     path("manage/messages/", manage_views.message_settings, name="manage_messages"),
     path("manage/sales-correlation/", manage_views.sales_correlation, name="manage_sales_correlation"),
     path("manage/friends/", manage_views.friends, name="manage_friends"),

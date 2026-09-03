@@ -89,6 +89,7 @@ urlpatterns = [
     path('menu-history/', views.menu_history_view, name='menu_history'),
     path('menu-ranking/', views.menu_ranking_view, name='menu_ranking'),
     path('location-ranking/', views.location_ranking_view, name='location_ranking'),
+    path('meal-forecast/', views.meal_forecast_view, name='meal_forecast'),
     path('sales_dashboard/', views.sales_dashboard_view, name='sales_dashboard'),
 
     path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),

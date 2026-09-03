@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}食数予測（仕込みの目安）{% endblock %}
+
+{% block content %}
+{% load humanize %}
+
+<div class="container mt-4">
+    <h1 class="mb-1">食数予測（仕込みの目安）</h1>
+    <p class="text-muted mb-2">
+        直近{{ fc.days|length }}営業日ぶんの<strong>販売数（＝食数）を店舗別に予測</strong>します。
+        モデルは「その店の同じ曜日・直近4回の販売数を、新しいものほど重く平均」。
+        <strong>予測＝そのくらい売れそう＝仕込みの下地</strong>。売り切れが怖い店は予測＋少し、
+        残りがちな店は予測どおりで詰めると廃棄が減ります。
+    </p>
+    {% if fc.backtest %}
+    <span class="badge bg-success fs-6 mb-3">
+        精度：直近28日の実績で平均誤差 ±{{ fc.backtest.mae }}食（{{ fc.backtest.mape }}％）・{{ fc.backtest.n }}件で検証
+    </span>
+    {% endif %}
+    <hr class="my-3">
+
+    {% for day in fc.days %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+            <span>
+                <strong class="fs-5">{{ day.date|date:'n月j日' }}（{{ day.weekday }}）</strong>
+                <span class="text-muted ms-2">
+                    {% if forloop.first %}あす{% elif forloop.counter == 2 %}あさって{% else %}{{ forloop.counter }}営業日後{% endif %}
+                </span>
+            </span>
+            <span class="text-muted">この日の合計予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong> 食</span>
+        </div>
+        <div class="card-body p-0">
+            {% if day.locs %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>店舗</th>
+                            <th class="text-end">予測食数</th>
+                            <th>直近同曜日の実績（新→古）</th>
+                            <th class="text-end">直近の平均残</th>
+                            <th class="text-end">実績数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in day.locs %}
+                        <tr>
+                            <td><strong>{{ l.name }}</strong></td>
+                            <td class="text-end"><span class="fs-5 fw-bold text-primary">{{ l.pred }}</span></td>
+                            <td class="text-muted small">
+                                {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}食{% if not forloop.last %}　/　{% endif %}{% endfor %}
+                            </td>
+                            <td class="text-end {% if l.avg_rem >= 6 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ l.avg_rem }}食</td>
+                            <td class="text-end text-muted small">{{ l.samples }}回</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted p-3 mb-0">この曜日に稼働実績のある店舗が（直近{{ 56 }}日で）ありません。</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="alert alert-warning small">
+        ⚠️ 予測は「販売数（実際に売れた数）」の見込みです。ほぼ完売の店は実需がこれより上のことも（＝もう少し積める余地）、
+        残りがちな店は予測どおりかやや下で。天気・イベント・給料日などのブレは加味していないので、最後は現場判断で微調整してください。
+        「直近の平均残」が<span class="text-danger fw-bold">赤（6食以上）</span>の店は仕込み過多ぎみ＝削りどころ。
+    </div>
+</div>
+{% endblock %}

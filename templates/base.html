@@ -204,6 +204,9 @@
                         <a href="{% url 'location_ranking' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-trophy"></i> 販売場所別売れ行きランキング
                         </a>
+                        <a href="{% url 'meal_forecast' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-line"></i> 食数予測（仕込みの目安）
+                        </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_menu_history %}
                         <a href="{% url 'menu_history' %}" class="list-group-item list-group-item-action">
