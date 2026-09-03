@@ -155,10 +155,12 @@ def stamp_scan(request, token):
                             loaded=True, error=str(e), status=400)
 
     result = services.award_stamp(member, location)
-    # 初回スタンプ時：スタンプ用リッチメニューを本人へ割り当て（自作Lステップのセグメント配信）。
-    if result.ok and _is_first_stamp(member):
+    # スタンプが押せた本人へ、毎回リッチメニューの割当てを確実化する（best-effort）。
+    # 「初回のみ」だと、非友だち時代に初回を消費した人が後から友だち追加しても永久に付かない。
+    # 友だち追加ゲート通過後の来店で確実にリンクさせるため、毎回 assign を試みる（1日1回程度）。
+    if result.ok:
         from stamps import richmenu
-        richmenu.assign_on_first_stamp(member)
+        richmenu.assign_on_stamp(member)
 
     tone, message = _RESULT_MESSAGES.get(result.status, ("info", ""))
     # 2倍イベント該当時は専用文言に差し替える。

@@ -157,3 +157,21 @@ def assign_on_first_stamp(member, now=None):
     except Exception as e:  # 紐付け失敗でスタンプ本体を止めない
         logger.warning("stamp richmenu assign error: %s", e)
         return False
+
+
+def assign_on_stamp(member, now=None):
+    """来店（押印成功）ごとのフック。毎回リンクを貼り直して反映を確実化する（best-effort）。
+
+    「初回のみ」だと、非友だち時代に初回を消費した会員が後から友だち追加しても
+    リッチメニューが永久に付かない。友だち追加ゲート通過後の来店で確実にリンクさせるため、
+    押印のたびに assign を試みる（DB上の linked は LINE 実側と乖離しうるので鵜呑みにしない）。
+    """
+    if not getattr(settings, "STAMP_RICHMENU_AUTO_ASSIGN", True):
+        return False
+    if not is_configured():
+        return False
+    try:
+        return assign(member, now=now)
+    except Exception as e:  # 紐付け失敗でスタンプ本体を止めない
+        logger.warning("stamp richmenu assign_on_stamp error: %s", e)
+        return False
