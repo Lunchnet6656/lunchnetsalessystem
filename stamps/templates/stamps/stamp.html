@@ -200,7 +200,7 @@
         <a id="addFriendBtn" class="btn" href="{{ oa_add_friend_url }}" target="_blank" rel="noopener"
            style="display:block;">友だち追加する</a>
         <p class="foot" style="margin:12px 0 10px;line-height:1.7;font-weight:700;color:#c0392b;">
-          追加したら、もう一度この場のQRを読み取ってください📷<br>
+          追加したら、もう一度この場でタッチまたはQRを読み取ってください📷<br>
           （それでスタンプが押せます）
         </p>
         <p class="foot" style="margin:12px 0 0;font-size:.82rem;color:#999;">
@@ -397,6 +397,16 @@
             // ブロック中でもこの画面からブロック解除→追加できる。追加後は再度QRを読めば押印へ進む。
             if(liff.openWindow){ e.preventDefault(); liff.openWindow({ url: add.href, external:false }); }
           }); }
+          // ベストエフォート自動遷移：友だち追加の画面から戻ってきて（＝この画面が再表示され）、
+          // 友だちになっていれば、再スキャン不要でそのまま押印へ進む。
+          // ※LINEが友だち追加後にトーク画面へ遷移させた場合はここに戻らないので、その時は再タッチ/QRで回収。
+          var gateDone = false;
+          document.addEventListener('visibilitychange', function(){
+            if(gateDone || document.visibilityState !== 'visible' || !liff.getFriendship) return;
+            liff.getFriendship().then(function(fr){
+              if(fr && fr.friendFlag){ gateDone = true; proceed(); }
+            }).catch(function(){});
+          });
         }
         if(FRIEND_GATE && TOKEN && liff.getFriendship){
           liff.getFriendship().then(function(fr){
