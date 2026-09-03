@@ -97,6 +97,8 @@ STAMP_RICHMENU_AUTO_ASSIGN = os.environ.get("STAMP_RICHMENU_AUTO_ASSIGN", "True"
 # テスト中は STAMP_FRIEND_GATE_TEST_UID に自分の userId を入れ、そのIDだけに効かせる（本番客に影響させない）。
 STAMP_FRIEND_GATE_ENABLED = os.environ.get("STAMP_FRIEND_GATE_ENABLED", "False") == "True"
 STAMP_FRIEND_GATE_TEST_UID = os.environ.get("STAMP_FRIEND_GATE_TEST_UID", "")
+# 案B：関所ページの「友だち追加する」ボタンのリンク先（公式アカウントのbasic ID）。
+STAMP_OA_ADD_FRIEND_URL = os.environ.get("STAMP_OA_ADD_FRIEND_URL", "https://line.me/R/ti/p/@243frciw")
 
 # --- Heroku で HTTPS を正しく認識させる（超重要） ---
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

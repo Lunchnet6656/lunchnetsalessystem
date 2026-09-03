@@ -188,6 +188,25 @@
       {% csrf_token %}
       <input type="hidden" name="line_access_token" id="line_access_token">
     </form>
+
+    {# 案B：友だち追加の関所（未友だちのみJSで表示）。友だちにならないとスタンプは押せない。 #}
+    <div id="friendgate" class="ticket" style="display:none;">
+      <div class="tk-body" style="text-align:center;padding:22px 18px;">
+        <p style="font-size:1.1rem;font-weight:800;margin:4px 0 6px;">スタンプは<br>公式LINEの友だち限定です</p>
+        <p class="foot" style="margin:0 0 16px;line-height:1.7;">
+          友だち追加すると、この場でスタンプが押せます🍱<br>
+          今週のメニュー・出店場所・クーポンも受け取れます。
+        </p>
+        <a id="addFriendBtn" class="btn" href="{{ oa_add_friend_url }}" target="_blank" rel="noopener"
+           style="display:block;">友だち追加する</a>
+        <button id="gateRecheck" class="btn" type="button"
+                style="display:block;margin-top:10px;background:#f0f0f0;color:#333;">友だち追加したら押す</button>
+        <p class="foot" style="margin:14px 0 0;font-size:.78rem;color:#999;">
+          ※以前ブロックした方は「ブロック解除」してから追加してください
+        </p>
+      </div>
+    </div>
+
     <noscript><div class="err">この画面はLINEアプリ内で開いてください。</div></noscript>
 
   {% else %}
@@ -365,28 +384,27 @@
             }
           }
         }
-        // 友だち追加ゲート（案A）：QRスキャンの押印前に、公式LINE未友だちなら認可フローを
-        // 再実行して純正の友だち追加プロンプトを出す。追加後はこのページへ戻り押印へ進む。
-        // ループ防止は sessionStorage で行う：ログイン往復で戻りURLの ?bp=1 が消えても、
-        // 同一セッション内では一度しか再ログインしない（追加を断っても押印は通す＝店頭を止めない）。
-        var GATE_KEY = 'stamp_friend_bp';
-        var alreadyPrompted = /[?&]bp=1(&|$)/.test(location.search);
-        try { if(sessionStorage.getItem(GATE_KEY)) { alreadyPrompted = true; } } catch(e){}
-        if(FRIEND_GATE && TOKEN && !alreadyPrompted && liff.getFriendship){
+        // 友だち追加ゲート（案B）：QRスキャンの押印前に、公式LINE未友だちなら関所ページを出す。
+        // 友だちにならないと押印できない（[後で]なし）。ログイン往復をしないので絶対にループしない。
+        function showGate(){
+          var l = document.getElementById('loading'); if(l){ l.style.display='none'; }
+          var g = document.getElementById('friendgate'); if(g){ g.style.display='block'; }
+          var add = document.getElementById('addFriendBtn');
+          if(add){ add.addEventListener('click', function(e){
+            // LINEアプリ内で公式アカウントの追加画面を開く（外部ブラウザにしない）。
+            if(liff.openWindow){ e.preventDefault(); liff.openWindow({ url: add.href, external:false }); }
+          }); }
+          // 「友だち追加したら押す」→ページ再読込で友だち状態を取り直す。友だちなら自動で押印へ進む。
+          var rc = document.getElementById('gateRecheck');
+          if(rc){ rc.addEventListener('click', function(){ location.reload(); }); }
+        }
+        if(FRIEND_GATE && TOKEN && liff.getFriendship){
           liff.getFriendship().then(function(fr){
             var ctx = (liff.getContext && liff.getContext()) || null;
             var myuid = (ctx && ctx.userId) ? ctx.userId : '';
-            // テストuid指定時は本人だけに適用（uidが取れない時は安全側で発火しない）。
+            // テストuid指定時は本人だけに適用（uidが取れない時は安全側で素通り）。
             var applies = FRIEND_GATE_TEST_UID ? (myuid && myuid === FRIEND_GATE_TEST_UID) : true;
-            if(applies && fr && fr.friendFlag === false){
-              try { sessionStorage.setItem(GATE_KEY, '1'); } catch(e){}  // 先に立てる＝再入しても即proceed
-              var sep = location.search ? '&' : '?';
-              var back = location.origin + location.pathname + location.search + sep + 'bp=1';
-              liff.logout();
-              // bot_prompt は LIFF コンソールの「友だち追加オプション」(Aggressive) 設定に従う。
-              liff.login({ redirectUri: back });
-              return;
-            }
+            if(applies && fr && fr.friendFlag === false){ showGate(); return; }
             proceed();
           }).catch(proceed);
         } else {

@@ -85,9 +85,10 @@ def render_stamp(request, *, location=None, token="", post_action=None, status=2
         "liff_id": settings.STAMP_LIFF_ID,
         "require_line": identity.stamp_require_line(),
         "post_action": post_action,
-        # 友だち追加ゲート（案A）：未友だちなら押印前に認可フローを再実行して友だち追加を促す。
+        # 友だち追加ゲート（案B）：未友だちなら押印前に関所ページを出し、友だち追加を必須にする。
         "friend_gate": settings.STAMP_FRIEND_GATE_ENABLED,
         "friend_gate_test_uid": settings.STAMP_FRIEND_GATE_TEST_UID,
+        "oa_add_friend_url": settings.STAMP_OA_ADD_FRIEND_URL,
     }
     ctx.update(extra)
     return render(request, "stamps/stamp.html", ctx, status=status)
