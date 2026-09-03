@@ -198,15 +198,13 @@
           今週のメニュー・出店場所・クーポンも受け取れます。
         </p>
         <a id="addFriendBtn" class="btn" href="{{ oa_add_friend_url }}" target="_blank" rel="noopener"
-           style="display:block;">① 友だち追加する</a>
+           style="display:block;">友だち追加する</a>
         <p class="foot" style="margin:12px 0 10px;line-height:1.7;font-weight:700;color:#c0392b;">
-          ② 追加したら、もう一度この場のQRを読み取ってください📷<br>
+          追加したら、もう一度この場のQRを読み取ってください📷<br>
           （それでスタンプが押せます）
         </p>
-        <button id="gateRecheck" class="btn" type="button"
-                style="display:block;background:#f0f0f0;color:#333;">追加できたので進む</button>
-        <p class="foot" style="margin:14px 0 0;font-size:.78rem;color:#999;">
-          ※以前ブロックした方は「ブロック解除」してから追加してください
+        <p class="foot" style="margin:12px 0 0;font-size:.82rem;color:#999;">
+          ※以前ブロックした方も、この「友だち追加する」から<br>ブロック解除して追加できます
         </p>
       </div>
     </div>
@@ -396,11 +394,9 @@
           var add = document.getElementById('addFriendBtn');
           if(add){ add.addEventListener('click', function(e){
             // LINEアプリ内で公式アカウントの追加画面を開く（外部ブラウザにしない）。
+            // ブロック中でもこの画面からブロック解除→追加できる。追加後は再度QRを読めば押印へ進む。
             if(liff.openWindow){ e.preventDefault(); liff.openWindow({ url: add.href, external:false }); }
           }); }
-          // 「友だち追加したら押す」→ページ再読込で友だち状態を取り直す。友だちなら自動で押印へ進む。
-          var rc = document.getElementById('gateRecheck');
-          if(rc){ rc.addEventListener('click', function(){ location.reload(); }); }
         }
         if(FRIEND_GATE && TOKEN && liff.getFriendship){
           liff.getFriendship().then(function(fr){
