@@ -22,9 +22,8 @@
   /* カードは背景画像(stand_v3)と同じ縦横比(2:3)にして%指定のQR位置を正確に保つ */
   .card{width:98mm;height:147mm;position:relative;overflow:hidden;}
   .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;display:block;}
-  /* 焼き込みの白いQR空枠に、店舗別の本物QRを白地ごと重ねる（検出：left15.6% top52.3% ≒正方形55%） */
-  .qr{position:absolute;left:15.6%;top:52.3%;width:55%;z-index:2;
-    background:#fff;padding:0.6%;display:block;}
+  /* 焼き込みの白いQR空枠に、店舗別の本物QRを白地ごと重ねる（位置は柄ごとにviewから指定） */
+  .qr{position:absolute;z-index:2;background:#fff;padding:0.6%;display:block;}
   .store{position:absolute;right:3%;bottom:1%;z-index:9;color:#0a5a2a;font-size:6.5pt;font-weight:800;opacity:.75;}
 
   @media print{
@@ -39,15 +38,16 @@
 <body>
   <div class="toolbar">
     <button class="btn" onclick="window.print()">印刷する</button>
-    <span class="muted">店舗：{{ loc.name }}／ A5横・卓上スタンド版。刷ったら<b>真ん中の点線で半分に切る</b>とA6のPOPが2枚。QRは店舗別の本物（読み取り可能）。</span>
+    <a class="btn" style="background:#0a5a2a;" href="?pattern={{ other_pattern }}">柄を切替 → {{ other_label }}</a>
+    <span class="muted">店舗：{{ loc.name }}／ 柄：<b>{{ pattern_label }}</b>／ A5横・卓上スタンド版。刷ったら<b>真ん中の点線で半分に切る</b>とA6のPOPが2枚。QRは店舗別の本物（読み取り可能）。</span>
   </div>
 
   <div class="sheet">
     {% for side in "LR" %}
     <div class="half {% if side == 'R' %}right{% endif %}">
       <div class="card">
-        <img class="bg" src="{% static 'images/pop2/stand_v4.png' %}?v={{ bg_version }}" alt="ランチネット スタンプカード 卓上POP">
-        <img class="qr" src="{{ qr }}" alt="スタンプQR">
+        <img class="bg" src="{% static bg_static %}?v={{ bg_version }}" alt="ランチネット スタンプカード 卓上POP">
+        <img class="qr" src="{{ qr }}" style="left:{{ qr_left }}%;top:{{ qr_top }}%;width:{{ qr_width }}%;" alt="スタンプQR">
         <div class="store">{{ loc.name }}</div>
       </div>
     </div>

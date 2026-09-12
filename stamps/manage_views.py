@@ -1746,19 +1746,41 @@ def location_pop(request, location_id):
     })
 
 
+# 卓上スタンドPOPの柄。完成画像を背景にまるごと使い、白いQR空枠へ店舗別の本物QRを重ねる。
+# qr_left/top/width は背景画像の白枠位置（カード幅に対する%。QR画像は正方形で白地padding付き）。
+STAND_PATTERNS = {
+    "qr": {   # 従来版（QRのみ）
+        "bg": "images/pop2/stand_v4.png",
+        "label": "QRのみ",
+        "qr_left": 15.6, "qr_top": 52.3, "qr_width": 55.0,
+    },
+    "nfc": {  # 新版（NFCかざす＋QR読み取る）
+        "bg": "images/pop2/stand_nfc_qr.png",
+        "label": "NFC＋QR",
+        "qr_left": 58.0, "qr_top": 42.1, "qr_width": 31.4,
+    },
+}
+
+
 @staff_member_required
 def location_stand_pop(request, location_id):
     """卓上スタンド版POP（A5横1枚にA6を2面付け・QR込み・印刷用）。
 
-    完成画像 stand_v3.png を背景にまるごと使い、白いQR空枠へ店舗別の本物QRを重ねる
-    （A4版 location_pop と同じ方式）。真ん中で切ればA6の卓上POPが2枚取れる。
+    背景の完成画像（柄はSTAND_PATTERNSから選択）に、白いQR空枠へ店舗別の本物QRを重ねる。
+    真ん中で切ればA6の卓上POPが2枚取れる。?pattern=qr/nfc で柄を切り替え（既定=qr）。
     """
     loc = get_object_or_404(SalesLocation, pk=location_id)
     url = _stamp_liff_url(loc.qr_stamp_token)
 
+    pattern = request.GET.get("pattern")
+    if pattern not in STAND_PATTERNS:
+        pattern = "qr"
+    cfg = STAND_PATTERNS[pattern]
+    other = "nfc" if pattern == "qr" else "qr"
+
     import os
     from django.conf import settings as dj_settings
-    bg_path = os.path.join(dj_settings.BASE_DIR, "static", "images", "pop2", "stand_v4.png")
+    bg_path = os.path.join(dj_settings.BASE_DIR, "static", cfg["bg"])
     try:
         bg_version = int(os.path.getmtime(bg_path))
     except OSError:
@@ -1769,6 +1791,14 @@ def location_stand_pop(request, location_id):
         "qr": _qr_data_uri(url),
         "url": url,
         "bg_version": bg_version,
+        "bg_static": cfg["bg"],
+        "qr_left": cfg["qr_left"],
+        "qr_top": cfg["qr_top"],
+        "qr_width": cfg["qr_width"],
+        "pattern": pattern,
+        "pattern_label": cfg["label"],
+        "other_pattern": other,
+        "other_label": STAND_PATTERNS[other]["label"],
     })
 
 

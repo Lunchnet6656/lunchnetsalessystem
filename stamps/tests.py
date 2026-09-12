@@ -395,6 +395,23 @@ class StampManageViewTests(TestCase):
         self.assertContains(resp, "スタンプカード")
         self.assertContains(resp, "data:image/png;base64,")  # QRが埋め込まれている
 
+    def test_stand_pop_patterns(self):
+        base = f"/stamp/manage/locations/{self.loc.id}/pop-stand/"
+        # 既定＝QRのみ柄
+        resp = self.client.get(base)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "stand_v4.png")
+        self.assertContains(resp, "data:image/png;base64,")   # 本物QR埋め込み
+        self.assertContains(resp, "left:15.6%")
+        # NFC＋QR柄
+        resp = self.client.get(base + "?pattern=nfc")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "stand_nfc_qr.png")
+        self.assertContains(resp, "left:58.0%")              # QRが②の白枠位置に配置
+        # 不正なpatternは既定(qr)にフォールバック
+        resp = self.client.get(base + "?pattern=xxx")
+        self.assertContains(resp, "stand_v4.png")
+
 
 class StampCustomerViewTests(TestCase):
     def setUp(self):
