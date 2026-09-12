@@ -12,6 +12,7 @@
 管理画面はスモークテスト（200で開く・CSVが返る）。
 """
 from datetime import time, timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -389,6 +390,44 @@ class StampManageViewTests(TestCase):
     def test_richmenu_opens(self):
         self.assertEqual(self.client.get("/stamp/manage/richmenu/").status_code, 200)
 
+    def test_friends_block_badge_and_filter(self):
+        act = LineMember.objects.create(line_user_id="U_act", name="アクティブさん",
+                                        blocked=False, block_checked_at=timezone.now())
+        blk = LineMember.objects.create(line_user_id="U_blk", name="ブロックさん",
+                                        blocked=True, block_checked_at=timezone.now())
+        # バッジが出る
+        resp = self.client.get("/stamp/manage/friends/")
+        self.assertContains(resp, "🟢アクティブ")
+        self.assertContains(resp, "🚫ブロック中")
+        # ブロック絞り込み：ブロック中のみ
+        resp = self.client.get("/stamp/manage/friends/?blk=blocked")
+        self.assertContains(resp, "ブロックさん")
+        self.assertNotContains(resp, "アクティブさん")
+        # アクティブのみ
+        resp = self.client.get("/stamp/manage/friends/?blk=active")
+        self.assertContains(resp, "アクティブさん")
+        self.assertNotContains(resp, "ブロックさん")
+
+    def test_friends_refresh_blocks_no_token(self):
+        LineMember.objects.create(line_user_id="U_x", name="Xさん")
+        with mock.patch("reservations.line_richmenu._token", return_value=""):
+            resp = self.client.post("/stamp/manage/friends/",
+                                    {"action": "refresh_blocks"}, follow=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "トークンが未設定")
+
+    def test_friends_refresh_blocks_updates(self):
+        m = LineMember.objects.create(line_user_id="U_real", name="実在さん")
+        with mock.patch("reservations.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_block.check_block_status",
+                        return_value="blocked"):
+            self.client.post("/stamp/manage/friends/",
+                             {"action": "refresh_blocks"}, follow=True)
+        m.refresh_from_db()
+        self.assertTrue(m.blocked)
+        self.assertIsNotNone(m.block_checked_at)
+
+
     def test_location_pop_opens(self):
         resp = self.client.get(f"/stamp/manage/locations/{self.loc.id}/pop/")
         self.assertEqual(resp.status_code, 200)
@@ -411,6 +450,52 @@ class StampManageViewTests(TestCase):
         # 不正なpatternは既定(qr)にフォールバック
         resp = self.client.get(base + "?pattern=xxx")
         self.assertContains(resp, "stand_v4.png")
+
+
+class LineBlockTests(TestCase):
+    """プロフィールAPIによるブロック判定（stamps.line_block）。"""
+
+    def _resp(self, status, text=""):
+        r = mock.Mock()
+        r.status_code = status
+        r.text = text
+        return r
+
+    def test_status_active_blocked_unknown(self):
+        from stamps import line_block
+        with mock.patch("reservations.line_richmenu._token", return_value="tok"):
+            with mock.patch("stamps.line_block.requests.get",
+                            return_value=self._resp(200)):
+                self.assertEqual(line_block.check_block_status("U1"), line_block.ACTIVE)
+            with mock.patch("stamps.line_block.requests.get",
+                            return_value=self._resp(404)):
+                self.assertEqual(line_block.check_block_status("U1"), line_block.BLOCKED)
+            with mock.patch("stamps.line_block.requests.get",
+                            return_value=self._resp(500)):
+                self.assertEqual(line_block.check_block_status("U1"), line_block.UNKNOWN)
+
+    def test_no_token_is_unknown(self):
+        from stamps import line_block
+        with mock.patch("reservations.line_richmenu._token", return_value=""):
+            self.assertEqual(line_block.check_block_status("U1"), line_block.UNKNOWN)
+
+    def test_refresh_skips_tmp_and_keeps_unknown(self):
+        from stamps import line_block
+        real = LineMember.objects.create(line_user_id="U_real2", name="実在", blocked=False)
+        tmp = LineMember.objects.create(line_user_id="devtmp-123", name="仮会員")
+        with mock.patch("reservations.line_richmenu._token", return_value="tok"), \
+             mock.patch("stamps.line_block.check_block_status",
+                        return_value=line_block.BLOCKED) as chk:
+            stats = line_block.refresh_block_status(LineMember.objects.all())
+        # 仮会員はスキップ＝照会は1件だけ
+        self.assertEqual(stats["checked"], 1)
+        self.assertEqual(stats["blocked"], 1)
+        real.refresh_from_db()
+        tmp.refresh_from_db()
+        self.assertTrue(real.blocked)
+        self.assertFalse(tmp.blocked)          # 仮会員は触られない
+        self.assertIsNone(tmp.block_checked_at)
+        chk.assert_called_once_with("U_real2")
 
 
 class StampCustomerViewTests(TestCase):

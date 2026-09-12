@@ -1307,6 +1307,9 @@ def _friend_rows(today, cfg=None):
             "manual_ids": {mt["id"] for mt in manual_tags.get(m.id, [])},
             "tags": _friend_tags(visits, last_visit, registered,
                                  m.id in redeemable_ids, today, cfg),
+            # ブロック状態（LineMemberに焼いた判定結果をそのまま持つ・追加クエリなし）。
+            "blocked": m.blocked,
+            "block_checked_at": m.block_checked_at,
         })
     return rows
 
@@ -1338,6 +1341,29 @@ def _friends_assign_tags(request):
     messages.success(request, f"{member.name} のタグを更新しました。")
 
 
+def _friends_refresh_blocks(request):
+    """全会員のブロック状態をLINEへ一括照会し、結果を各会員に焼く。
+
+    LINEには「ブロックした人の一覧」を返すAPIが無いので、会員ごとにプロフィールAPIを
+    叩いて判定する（stamps.line_block）。トークン未設定なら判定不能のまま何もしない。
+    """
+    from reservations import line_richmenu
+    from stamps import line_block
+
+    if not line_richmenu._token():
+        messages.error(request, "LINEのアクセストークンが未設定のため、ブロック状態を確認できませんでした。")
+        return
+    stats = line_block.refresh_block_status(LineMember.objects.all())
+    if not stats["checked"]:
+        messages.info(request, "確認できる友だちがいませんでした。")
+        return
+    parts = [f"{stats['checked']}人を確認しました",
+             f"アクティブ{stats['active']}／ブロック{stats['blocked']}"]
+    if stats["unknown"]:
+        parts.append(f"判定できず{stats['unknown']}（次回再確認）")
+    messages.success(request, "ブロック状態を更新しました：" + "／".join(parts) + "。")
+
+
 def _friends_redirect(request):
     """タグ更新後、元の並び替え・絞り込み状態を保ったまま友だち一覧へ戻す。"""
     params = {k: request.POST.get(k, "") for k in ("sort", "tag", "loc")}
@@ -1355,7 +1381,10 @@ def friends(request):
     手動タグの付け外しは各行から（POST）。しきい値・タグ定義は「タグ設定」画面で編集する。
     """
     if request.method == "POST":
-        _friends_assign_tags(request)
+        if request.POST.get("action") == "refresh_blocks":
+            _friends_refresh_blocks(request)
+        else:
+            _friends_assign_tags(request)
         return _friends_redirect(request)
 
     today = timezone.localdate()
@@ -1374,12 +1403,32 @@ def friends(request):
                 if tag_filter in r["tags"]
                 or tag_filter in {mt["name"] for mt in r["manual_tags"]}]
 
+    # ブロック状態で絞り込み（active=届く／blocked=ブロック中）。
+    blk_filter = request.GET.get("blk") or ""
+    if blk_filter == "active":
+        rows = [r for r in rows if not r["blocked"]]
+    elif blk_filter == "blocked":
+        rows = [r for r in rows if r["blocked"]]
+
     sort = request.GET.get("sort", "recent")
     keyfn = _FRIEND_SORTS.get(sort, _FRIEND_SORTS["recent"])
     rows.sort(key=keyfn, reverse=True)
 
     if request.GET.get("export") == "csv":
         return _friends_csv(rows)
+
+    # ブロック状態のサマリ（絞り込みに左右されない全会員ベース）。
+    blk_agg = LineMember.objects.aggregate(
+        total=Count("id"),
+        blocked=Count("id", filter=Q(blocked=True)),
+        checked=Count("id", filter=Q(block_checked_at__isnull=False)),
+        last_checked=Max("block_checked_at"))
+    blk_summary = {
+        "blocked": blk_agg["blocked"] or 0,
+        "active": (blk_agg["checked"] or 0) - (blk_agg["blocked"] or 0),
+        "unchecked": (blk_agg["total"] or 0) - (blk_agg["checked"] or 0),
+        "last_checked": blk_agg["last_checked"],
+    }
 
     return render(request, "stamps/manage/friends.html", {
         "nav": "friends",
@@ -1388,6 +1437,8 @@ def friends(request):
         "sort": sort,
         "tag": tag_filter,
         "f_loc": loc_id,
+        "blk": blk_filter,
+        "blk_summary": blk_summary,
         "locations": SalesLocation.objects.order_by("no", "name"),
         "all_tags": ["新規", "リピーター", "常連", "ヘビー", "離反ぎみ", "特典保有"],
         "manual_tag_defs": list(MemberTag.objects.filter(active=True)),
@@ -1399,14 +1450,20 @@ def _friends_csv(rows):
     resp["Content-Disposition"] = 'attachment; filename="stamp_friends.csv"'
     w = csv.writer(resp)
     w.writerow(["名前", "LINEユーザーID", "登録日", "来店回数", "現在pt",
-                "獲得特典", "使用特典", "最終来店", "よく行く店舗", "自動タグ", "手動タグ"])
+                "獲得特典", "使用特典", "最終来店", "よく行く店舗", "自動タグ", "手動タグ",
+                "ブロック状態", "ブロック確認日時"])
     for r in rows:
+        if r["block_checked_at"]:
+            block_label = "ブロック中" if r["blocked"] else "アクティブ"
+        else:
+            block_label = "未確認"
         w.writerow([
             r["m"].name, r["m"].line_user_id,
             r["registered"] or "", r["visits"], r["pt"],
             r["earned"], r["used"], r["last_visit"] or "",
             r["fav_store"], "/".join(r["tags"]),
             "/".join(mt["name"] for mt in r["manual_tags"]),
+            block_label, r["block_checked_at"] or "",
         ])
     return resp
 

@@ -35,6 +35,18 @@ class LineMember(models.Model):
         max_length=100, verbose_name="お名前",
         help_text="受取時の呼び出し用。初回登録。",
     )
+    # ブロック状態：LINEのプロフィールAPI照会で判定した結果を保持する。
+    # LINEには「ブロックした人の一覧」を返すAPIが無いため、各会員のuserIdへ
+    # GET /v2/bot/profile/{userId} を叩き、404/403（=ブロック中/退会）かで判定する。
+    # 都度APIを叩くのは重いので、友だち管理画面の「更新」で一括照会して結果をここに焼く。
+    blocked = models.BooleanField(
+        default=False, db_index=True, verbose_name="ブロック中",
+        help_text="LINEでこの公式アカウントをブロック中（プロフィールAPIで判定）。",
+    )
+    block_checked_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="ブロック状態の最終確認",
+        help_text="ブロック状態を最後にLINEへ照会した日時。未照会ならNone。",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

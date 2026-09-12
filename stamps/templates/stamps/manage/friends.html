@@ -33,8 +33,35 @@
       {% for l in locations %}<option value="{{ l.id }}" {% if f_loc == l.id|stringformat:'s' %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
     </select>
   </div>
-  <a class="btn ghost" href="?sort={{ sort }}&tag={{ tag }}&loc={{ f_loc }}&export=csv">CSVダウンロード</a>
+  <div class="fld"><label>ブロック状態</label>
+    <select name="blk" onchange="this.form.submit()">
+      <option value="" {% if not blk %}selected{% endif %}>すべて</option>
+      <option value="active" {% if blk == 'active' %}selected{% endif %}>アクティブのみ</option>
+      <option value="blocked" {% if blk == 'blocked' %}selected{% endif %}>ブロック中のみ</option>
+    </select>
+  </div>
+  <a class="btn ghost" href="?sort={{ sort }}&tag={{ tag }}&loc={{ f_loc }}&blk={{ blk }}&export=csv">CSVダウンロード</a>
 </form>
+
+<div class="card blkbar">
+  <div class="blkstats">
+    <span class="badge on">🟢 アクティブ {{ blk_summary.active }}</span>
+    <span class="badge off">🚫 ブロック中 {{ blk_summary.blocked }}</span>
+    {% if blk_summary.unchecked %}<span class="badge">❔ 未確認 {{ blk_summary.unchecked }}</span>{% endif %}
+    <span class="muted">
+      {% if blk_summary.last_checked %}最終確認：{{ blk_summary.last_checked|date:'n/j H:i' }}{% else %}まだ確認していません{% endif %}
+    </span>
+  </div>
+  <form method="post" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='確認中…';">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="refresh_blocks">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="tag" value="{{ tag }}">
+    <input type="hidden" name="loc" value="{{ f_loc }}">
+    <button class="btn" type="submit">ブロック状態を更新</button>
+  </form>
+</div>
+<p class="muted" style="margin:-4px 0 12px;">LINEには「ブロックした人の一覧」を返す仕組みが無いため、更新ボタンで各友だちの状態をLINEに問い合わせて判定します（人数が多いと少し時間がかかります）。</p>
 
 <div class="card">
   <h2>友だち一覧（{{ total|intcomma }}人）</h2>
@@ -49,7 +76,14 @@
     <tbody>
       {% for r in rows %}
       <tr>
-        <td>{{ r.m.name }}<div class="mono">{{ r.m.line_user_id|slice:':10' }}…</div></td>
+        <td>
+          {{ r.m.name }}
+          {% if r.block_checked_at %}
+            {% if r.blocked %}<span class="badge off" title="{{ r.block_checked_at|date:'n/j H:i' }}に確認">🚫ブロック中</span>
+            {% else %}<span class="badge on" title="{{ r.block_checked_at|date:'n/j H:i' }}に確認">🟢アクティブ</span>{% endif %}
+          {% else %}<span class="badge" title="ブロック状態を更新ボタンで確認できます">❔未確認</span>{% endif %}
+          <div class="mono">{{ r.m.line_user_id|slice:':10' }}…</div>
+        </td>
         <td class="tagcell wrapok">
           {% for t in r.tags %}<span class="badge {% if t == '離反ぎみ' %}off{% else %}on{% endif %}" style="margin:1px;">{{ t }}</span>{% endfor %}
           {% for mt in r.manual_tags %}<span class="badge manual c-{{ mt.color }}" style="margin:1px;">{{ mt.name }}</span>{% endfor %}
@@ -97,6 +131,9 @@
 </div>
 
 <style>
+  .blkbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;}
+  .blkstats{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .blkbar form{margin:0;}
   details.usehist > summary{cursor:pointer;list-style:none;white-space:nowrap;}
   details.usehist > summary::-webkit-details-marker{display:none;}
   details.usehist .hint{font-size:11px;color:var(--ln-color-text-muted);}
