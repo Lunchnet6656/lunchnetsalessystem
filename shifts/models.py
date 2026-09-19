@@ -50,6 +50,30 @@ class UserProfile(models.Model):
             ),
         ]
 
+    @property
+    def line_active(self):
+        """LINE通知が実際に届く状態か（連携済み かつ 通知ON）。"""
+        return bool(self.line_user_id) and self.notify_via_line
+
+    @property
+    def email_active(self):
+        """メール通知が実際に届く状態か（通知ON かつ 宛先あり）。"""
+        return self.notify_via_email and bool(self.notification_email)
+
+    @property
+    def has_notification(self):
+        """LINE・メールのどちらか一方でも通知が届く状態か。"""
+        return self.line_active or self.email_active
+
+    @property
+    def fixed_weekdays_display(self):
+        """固定出勤曜日を「月・火」の曜日名で返す（未設定なら空文字）。"""
+        names = ['月', '火', '水', '木', '金', '土', '日']
+        return '・'.join(
+            names[int(x)] for x in self.fixed_weekdays.split(',')
+            if x.strip().isdigit() and 0 <= int(x) <= 6
+        )
+
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} プロフィール"
 

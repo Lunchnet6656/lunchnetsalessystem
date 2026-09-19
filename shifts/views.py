@@ -1014,9 +1014,8 @@ def admin_edit_profile(request, user_id):
         profile.can_drive = request.POST.get('can_drive') == 'on'
         profile.work_pattern = request.POST.get('work_pattern', 'FULL')
         profile.uses_app = request.POST.get('uses_app') == 'on'
-        profile.min_shifts_per_week = int(request.POST.get('min_shifts_per_week', 0))
-        profile.max_shifts_per_week = int(request.POST.get('max_shifts_per_week', 5))
-        profile.fixed_weekdays = request.POST.get('fixed_weekdays', '')
+        # 固定出勤曜日: チェックされた曜日(0=月..6=日)をカンマ区切りで保存
+        profile.fixed_weekdays = ','.join(request.POST.getlist('fixed_weekdays'))
         default_loc = request.POST.get('default_location')
         profile.default_location_id = int(default_loc) if default_loc else None
         profile.save()
@@ -1024,11 +1023,15 @@ def admin_edit_profile(request, user_id):
         return redirect('shifts:admin_user_profiles')
 
     locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by('no')
+    fixed_weekday_list = [int(x) for x in profile.fixed_weekdays.split(',') if x.strip().isdigit()]
+    weekday_choices = [(0, '月'), (1, '火'), (2, '水'), (3, '木'), (4, '金'), (5, '土'), (6, '日')]
     context = {
         'target_user': target_user,
         'profile': profile,
         'work_pattern_choices': UserProfile.WORK_PATTERN_CHOICES,
         'locations': locations,
+        'weekday_choices': weekday_choices,
+        'fixed_weekday_list': fixed_weekday_list,
     }
     return render(request, 'shifts/admin_edit_profile.html', context)
 

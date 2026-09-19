@@ -31,6 +31,12 @@
                     <option value="{{ value }}" {% if profile.work_pattern == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
+            <p class="mt-1 text-xs text-gray-500">シフト希望フォームの「最初の状態」が変わります（雇用形態ではありません）。</p>
+            <ul class="mt-1 text-xs text-gray-500 space-y-0.5 pl-4 list-disc">
+                <li><span class="font-medium">フルタイム</span>：毎日「出勤」でスタート。休む日だけ指定</li>
+                <li><span class="font-medium">パートタイム</span>：下の固定出勤曜日だけ「出勤」でスタート</li>
+                <li><span class="font-medium">助っ人</span>：毎日「休み」でスタート。出られる日だけ指定</li>
+            </ul>
         </div>
 
         <!-- アプリ利用 -->
@@ -41,29 +47,20 @@
             <label for="uses_app" class="ml-2 text-sm font-medium text-gray-700">アプリ利用</label>
         </div>
 
-        <!-- 最低出勤日数/週 -->
-        <div>
-            <label for="min_shifts_per_week" class="block text-sm font-medium text-gray-700 mb-1">最低出勤日数/週</label>
-            <input type="number" id="min_shifts_per_week" name="min_shifts_per_week"
-                   value="{{ profile.min_shifts_per_week }}" min="0" max="7"
-                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
-        </div>
-
-        <!-- 最大出勤日数/週 -->
-        <div>
-            <label for="max_shifts_per_week" class="block text-sm font-medium text-gray-700 mb-1">最大出勤日数/週</label>
-            <input type="number" id="max_shifts_per_week" name="max_shifts_per_week"
-                   value="{{ profile.max_shifts_per_week }}" min="0" max="7"
-                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
-        </div>
-
         <!-- 固定出勤曜日 -->
         <div>
-            <label for="fixed_weekdays" class="block text-sm font-medium text-gray-700 mb-1">固定出勤曜日</label>
-            <input type="text" id="fixed_weekdays" name="fixed_weekdays"
-                   value="{{ profile.fixed_weekdays }}" placeholder="0,1,2 (0=月,1=火,...,6=日)"
-                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
-            <p class="mt-1 text-xs text-gray-500">カンマ区切り: 0=月, 1=火, 2=水, 3=木, 4=金, 5=土, 6=日</p>
+            <label class="block text-sm font-medium text-gray-700 mb-1">固定出勤曜日</label>
+            <div class="flex flex-wrap gap-2">
+                {% for value, label in weekday_choices %}
+                    <label class="inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded border border-gray-200 cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" name="fixed_weekdays" value="{{ value }}"
+                               class="h-4 w-4 text-blue-600 rounded border-gray-300"
+                               {% if value in fixed_weekday_list %}checked{% endif %}>
+                        <span class="text-sm">{{ label }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <p class="mt-1 text-xs text-gray-500">パートタイムの人が固定で出勤する曜日。タップで選択します。</p>
         </div>
 
         <!-- デフォルト売り場 -->
