@@ -4,9 +4,12 @@
 
 {% block extra_css %}
 <style>
-    /* 新規作成フォームの折りたたみ表示（Tailwindのgroup-openに依存しない） */
+    /* 新規作成フォームの折りたたみ表示（ビルド済みTailwindに無いクラスに依存しない） */
+    details.period-create { overflow: hidden; }           /* 角丸から枠がはみ出さないようクリップ */
     details.period-create > summary { list-style: none; }
     details.period-create > summary::-webkit-details-marker { display: none; }
+    details.period-create .form-body { padding: 20px 16px; border-top: 1px solid #f3f4f6; }
+    details.period-create .form-actions { margin-top: 16px; }
     details.period-create .when-open { display: none; }
     details.period-create[open] .when-open { display: inline; }
     details.period-create[open] .when-closed { display: none; }
@@ -23,7 +26,7 @@
         <span class="text-sm text-gray-400 when-closed">タップで開く</span>
         <span class="text-sm text-gray-400 when-open">閉じる</span>
     </summary>
-    <form method="post" class="px-4 pb-4 border-t border-gray-100 pt-4">
+    <form method="post" class="form-body">
         {% csrf_token %}
         <input type="hidden" name="action" value="create">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -44,7 +47,7 @@
                 <input type="datetime-local" name="submission_close_at" required class="border rounded px-3 py-2 text-sm w-full">
             </div>
         </div>
-        <div class="mt-3">
+        <div class="form-actions">
             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">作成</button>
         </div>
     </form>
