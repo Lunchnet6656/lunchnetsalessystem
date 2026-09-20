@@ -14,10 +14,13 @@
     details.period-create .form-body div { min-width: 0; }
     details.period-create input[type="date"],
     details.period-create input[type="datetime-local"] {
+        -webkit-appearance: none;   /* iOSがネイティブ幅を優先してwidthを無視するのを解除 */
+        appearance: none;
         box-sizing: border-box;
         width: 100%;
         max-width: 100%;
         min-width: 0;
+        min-height: 38px;           /* appearance解除で高さが潰れないよう最低高さを確保 */
     }
     details.period-create .when-open { display: none; }
     details.period-create[open] .when-open { display: inline; }
