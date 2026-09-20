@@ -1,14 +1,18 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from io import StringIO
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
+from sales.models import SalesLocation
 from shifts.models import (
+    AvailabilityDay,
     AvailabilitySubmission,
     SchedulePeriod,
+    ShiftAssignment,
     ShiftNotification,
     UserProfile,
 )
@@ -98,3 +102,69 @@ class SendShiftRemindersCommandTest(TestCase):
         self.assertTrue(
             ShiftNotification.objects.filter(period=period, notification_type='REMINDER').exists()
         )
+
+
+class AutofillPriorityTest(TestCase):
+    """同じ売り場を複数人が希望したとき、割当優先度の小さい人が自動割当で勝つことを検証する。"""
+
+    def setUp(self):
+        self.date = date(2026, 10, 5)  # 月曜・非祝日
+
+        self.location = SalesLocation.objects.create(
+            no=1, name="テスト売り場", type="通常", price_type="通常",
+            service_name="弁当", requires_drive=False, excluded_from_shift=False,
+        )
+
+        # 優先度の高い人（数字が小さい）／低い人（数字が大きい）
+        self.high = User.objects.create_user(username="high", password="x")
+        UserProfile.objects.filter(user=self.high).update(
+            default_location=self.location, assignment_priority=10,
+        )
+        self.low = User.objects.create_user(username="low", password="x")
+        UserProfile.objects.filter(user=self.low).update(
+            default_location=self.location, assignment_priority=200,
+        )
+
+        self.period = SchedulePeriod.objects.create(
+            start_date=self.date, end_date=self.date,
+            submission_open_at=timezone.now(),
+            submission_close_at=timezone.now(),
+            status="REVIEW",
+        )
+
+        # 両者ともこの日「出勤」希望を提出
+        for u in (self.high, self.low):
+            sub = AvailabilitySubmission.objects.create(
+                user=u, period=self.period, status="SUBMITTED",
+            )
+            AvailabilityDay.objects.create(
+                submission=sub, date=self.date, availability="WORK",
+            )
+
+        self.staff = User.objects.create_user(
+            username="staff", password="x", is_staff=True,
+        )
+
+    def _run_autofill(self):
+        self.client.force_login(self.staff)
+        resp = self.client.post(reverse("shifts:api_autofill", args=[self.period.id]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_優先度の小さい人が勝つ(self):
+        self._run_autofill()
+        assignments = ShiftAssignment.objects.filter(
+            date=self.date, sales_location=self.location,
+        )
+        self.assertEqual(assignments.count(), 1)  # 1売り場1人
+        self.assertEqual(assignments.first().user_id, self.high.id)
+
+    def test_登録順に依存せず優先度で決まる(self):
+        # low を優先度1にすると、登録順が後でも low が勝つ
+        UserProfile.objects.filter(user=self.low).update(assignment_priority=1)
+        UserProfile.objects.filter(user=self.high).update(assignment_priority=50)
+        self._run_autofill()
+        assignments = ShiftAssignment.objects.filter(
+            date=self.date, sales_location=self.location,
+        )
+        self.assertEqual(assignments.count(), 1)
+        self.assertEqual(assignments.first().user_id, self.low.id)

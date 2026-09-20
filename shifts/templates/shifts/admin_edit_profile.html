@@ -75,6 +75,15 @@
             </select>
             <p class="mt-1 text-xs text-gray-500">自動割当で使用されるデフォルトの売り場</p>
         </div>
+
+        <!-- 割当優先度 -->
+        <div>
+            <label for="assignment_priority" class="block text-sm font-medium text-gray-700 mb-1">割当優先度</label>
+            <input type="number" id="assignment_priority" name="assignment_priority" min="1" step="1"
+                   value="{{ profile.assignment_priority }}"
+                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+            <p class="mt-1 text-xs text-gray-500">数字が小さいほど優先（初期値100）。同じ売り場を複数人が希望したとき、数字の小さい人が自動割当で優先されます。</p>
+        </div>
     </div>
 
     <div class="mt-6 flex items-center gap-3">

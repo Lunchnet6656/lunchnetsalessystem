@@ -1018,6 +1018,10 @@ def admin_edit_profile(request, user_id):
         profile.fixed_weekdays = ','.join(request.POST.getlist('fixed_weekdays'))
         default_loc = request.POST.get('default_location')
         profile.default_location_id = int(default_loc) if default_loc else None
+        try:
+            profile.assignment_priority = int(request.POST.get('assignment_priority') or 100)
+        except (ValueError, TypeError):
+            profile.assignment_priority = 100
         profile.save()
         messages.success(request, f'{target_user.get_full_name() or target_user.username} のプロフィールを更新しました。')
         return redirect('shifts:admin_user_profiles')
@@ -1668,9 +1672,11 @@ def api_autofill(request, period_id):
         available_by_date.setdefault(d, set()).add(uid)
 
     # デフォルト売り場が設定されたユーザー
+    # 割当優先度が小さい人から処理する（同じ売り場が競合したとき優先度の高い人が取る）。
+    # 同点は user_id 順で安定させる。
     profiles_with_default = UserProfile.objects.filter(
         default_location__isnull=False,
-    ).select_related('user', 'default_location')
+    ).select_related('user', 'default_location').order_by('assignment_priority', 'user_id')
 
     # デフォルト売り場が設定された外部スタッフ
     ext_with_default = ExternalStaff.objects.filter(

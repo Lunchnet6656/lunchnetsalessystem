@@ -32,6 +32,11 @@ class UserProfile(models.Model):
         null=True, blank=True, related_name='default_users',
         verbose_name="デフォルト売り場",
     )
+    assignment_priority = models.PositiveIntegerField(
+        default=100,
+        verbose_name="割当優先度",
+        help_text="数字が小さいほど優先。同じ売り場を複数人が希望したとき、小さい人が優先的に配置される。",
+    )
     line_user_id = models.CharField(max_length=50, blank=True, default='', verbose_name='LINE User ID')
     notify_via_line = models.BooleanField(default=False, verbose_name='LINE通知')
     notify_via_email = models.BooleanField(default=True, verbose_name='メール通知')

@@ -17,7 +17,7 @@
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <div class="flex items-center space-x-4">
                 <a href="{% url 'dashboard' %}" class="text-sm text-gray-300 hover:text-white">
-                    &larr; ダッシュボードへ戻る
+                    &larr; LSSトップへ
                 </a>
                 <span class="text-lg font-bold">シフト管理</span>
             </div>
@@ -37,8 +37,7 @@
                 <a href="{% url 'shifts:user_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_user_settings %}{% endblock %}">通知設定</a>
                 {% if user.is_staff %}
                     <span class="text-gray-500">|</span>
-                    <a href="{% url 'shifts:admin_dashboard' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_dashboard %}{% endblock %}">管理ダッシュボード</a>
-                    <a href="{% url 'shifts:admin_periods' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_periods %}{% endblock %}">募集期間</a>
+                    <a href="{% url 'shifts:admin_periods' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_periods %}{% endblock %}">シフト期間</a>
                     <a href="{% url 'shifts:admin_company_holidays' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_holidays %}{% endblock %}">会社カレンダー</a>
                     <a href="{% url 'shifts:admin_user_profiles' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_profiles %}{% endblock %}">スタッフ設定</a>
                     <a href="{% url 'shifts:admin_shift_settings' %}" class="px-3 py-1 rounded hover:bg-gray-600 {% block nav_settings %}{% endblock %}">しきい値設定</a>
