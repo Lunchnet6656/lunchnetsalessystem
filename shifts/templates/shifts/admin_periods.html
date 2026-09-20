@@ -2,13 +2,28 @@
 {% block title %}シフト期間{% endblock %}
 {% block nav_periods %}bg-gray-600{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* 新規作成フォームの折りたたみ表示（Tailwindのgroup-openに依存しない） */
+    details.period-create > summary { list-style: none; }
+    details.period-create > summary::-webkit-details-marker { display: none; }
+    details.period-create .when-open { display: none; }
+    details.period-create[open] .when-open { display: inline; }
+    details.period-create[open] .when-closed { display: none; }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">シフト期間</h1>
 
-<!-- 新規作成フォーム -->
-<div class="bg-white rounded shadow p-4 mb-6">
-    <h2 class="text-lg font-semibold mb-3">新規期間を作成</h2>
-    <form method="post">
+<!-- 新規作成フォーム（初期は折りたたみ） -->
+<details class="period-create bg-white rounded shadow mb-6">
+    <summary class="cursor-pointer select-none flex items-center justify-between px-4 py-3 text-lg font-semibold">
+        <span>＋ 新規期間を作成</span>
+        <span class="text-sm text-gray-400 when-closed">タップで開く</span>
+        <span class="text-sm text-gray-400 when-open">閉じる</span>
+    </summary>
+    <form method="post" class="px-4 pb-4 border-t border-gray-100 pt-4">
         {% csrf_token %}
         <input type="hidden" name="action" value="create">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -33,7 +48,7 @@
             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">作成</button>
         </div>
     </form>
-</div>
+</details>
 
 <!-- 一覧（モバイル：カード型） -->
 <div class="md:hidden space-y-4">
