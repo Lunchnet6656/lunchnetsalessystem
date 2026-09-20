@@ -68,6 +68,11 @@ urlpatterns = [
     # Settings
     path('settings/', views.order_settings, name='order_settings'),
 
+    # Menu Week Assignments（納品日→メニュー週の割当）
+    path('menu-week-assignments/create/', views.menu_week_assignment_create, name='menu_week_assignment_create'),
+    path('menu-week-assignments/<int:pk>/edit/', views.menu_week_assignment_edit, name='menu_week_assignment_edit'),
+    path('menu-week-assignments/<int:pk>/delete/', views.menu_week_assignment_delete, name='menu_week_assignment_delete'),
+
     # Bank Accounts（振込先口座）
     path('bank-accounts/create/', views.bank_account_create, name='bank_account_create'),
     path('bank-accounts/<int:pk>/edit/', views.bank_account_edit, name='bank_account_edit'),

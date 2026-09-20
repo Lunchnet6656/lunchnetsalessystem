@@ -13,9 +13,9 @@ import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from decimal import Decimal, InvalidOperation
-from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion, OrderAdjustment, OrderAdjustmentLine, Invoice, InvoiceLine, BankAccount
+from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct, OrderExtraItem, DeliveryBin, OrderUserMenuPermission, DeliveryCompletion, OrderAdjustment, OrderAdjustmentLine, Invoice, InvoiceLine, BankAccount, MenuWeekAssignment
 from django.contrib.auth import get_user_model
-from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm, BankAccountForm
+from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm, BankAccountForm, MenuWeekAssignmentForm
 from . import services
 from sales.models import Product
 from datetime import datetime, timedelta, date
@@ -30,10 +30,33 @@ def _get_extra_products_json():
     ], ensure_ascii=False)
 
 
+def _resolve_menu_week(target):
+    """納品日に対する明示のメニュー週割当があれば返す。無ければ None。
+
+    有効かつ納品日を含む割当のうち、期間が最も狭い（＝より具体的な）ものを優先する。
+    """
+    assignment = (
+        MenuWeekAssignment.objects
+        .filter(is_active=True, start_date__lte=target, end_date__gte=target)
+        .annotate(span=F('end_date') - F('start_date'))
+        .order_by('span', '-start_date')
+        .first()
+    )
+    return assignment.week if assignment else None
+
+
 def _get_products_data_for_date(target):
-    """指定した納品日に該当する週のメニューを返す。api_productsと同一ロジック。"""
-    candidates = [(target - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
-    products = Product.objects.filter(week__in=candidates).order_by('no')
+    """指定した納品日に該当する週のメニューを返す。api_productsと同一ロジック。
+
+    明示のメニュー週割当（MenuWeekAssignment）があればそれを最優先。
+    無ければ従来どおり「納品日から7日遡って一致する週」を拾う。
+    """
+    override_week = _resolve_menu_week(target)
+    if override_week:
+        products = Product.objects.filter(week=override_week).order_by('no')
+    else:
+        candidates = [(target - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
+        products = Product.objects.filter(week__in=candidates).order_by('no')
     return [
         {
             'id': p.id,
@@ -1470,6 +1493,7 @@ def order_settings(request):
     extra_products = ExtraProduct.objects.all()
     delivery_bins = DeliveryBin.objects.all()
     bank_accounts = BankAccount.objects.all()
+    menu_week_assignments = MenuWeekAssignment.objects.all()
 
     orders_users = User.objects.filter(
         menu_permission__can_view_orders=True,
@@ -1522,6 +1546,7 @@ def order_settings(request):
         'extra_products': extra_products,
         'delivery_bins': delivery_bins,
         'bank_accounts': bank_accounts,
+        'menu_week_assignments': menu_week_assignments,
         'user_perms': user_perms,
     }
     return render(request, 'orders/order_settings.html', context)
@@ -1656,6 +1681,47 @@ def delivery_bin_delete(request, pk):
         messages.success(request, f'配達便「{delivery_bin.name}」を無効にしました。')
         return redirect('orders:order_settings')
     return render(request, 'orders/delivery_bin_confirm_delete.html', {'delivery_bin': delivery_bin})
+
+
+# --- MenuWeekAssignment views（納品日→メニュー週の割当） ---
+
+@login_required
+def menu_week_assignment_create(request):
+    if request.method == 'POST':
+        form = MenuWeekAssignmentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'メニュー週の割当を登録しました。')
+            return redirect('orders:order_settings')
+    else:
+        form = MenuWeekAssignmentForm()
+    return render(request, 'orders/menu_week_assignment_form.html', {'form': form, 'is_edit': False})
+
+
+@login_required
+def menu_week_assignment_edit(request, pk):
+    assignment = get_object_or_404(MenuWeekAssignment, pk=pk)
+    if request.method == 'POST':
+        form = MenuWeekAssignmentForm(request.POST, instance=assignment)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'メニュー週の割当を更新しました。')
+            return redirect('orders:order_settings')
+    else:
+        form = MenuWeekAssignmentForm(instance=assignment)
+    return render(request, 'orders/menu_week_assignment_form.html', {
+        'form': form, 'assignment': assignment, 'is_edit': True
+    })
+
+
+@login_required
+def menu_week_assignment_delete(request, pk):
+    assignment = get_object_or_404(MenuWeekAssignment, pk=pk)
+    if request.method == 'POST':
+        assignment.delete()
+        messages.success(request, 'メニュー週の割当を削除しました。')
+        return redirect('orders:order_settings')
+    return render(request, 'orders/menu_week_assignment_confirm_delete.html', {'assignment': assignment})
 
 
 # --- Delivery List views ---

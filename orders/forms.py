@@ -1,7 +1,11 @@
+import datetime
+
 from django import forms
+
+from sales.models import Product
 from .models import (
     Customer, Order, OrderItem, OrderSettings, PaymentMethod, ExtraProduct,
-    OrderExtraItem, DeliveryBin, OrderAdjustment, BankAccount,
+    OrderExtraItem, DeliveryBin, OrderAdjustment, BankAccount, MenuWeekAssignment,
 )
 
 
@@ -12,6 +16,72 @@ class BankAccountForm(forms.ModelForm):
         widgets = {
             'info': forms.Textarea(attrs={'rows': 3}),
         }
+
+
+class MenuWeekAssignmentForm(forms.ModelForm):
+    """納品日→メニュー週の割当。週は登録済み Product.week から選ばせる。"""
+
+    class Meta:
+        model = MenuWeekAssignment
+        fields = ['start_date', 'end_date', 'week', 'note', 'is_active']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 週の選択肢は登録済みメニューの週（新しい順）。曜日付きで表示。
+        weeks = (
+            Product.objects.order_by('-week')
+            .values_list('week', flat=True)
+            .distinct()
+        )
+        choices = []
+        for w in weeks:
+            try:
+                d = datetime.datetime.strptime(w, '%Y-%m-%d').date()
+                wd = ['月', '火', '水', '木', '金', '土', '日'][d.weekday()]
+                label = f"{w}（{wd}）"
+            except (ValueError, TypeError):
+                label = w
+            choices.append((w, label))
+        # 既存の値が候補に無い場合でも失われないよう先頭に足す
+        current = self.initial.get('week') or getattr(self.instance, 'week', '')
+        if current and current not in [c[0] for c in choices]:
+            choices.insert(0, (current, current))
+        self.fields['week'] = forms.ChoiceField(
+            choices=choices,
+            label='適用するメニュー週',
+            widget=forms.Select,
+        )
+        if not choices:
+            self.fields['week'].help_text = 'メニュー（商品）が未登録です。先に週メニューをアップロードしてください。'
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get('start_date')
+        end = cleaned.get('end_date')
+        if start and end and end < start:
+            self.add_error('end_date', '終了日は開始日以降にしてください。')
+            return cleaned
+
+        # 有効な割当どうしの期間重複を禁止（解決を一意にするため）
+        if start and end and cleaned.get('is_active'):
+            overlap = MenuWeekAssignment.objects.filter(
+                is_active=True,
+                start_date__lte=end,
+                end_date__gte=start,
+            )
+            if self.instance and self.instance.pk:
+                overlap = overlap.exclude(pk=self.instance.pk)
+            if overlap.exists():
+                other = overlap.first()
+                self.add_error(
+                    'start_date',
+                    f'期間が既存の割当（{other.start_date}〜{other.end_date}）と重複しています。',
+                )
+        return cleaned
 
 
 class OrderSettingsForm(forms.ModelForm):

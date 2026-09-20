@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.contrib.messages.storage.fallback import FallbackStorage
 from decimal import Decimal
 from sales.models import CustomUser
-from .models import Customer, Order, OrderExtraItem
+from .models import Customer, Order, OrderExtraItem, MenuWeekAssignment
 from .views import order_edit
 
 
@@ -887,3 +887,103 @@ class InvoiceTest(TestCase):
                          {'order_pks': [o1.pk, o2.pk]})
         # 顧客混在はエラーでリダイレクト（発行されない）
         self.assertEqual(Invoice.objects.count(), 0)
+
+
+class MenuWeekAssignmentResolveTest(TestCase):
+    """納品日→メニュー週の解決（割当オーバーライド＋自動フォールバック）。"""
+
+    def setUp(self):
+        from sales.models import Product
+        # 07-01週（自動マッチで拾われる想定）と 06-24週（割当で当てる想定）
+        Product.objects.create(no=1, week='2026-07-01', name='今週の弁当',
+                               price_A=500, price_B=450, price_C=400)
+        Product.objects.create(no=1, week='2026-06-24', name='先週の弁当',
+                               price_A=500, price_B=450, price_C=400)
+
+    def test_falls_back_to_lookback_without_assignment(self):
+        from datetime import date
+        from .views import _get_products_data_for_date
+        data = _get_products_data_for_date(date(2026, 7, 2))
+        names = [d['name'] for d in data]
+        self.assertEqual(names, ['今週の弁当'])
+
+    def test_assignment_overrides_lookback(self):
+        from datetime import date
+        from .views import _get_products_data_for_date
+        MenuWeekAssignment.objects.create(
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 7),
+            week='2026-06-24', is_active=True,
+        )
+        data = _get_products_data_for_date(date(2026, 7, 2))
+        names = [d['name'] for d in data]
+        self.assertEqual(names, ['先週の弁当'])
+
+    def test_inactive_assignment_ignored(self):
+        from datetime import date
+        from .views import _get_products_data_for_date
+        MenuWeekAssignment.objects.create(
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 7),
+            week='2026-06-24', is_active=False,
+        )
+        data = _get_products_data_for_date(date(2026, 7, 2))
+        names = [d['name'] for d in data]
+        self.assertEqual(names, ['今週の弁当'])
+
+    def test_assignment_outside_range_not_applied(self):
+        from datetime import date
+        from .views import _get_products_data_for_date
+        MenuWeekAssignment.objects.create(
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 7),
+            week='2026-06-24', is_active=True,
+        )
+        # 範囲外（07-10）は自動フォールバック。07-10の7日遡りに07-01が入る
+        data = _get_products_data_for_date(date(2026, 7, 5))  # 範囲内→override
+        self.assertEqual([d['name'] for d in data], ['先週の弁当'])
+        data2 = _get_products_data_for_date(date(2026, 7, 2))
+        self.assertEqual([d['name'] for d in data2], ['先週の弁当'])
+
+
+class MenuWeekAssignmentFormTest(TestCase):
+    def setUp(self):
+        from sales.models import Product
+        Product.objects.create(no=1, week='2026-07-01', name='弁当',
+                               price_A=500, price_B=450, price_C=400)
+
+    def _data(self, **over):
+        d = {
+            'start_date': '2026-07-01', 'end_date': '2026-07-07',
+            'week': '2026-07-01', 'note': '', 'is_active': 'on',
+        }
+        d.update(over)
+        return d
+
+    def test_valid(self):
+        from .forms import MenuWeekAssignmentForm
+        self.assertTrue(MenuWeekAssignmentForm(self._data()).is_valid())
+
+    def test_end_before_start_rejected(self):
+        from .forms import MenuWeekAssignmentForm
+        f = MenuWeekAssignmentForm(self._data(end_date='2026-06-30'))
+        self.assertFalse(f.is_valid())
+        self.assertIn('end_date', f.errors)
+
+    def test_overlap_rejected(self):
+        from datetime import date
+        from .forms import MenuWeekAssignmentForm
+        MenuWeekAssignment.objects.create(
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 7),
+            week='2026-07-01', is_active=True,
+        )
+        f = MenuWeekAssignmentForm(self._data(start_date='2026-07-05', end_date='2026-07-10'))
+        self.assertFalse(f.is_valid())
+
+    def test_inactive_overlap_allowed(self):
+        from datetime import date
+        from .forms import MenuWeekAssignmentForm
+        MenuWeekAssignment.objects.create(
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 7),
+            week='2026-07-01', is_active=True,
+        )
+        # 新規側が無効なら重複してよい
+        f = MenuWeekAssignmentForm(self._data(start_date='2026-07-05', end_date='2026-07-10', is_active=''))
+        self.assertTrue(f.is_valid())

@@ -1,0 +1,77 @@
+{% extends "orders/base.html" %}
+{% block title %}{% if is_edit %}メニュー週割当の編集{% else %}メニュー週割当の登録{% endif %} - 受注管理{% endblock %}
+{% block nav_settings %}bg-gray-600 text-white{% endblock %}
+
+{% block content %}
+<div class="orders-container mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">
+        {% if is_edit %}メニュー週割当の編集{% else %}メニュー週割当の登録{% endif %}
+    </h1>
+    <p class="text-sm text-gray-500 mb-6">
+        指定した期間の納品日には、選んだ週のメニューを反映します（納品日からの自動反映より優先）。
+    </p>
+
+    <form method="post" class="bg-white rounded-lg shadow-sm p-6 space-y-5">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-sm">
+            {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">適用開始（納品日）</label>
+                <input type="date" name="start_date" value="{{ form.start_date.value|date:'Y-m-d' }}" required
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                {% if form.start_date.errors %}<p class="text-red-600 text-xs mt-1">{{ form.start_date.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">適用終了（納品日・含む）</label>
+                <input type="date" name="end_date" value="{{ form.end_date.value|date:'Y-m-d' }}" required
+                       class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                {% if form.end_date.errors %}<p class="text-red-600 text-xs mt-1">{{ form.end_date.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">適用するメニュー週</label>
+            <select name="week" required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                {% for value, label in form.week.field.choices %}
+                <option value="{{ value }}" {% if form.week.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            {% if form.week.help_text %}<p class="text-gray-500 text-xs mt-1">{{ form.week.help_text }}</p>{% endif %}
+            {% if form.week.errors %}<p class="text-red-600 text-xs mt-1">{{ form.week.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">メモ（任意）</label>
+            <input type="text" name="note" value="{{ form.note.value|default:'' }}" maxlength="200"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                   placeholder="例：GW週は前週メニューを流用">
+            {% if form.note.errors %}<p class="text-red-600 text-xs mt-1">{{ form.note.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="flex items-center gap-2">
+            <input type="checkbox" name="is_active" id="id_is_active"
+                   {% if form.is_active.value %}checked{% endif %}
+                   class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+            <label for="id_is_active" class="text-sm font-semibold text-gray-700">有効</label>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit"
+                    class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
+                {% if is_edit %}更新する{% else %}登録する{% endif %}
+            </button>
+            <a href="{% url 'orders:order_settings' %}"
+               class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition text-center font-medium">
+                キャンセル
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

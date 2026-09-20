@@ -1,3 +1,5 @@
+import datetime
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -660,6 +662,41 @@ class DeliveryCompletion(models.Model):
 
     def __str__(self):
         return f"{self.customer} - {self.delivery_date}"
+
+
+class MenuWeekAssignment(models.Model):
+    """納品日→メニュー週の明示割当（オーバーライド）。
+
+    通常は「納品日から7日遡って一致する Product.week」を自動で拾う（orders.views._get_products_data_for_date）。
+    ただし週メニューの欠け・祝日週の流用など、自動マッチでは救えない期間がある。
+    この割当が有効かつ納品日を含むとき、自動マッチより優先して指定週のメニューを反映する。
+
+    week は sales.Product.week と同じ 'yyyy-mm-dd' 文字列（週の基準日）を保持する。
+    """
+    start_date = models.DateField(verbose_name="適用開始（納品日）", db_index=True)
+    end_date = models.DateField(verbose_name="適用終了（納品日・含む）")
+    week = models.CharField(max_length=10, verbose_name="適用するメニュー週")
+    note = models.CharField(max_length=200, blank=True, verbose_name="メモ")
+    is_active = models.BooleanField(default=True, verbose_name="有効")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = "メニュー週の割当"
+        verbose_name_plural = "メニュー週の割当"
+
+    def __str__(self):
+        return f"{self.start_date}〜{self.end_date} → {self.week}"
+
+    def week_display(self):
+        """'yyyy-mm-dd（曜）' 形式。パースできなければそのまま返す。"""
+        try:
+            d = datetime.datetime.strptime(self.week, '%Y-%m-%d').date()
+            wd = ['月', '火', '水', '木', '金', '土', '日'][d.weekday()]
+            return f"{self.week}（{wd}）"
+        except (ValueError, TypeError):
+            return self.week
 
 
 class OrderUserMenuPermission(models.Model):

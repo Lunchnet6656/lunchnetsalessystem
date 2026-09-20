@@ -1,8 +1,15 @@
 from django.contrib import admin
 from .models import (
     Customer, Order, OrderItem, OrderSettings, PaymentMethod,
-    Invoice, InvoiceLine,
+    Invoice, InvoiceLine, MenuWeekAssignment,
 )
+
+
+@admin.register(MenuWeekAssignment)
+class MenuWeekAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['start_date', 'end_date', 'week', 'note', 'is_active']
+    list_filter = ['is_active']
+    list_editable = ['is_active']
 
 
 @admin.register(PaymentMethod)
