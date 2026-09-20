@@ -180,6 +180,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'lunchnetsale.context_processors.unread_message_count',
+                'lunchnetsale.context_processors.returned_shift_count',
             ],
         },
     },

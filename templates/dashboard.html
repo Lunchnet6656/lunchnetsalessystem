@@ -38,6 +38,14 @@
     });
     </script>
     {% endif %}
+    {% if returned_shift_count %}
+    <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+      <i class="fas fa-triangle-exclamation me-2 fs-5"></i>
+      <div>差し戻されたシフト希望が <strong>{{ returned_shift_count }}件</strong> あります。内容を確認して再提出してください。
+        <a href="{% url 'shifts:my_submissions' %}" class="alert-link">確認する</a>
+      </div>
+    </div>
+    {% endif %}
         <div class="row">
             <div class="col-md-9 mb-2">
                 <div class="card">

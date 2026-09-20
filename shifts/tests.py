@@ -225,3 +225,53 @@ class AutofillPriorityTest(TestCase):
         self.assertContains(resp, "日付の色＝充足状況")
         # 2名がWORK・OFF0名なので OK（緑）判定 = 日付ヘッダーに heat-ok が付く
         self.assertContains(resp, "heat-ok")
+
+
+class ReturnedShiftBannerTest(TestCase):
+    """提出を差し戻された本人が、アプリ内お知らせバナーで気づけることを検証する。"""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="taro", password="x")
+        # 再提出可能な期間（OPEN）
+        self.period = SchedulePeriod.objects.create(
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 15),
+            submission_open_at=timezone.now() - timedelta(days=1),
+            submission_close_at=timezone.now() + timedelta(days=3),
+            status="OPEN",
+        )
+
+    def _returned_sub(self, period):
+        return AvailabilitySubmission.objects.create(
+            user=self.user, period=period, status="RETURNED",
+            admin_note="この日は運転手が必要です",
+        )
+
+    def test_差戻しがあるとバナーが出る(self):
+        self._returned_sub(self.period)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("shifts:my_submissions"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "差し戻されたシフト希望が")
+
+    def test_差戻しが無ければバナーは出ない(self):
+        AvailabilitySubmission.objects.create(
+            user=self.user, period=self.period, status="SUBMITTED",
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("shifts:my_submissions"))
+        self.assertNotContains(resp, "差し戻されたシフト希望が")
+
+    def test_締切済み期間の差戻しはバナー対象外(self):
+        """再提出できない期間（PUBLISHED等）の差戻しはバナーに数えない。"""
+        closed = SchedulePeriod.objects.create(
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 15),
+            submission_open_at=timezone.now() - timedelta(days=40),
+            submission_close_at=timezone.now() - timedelta(days=30),
+            status="PUBLISHED",
+        )
+        self._returned_sub(closed)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("shifts:my_submissions"))
+        self.assertNotContains(resp, "差し戻されたシフト希望が")

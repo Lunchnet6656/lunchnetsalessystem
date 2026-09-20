@@ -75,6 +75,16 @@
     </div>
     {% endif %}
 
+    <!-- 差戻しお知らせ -->
+    {% if returned_shift_count %}
+    <div class="max-w-7xl mx-auto px-4 mt-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded text-sm bg-red-50 text-red-800 border border-red-300">
+            <span>⚠️ 差し戻されたシフト希望が {{ returned_shift_count }} 件あります。内容を確認して再提出してください。</span>
+            <a href="{% url 'shifts:my_submissions' %}" class="shrink-0 px-3 py-1 rounded bg-red-600 text-white font-medium hover:bg-red-700">確認する</a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- コンテンツ -->
     <main class="max-w-7xl mx-auto px-4 py-6">
         {% block content %}{% endblock %}

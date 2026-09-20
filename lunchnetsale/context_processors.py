@@ -2,6 +2,19 @@ from sales.models import ReportMessage
 from django.db.models import Q
 
 
+def returned_shift_count(request):
+    """差し戻され再提出が必要なシフト提出の件数を全ページに渡す（お知らせバナー用）。"""
+    if not request.user.is_authenticated:
+        return {'returned_shift_count': 0}
+    from shifts.models import AvailabilitySubmission
+    count = AvailabilitySubmission.objects.filter(
+        user=request.user,
+        status='RETURNED',
+        period__status__in=['OPEN', 'REVIEW'],
+    ).count()
+    return {'returned_shift_count': count}
+
+
 def unread_message_count(request):
     if not request.user.is_authenticated:
         return {'unread_admin_replies': 0, 'unread_employee_replies': 0}
