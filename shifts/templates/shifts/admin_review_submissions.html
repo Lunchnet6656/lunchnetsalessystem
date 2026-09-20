@@ -1,6 +1,6 @@
 {% extends "shifts/base.html" %}
 {% block title %}提出状況確認{% endblock %}
-{% block nav_dashboard %}bg-gray-600{% endblock %}
+{% block nav_periods %}bg-gray-600{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-4">
@@ -10,7 +10,7 @@
            class="text-sm bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 rounded">
           CSVダウンロード
         </a>
-        <a href="{% url 'shifts:admin_dashboard' %}" class="text-sm text-blue-600 hover:underline">&larr; ダッシュボードへ</a>
+        <a href="{% url 'shifts:admin_periods' %}" class="text-sm text-blue-600 hover:underline">&larr; シフト期間へ</a>
     </div>
 </div>
 
