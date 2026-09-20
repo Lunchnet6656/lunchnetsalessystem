@@ -10,6 +10,15 @@
     details.period-create > summary::-webkit-details-marker { display: none; }
     details.period-create .form-body { padding: 20px 16px; border-top: 1px solid #f3f4f6; }
     details.period-create .form-actions { margin-top: 16px; }
+    /* iOSの日付入力が固有幅でコンテナからはみ出すのを防ぐ（グリッド項目のmin-width:autoも解除） */
+    details.period-create .form-body div { min-width: 0; }
+    details.period-create input[type="date"],
+    details.period-create input[type="datetime-local"] {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
     details.period-create .when-open { display: none; }
     details.period-create[open] .when-open { display: inline; }
     details.period-create[open] .when-closed { display: none; }
