@@ -169,13 +169,14 @@ class AutofillPriorityTest(TestCase):
         self.assertEqual(assignments.count(), 1)
         self.assertEqual(assignments.first().user_id, self.low.id)
 
-    def test_割当グリッドに充足状況バーが表示される(self):
-        """割当グリッドが200で開き、日別充足状況（ヒートマップ）バーが描画される。"""
+    def test_割当グリッドの日付ヘッダーに充足状況が連動する(self):
+        """割当グリッドが200で開き、日付ヘッダーにヒートマップの色が付く。"""
         self.client.force_login(self.staff)
         resp = self.client.get(
             reverse("shifts:admin_period_assignment", args=[self.period.id])
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "日別の充足状況")
-        # 2名がWORK・OFF0名なので OK（緑）判定になる
-        self.assertContains(resp, "OFF0")
+        # 凡例が出ている
+        self.assertContains(resp, "日付の色＝充足状況")
+        # 2名がWORK・OFF0名なので OK（緑）判定 = 日付ヘッダーに heat-ok が付く
+        self.assertContains(resp, "heat-ok")

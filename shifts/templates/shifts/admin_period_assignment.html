@@ -37,6 +37,18 @@
         background: #e0f2fe; font-weight: 700; font-size: 11px;
         text-align: center; min-width: 50px; white-space: nowrap;
     }
+    /* 日付ヘッダーの充足状況カラー（.grid-table th より特異度を高くして上書き） */
+    .grid-table th.heat-ok { background: #f0fdf4; }
+    .grid-table th.heat-warning { background: #fefce8; }
+    .grid-table th.heat-danger { background: #fef2f2; }
+    .grid-table th.heat-driver { background: #fff7ed; }
+    .heat-dot { display: inline-block; width: 7px; height: 7px; border-radius: 9999px; vertical-align: middle; }
+    .heat-dot-ok { background: #22c55e; }
+    .heat-dot-warning { background: #eab308; }
+    .heat-dot-danger { background: #ef4444; }
+    .heat-dot-driver { background: #f97316; }
+    .heat-off { font-size: 10px; color: #6b7280; margin-left: 2px; }
+    .heat-driver-label { display: block; font-size: 9px; color: #ea580c; font-weight: 700; line-height: 1; }
     /* 公開後の未反映の変更セル */
     .grid-table td.cell-changed { box-shadow: inset 0 0 0 2px #f97316; }
     .grid-table td.cell-changed .old-assignee {
@@ -63,45 +75,13 @@
     </div>
 </div>
 
-<!-- 日別の充足状況（ヒートマップ） -->
-<div class="bg-white rounded shadow p-3 mb-4">
-    <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-semibold text-gray-700">日別の充足状況</span>
-        <span class="text-xs text-gray-500">
-            OFF数のしきい値: 注意≥{{ shift_settings.warning_threshold }} / 危険≥{{ shift_settings.danger_threshold }}・運転必須{{ requires_drive_count }}拠点
-        </span>
-    </div>
-    <div class="flex gap-1.5 overflow-x-auto pb-1">
-        {% for day in day_status %}
-        <div class="shrink-0 w-16 rounded border text-center py-1
-            {% if day.is_holiday %}bg-gray-50 border-gray-200 text-gray-400
-            {% elif day.heatmap_status == 'danger' %}bg-red-50 border-red-200
-            {% elif day.heatmap_status == 'driver_shortage' %}bg-orange-50 border-orange-200
-            {% elif day.heatmap_status == 'warning' %}bg-yellow-50 border-yellow-200
-            {% else %}bg-green-50 border-green-200{% endif %}"
-            title="{% if day.is_holiday %}{{ day.holiday_name }}{% else %}{{ day.heatmap_label }}・出勤{{ day.available_count }}名/OFF{{ day.off_count }}名/運転手{{ day.driver_count }}名{% endif %}">
-            <div class="text-xs font-medium
-                {% if day.date.weekday == 5 %}text-blue-500{% elif day.date.weekday == 6 %}text-red-500{% else %}text-gray-600{% endif %}">
-                {{ day.date|date:"n/j" }}<span class="text-[10px]">({{ day.weekday }})</span>
-            </div>
-            {% if day.is_holiday %}
-                <div class="text-[10px] mt-0.5">休</div>
-            {% else %}
-                <div class="flex items-center justify-center gap-1 mt-0.5">
-                    <span class="inline-block w-2 h-2 rounded-full
-                        {% if day.heatmap_status == 'danger' %}bg-red-500
-                        {% elif day.heatmap_status == 'driver_shortage' %}bg-orange-500
-                        {% elif day.heatmap_status == 'warning' %}bg-yellow-500
-                        {% else %}bg-green-500{% endif %}"></span>
-                    <span class="text-[10px] text-gray-500">OFF{{ day.off_count }}</span>
-                </div>
-                {% if day.driver_shortage %}
-                    <div class="text-[10px] text-orange-600 font-medium">運転手不足</div>
-                {% endif %}
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
+<!-- 充足状況の凡例（色は下のグリッド日付ヘッダーに連動） -->
+<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-xs text-gray-500">
+    <span class="font-semibold text-gray-700">日付の色＝充足状況</span>
+    <span class="inline-flex items-center gap-1"><span class="heat-dot heat-dot-ok"></span>OK</span>
+    <span class="inline-flex items-center gap-1"><span class="heat-dot heat-dot-warning"></span>注意（OFF≥{{ shift_settings.warning_threshold }}）</span>
+    <span class="inline-flex items-center gap-1"><span class="heat-dot heat-dot-danger"></span>危険（OFF≥{{ shift_settings.danger_threshold }}）</span>
+    <span class="inline-flex items-center gap-1"><span class="heat-dot heat-dot-driver"></span>運転手不足（運転必須{{ requires_drive_count }}拠点）</span>
 </div>
 
 {% if is_published %}
@@ -138,10 +118,19 @@
             <tr>
                 <th class="departure-header">出発</th>
                 <th class="loc-header" style="left:50px;">売り場</th>
-                {% for d in dates %}
-                <th class="{% if d|weekday_ja == '土' %}sat{% elif d|weekday_ja == '日' %}sun{% endif %}">
-                    {{ d|date:"n/j" }}<br>
-                    <span class="text-xs">{{ d|weekday_ja }}</span>
+                {% for day in day_status %}
+                <th class="{% if not day.is_holiday %}{% if day.heatmap_status == 'ok' %}heat-ok{% elif day.heatmap_status == 'warning' %}heat-warning{% elif day.heatmap_status == 'danger' %}heat-danger{% elif day.heatmap_status == 'driver_shortage' %}heat-driver{% endif %}{% endif %}"
+                    title="{% if day.is_holiday %}{{ day.holiday_name }}{% else %}{{ day.heatmap_label }}・出勤{{ day.available_count }}名 / OFF{{ day.off_count }}名 / 運転手{{ day.driver_count }}名{% endif %}">
+                    <span class="{% if day.date|weekday_ja == '土' %}sat{% elif day.date|weekday_ja == '日' %}sun{% endif %}">
+                        {{ day.date|date:"n/j" }}<br>
+                        <span class="text-xs">{{ day.date|weekday_ja }}</span>
+                    </span>
+                    {% if not day.is_holiday %}
+                    <div style="margin-top:1px; line-height:1;">
+                        <span class="heat-dot heat-dot-{% if day.heatmap_status == 'driver_shortage' %}driver{% else %}{{ day.heatmap_status }}{% endif %}"></span><span class="heat-off">{{ day.off_count }}</span>
+                    </div>
+                    {% if day.driver_shortage %}<span class="heat-driver-label">運転手不足</span>{% endif %}
+                    {% endif %}
                 </th>
                 {% endfor %}
             </tr>
