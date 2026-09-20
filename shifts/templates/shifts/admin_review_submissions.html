@@ -37,7 +37,89 @@
         <button type="submit" class="text-xs bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded">選択した提出を承認</button>
     </div>
 
-    <div class="bg-white rounded shadow overflow-x-auto">
+    <!-- スマホ: カード型 -->
+    <div class="md:hidden space-y-3">
+        {% for item in submission_data %}
+        <div class="bg-white rounded-lg shadow-sm border p-3">
+            <div class="flex items-start justify-between gap-2">
+                <label class="flex items-center gap-2 min-w-0">
+                    {% if item.submission and item.submission.status == 'SUBMITTED' %}
+                    <input type="checkbox" name="submission_ids" value="{{ item.submission.id }}" class="sub-check h-4 w-4 shrink-0">
+                    {% endif %}
+                    <span class="font-semibold text-gray-800 truncate">{{ item.user.last_name }} {{ item.user.first_name }}</span>
+                </label>
+                <span class="shrink-0 text-xs px-2 py-1 rounded
+                    {% if item.display_status == 'APPROVED' %}bg-green-100 text-green-700
+                    {% elif item.display_status == 'SUBMITTED' %}bg-blue-100 text-blue-700
+                    {% elif item.display_status == 'RETURNED' %}bg-orange-100 text-orange-700
+                    {% else %}bg-gray-100 text-gray-500{% endif %}">
+                    {% if item.display_status == 'APPROVED' %}承認済
+                    {% elif item.display_status == 'SUBMITTED' %}提出済
+                    {% elif item.display_status == 'RETURNED' %}差戻
+                    {% else %}未提出{% endif %}
+                </span>
+            </div>
+
+            <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                <span>出勤 <strong class="text-gray-800">{{ item.work_count }}</strong>日</span>
+                <span>休み <strong class="text-gray-800">{{ item.off_count }}</strong>日</span>
+                <span class="text-xs text-gray-400">提出: {% if item.submission and item.submission.submitted_at %}{{ item.submission.submitted_at|date:"n/j H:i" }}{% else %}-{% endif %}</span>
+            </div>
+
+            {% if item.submission and item.submission.remarks %}
+            <div class="mt-2 text-xs text-gray-500">備考: {{ item.submission.remarks }}</div>
+            {% endif %}
+            {% if item.submission and item.submission.status == 'RETURNED' and item.submission.admin_note %}
+            <div class="mt-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1">
+                <strong>差戻メモ:</strong> {{ item.submission.admin_note }}
+            </div>
+            {% endif %}
+
+            {% if item.days %}
+            <details class="mt-2">
+                <summary class="cursor-pointer text-sm text-blue-600">日別の内訳を見る</summary>
+                <table class="w-full text-xs mt-2">
+                    <thead>
+                        <tr class="text-left text-gray-500">
+                            <th class="px-1 py-1">日付</th>
+                            <th class="px-1 py-1">曜</th>
+                            <th class="px-1 py-1">出勤/休み</th>
+                            <th class="px-1 py-1">区分/コメント</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for day in item.days %}
+                        <tr class="{% if day.availability == 'OFF' %}bg-red-50{% endif %}">
+                            <td class="px-1 py-1 whitespace-nowrap">{{ day.date|date:"n/j" }}</td>
+                            <td class="px-1 py-1">{{ day.weekday_name }}</td>
+                            <td class="px-1 py-1">{{ day.get_availability_display }}</td>
+                            <td class="px-1 py-1">
+                                {% if day.absence_category %}{{ day.get_absence_category_display }}{% endif %}
+                                {% if day.comment %}{% if day.absence_category %} / {% endif %}{{ day.comment }}{% endif %}
+                                {% if not day.absence_category and not day.comment %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+            {% endif %}
+
+            <div class="mt-3 flex gap-2">
+                {% if item.submission and item.submission.status == 'SUBMITTED' %}
+                <button type="button" class="flex-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 px-3 py-2 rounded reject-btn"
+                        data-id="{{ item.submission.id }}"
+                        data-name="{{ item.user.last_name }} {{ item.user.first_name }}">却下</button>
+                {% endif %}
+                <a href="{% url 'shifts:admin_edit_submission' period.id item.user.id %}"
+                   class="flex-1 text-center text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 px-3 py-2 rounded">編集</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- PC: テーブル型 -->
+    <div class="hidden md:block bg-white rounded shadow overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr class="bg-gray-100 text-left">

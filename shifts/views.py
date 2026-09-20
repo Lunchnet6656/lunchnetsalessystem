@@ -743,7 +743,8 @@ def admin_review_submissions(request, period_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'approve':
-            ids = request.POST.getlist('submission_ids')
+            # スマホ/PCの2層レイアウトでチェックボックスが重複しても件数がズレないよう除去
+            ids = list(set(request.POST.getlist('submission_ids')))
             if ids:
                 AvailabilitySubmission.objects.filter(
                     pk__in=ids, period=period, status='SUBMITTED',
