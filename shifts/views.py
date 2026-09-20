@@ -1,4 +1,3 @@
-import csv
 import datetime
 import json
 import logging
@@ -1264,47 +1263,6 @@ def line_webhook(request):
         logger.exception('LINE Webhook: ハンドラ処理中に例外が発生しました。')
 
     return HttpResponse(status=200)
-
-
-# ---------- CSVエクスポート ----------
-
-@staff_member_required
-def admin_export_submissions_csv(request, period_id):
-    period = get_object_or_404(SchedulePeriod, pk=period_id)
-    dates = list(generate_date_range(period.start_date, period.end_date))
-    submissions = AvailabilitySubmission.objects.filter(
-        period=period, status__in=['SUBMITTED', 'APPROVED']
-    ).select_related('user').prefetch_related('days')
-
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    filename = f"シフト提出_{period.start_date}_{period.end_date}.csv"
-    response['Content-Disposition'] = (
-        f"attachment; filename*=UTF-8''{urllib.parse.quote(filename)}"
-    )
-    response.write('\ufeff')  # BOM
-
-    writer = csv.writer(response)
-
-    # ヘッダー行
-    header = ['名前']
-    for d in dates:
-        header.append(f"{d.strftime('%m/%d')}")
-        header.append(f"コメント")
-    header.append('備考')
-    writer.writerow(header)
-
-    # データ行
-    for sub in submissions:
-        days_map = {day.date: day for day in sub.days.all()}
-        row = [sub.user.get_full_name() or sub.user.username]
-        for d in dates:
-            day = days_map.get(d)
-            row.append(day.get_availability_display() if day else '')
-            row.append(day.comment if day else '')
-        row.append(sub.remarks)
-        writer.writerow(row)
-
-    return response
 
 
 # ---------- 期間別割当グリッド ----------
