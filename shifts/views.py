@@ -1528,6 +1528,32 @@ def admin_period_assignment(request, period_id):
             **heat,
         })
 
+    # スタッフからのコメント（提出の備考・日別コメント）を収集。
+    # 割当の参考用に一覧表示するだけで、割当ロジックには影響しない。
+    comment_subs = AvailabilitySubmission.objects.filter(
+        period=period, status__in=['SUBMITTED', 'APPROVED'],
+    ).select_related('user').prefetch_related('days')
+    staff_comments = []
+    for sub in comment_subs:
+        day_comments = []
+        for day in sub.days.all():
+            if day.comment:
+                day_comments.append({
+                    'date': day.date,
+                    'weekday': WEEKDAY_NAMES[day.date.weekday()],
+                    'is_off': day.availability == 'OFF',
+                    'absence_category': day.get_absence_category_display() if day.absence_category else '',
+                    'comment': day.comment,
+                })
+        day_comments.sort(key=lambda x: x['date'])
+        if sub.remarks or day_comments:
+            staff_comments.append({
+                'name': f"{sub.user.last_name} {sub.user.first_name}".strip() or sub.user.username,
+                'remarks': sub.remarks,
+                'day_comments': day_comments,
+            })
+    staff_comments.sort(key=lambda x: x['name'])
+
     context = {
         'period': period,
         'dates': dates,
@@ -1543,6 +1569,8 @@ def admin_period_assignment(request, period_id):
         'day_status': day_status,
         'shift_settings': shift_settings,
         'requires_drive_count': requires_drive_count,
+        'staff_comments': staff_comments,
+        'staff_comment_count': len(staff_comments),
     }
     return render(request, 'shifts/admin_period_assignment.html', context)
 

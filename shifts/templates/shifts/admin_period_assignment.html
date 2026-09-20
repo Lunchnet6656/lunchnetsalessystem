@@ -189,6 +189,38 @@
     </table>
 </div>
 
+<!-- スタッフからのコメント（備考・日別コメント） -->
+{% if staff_comments %}
+<details class="mt-6 bg-white rounded shadow" open>
+    <summary class="cursor-pointer select-none px-4 py-3 text-lg font-semibold">
+        💬 スタッフからのコメント <span class="text-sm font-normal text-gray-400">（{{ staff_comment_count }}名）</span>
+    </summary>
+    <div class="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+        {% for sc in staff_comments %}
+        <div class="pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+            <div class="font-medium text-gray-800">{{ sc.name }}</div>
+            {% if sc.remarks %}
+            <div class="mt-1 text-sm text-gray-700">
+                <span class="text-xs text-gray-400">備考:</span> {{ sc.remarks }}
+            </div>
+            {% endif %}
+            {% if sc.day_comments %}
+            <ul class="mt-1 space-y-1">
+                {% for dc in sc.day_comments %}
+                <li class="text-sm flex flex-wrap items-baseline gap-x-2">
+                    <span class="text-xs text-gray-500 whitespace-nowrap">{{ dc.date|date:"n/j" }}（{{ dc.weekday }}）</span>
+                    {% if dc.is_off %}<span class="text-xs bg-red-50 text-red-700 px-1.5 rounded whitespace-nowrap">休み{% if dc.absence_category %}・{{ dc.absence_category }}{% endif %}</span>{% endif %}
+                    <span class="{% if dc.is_off %}text-red-700{% else %}text-gray-700{% endif %}">{{ dc.comment }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
 <!-- フリー枠 -->
 <div class="mt-6 bg-white rounded shadow p-4">
     <h2 class="text-lg font-semibold mb-3">フリー枠（未割当スタッフ）</h2>

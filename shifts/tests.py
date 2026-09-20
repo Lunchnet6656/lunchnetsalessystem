@@ -197,6 +197,23 @@ class AutofillPriorityTest(TestCase):
         self.assertContains(resp, "period-create")  # 折りたたみコンテナ
         self.assertContains(resp, "＋ 新規期間を作成")
 
+    def test_割当グリッドにスタッフのコメントが表示される(self):
+        """提出の備考・日別コメントが割当グリッドのコメント欄に出る。"""
+        sub = AvailabilitySubmission.objects.get(user=self.high, period=self.period)
+        sub.remarks = "来週は早退希望"
+        sub.save()
+        day = AvailabilityDay.objects.get(submission=sub, date=self.date)
+        day.comment = "この日は15時まで"
+        day.save()
+        self.client.force_login(self.staff)
+        resp = self.client.get(
+            reverse("shifts:admin_period_assignment", args=[self.period.id])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "スタッフからのコメント")
+        self.assertContains(resp, "来週は早退希望")
+        self.assertContains(resp, "この日は15時まで")
+
     def test_割当グリッドの日付ヘッダーに充足状況が連動する(self):
         """割当グリッドが200で開き、日付ヘッダーにヒートマップの色が付く。"""
         self.client.force_login(self.staff)
