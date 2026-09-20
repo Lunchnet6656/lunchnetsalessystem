@@ -262,6 +262,21 @@ class ReturnedShiftBannerTest(TestCase):
         resp = self.client.get(reverse("shifts:my_submissions"))
         self.assertNotContains(resp, "差し戻されたシフト希望が")
 
+    def test_差戻し状態のときだけ再提出ボタンが出る(self):
+        sub = self._returned_sub(self.period)
+        resubmit_url = reverse(
+            "shifts:submit_availability_for_period", args=[self.period.id]
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("shifts:my_submissions"))
+        self.assertContains(resp, "再提出する")
+        self.assertContains(resp, resubmit_url)
+        # 承認に変わると再提出ボタンは消える
+        sub.status = "APPROVED"
+        sub.save()
+        resp = self.client.get(reverse("shifts:my_submissions"))
+        self.assertNotContains(resp, "再提出する")
+
     def test_古い差戻し期間も提出状況一覧に必ず出る(self):
         """最新3期間から漏れても、差戻し中の期間は提出状況一覧に含める。"""
         # 最新3期間（差戻しユーザーとは無関係）を作り、対象期間を4番目に押し出す

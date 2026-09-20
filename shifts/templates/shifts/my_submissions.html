@@ -46,6 +46,15 @@
     </div>
     {% endif %}
 
+    {% if item.submission and item.submission.status == 'RETURNED' %}
+    <div class="px-4 mt-3">
+        <a href="{% url 'shifts:submit_availability_for_period' item.period.pk %}"
+           class="inline-block px-4 py-2 rounded bg-red-600 text-white text-sm font-medium hover:bg-red-700">
+            再提出する
+        </a>
+    </div>
+    {% endif %}
+
     {% if item.submission and item.submission.remarks %}
     <div class="bg-blue-50 border-l-4 border-blue-400 p-3 mx-4 mt-3">
         <p class="text-sm text-blue-700"><strong>備考:</strong> {{ item.submission.remarks }}</p>
