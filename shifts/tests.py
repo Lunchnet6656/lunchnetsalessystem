@@ -262,6 +262,25 @@ class ReturnedShiftBannerTest(TestCase):
         resp = self.client.get(reverse("shifts:my_submissions"))
         self.assertNotContains(resp, "差し戻されたシフト希望が")
 
+    def test_古い差戻し期間も提出状況一覧に必ず出る(self):
+        """最新3期間から漏れても、差戻し中の期間は提出状況一覧に含める。"""
+        # 最新3期間（差戻しユーザーとは無関係）を作り、対象期間を4番目に押し出す
+        for i in range(3):
+            SchedulePeriod.objects.create(
+                start_date=date(2026, 11, 1) + timedelta(days=i * 20),
+                end_date=date(2026, 11, 15) + timedelta(days=i * 20),
+                submission_open_at=timezone.now(),
+                submission_close_at=timezone.now() + timedelta(days=3),
+                status="OPEN",
+            )
+        # self.period(10月) は開始日が古く、最新3件に入らない
+        self._returned_sub(self.period)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("shifts:my_submissions"))
+        self.assertEqual(resp.status_code, 200)
+        # 差戻しメモが一覧に出ている＝対象期間が含まれている
+        self.assertContains(resp, "この日は運転手が必要です")
+
     def test_締切済み期間の差戻しはバナー対象外(self):
         """再提出できない期間（PUBLISHED等）の差戻しはバナーに数えない。"""
         closed = SchedulePeriod.objects.create(

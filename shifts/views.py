@@ -378,7 +378,20 @@ def submit_availability(request, period_id=None, user_id=None):
 
 @login_required
 def my_submissions(request):
-    periods = SchedulePeriod.objects.all()[:3]
+    # 基本は開始日の新しい順に最新3期間を表示。
+    # ただし本人が差し戻し中（再提出が必要）の期間は、3件から漏れても必ず含める。
+    latest_ids = list(
+        SchedulePeriod.objects.order_by('-start_date').values_list('id', flat=True)[:3]
+    )
+    returned_ids = list(
+        SchedulePeriod.objects.filter(
+            status__in=['OPEN', 'REVIEW'],
+            submissions__user=request.user,
+            submissions__status='RETURNED',
+        ).values_list('id', flat=True)
+    )
+    period_ids = set(latest_ids) | set(returned_ids)
+    periods = SchedulePeriod.objects.filter(id__in=period_ids).order_by('-start_date')
     submissions = []
     for period in periods:
         sub = AvailabilitySubmission.objects.filter(
