@@ -121,6 +121,59 @@ def select_period(request):
     return render(request, 'shifts/select_period.html', context)
 
 
+# ---------- ヒートマップ共通ロジック ----------
+
+def compute_day_heatmap(period, d, requires_drive_count, shift_settings):
+    """指定日の充足状況（ヒートマップ）を判定して返す。
+
+    OK / 注意 / 危険 / 運転手不足 の判定を submit_availability（希望提出フォーム）と
+    admin_period_assignment（割当グリッド）で共通化するための関数。休日は空ステータス。
+    """
+    result = {
+        'off_count': 0,
+        'available_count': 0,
+        'driver_count': 0,
+        'driver_shortage': False,
+        'heatmap_status': '',
+        'heatmap_label': '',
+    }
+    if is_holiday(d):
+        return result
+
+    base_qs = AvailabilityDay.objects.filter(
+        submission__period=period,
+        submission__status__in=['SUBMITTED', 'APPROVED'],
+        date=d,
+    )
+    off_count = base_qs.filter(availability='OFF').count()
+    work_qs = base_qs.filter(availability='WORK')
+    available_count = work_qs.count()
+    available_user_ids = work_qs.values_list('submission__user_id', flat=True)
+    driver_count = UserProfile.objects.filter(
+        user_id__in=available_user_ids, can_drive=True,
+    ).count()
+    driver_shortage = driver_count < requires_drive_count
+
+    if driver_shortage:
+        status, label = 'driver_shortage', '運転手不足'
+    elif off_count >= shift_settings.danger_threshold:
+        status, label = 'danger', '危険'
+    elif off_count >= shift_settings.warning_threshold:
+        status, label = 'warning', '注意'
+    else:
+        status, label = 'ok', 'OK'
+
+    result.update({
+        'off_count': off_count,
+        'available_count': available_count,
+        'driver_count': driver_count,
+        'driver_shortage': driver_shortage,
+        'heatmap_status': status,
+        'heatmap_label': label,
+    })
+    return result
+
+
 # ---------- 6-1: シフト希望提出 (スタッフ & 管理者代理提出) ----------
 
 @login_required
@@ -183,41 +236,8 @@ def submit_availability(request, period_id=None, user_id=None):
             or (work_pattern == 'PART' and is_fixed)
         )
 
-        # ヒートマップ: 自分以外のOFF数・ドライバー不足を判定
-        off_count = 0
-        heatmap_status = ''
-        heatmap_label = ''
-        if not holiday:
-            off_count = AvailabilityDay.objects.filter(
-                submission__period=period,
-                submission__status__in=['SUBMITTED', 'APPROVED'],
-                date=d,
-                availability='OFF',
-            ).count()
-
-            work_days_qs = AvailabilityDay.objects.filter(
-                submission__period=period,
-                submission__status__in=['SUBMITTED', 'APPROVED'],
-                date=d,
-                availability='WORK',
-            )
-
-            available_user_ids = work_days_qs.values_list('submission__user_id', flat=True)
-            driver_count = UserProfile.objects.filter(user_id__in=available_user_ids, can_drive=True).count()
-            driver_shortage = driver_count < requires_drive_count
-
-            if driver_shortage:
-                heatmap_status = 'driver_shortage'
-                heatmap_label = '運転手不足'
-            elif off_count >= shift_settings.danger_threshold:
-                heatmap_status = 'danger'
-                heatmap_label = '危険'
-            elif off_count >= shift_settings.warning_threshold:
-                heatmap_status = 'warning'
-                heatmap_label = '注意'
-            else:
-                heatmap_status = 'ok'
-                heatmap_label = 'OK'
+        # ヒートマップ: OFF数・ドライバー不足を判定（共通関数）
+        heat = compute_day_heatmap(period, d, requires_drive_count, shift_settings)
 
         date_info.append({
             'date': d,
@@ -226,9 +246,9 @@ def submit_availability(request, period_id=None, user_id=None):
             'holiday_name': holiday_name,
             'is_fixed_weekday': is_fixed,
             'requires_reason': requires_reason,
-            'off_count': off_count,
-            'heatmap_status': heatmap_status,
-            'heatmap_label': heatmap_label,
+            'off_count': heat['off_count'],
+            'heatmap_status': heat['heatmap_status'],
+            'heatmap_label': heat['heatmap_label'],
         })
 
     # 既存データ取得
@@ -1533,6 +1553,22 @@ def admin_period_assignment(request, period_id):
     # 祝日リスト
     holiday_dates = [d.isoformat() for d in dates if is_holiday(d)]
 
+    # 日別の充足状況（ヒートマップ）: グリッド上部のステータスバー用
+    shift_settings = ShiftSettings.load()
+    requires_drive_count = SalesLocation.objects.filter(
+        requires_drive=True, excluded_from_shift=False,
+    ).count()
+    day_status = []
+    for d in dates:
+        heat = compute_day_heatmap(period, d, requires_drive_count, shift_settings)
+        day_status.append({
+            'date': d,
+            'weekday': WEEKDAY_NAMES[d.weekday()],
+            'is_holiday': is_holiday(d),
+            'holiday_name': get_holiday_name(d) if is_holiday(d) else '',
+            **heat,
+        })
+
     context = {
         'period': period,
         'dates': dates,
@@ -1545,6 +1581,9 @@ def admin_period_assignment(request, period_id):
         'assignment_map': assignment_map,
         'is_published': is_published,
         'pending_count': get_pending_change_count(period) if is_published else 0,
+        'day_status': day_status,
+        'shift_settings': shift_settings,
+        'requires_drive_count': requires_drive_count,
     }
     return render(request, 'shifts/admin_period_assignment.html', context)
 

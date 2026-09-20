@@ -48,7 +48,7 @@
 
 {% block content %}
 <div class="mb-4">
-    <a href="{% url 'shifts:admin_dashboard' %}?period_id={{ period.id }}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; ダッシュボードに戻る</a>
+    <a href="{% url 'shifts:admin_periods' %}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; シフト期間に戻る</a>
 </div>
 
 <div class="flex items-center justify-between mb-4">
@@ -60,6 +60,47 @@
         <a href="{% url 'shifts:admin_external_availability' period.id %}" class="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700">外部スタッフ出勤設定</a>
         <button id="btn-autofill" class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700">自動割当</button>
         <button id="btn-clear-all" class="bg-red-500 text-white px-3 py-2 rounded text-sm hover:bg-red-600">全クリア</button>
+    </div>
+</div>
+
+<!-- 日別の充足状況（ヒートマップ） -->
+<div class="bg-white rounded shadow p-3 mb-4">
+    <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-gray-700">日別の充足状況</span>
+        <span class="text-xs text-gray-500">
+            OFF数のしきい値: 注意≥{{ shift_settings.warning_threshold }} / 危険≥{{ shift_settings.danger_threshold }}・運転必須{{ requires_drive_count }}拠点
+        </span>
+    </div>
+    <div class="flex gap-1.5 overflow-x-auto pb-1">
+        {% for day in day_status %}
+        <div class="shrink-0 w-16 rounded border text-center py-1
+            {% if day.is_holiday %}bg-gray-50 border-gray-200 text-gray-400
+            {% elif day.heatmap_status == 'danger' %}bg-red-50 border-red-200
+            {% elif day.heatmap_status == 'driver_shortage' %}bg-orange-50 border-orange-200
+            {% elif day.heatmap_status == 'warning' %}bg-yellow-50 border-yellow-200
+            {% else %}bg-green-50 border-green-200{% endif %}"
+            title="{% if day.is_holiday %}{{ day.holiday_name }}{% else %}{{ day.heatmap_label }}・出勤{{ day.available_count }}名/OFF{{ day.off_count }}名/運転手{{ day.driver_count }}名{% endif %}">
+            <div class="text-xs font-medium
+                {% if day.date.weekday == 5 %}text-blue-500{% elif day.date.weekday == 6 %}text-red-500{% else %}text-gray-600{% endif %}">
+                {{ day.date|date:"n/j" }}<span class="text-[10px]">({{ day.weekday }})</span>
+            </div>
+            {% if day.is_holiday %}
+                <div class="text-[10px] mt-0.5">休</div>
+            {% else %}
+                <div class="flex items-center justify-center gap-1 mt-0.5">
+                    <span class="inline-block w-2 h-2 rounded-full
+                        {% if day.heatmap_status == 'danger' %}bg-red-500
+                        {% elif day.heatmap_status == 'driver_shortage' %}bg-orange-500
+                        {% elif day.heatmap_status == 'warning' %}bg-yellow-500
+                        {% else %}bg-green-500{% endif %}"></span>
+                    <span class="text-[10px] text-gray-500">OFF{{ day.off_count }}</span>
+                </div>
+                {% if day.driver_shortage %}
+                    <div class="text-[10px] text-orange-600 font-medium">運転手不足</div>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endfor %}
     </div>
 </div>
 
