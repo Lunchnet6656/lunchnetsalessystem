@@ -6,6 +6,7 @@ import logging
 
 from django.conf import settings
 from django.core.mail import send_mail
+from django.utils import timezone
 
 from .line_bot import send_line_message
 from .models import NotificationTemplate, ShiftNotification, UserProfile
@@ -24,7 +25,7 @@ def _get_template(notification_type):
 def _render(template_str, period):
     """プレースホルダを置換"""
     period_range = f'{period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}'
-    deadline = period.submission_close_at.strftime("%-m/%-d %H:%M")
+    deadline = timezone.localtime(period.submission_close_at).strftime("%-m/%-d %H:%M")
     return template_str.replace('{period_range}', period_range).replace('{deadline}', deadline)
 
 
@@ -81,7 +82,7 @@ def notify_period_open(period):
         body = (
             f'新しいシフト希望募集が始まりました。\n'
             f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
-            f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
+            f'提出締切: {timezone.localtime(period.submission_close_at).strftime("%-m/%-d %H:%M")}\n\n'
             'アプリからシフト希望を提出してください。'
         )
     return notify_users(period, 'OPEN', title, body)
@@ -100,7 +101,7 @@ def notify_reminder(period, unsubmitted_profiles):
         body = (
             f'シフト希望の締切が近づいています。\n'
             f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
-            f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
+            f'提出締切: {timezone.localtime(period.submission_close_at).strftime("%-m/%-d %H:%M")}\n\n'
             'まだ未提出の方はお早めに提出してください。'
         )
     return notify_users(period, 'REMINDER', title, body, profiles=unsubmitted_profiles)
@@ -119,7 +120,7 @@ def notify_manual_reminder(period, unsubmitted_profiles):
         body = (
             f'シフト希望をまだご提出いただいていません。\n'
             f'対象期間: {period.start_date.strftime("%-m/%-d")} 〜 {period.end_date.strftime("%-m/%-d")}\n'
-            f'提出締切: {period.submission_close_at.strftime("%-m/%-d %H:%M")}\n\n'
+            f'提出締切: {timezone.localtime(period.submission_close_at).strftime("%-m/%-d %H:%M")}\n\n'
             '早急にアプリからご提出ください。'
         )
     return notify_users(period, 'MANUAL', title, body, profiles=unsubmitted_profiles)

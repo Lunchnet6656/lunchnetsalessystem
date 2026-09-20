@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from io import StringIO
 
 from django.contrib.auth import get_user_model
@@ -16,8 +16,28 @@ from shifts.models import (
     ShiftNotification,
     UserProfile,
 )
+from shifts.notifications import _render
 
 User = get_user_model()
+
+
+class ReminderDeadlineTimezoneTest(TestCase):
+    """リマインド文面の締切時刻がJST（ローカル時間）で表示されることを検証する。"""
+
+    def test_締切がJSTで表示される(self):
+        # 締切を 2026/10/15 23:59 JST で作成（DBにはUTC 14:59で保存される）
+        close_jst = timezone.make_aware(datetime(2026, 10, 15, 23, 59))
+        period = SchedulePeriod.objects.create(
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 15),
+            submission_open_at=timezone.now(),
+            submission_close_at=close_jst,
+            status="OPEN",
+        )
+        rendered = _render("{deadline}", period)
+        # UTC直表示なら 14:59 になってしまう。JSTなら 23:59。
+        self.assertEqual(rendered, "10/15 23:59")
+        self.assertNotIn("14:59", rendered)
 
 
 class SendShiftRemindersCommandTest(TestCase):
