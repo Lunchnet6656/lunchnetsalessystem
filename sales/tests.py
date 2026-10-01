@@ -370,3 +370,117 @@ class DailyReportDuplicateGuardTest(TestCase):
         self._make(date=d, location='本店')
         self._make(date=d, location='支店')
         self.assertEqual(DailyReport.objects.filter(date=d).count(), 2)
+
+
+class DashboardOrdersIntegrationTest(TestCase):
+    """本日のダッシュボードに受注(Order)実績が合算されることの確認。"""
+
+    def setUp(self):
+        from orders.models import Customer, Order, OrderItem, OrderExtraItem
+        self.OrderItem = OrderItem
+        self.user = make_employee('dash')
+        self.client.force_login(self.user)
+        self.today = timezone.localdate()
+        self.customer = Customer.objects.create(
+            customer_type='B2B', company_name='テスト会社', price_type='A', bento_type='REGULAR',
+        )
+        self.order = Order.objects.create(
+            customer=self.customer, order_date=self.today, delivery_date=self.today,
+        )
+        self.p1 = Product.objects.create(no=1, week='20260101', name='唐揚げ')
+        self.p5 = Product.objects.create(no=5, week='20260101', name='豚キムチ')
+        report = DailyReport.objects.create(
+            date=self.today, location='売り場A', location_no=1,
+            total_quantity=30, total_sales_quantity=25, total_remaining=5, total_revenue=15000,
+        )
+        DailyReportEntry.objects.create(
+            report=report, product_no=1, product='唐揚げ',
+            quantity=30, sales_quantity=25, remaining_number=5, total_sales=15000,
+        )
+        # 日計表にあるメニュー(NO1)・無いメニュー(NO5)・未紐付け(仕出し)の受注
+        OrderItem.objects.create(order=self.order, product=self.p1, quantity_regular=10, unit_price=600, subtotal=6000)
+        OrderItem.objects.create(order=self.order, product=self.p5, quantity_regular=4, unit_price=600, subtotal=2400)
+        OrderItem.objects.create(order=self.order, product_name='仕出し弁当', quantity_regular=6, unit_price=1000, subtotal=6000)
+        OrderExtraItem.objects.create(order=self.order, product_name='お茶', unit_price=100, quantity=3)
+        # 翌日納品は混ざらない
+        tomorrow = Order.objects.create(
+            customer=self.customer, order_date=self.today,
+            delivery_date=self.today + timezone.timedelta(days=1),
+        )
+        OrderItem.objects.create(order=tomorrow, product=self.p1, quantity_regular=99, unit_price=600, subtotal=59400)
+
+    def _context(self):
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        return response.context
+
+    def test_summary_includes_orders(self):
+        ctx = self._context()
+        self.assertEqual(ctx['total_quantity'], 30 + 20)
+        self.assertEqual(ctx['total_sales_quantity'], 25 + 20)
+        self.assertEqual(ctx['total_remaining'], 5)
+        # 売上 = 日計表 + 受注明細 + 追加商品（お茶は数量に入らない）
+        self.assertEqual(ctx['total_revenue'], 15000 + 6000 + 2400 + 6000 + 300)
+        self.assertEqual(ctx['formatted_waste_rate'], '10.0%')
+
+    def test_menu_summary_includes_orders(self):
+        menu = {row['product']: row for row in self._context()['menu_summary']}
+        self.assertEqual(menu['唐揚げ']['total_quantity'], 40)
+        self.assertEqual(menu['唐揚げ']['total_sales_quantity'], 35)
+        self.assertEqual(menu['唐揚げ']['total_remaining'], 5)
+        self.assertEqual(menu['豚キムチ']['total_sales_quantity'], 4)
+        self.assertEqual(menu['その他(仕出し等)']['total_sales_quantity'], 6)
+
+    def test_menu_order_and_totals_match_summary(self):
+        ctx = self._context()
+        rows = ctx['menu_summary']
+        self.assertEqual([r['product'] for r in rows], ['唐揚げ', '豚キムチ', 'その他(仕出し等)'])
+        self.assertEqual(sum(r['total_quantity'] for r in rows), ctx['total_quantity'])
+        self.assertEqual(sum(r['total_sales_quantity'] for r in rows), ctx['total_sales_quantity'])
+
+    def test_location_has_route_order_row(self):
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.context['route_order_quantity'], 20)
+        self.assertContains(response, 'ルート受注')
+
+    def test_no_route_order_row_without_orders(self):
+        self.OrderItem.objects.filter(order=self.order).delete()
+        response = self.client.get('/dashboard/')
+        self.assertNotContains(response, 'ルート受注')
+        self.assertNotIn('その他(仕出し等)', [r['product'] for r in response.context['menu_summary']])
+
+
+class MenuSalesPerformanceOrdersTest(DashboardOrdersIntegrationTest):
+    """日別実績の日付クリック先（メニュー別販売実績）にダッシュボード項目+受注が出ることの確認。
+    セットアップはダッシュボードのテストを流用する。"""
+
+    def _detail(self):
+        url = f'/performance_data/{self.today.year}/{self.today.month}/{self.today.day}/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        return response
+
+    def test_detail_shows_summary_and_route_orders(self):
+        response = self._detail()
+        dash = self._context()
+        for key in ('total_quantity', 'total_sales_quantity', 'total_remaining', 'total_revenue', 'formatted_waste_rate'):
+            self.assertEqual(response.context[key], dash[key])
+        self.assertContains(response, 'ルート受注')
+        self.assertContains(response, '総売上')
+
+    def test_detail_menu_rows_include_orders(self):
+        ctx = self._detail().context
+        self.assertEqual([r['product'] for r in ctx['menu_rows']], ['唐揚げ', '豚キムチ', 'その他(仕出し等)'])
+        self.assertEqual(ctx['total_sales_quantity_sum'], 25 + 20)
+
+    def test_detail_adds_order_large_to_large_rice(self):
+        self.OrderItem.objects.create(
+            order=self.order, product=self.p1, quantity_regular=1, quantity_large=2, unit_price=600, subtotal=1800,
+        )
+        rows = self._detail().context['large_rice_rows']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['product_no'], 11)
+        self.assertEqual(rows[0]['total_sales_quantity'], 2)
+        # ダッシュボードの大盛りごはんにも同じく加算される
+        dash_rice = [r for r in self._context()['menu_summary'] if r['product_no'] == 11]
+        self.assertEqual(dash_rice[0]['total_sales_quantity'], 2)

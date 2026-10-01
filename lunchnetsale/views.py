@@ -359,43 +359,78 @@ def dashboard_view(request):
 
     today = datetime.today()#date(2025, 1, 15)
 
-    # 本日の売上、販売数、残数を集計
-    daily_reports = DailyReport.objects.filter(date=today).order_by('location_no')
-
-    total_quantity = sum(report.total_quantity for report in daily_reports)
-    total_revenue = sum(report.total_revenue for report in daily_reports)
-    total_sales_quantity = sum(report.total_sales_quantity for report in daily_reports)
-    total_remaining = sum(report.total_remaining for report in daily_reports)
-    # Waste_rateの計算
-    if total_quantity > 0:  # ゼロ除算を防ぐためのチェック
-        waste_rate = (total_remaining / total_quantity) * 100  # パーセンテージに変換
-    else:
-        waste_rate = 0.0
-
-    # 小数点以下2位までフォーマット
-    formatted_waste_rate = f"{waste_rate:.1f}%"
-
-
-    # メニュー別の集計
-    menu_summary = DailyReportEntry.objects.filter(report__date=today).values('product','product_no').annotate(
-        total_quantity=Sum('quantity'),
-        total_sales_quantity=Sum('sales_quantity'),
-        total_remaining=Sum('remaining_number')
-    ).order_by('product_no')
-
-    context = {
-        'today': today,
-        'total_quantity': total_quantity,
-        'total_revenue': total_revenue,
-        'total_sales_quantity': total_sales_quantity,
-        'total_remaining': total_remaining,
-        'formatted_waste_rate': formatted_waste_rate,
-        'menu_summary': menu_summary,
-        'report':daily_reports,
-    }
-
+    context = {'today': today, **_build_day_dashboard(today.date())}
 
     return render(request, 'dashboard.html', context)
+
+
+LARGE_RICE_PRODUCT_NO = 11  # 日計表の「大盛りごはん」のメニューNO
+OTHER_ORDER_LABEL = 'その他(仕出し等)'
+
+
+def _build_day_dashboard(target_date):
+    """1日分のダッシュボード集計（サマリー/メニュー別/販売場所別）。販売(DailyReport)+受注(Order)を合算。
+    受注の大盛り数は「大盛りごはん(NO11)」行にも加算する。"""
+    daily_reports = DailyReport.objects.filter(date=target_date).order_by('location_no')
+    daily_orders = Order.objects.filter(delivery_date=target_date)
+    day_data = _aggregate_daily_performance(target_date, daily_reports, daily_orders)
+
+    # 受注のメニュー別数量（商品NOで日計表と突合。商品未紐付けは「その他(仕出し等)」へ）
+    order_items = OrderItem.objects.filter(order__in=daily_orders)
+    order_menu = {}
+    for row in (order_items.filter(product__isnull=False)
+                .values('product__no', 'product__name')
+                .annotate(qty=Sum('quantity'))):
+        entry = order_menu.setdefault(row['product__no'], {'name': row['product__name'], 'qty': 0})
+        entry['qty'] += row['qty'] or 0
+    large_qty = order_items.aggregate(v=Sum('quantity_large'))['v'] or 0
+    entry = order_menu.setdefault(LARGE_RICE_PRODUCT_NO, {'name': '大盛りごはん', 'qty': 0})
+    entry['qty'] += large_qty
+    unlinked_order_qty = order_items.filter(product__isnull=True).aggregate(v=Sum('quantity'))['v'] or 0
+    route_order_quantity = order_items.aggregate(v=Sum('quantity'))['v'] or 0
+
+    # メニュー別の集計
+    menu_summary = list(DailyReportEntry.objects.filter(report__date=target_date).values('product','product_no').annotate(
+        total_quantity=Sum('quantity'),
+        total_sales_quantity=Sum('sales_quantity'),
+        total_remaining=Sum('remaining_number'),
+        popular_count=Count('id', filter=Q(popular=True)),
+        unpopular_count=Count('id', filter=Q(unpopular=True)),
+    ).order_by('product_no'))
+    for item in menu_summary:
+        order_qty = order_menu.pop(item['product_no'], {}).get('qty', 0)
+        item['total_quantity'] += order_qty
+        item['total_sales_quantity'] += order_qty
+    # 日計表に無いメニューの受注は新しい行として追加
+    new_rows = [(no, entry['name'], entry['qty']) for no, entry in order_menu.items() if entry['qty'] > 0]
+    if unlinked_order_qty > 0:
+        new_rows.append(('', OTHER_ORDER_LABEL, unlinked_order_qty))
+    for no, name, qty in new_rows:
+        menu_summary.append({
+            'product_no': no,
+            'product': name,
+            'total_quantity': qty,
+            'total_sales_quantity': qty,
+            'total_remaining': 0,
+            'popular_count': 0,
+            'unpopular_count': 0,
+        })
+    # NO昇順、「その他(仕出し等)」は最後
+    menu_summary.sort(key=lambda item: (item['product_no'] == '', item['product_no'] or 0))
+    for item in menu_summary:
+        qty = item['total_quantity']
+        item['waste_rate'] = (item['total_remaining'] / qty * 100) if qty > 0 else 0
+
+    return {
+        'total_quantity': int(day_data['total_quantity']),
+        'total_revenue': int(day_data['total_revenue']),
+        'total_sales_quantity': int(day_data['total_sales_quantity']),
+        'total_remaining': int(day_data['total_remaining']),
+        'formatted_waste_rate': f"{day_data['waste_rate']:.1f}%",
+        'menu_summary': menu_summary,
+        'report': daily_reports,
+        'route_order_quantity': route_order_quantity,
+    }
 
 @login_required
 def user_list_view(request):
@@ -1952,38 +1987,27 @@ def performance_data_view(request):
 def menu_sales_performance_view(request, year, month, day):
     selected_date = date(year, month, day)
 
-    summary_data = DailyReportEntry.objects.filter(report__date=selected_date).values(
-    'product',
-    'product_no',  # productの識別子を使用
-    ).annotate(
-        total_quantity=Sum('quantity'),
-        total_sales_quantity=Sum('sales_quantity'),
-        total_remaining=Sum('remaining_number'),
-        popular_count=Count('id', filter=Q(popular=True)),
-        unpopular_count=Count('id', filter=Q(unpopular=True)),
-    ).order_by('product_no')  # no順にソート
+    # ダッシュボードと同じ集計（販売+受注）
+    day_dashboard = _build_day_dashboard(selected_date)
+    # おかず表 = NO1〜10 + その他(仕出し等)、大盛りごはん表 = NO11
+    menu_rows = [r for r in day_dashboard['menu_summary'] if r['product_no'] == '' or 1 <= r['product_no'] <= 10]
+    large_rice_rows = [r for r in day_dashboard['menu_summary'] if r['product_no'] == LARGE_RICE_PRODUCT_NO]
 
-    # 合計値を計算
-    summary_data_filtered = summary_data.filter(product_no__range=(1, 10))  # product_noが1〜10の範囲に絞り込み
-    total_quantity_sum = summary_data_filtered.aggregate(Sum('total_quantity'))['total_quantity__sum'] or 0
-    total_sales_quantity_sum = summary_data_filtered.aggregate(Sum('total_sales_quantity'))['total_sales_quantity__sum'] or 0
-    total_remaining_sum = summary_data_filtered.aggregate(Sum('total_remaining'))['total_remaining__sum'] or 0
-    total_popular_count = summary_data_filtered.aggregate(Sum('popular_count'))['popular_count__sum'] or 0
-    total_unpopular_count = summary_data_filtered.aggregate(Sum('unpopular_count'))['unpopular_count__sum'] or 0
-
-    # 廃棄率の計算
-    summary_with_waste_rate = []
-    for entry in summary_data:
-        waste_rate = (entry['total_remaining'] / entry['total_quantity'] * 100) if entry['total_quantity'] > 0 else 0
-        entry['waste_rate'] = waste_rate
-        summary_with_waste_rate.append(entry)
+    # 合計値を計算（おかず表）
+    total_quantity_sum = sum(r['total_quantity'] for r in menu_rows)
+    total_sales_quantity_sum = sum(r['total_sales_quantity'] for r in menu_rows)
+    total_remaining_sum = sum(r['total_remaining'] for r in menu_rows)
+    total_popular_count = sum(r['popular_count'] for r in menu_rows)
+    total_unpopular_count = sum(r['unpopular_count'] for r in menu_rows)
 
     # 合計行の廃棄率も計算
     total_waste_rate = (total_remaining_sum / total_quantity_sum * 100) if total_quantity_sum > 0 else 0
 
     context = {
+        **day_dashboard,
         'selected_date': selected_date,
-        'summary_data': summary_with_waste_rate,
+        'menu_rows': menu_rows,
+        'large_rice_rows': large_rice_rows,
         'total_quantity_sum': total_quantity_sum,
         'total_sales_quantity_sum': total_sales_quantity_sum,
         'total_remaining_sum': total_remaining_sum,

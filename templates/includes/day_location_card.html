@@ -1,0 +1,48 @@
+{% load custom_filters %}
+{% load humanize %}
+            <div class="col-md-9 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        販売場所別集計
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>NO</th>
+                                    <th>販売場所</th>
+                                    <th>持参数</th>
+                                    <th>販売数</th>
+                                    <th>残数</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reports in report %}
+                                    <tr>
+                                        <td>{{ reports.location_no }}</td>
+                                        <td>{{ reports.location }}</td>
+                                        <td>{{ reports.total_quantity }}</td>
+                                        <td>{{ reports.total_sales_quantity }}</td>
+                                        <td>{{ reports.total_remaining }}</td>
+                                    </tr>
+                                {% empty %}
+                                    {% if not route_order_quantity %}
+                                    <tr>
+                                        <td colspan="4">データがありません</td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                                {% if route_order_quantity %}
+                                    <tr>
+                                        <td></td>
+                                        <td>ルート受注</td>
+                                        <td>{{ route_order_quantity }}</td>
+                                        <td>{{ route_order_quantity }}</td>
+                                        <td>0</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>

@@ -1,5 +1,3 @@
-<!DOCTYPE html>
-<!DOCTYPE html>
 {% extends 'base.html' %}
 
 {% block title %}メニュー別販売実績{% endblock %}
@@ -8,9 +6,15 @@
 
 {% load custom_filters %}
 {% load humanize %}
+{% load static %}
+<link href="{% static 'css/styles_dashboard.css' %}" rel="stylesheet">
 <div class="container mt-4">
     <h1 class="mb-1">{{ selected_date|japanese_date }} のメニュー別販売実績</h1>
     <hr class="my-4">
+
+    <div class="row">
+        {% include 'includes/day_summary_card.html' %}
+    </div>
 
     <table class="table table-bordered">
         <thead class="table-active">
@@ -26,8 +30,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for entry in summary_data %}
-                {% if entry.product_no >= 1 and entry.product_no <= 10 %}
+            {% for entry in menu_rows %}
                 <tr>
                     <td>{{ entry.product_no }}</td>
                     <td>{{ entry.product }}</td>
@@ -38,10 +41,9 @@
                     <td>{{ entry.unpopular_count|intcomma }}</td>
                     <td>{{ entry.waste_rate|floatformat:1 }}</td> <!-- 廃棄率を表示 -->
                 </tr>
-                {% endif %}
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center">データがありません</td>
+                    <td colspan="8" class="text-center">データがありません</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -69,8 +71,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for entry in summary_data %}
-                {% if entry.product_no == 11 %}
+            {% for entry in large_rice_rows %}
                 <tr>
                     <td>{{ entry.product_no }}</td>
                     <td>{{ entry.product }}</td>
@@ -79,14 +80,17 @@
                     <td>{{ entry.total_remaining|intcomma }}</td>
                     <td>{{ entry.waste_rate|floatformat:1 }}</td> <!-- 廃棄率を表示 -->
                 </tr>
-                {% endif %}
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center">データがありません</td>
+                    <td colspan="6" class="text-center">データがありません</td>
                 </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <div class="row">
+        {% include 'includes/day_location_card.html' %}
+    </div>
 </div>
 
 {% endblock %}
