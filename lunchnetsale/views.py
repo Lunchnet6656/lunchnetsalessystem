@@ -8,6 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
 import pandas as pd
+from sales.item_quantity_import import next_business_day, parse_item_quantity_workbook, save_item_quantities
+from sales.models import ItemQuantityUpload
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
@@ -599,49 +601,21 @@ def upload_view(request):
             messages.success(request, 'メニューデータがアップロードされました。')
 
         elif 'item_quantity_file' in request.FILES and item_quantity_form.is_valid():
-            file = request.FILES['item_quantity_file']
-            wb = openpyxl.load_workbook(file)
-            sheet = wb.active
-
-            target_week = sheet.cell(row=2, column=1).value
-            target_week = datetime.strptime(str(target_week), "%Y%m%d").date()
-            date = datetime.strptime(sheet.title, "%Y%m%d").date()
-
-            for row in sheet.iter_rows(min_row=2, max_row=12, values_only=True):
-                product_no = row[1]
-                try:
-                    product = Product.objects.get(no=product_no, week=target_week)
-                except Product.DoesNotExist:
-                    continue
-
-                for col_idx, quantity in enumerate(row[2:], start=2):
-                    sales_location_name = sheet.cell(row=1, column=col_idx + 1).value
-                    try:
-                        sales_location = SalesLocation.objects.get(name=sales_location_name)
-                    except SalesLocation.DoesNotExist:
-                        continue
-
-                    # target_weekとtarget_dateが重複しているか確認
-                    item_quantity_exists = ItemQuantity.objects.filter(
-                        target_week=target_week, target_date=date, product=product, sales_location=sales_location
-                    ).exists()
-
-                    if item_quantity_exists:
-                        # 既存データがあれば更新
-                        item_quantity = ItemQuantity.objects.get(
-                            target_week=target_week, target_date=date, product=product, sales_location=sales_location
-                        )
-                        item_quantity.quantity = quantity
-                        item_quantity.save()
-                    else:
-                        # 新規作成
-                        ItemQuantity.objects.create(
-                            target_date=date,
-                            target_week=target_week,
-                            product=product,
-                            sales_location=sales_location,
-                            quantity=quantity
-                        )
+            # 自動送信APIと同じ検証。列ズレ・店名不一致があれば1件も保存しない（過去日はここからのみ可）
+            parsed = parse_item_quantity_workbook(request.FILES['item_quantity_file'])
+            if parsed.errors:
+                ItemQuantityUpload.objects.create(
+                    target_date=parsed.target_date, source="screen", ok=False, errors=parsed.errors,
+                )
+                for error in parsed.errors:
+                    messages.error(request, error)
+                return redirect('upload')
+            saved = save_item_quantities(parsed)
+            ItemQuantityUpload.objects.create(
+                target_date=parsed.target_date, source="screen", ok=True, saved_count=saved,
+                errors=parsed.warnings,
+            )
+            date = parsed.target_date
             messages.success(request, '持参数データがアップロードされました。')
 
             # 今日分の持参数なら出店状況ページへ即反映（8:00の定期更新より後に上げたケースの救済）。
@@ -662,10 +636,15 @@ def upload_view(request):
         menu_form = UploadMenuForm()
         item_quantity_form = UploadItemQuantityForm()
 
+    next_day = next_business_day(timezone.localdate())
+    next_day_uploads = ItemQuantityUpload.objects.filter(target_date=next_day)
     return render(request, 'upload.html', {
         'location_form': location_form,
         'menu_form': menu_form,
-        'item_quantity_form': item_quantity_form
+        'item_quantity_form': item_quantity_form,
+        'next_business_day': next_day,
+        'next_day_last_ok': next_day_uploads.filter(ok=True).first(),
+        'next_day_last_attempt': next_day_uploads.first(),
     })
 
 @login_required

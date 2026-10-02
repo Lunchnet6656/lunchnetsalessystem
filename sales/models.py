@@ -178,6 +178,24 @@ class ItemQuantity(models.Model):
     def __str__(self):
         return f"{self.target_date} - {self.sales_location} - {self.product} - {self.quantity}"
     
+class ItemQuantityUpload(models.Model):
+    """持参数の受信記録。19:30の未受信通知と、画面の「最終受信」表示に使う。"""
+    SOURCE_CHOICES = [("api", "振分表の確定ボタン"), ("screen", "画面アップロード")]
+
+    target_date = models.DateField(null=True, blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES)
+    ok = models.BooleanField(default=False)
+    saved_count = models.IntegerField(default=0)
+    errors = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-received_at", "-id"]
+
+    def __str__(self):
+        return f"{self.target_date} {self.get_source_display()} {'OK' if self.ok else 'NG'}"
+
+
 class OthersItem(models.Model):
     no = models.IntegerField(default=0)
     name =  models.CharField(max_length=255)

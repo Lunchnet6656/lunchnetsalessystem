@@ -277,6 +277,13 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 # --- LINE Bot 設定 ---
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+
+# 振分表マクロからの持参数自動送信（Bearer トークン）。未設定ならAPIは受け付けない
+ITEM_QUANTITY_API_TOKEN = os.environ.get("ITEM_QUANTITY_API_TOKEN", "")
+# 振分表にはあるがアプリで持参数を管理しない店名（ここに無い不一致は送信を止める）
+ITEM_QUANTITY_IGNORED_LOCATIONS = csv_env("ITEM_QUANTITY_IGNORED_LOCATIONS", "なだや,武相,本町一丁目,千代田")
+# 持参数の未受信通知の宛先（しょうへい個人のLINE userId）
+OWNER_LINE_USER_ID = os.environ.get("OWNER_LINE_USER_ID", "")
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET', '')
 LINE_BOT_BASIC_ID = os.environ.get('LINE_BOT_BASIC_ID', '')  # 例: @abc12345
 

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% extends 'base.html' %}
+{% load custom_filters %}
 
 {% block title %}データアップロード{% endblock %}
 
@@ -36,6 +37,20 @@
     <div class="card mb-4">
         <div class="card-header">持参数データのアップロード(振分け)</div>
         <div class="card-body">
+          <div class="mb-3 p-2 rounded {% if next_day_last_ok %}bg-success-subtle{% else %}bg-warning-subtle{% endif %}">
+            <strong>{{ next_business_day|date:"n/j" }}({{ next_business_day|japanese_weekday }})分</strong>：
+            {% if next_day_last_ok %}
+              最終受信 {{ next_day_last_ok.received_at|date:"n/j H:i" }}（{{ next_day_last_ok.get_source_display }}・{{ next_day_last_ok.saved_count }}件）
+            {% else %}
+              まだ届いていません（振分表の[確定して送る]で届きます）
+            {% endif %}
+            {% if next_day_last_attempt and not next_day_last_attempt.ok %}
+              <div class="text-danger small mt-1">
+                {{ next_day_last_attempt.received_at|date:"n/j H:i" }} の送信は止めました：
+                {% for e in next_day_last_attempt.errors %}<div>・{{ e }}</div>{% endfor %}
+              </div>
+            {% endif %}
+          </div>
           <form method="POST" enctype="multipart/form-data">
               {% csrf_token %}
               <div class="mb-3">

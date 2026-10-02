@@ -20,6 +20,7 @@ from . import views
 from django.contrib.auth import views as auth_views
 from .views import locked_out_view,my_page,submit_shift,edit_shift
 from sales import qr_views as sales_qr_views
+from sales import api_views as sales_api_views
 from stamps import views as stamp_views
 
 urlpatterns = [
@@ -37,6 +38,7 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('upload/', views.upload_view, name='upload'),
+    path('api/item-quantity/', sales_api_views.api_item_quantity, name='api_item_quantity'),
     path('register/', views.register_user, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
 
