@@ -242,7 +242,8 @@ End Function
 
 Private Function 送信(ByVal xlsxPath As String, ByVal token As String, ByRef message As String) As Boolean
     Dim stm As Object
-    Dim body() As Byte
+    'Byte() 型のまま send に渡すと「パラメーターが間違っています」になる。Variant で渡す
+    Dim body As Variant
     Dim http As Object
 
     Set stm = CreateObject("ADODB.Stream")
