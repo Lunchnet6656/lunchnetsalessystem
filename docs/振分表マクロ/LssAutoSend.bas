@@ -1,7 +1,7 @@
 Attribute VB_Name = "LssAutoSend"
-'振分表の持参数をLSS（salesアプリ）へ送る。最終決定のあとに[確定して送る]ボタンで1回だけ押す。
+'振分表の持参数をLSS（salesアプリ）へ送る。最終決定のあとに[確定送信]ボタンを1回だけ押す。
 '仮の数字は送らない（保存では送らない）。押し忘れは19:30にアプリからLINEで知らせる。
-'送れたときだけ振分表をB4で印刷する（紙とアプリの数字を必ず一致させるため）。
+'送れたら振分表をB4で印刷するか聞く（送れなかったときは印刷しない＝紙とアプリの数字を必ず一致させる）。
 Option Explicit
 
 Private Const API_URL As String = "https://www.lunchnetsalessystem.com/api/item-quantity/"
@@ -11,7 +11,7 @@ Private Const OMORI_ROW As Long = 41
 Private Const OMORI_NO As Long = 11
 Private Const MSG_TITLE As String = "持参数の確定"
 
-'[確定して送る]ボタン（旧[データ変換]ボタン）から呼ぶ。ボタンの登録先はそのままでよいよう名前を引き継ぐ
+'[確定送信]ボタン（旧[データ変換]ボタン）から呼ぶ。ボタンの登録先はそのままでよいよう名前を引き継ぐ
 Public Sub データアップロード用変換()
     Dim wsSource As Worksheet
     Dim targetDate As Date
@@ -29,13 +29,13 @@ Public Sub データアップロード用変換()
     targetDate = wsSource.Range("AP1").Value
 
     If MsgBox(Format(targetDate, "m/d(aaa)") & " 分の持参数を確定してアプリに送ります。" & vbCrLf & _
-              "送れたら振分表をB4で印刷します。よろしいですか？", vbYesNo + vbQuestion, MSG_TITLE) = vbNo Then Exit Sub
+              "よろしいですか？", vbYesNo + vbQuestion, MSG_TITLE) = vbNo Then Exit Sub
 
     problems = 空白チェック(wsSource)
     If problems <> "" Then
         MsgBox "送りませんでした（印刷もしていません）。" & vbCrLf & _
                "空白のセルがあると、数字が隣の店にズレて登録されてしまうためです。" & vbCrLf & vbCrLf & _
-               problems & vbCrLf & "0 を入れてから、もう一度[確定して送る]を押してください。", vbExclamation, MSG_TITLE
+               problems & vbCrLf & "0 を入れてから、もう一度[確定送信]を押してください。", vbExclamation, MSG_TITLE
         Exit Sub
     End If
 
@@ -50,10 +50,16 @@ Public Sub データアップロード用変換()
     filePath = 送信ファイル作成(wsSource, targetDate)
 
     If 送信(filePath, token, message) Then
-        Application.StatusBar = "振分表を印刷しています…"
-        wsSource.PrintOut
         Application.StatusBar = False
-        MsgBox message & vbCrLf & vbCrLf & "振分表をB4で印刷しました。", vbInformation, MSG_TITLE
+        If MsgBox(message & vbCrLf & vbCrLf & "振分表をB4で印刷しますか？", vbYesNo + vbQuestion + vbDefaultButton1, MSG_TITLE) = vbYes Then
+            Application.StatusBar = "振分表を印刷しています…"
+            '送信は済んでいるので、印刷の失敗で「送れませんでした」と出さない
+            On Error Resume Next
+            wsSource.PrintOut
+            If Err.Number <> 0 Then MsgBox "持参数は登録できています。印刷だけ失敗しました：" & Err.Description, vbExclamation, MSG_TITLE
+            On Error GoTo 0
+            Application.StatusBar = False
+        End If
     Else
         Application.StatusBar = False
         MsgBox message & vbCrLf & vbCrLf & "（印刷はしていません）", vbExclamation, MSG_TITLE
