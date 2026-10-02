@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from datetime import datetime, timedelta, date
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
+from django.core.management import call_command
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
@@ -642,6 +643,17 @@ def upload_view(request):
                             quantity=quantity
                         )
             messages.success(request, '持参数データがアップロードされました。')
+
+            # 今日分の持参数なら出店状況ページへ即反映（8:00の定期更新より後に上げたケースの救済）。
+            # 未来日分は翌朝8:00の Scheduler で反映されるので何もしない。
+            if date == timezone.localdate():
+                try:
+                    call_command("publish_status_json")
+                    messages.success(request, '出店状況ページへ反映を送りました（1〜2分で表示が更新されます）。')
+                except Exception:
+                    # 反映失敗は致命的ではない（持参数はDB保存済）。次回の publish で同期される。
+                    logger.exception("持参数アップロード後の publish_status_json に失敗")
+                    messages.warning(request, '出店状況ページへの反映に失敗しました。持参数は保存済みです。')
 
         else:
             messages.error(request, 'フォームにエラーがあります。')
