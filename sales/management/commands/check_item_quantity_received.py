@@ -20,12 +20,12 @@ def build_message(target_date, last_failed):
     if last_failed:
         lines = [
             f"【持参数 未登録】{label}分の最後の送信が止められています。",
-            "直してから振分表の[確定して送る]をもう一度押してください。",
+            "直してから振分表の[確定送信]をもう一度押してください。",
         ]
     else:
         lines = [
             f"【持参数 未受信】{label}分の持参数がまだアプリに届いていません。",
-            "最終決定が終わったら、振分表の[確定して送る]を押してください。",
+            "最終決定が終わったら、振分表の[確定送信]を押してください。",
         ]
     if last_failed:
         lines += ["", f"{timezone.localtime(last_failed.received_at):%H:%M} の送信は止めました："]

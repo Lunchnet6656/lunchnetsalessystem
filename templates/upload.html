@@ -42,7 +42,7 @@
             {% if next_day_last_ok %}
               最終受信 {{ next_day_last_ok.received_at|date:"n/j H:i" }}（{{ next_day_last_ok.get_source_display }}・{{ next_day_last_ok.saved_count }}件）
             {% else %}
-              まだ届いていません（振分表の[確定して送る]で届きます）
+              まだ届いていません（振分表の[確定送信]で届きます）
             {% endif %}
             {% if next_day_last_attempt and not next_day_last_attempt.ok %}
               <div class="text-danger small mt-1">
