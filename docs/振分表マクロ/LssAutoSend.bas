@@ -11,6 +11,9 @@ Private Const OMORI_ROW As Long = 41
 Private Const OMORI_NO As Long = 11
 Private Const MSG_TITLE As String = "持参数の確定"
 
+'エラーが出たときに「どこで止まったか」を表示するため
+Private stepName As String
+
 '[確定送信]ボタン（旧[データ変換]ボタン）から呼ぶ。ボタンの登録先はそのままでよいよう名前を引き継ぐ
 Public Sub データアップロード用変換()
     Dim wsSource As Worksheet
@@ -31,6 +34,7 @@ Public Sub データアップロード用変換()
     If MsgBox(Format(targetDate, "m/d(aaa)") & " 分の持参数を確定してアプリに送ります。" & vbCrLf & _
               "よろしいですか？", vbYesNo + vbQuestion, MSG_TITLE) = vbNo Then Exit Sub
 
+    stepName = "空白チェック"
     problems = 空白チェック(wsSource)
     If problems <> "" Then
         MsgBox "送りませんでした（印刷もしていません）。" & vbCrLf & _
@@ -39,6 +43,7 @@ Public Sub データアップロード用変換()
         Exit Sub
     End If
 
+    stepName = "合言葉の読み込み"
     token = 合言葉を読む()
     If token = "" Then
         MsgBox "送れませんでした（印刷もしていません）。" & vbCrLf & _
@@ -47,8 +52,10 @@ Public Sub データアップロード用変換()
     End If
 
     Application.StatusBar = "持参数をアプリに送っています…"
+    stepName = "送信ファイルの作成"
     filePath = 送信ファイル作成(wsSource, targetDate)
 
+    stepName = "アプリへの送信"
     If 送信(filePath, token, message) Then
         Application.StatusBar = False
         If MsgBox(message & vbCrLf & vbCrLf & "振分表をB4で印刷しますか？", vbYesNo + vbQuestion + vbDefaultButton1, MSG_TITLE) = vbYes Then
@@ -71,7 +78,8 @@ ErrHandler:
     Application.EnableEvents = True
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
-    MsgBox "送れませんでした（印刷もしていません）。" & vbCrLf & "内容: " & Err.Description & vbCrLf & vbCrLf & _
+    MsgBox "送れませんでした（印刷もしていません）。" & vbCrLf & _
+           "止まった所: " & stepName & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）" & vbCrLf & vbCrLf & _
            "急ぐときはLSSの画面からアップロードしてください。", vbExclamation, MSG_TITLE
 End Sub
 
@@ -209,15 +217,27 @@ Private Function 店舗名変換を読む() As Object
 End Function
 
 Private Function 合言葉を読む() As String
-    Dim f As Integer
-    Dim tokenLine As String
+    '合言葉は英数字と - _ だけ。メモ帳やクラウド経由で付く見えない文字（BOM・改行・全角空白）を落とす。
+    'ヘッダーに見えない文字が混じると「パラメーターが間違っています」で送信前に止まるため
+    Dim stm As Object
+    Dim raw As String
+    Dim i As Long
+    Dim ch As String
+    Dim result As String
 
     If Dir(LSS_FOLDER & TOKEN_FILE) = "" Then Exit Function
-    f = FreeFile
-    Open LSS_FOLDER & TOKEN_FILE For Input As #f
-    If Not EOF(f) Then Line Input #f, tokenLine
-    Close #f
-    合言葉を読む = Trim(tokenLine)
+    Set stm = CreateObject("ADODB.Stream")
+    stm.Type = 2
+    stm.Charset = "utf-8"
+    stm.Open
+    stm.LoadFromFile LSS_FOLDER & TOKEN_FILE
+    raw = stm.ReadText
+    stm.Close
+    For i = 1 To Len(raw)
+        ch = Mid(raw, i, 1)
+        If ch Like "[A-Za-z0-9_-]" Then result = result & ch
+    Next i
+    合言葉を読む = result
 End Function
 
 Private Function 送信(ByVal xlsxPath As String, ByVal token As String, ByRef message As String) As Boolean
@@ -233,11 +253,11 @@ Private Function 送信(ByVal xlsxPath As String, ByVal token As String, ByRef mes
     stm.Close
 
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    On Error GoTo NetError
     http.setTimeouts 5000, 5000, 15000, 30000
     http.Open "POST", API_URL, False
     http.setRequestHeader "Authorization", "Bearer " & token
     http.setRequestHeader "Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    On Error GoTo NetError
     http.send body
     On Error GoTo 0
 
@@ -247,7 +267,7 @@ Private Function 送信(ByVal xlsxPath As String, ByVal token As String, ByRef mes
     Exit Function
 
 NetError:
-    message = "持参数をアプリに送れませんでした（インターネットにつながらない可能性）。" & vbCrLf & "内容: " & Err.Description
+    message = "持参数をアプリに送れませんでした（インターネットの接続か、合言葉ファイルの中身を確認してください）。" & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）"
     送信 = False
 End Function
 
