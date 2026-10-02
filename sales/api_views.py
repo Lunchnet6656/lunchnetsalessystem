@@ -3,18 +3,21 @@
 振分表の[確定して送る]ボタンで送られてくる（仮の数字は送らない）。同じ日付は最新の数字で上書きする。
 ログイン画面を経由できない（VBAから直接叩く）ため、セッションではなく Bearer トークンで認証する。
 """
+import csv
 import io
 import logging
 import secrets
 
 from django.conf import settings
 from django.core.management import call_command
-from django.http import JsonResponse
+from django.core.cache import cache
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from sales.item_quantity_import import parse_item_quantity_workbook, save_item_quantities
+from sales.menu_history import COLUMNS, build_menu_history
 from sales.models import ItemQuantityUpload
 
 logger = logging.getLogger(__name__)
@@ -76,6 +79,30 @@ def api_item_quantity(request):
         "warnings": parsed.warnings,
         "published": published,
     })
+
+
+@require_GET
+def api_menu_history(request):
+    """メニュー表（Excelの「Webから」）向けのメニュー実績CSV。読むだけなので、合言葉は登録用とは別。"""
+    expected = settings.MENU_HISTORY_API_KEY
+    key = request.GET.get("key", "")
+    if not expected or not secrets.compare_digest(key, expected):
+        return HttpResponse("認証に失敗しました", status=401, content_type="text/plain; charset=utf-8")
+
+    today = timezone.localdate()
+    cache_key = f"menu_history_csv_{today.isoformat()}"
+    body = cache.get(cache_key)
+    if body is None:
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(COLUMNS)
+        for row in build_menu_history(today):
+            writer.writerow(["" if row[c] is None else row[c] for c in COLUMNS])
+        body = buf.getvalue()
+        # 日計表は夕方に入るので、1日1回の計算で十分（Excelで何度更新しても重くしない）
+        cache.set(cache_key, body, 3600)
+    # BOM 付きにしないと Excel が文字化けする
+    return HttpResponse("\ufeff" + body, content_type="text/csv; charset=utf-8")
 
 
 def _iso(d):

@@ -39,6 +39,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('upload/', views.upload_view, name='upload'),
     path('api/item-quantity/', sales_api_views.api_item_quantity, name='api_item_quantity'),
+    path('api/menu-history.csv', sales_api_views.api_menu_history, name='api_menu_history'),
     path('register/', views.register_user, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
 
