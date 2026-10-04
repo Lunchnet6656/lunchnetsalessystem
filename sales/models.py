@@ -196,6 +196,22 @@ class ItemQuantityUpload(models.Model):
         return f"{self.target_date} {self.get_source_display()} {'OK' if self.ok else 'NG'}"
 
 
+class WeatherForecastSnapshot(models.Model):
+    """決めた時点の昼の天気予報。過去の予報は後から取れないので、検証のために毎日残す。"""
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    target_date = models.DateField(db_index=True)
+    lunch_precip = models.FloatField()        # 昼11〜13時の予想降水量(mm)
+    lunch_snow = models.FloatField(default=0)  # 同・降雪(cm)
+    lunch_temp = models.FloatField(null=True, blank=True)
+    lunch_feels = models.FloatField(null=True, blank=True)  # 体感温度
+
+    class Meta:
+        ordering = ["-fetched_at"]
+
+    def __str__(self):
+        return f"{self.target_date} 昼{self.lunch_precip}mm（{self.fetched_at:%m/%d %H:%M}取得）"
+
+
 class OthersItem(models.Model):
     no = models.IntegerField(default=0)
     name =  models.CharField(max_length=255)

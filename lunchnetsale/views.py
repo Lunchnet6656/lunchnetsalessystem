@@ -3276,55 +3276,24 @@ def _forecast_weighted_recent(values):
     return sum(w * v for w, v in zip(weights, values)) / sum(weights)
 
 
-# --- 大雨アラート（Open-Meteo・時間別予報） -------------------------------------
-# 実データ校正：昼(11-14時)の合計降水量が 8mm 以上／降雪ありの日は食数が約2割落ちる
-# （日合計mmでは捉えられず"昼に降るか"で決まる）。普段の予測はいじらず、この日だけ減の目安を出す。
-FORECAST_LUNCH_HOURS = (11, 12, 13, 14)
-FORECAST_HEAVY_PRECIP_MM = 8.0     # 昼合計がこれ以上で「大雨」＝約-20%水準
-FORECAST_HEAVY_FACTOR = 0.80       # 大雨予報日の仕込み目安＝予測×0.8
-FORECAST_OPEN_METEO_LAT = 35.667   # 東京（都心店舗の代表点）
-FORECAST_OPEN_METEO_LON = 139.75
+# --- 昼の雨（Open-Meteo・時間別予報）× 販売形式 -------------------------------
+# 実データ校正（2025-09〜2026-10）：昼11〜13時の雨量で外の売場（テーブル・行商・車）は減り、
+# 室内は減らない。一律に減らすと室内が完売するので、販売形式ごとの目安を出す（係数は sales/weather.py）。
 
 
-def _fetch_heavy_lunch_days(today):
-    """Open-Meteoの時間別予報から各日の昼(11-14時)降水量・降雪を集計し大雨判定を返す。
-
-    返り値: {'YYYY-MM-DD': {'precip': mm, 'snow': cm, 'heavy': bool}, ...}。
-    取得失敗時は {}（＝天気補正なしで安全側に倒す）。日次でキャッシュしてAPI負荷を抑える。
-    """
-    import urllib.request
+def _fetch_lunch_weather(today):
+    """日付ごとの昼の予報。取得失敗時は {}（＝補正なしで安全側に倒す）。日次でキャッシュ。"""
     from django.core.cache import cache
+    from sales.weather import fetch_lunch_weather
 
-    cache_key = "meal_forecast_heavy_%s" % today.isoformat()
+    cache_key = "meal_forecast_lunch_weather_%s" % today.isoformat()
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-
-    result = {}
     try:
-        url = (
-            "https://api.open-meteo.com/v1/forecast"
-            "?latitude=%s&longitude=%s&hourly=precipitation,snowfall"
-            "&timezone=Asia%%2FTokyo&forecast_days=7"
-            % (FORECAST_OPEN_METEO_LAT, FORECAST_OPEN_METEO_LON)
-        )
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-        hourly = data.get("hourly", {})
-        precip_by_day, snow_by_day = {}, {}
-        for t, p, s in zip(hourly.get("time", []),
-                           hourly.get("precipitation", []),
-                           hourly.get("snowfall", [])):
-            if int(t[11:13]) in FORECAST_LUNCH_HOURS:
-                day = t[:10]
-                precip_by_day[day] = precip_by_day.get(day, 0.0) + (p or 0)
-                snow_by_day[day] = snow_by_day.get(day, 0.0) + (s or 0)
-        for day, mm in precip_by_day.items():
-            snow = snow_by_day.get(day, 0.0)
-            result[day] = {"precip": round(mm, 1), "snow": round(snow, 1),
-                           "heavy": mm >= FORECAST_HEAVY_PRECIP_MM or snow > 0}
+        result = fetch_lunch_weather()
     except Exception:
-        result = {}                                    # ネット/APIエラー時は補正なし
+        result = {}
     cache.set(cache_key, result, 3 * 3600)
     return result
 
@@ -3378,11 +3347,15 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             target_dates.append(d)
         d += timedelta(days=1)
 
-    heavy_map = _fetch_heavy_lunch_days(today)         # 大雨予報（Open-Meteo・失敗時は空）
+    from sales.weather import RAIN_FACTORS, rain_factor
+    weather_map = _fetch_lunch_weather(today)         # 昼の予報（Open-Meteo・失敗時は空）
+    type_map = dict(SalesLocation.objects.values_list("no", "type"))
 
     forecast_days = []
     for td in target_dates:
         wd = td.weekday()
+        wx = weather_map.get(td.isoformat())
+        level = wx["level"] if wx else None
         locs = []
         for no in active:
             same = [(d, sold, rem) for (d, w, sold, rem) in hist.get(no, [])
@@ -3393,26 +3366,22 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             recent_rem = [r for _, _, r in same[-4:]]
             avg_rem = sum(recent_rem) / len(recent_rem) if recent_rem else 0
             last3 = [{"date": d, "sold": s} for d, s, _ in same[-3:]][::-1]
+            sales_type = type_map.get(no, "")
+            factor = rain_factor(level, sales_type)
             locs.append({"no": no, "name": name_map.get(no, "No%s" % no),
                          "pred": int(pred + 0.5), "avg_rem": round(avg_rem, 1),
-                         "last3": last3, "samples": len(same)})
+                         "last3": last3, "samples": len(same), "type": sales_type,
+                         "adj": int(pred * factor + 0.5),
+                         "adj_pct": int(round((factor - 1) * 100))})
         locs.sort(key=lambda x: -x["pred"])
         day = {"date": td, "weekday": FORECAST_WEEKDAY_JA[wd],
-               "locs": locs, "total": sum(l["pred"] for l in locs)}
-
-        # 大雨予報の日だけ「2割減の目安」を併記（普段の予測値はそのまま）
-        wx = heavy_map.get(td.isoformat())
-        day["weather"] = wx
-        if wx and wx["heavy"]:
-            day["heavy"] = True
-            day["adj_total"] = int(day["total"] * FORECAST_HEAVY_FACTOR + 0.5)
-            for l in locs:
-                l["adj"] = int(l["pred"] * FORECAST_HEAVY_FACTOR + 0.5)
-        else:
-            day["heavy"] = False
+               "locs": locs, "total": sum(l["pred"] for l in locs),
+               "weather": wx, "rain": level}
+        if level:
+            day["adj_total"] = sum(l["adj"] for l in locs)
+            day["rain_factors"] = RAIN_FACTORS[level]
         forecast_days.append(day)
-    return {"days": forecast_days, "backtest": backtest,
-            "heavy_pct": int((1 - FORECAST_HEAVY_FACTOR) * 100)}
+    return {"days": forecast_days, "backtest": backtest}
 
 
 @login_required
