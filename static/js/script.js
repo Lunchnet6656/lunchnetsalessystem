@@ -296,6 +296,8 @@ function updateDiscount() {
     var extraRiceQuantity = parseInt(document.getElementById('extra_rice_quantity').value, 10) || 0;
     var couponQuantity600 = parseInt(document.getElementById('coupon_type_600').value, 10) || 0;
     var couponQuantity700 = parseInt(document.getElementById('coupon_type_700').value, 10) || 0;
+    var coupon750El = document.getElementById('coupon_type_750');
+    var couponQuantity750 = coupon750El ? (parseInt(coupon750El.value, 10) || 0) : 0;
     var discount50 = parseInt(document.getElementById('discount_50').value, 10) || 0;
     var discount100 = parseInt(document.getElementById('discount_100').value, 10) || 0;
 
@@ -309,7 +311,8 @@ function updateDiscount() {
 
     var noRiceTotal = noRiceQuantity * noRiceUnitPrice;
     var extraRiceTotal = extraRiceQuantity * extraRiceUnitPrice;
-    var couponTotal = (-650 * couponQuantity600) + (-700 * couponQuantity700);
+    // クーポン（coupon_type_600 は旧名のまま中身は650円）
+    var couponTotal = (-650 * couponQuantity600) + (-700 * couponQuantity700) + (-750 * couponQuantity750);
     var discount50Total = discount50 * discountPrice50;
     var discount100Total = discount100 * discountPrice100;
 

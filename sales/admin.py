@@ -92,7 +92,7 @@ class ItemQuantityAdmin(admin.ModelAdmin):
     list_filter = ('target_week', 'target_date', 'sales_location')
 
 class DailyReportAdmin(admin.ModelAdmin):
-    list_display = ('date', 'location', 'location_no', 'person_in_charge', 'total_quantity', 'total_sales_quantity', 'total_remaining', 'total_revenue', 'no_rice_quantity', 'extra_rice_quantity', 'coupon_type_600', 'coupon_type_700', 'discount_50', 'discount_100', 'total_discount', 'paypay', 'digital_payment', 'cash', 'sales_difference')
+    list_display = ('date', 'location', 'location_no', 'person_in_charge', 'total_quantity', 'total_sales_quantity', 'total_remaining', 'total_revenue', 'no_rice_quantity', 'extra_rice_quantity', 'coupon_type_600', 'coupon_type_700', 'coupon_type_750', 'discount_50', 'discount_100', 'total_discount', 'paypay', 'digital_payment', 'cash', 'sales_difference')
     list_filter = ('date', 'location', 'person_in_charge', 'weather', 'temp')
     search_fields = ('date', 'location__name', 'person_in_charge', 'comments')
 

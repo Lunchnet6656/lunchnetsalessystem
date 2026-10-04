@@ -245,8 +245,9 @@ class DailyReport(models.Model):
     total_revenue = models.DecimalField(max_digits=10, decimal_places=0)  # 総売上
     no_rice_quantity = models.DecimalField(max_digits=10, decimal_places=0, default=0) # ご飯なし
     extra_rice_quantity = models.DecimalField(max_digits=10, decimal_places=0, default=0) # ご飯追加
-    coupon_type_600 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # クーポン600
+    coupon_type_600 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # クーポン650（名前は旧600のまま・実単価650）
     coupon_type_700 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # クーポン700
+    coupon_type_750 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # クーポン750（2026年10月〜）
     discount_50 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # 割引・返金50
     discount_100 = models.DecimalField(max_digits=10, decimal_places=0, default=0) # 割引・返金100
     service_name = models.CharField(max_length=100, default="") # サービス名

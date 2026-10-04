@@ -779,6 +779,7 @@ def daily_report_view(request):
         extra_rice_quantity = safe_int(request.POST.get('extra_rice_quantity', 0), min_val=0)
         coupon_type_600 = safe_int(request.POST.get('coupon_type_600', 0), min_val=0)
         coupon_type_700 = safe_int(request.POST.get('coupon_type_700', 0), min_val=0)
+        coupon_type_750 = safe_int(request.POST.get('coupon_type_750', 0), min_val=0)
         discount_50 = safe_int(request.POST.get('discount_50', 0), min_val=0)
         discount_100 = safe_int(request.POST.get('discount_100', 0), min_val=0)
         # 割引関連のデータ(サービス)
@@ -914,6 +915,7 @@ def daily_report_view(request):
                         'extra_rice_quantity': extra_rice_quantity,
                         'coupon_type_600': coupon_type_600,
                         'coupon_type_700': coupon_type_700,
+                        'coupon_type_750': coupon_type_750,
                         'discount_50': discount_50,
                         'discount_100': discount_100,
                         'service_name': service_name,
@@ -2278,6 +2280,10 @@ def download_csv(request):
 
     return response
 
+CSV_ENTRY_SLOTS = 11  # 日計表CSVの商品枠数（ヘッダーの商品名1〜11）
+CSV_ENTRY_COLS = 9    # 1商品あたりの列数
+
+
 # CSVダウンロード機能(allreport)
 @login_required
 def download_csv_allreport(request):
@@ -2298,7 +2304,7 @@ def download_csv_allreport(request):
     header = ['レポートID', '販売場所NO', '日付', '販売場所', '担当者', '天気', '気温', '総持参数', 
               '単価別販売数1', '単価別販売数2', '単価別販売数3', '総販売数', '総残数', 
               'その他1項目', 'その他1単価', 'その他1販売数', 'その他2項目', 'その他2単価', 'その他2販売数', 
-              'その他売上合計', '総売上', 'ご飯なし', 'ご飯追加', 'クーポン600', 'クーポン700', 
+              'その他売上合計', '総売上', 'ご飯なし', 'ご飯追加', 'クーポン650', 'クーポン700',
               '割引・返金50円', '割引・返金100円', 'サービス名', 'サービス単価', 'サービス600', 
               'サービス700', 'サービス100', '割引合計', 'PayPay', '電子決済', '現金', '差額', 
               '出発時間', '到着時間', '開店時間', '完売時間', '閉店時間', 'ガソリン代', '高速代', 
@@ -2313,7 +2319,9 @@ def download_csv_allreport(request):
               '商品名8', '商品NO8', '持参数8', '販売数8', '残数8', '売上8', '完売8', '人気8', '不人気8',
               '商品名9', '商品NO9', '持参数9', '販売数9', '残数9', '売上9', '完売9', '人気9', '不人気9',
               '商品名10', '商品NO10', '持参数10', '販売数10', '残数10', '売上10', '完売10', '人気10', '不人気10',
-              '商品名11', '商品NO11', '持参数11', '販売数11', '残数11', '売上11', '完売11',
+              '商品名11', '商品NO11', '持参数11', '販売数11', '残数11', '売上11', '完売11', '人気11', '不人気11',
+              # 後から増えた列は既存列の位置を動かさないよう末尾に足す
+              'クーポン750',
               ]# ヘッダーにエントリのフィールドを追加
 
     # ヘッダーを書き込む
@@ -2401,9 +2409,11 @@ def download_csv_allreport(request):
                 entry.product_no, entry.product, entry.quantity, entry.sales_quantity,
                 entry.remaining_number, entry.total_sales, entry.sold_out, entry.popular, entry.unpopular
             ])
-        
-        # 1行にまとめて書き込む
-        writer.writerow(row + entry_data)
+        # 商品枠（11枠×9列）を空欄で埋めて、末尾の追加列の位置を全行で揃える
+        entry_data.extend([''] * (CSV_ENTRY_SLOTS * CSV_ENTRY_COLS - len(entry_data)))
+
+        # 1行にまとめて書き込む（末尾の追加列はヘッダーの並びと合わせる）
+        writer.writerow(row + entry_data + [report.coupon_type_750])
 
     return response
 
