@@ -254,6 +254,7 @@ class DailyReport(models.Model):
     service_price = models.DecimalField(max_digits=10, decimal_places=0, default=0) # サービス価格
     service_type_600 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     service_type_700 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
+    service_type_750 = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # サービス750（2026年10月〜）
     service_type_100 = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     total_discount = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # 割引合計
     paypay = models.DecimalField(max_digits=10, decimal_places=0, default=0)  # PayPayの売上

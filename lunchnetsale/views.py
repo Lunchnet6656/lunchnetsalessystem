@@ -787,6 +787,7 @@ def daily_report_view(request):
         service_price = request.POST.get('service_price', 0)
         service_type_600 = safe_int(request.POST.get('service_type_600', 0), min_val=0)
         service_type_700 = safe_int(request.POST.get('service_type_700', 0), min_val=0)
+        service_type_750 = safe_int(request.POST.get('service_type_750', 0), min_val=0)
         service_type_100 = safe_int(request.POST.get('service_type_100', 0), min_val=0)
         total_discount = parse_value(request.POST.get('total_discount', '0'))
 
@@ -922,6 +923,7 @@ def daily_report_view(request):
                         'service_price': service_price,
                         'service_type_600': service_type_600,
                         'service_type_700': service_type_700,
+                        'service_type_750': service_type_750,
                         'service_type_100': service_type_100,
                         'total_discount': total_discount,
                         'paypay': paypay,
@@ -2321,7 +2323,7 @@ def download_csv_allreport(request):
               '商品名10', '商品NO10', '持参数10', '販売数10', '残数10', '売上10', '完売10', '人気10', '不人気10',
               '商品名11', '商品NO11', '持参数11', '販売数11', '残数11', '売上11', '完売11', '人気11', '不人気11',
               # 後から増えた列は既存列の位置を動かさないよう末尾に足す
-              'クーポン750',
+              'クーポン750', 'サービス750',
               ]# ヘッダーにエントリのフィールドを追加
 
     # ヘッダーを書き込む
@@ -2413,7 +2415,7 @@ def download_csv_allreport(request):
         entry_data.extend([''] * (CSV_ENTRY_SLOTS * CSV_ENTRY_COLS - len(entry_data)))
 
         # 1行にまとめて書き込む（末尾の追加列はヘッダーの並びと合わせる）
-        writer.writerow(row + entry_data + [report.coupon_type_750])
+        writer.writerow(row + entry_data + [report.coupon_type_750, report.service_type_750])
 
     return response
 

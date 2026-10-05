@@ -355,8 +355,11 @@ function updateDiscount() {
       servicePrice = parseInt(serviceNameElement.value, 10) || 0;
       var serviceType600 = parseInt(document.getElementById('service_type_600').value, 10) || 0;
       var serviceType700 = parseInt(document.getElementById('service_type_700').value, 10) || 0;
-        if (serviceType600 > 0 || serviceType700 > 0) {
-            serviceTotal += ((-650 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700);
+      var service750El = document.getElementById('service_type_750');
+      var serviceType750 = service750El ? (parseInt(service750El.value, 10) || 0) : 0;
+        // service_type_600 は旧名のまま中身は650円の弁当
+        if (serviceType600 > 0 || serviceType700 > 0 || serviceType750 > 0) {
+            serviceTotal += ((-650 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700) + ((-750 + servicePrice) * serviceType750);
         }
     }
 

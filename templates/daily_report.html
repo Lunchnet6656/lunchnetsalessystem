@@ -383,18 +383,24 @@
                                 <option value="{{ service.service_price }}" selected>{{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円{% endif %}</option>
                             </select>
                         </div>
-                        <!-- サービスの割引（600円と700円の個数入力）-->
+                        <!-- サービスの割引（750円・700円・650円の個数入力）-->
                         <label class="form-label">サービス販売個数</label>
-                        <div class="col-6 mb-2 discount-item">
+                        <div class="col-4 mb-2 discount-item">
                             <div class="discount-item">
-                                <label for="service_type_600">650円</label>
-                                <input type="number" id="service_type_600" name="service_type_600" class="form-control" min="0" value="0" oninput="updateDiscount()">
+                                <label for="service_type_750">750円</label>
+                                <input type="number" id="service_type_750" name="service_type_750" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
-                        <div class="col-6 mb-2 discount-item">
+                        <div class="col-4 mb-2 discount-item">
                             <div class="discount-item">
                                 <label for="service_type_700">700円</label>
                                 <input type="number" id="service_type_700" name="service_type_700" class="form-control" min="0" value="0" oninput="updateDiscount()">
+                            </div>
+                        </div>
+                        <div class="col-4 mb-2 discount-item">
+                            <div class="discount-item">
+                                <label for="service_type_600">650円</label>
+                                <input type="number" id="service_type_600" name="service_type_600" class="form-control" min="0" value="0" oninput="updateDiscount()">
                             </div>
                         </div>
                         <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->

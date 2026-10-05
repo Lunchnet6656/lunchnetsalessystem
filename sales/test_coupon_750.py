@@ -1,4 +1,4 @@
-"""クーポン750円枠（2026年10月〜 価格帯750/700/650）の回帰テスト。"""
+"""クーポン・サービス販売の750円枠（2026年10月〜 価格帯750/700/650）の回帰テスト。"""
 import csv
 import io
 
@@ -22,6 +22,7 @@ class Coupon750Test(TestCase):
             coupon_type_600=1,
             coupon_type_700=2,
             coupon_type_750=3,
+            service_type_750=4,
             submitted_by=self.user,
         )
         DailyReportEntry.objects.create(
@@ -36,16 +37,18 @@ class Coupon750Test(TestCase):
         setattr(request, '_messages', FallbackStorage(request))
         return request
 
-    def test_edit_saves_coupon_750(self):
-        """編集フォームから750円クーポン枚数を保存できること。"""
+    def test_edit_saves_750_fields(self):
+        """編集フォームから750円のクーポン枚数・サービス販売個数を保存できること。"""
         form = DailyReportForm(instance=self.report)
         data = {name: '' if form[name].value() is None else str(form[name].value()) for name in form.fields}
         data['coupon_type_750'] = '5'
+        data['service_type_750'] = '6'
         request = self._request('post', f'/daily_report_detail_rol/{self.report.pk}/edit/', data)
         response = daily_report_edit_rol(request, pk=self.report.pk)
         self.assertEqual(response.status_code, 302)
         self.report.refresh_from_db()
         self.assertEqual(self.report.coupon_type_750, 5)
+        self.assertEqual(self.report.service_type_750, 6)
 
     def test_csv_keeps_existing_columns_and_appends_750(self):
         """CSV：既存列の位置は変えず、クーポン750は全行で末尾（ヘッダーと同じ位置）に出ること。"""
@@ -54,8 +57,8 @@ class Coupon750Test(TestCase):
         header, row = rows[0], rows[1]
 
         self.assertEqual(len(header), len(row))
-        self.assertEqual(header[-1], 'クーポン750')
-        self.assertEqual(row[-1], '3')
+        self.assertEqual(header[-2:], ['クーポン750', 'サービス750'])
+        self.assertEqual(row[-2:], ['3', '4'])
         # 既存のクーポン列は同じ位置のまま（見出しだけ 600→650）
         self.assertEqual(header.index('クーポン650'), 23)
         self.assertEqual(header.index('クーポン700'), 24)
