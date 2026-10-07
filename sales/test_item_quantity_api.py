@@ -177,8 +177,12 @@ class ScreenUploadValidationTests(TestCase):
 
 @override_settings(OWNER_LINE_USER_ID="Uowner")
 class CheckReceivedCommandTests(TestCase):
-    def run_on(self, today):
+    def run_on(self, today, hour=19):
+        from datetime import datetime
+        from django.utils import timezone as tz
+        at = tz.make_aware(datetime(today.year, today.month, today.day, hour, 30))
         with patch("sales.management.commands.check_item_quantity_received.timezone.localdate", return_value=today), \
+             patch("sales.management.commands.check_item_quantity_received.timezone.localtime", return_value=at), \
              patch("sales.management.commands.check_item_quantity_received.push_text", return_value=True) as push:
             call_command("check_item_quantity_received", stdout=io.StringIO(), stderr=io.StringIO())
         return push
@@ -204,6 +208,10 @@ class CheckReceivedCommandTests(TestCase):
         ItemQuantityUpload.objects.create(target_date=MONDAY, source="api", ok=False, errors=["新川が空白です"])
         push = self.run_on(TODAY)
         self.assertIn("止められています", push.call_args.args[1])
+
+    def test_morning_run_is_ignored(self):
+        # UTC 10:30 PM を選ぶと日本時間 7:30 に動く。まだ決める前なので知らせない
+        self.run_on(TODAY, hour=7).assert_not_called()
 
     def test_skips_on_weekend(self):
         self.run_on(date(2026, 10, 3)).assert_not_called()
