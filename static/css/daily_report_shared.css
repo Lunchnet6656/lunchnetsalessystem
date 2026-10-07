@@ -15,6 +15,9 @@
     align-items: baseline;
     gap: 8px;
 }
+.dr-disc-head > span:last-child {
+    white-space: nowrap; /* 見出しが長くても小計は1行で読めるように */
+}
 .dr-qty-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
