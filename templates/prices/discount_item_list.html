@@ -14,7 +14,40 @@
     {% for g in groups %}
     <h2 class="h5 mt-4">{{ g.title }}</h2>
     {% if g.rows or g.upcoming %}
-    <div class="table-responsive">
+    {# スマホ：1項目＝1ブロックの縦並び（表だと項目名が1文字ずつ折り返し、ボタンが切れる） #}
+    <div class="d-md-none">
+        {% for row in g.rows %}
+        <div class="border-bottom py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-bold">{{ row.item.label }}</span>
+                <span>{% if row.item.direction == "minus" %}▲{% else %}＋{% endif %}{{ row.item.amount }}円</span>
+            </div>
+            <div class="small text-muted">{{ row.item.valid_from|date:"Y/m/d" }}から
+                {% if row.plan %}／<span class="pm-diff-cell px-1">{{ row.plan }}</span>
+                <a href="{% url 'discount_cancel_plan' row.plan_item.pk %}">予定を取り消す</a>{% endif %}
+            </div>
+            <div class="d-flex gap-2 mt-2 align-items-center">
+                <form method="POST" action="{% url 'discount_move' row.item.pk 'up' %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-outline-secondary" title="上へ" {% if forloop.first %}disabled{% endif %}>↑</button></form>
+                <form method="POST" action="{% url 'discount_move' row.item.pk 'down' %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-outline-secondary" title="下へ" {% if forloop.last %}disabled{% endif %}>↓</button></form>
+                {% if not row.plan %}
+                <a href="{% url 'discount_change' row.item.pk %}" class="btn btn-sm btn-outline-secondary flex-fill">金額を変える</a>
+                <a href="{% url 'discount_end' row.item.pk %}" class="btn btn-sm btn-outline-danger flex-fill">終わらせる</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% for item in g.upcoming %}
+        <div class="border-bottom py-2">
+            <div class="d-flex justify-content-between"><span class="fw-bold">{{ item.label }}</span>
+                <span>{% if item.direction == "minus" %}▲{% else %}＋{% endif %}{{ item.amount }}円</span></div>
+            <div class="small"><span class="pm-diff-cell px-1">{{ item.valid_from|date:"Y/m/d" }}から追加</span>
+                <a href="{% url 'discount_cancel_plan' item.pk %}">予定を取り消す</a></div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="table-responsive d-none d-md-block">
     <table class="table table-sm align-middle">
         <thead><tr><th>並び</th><th>項目</th><th>金額</th><th>いつから</th><th>予定</th><th></th></tr></thead>
         <tbody>
