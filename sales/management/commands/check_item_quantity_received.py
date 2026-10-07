@@ -13,6 +13,9 @@ from sales.item_quantity_import import is_business_day, next_business_day
 from sales.models import ItemQuantityUpload
 
 WEEKDAY_JP = "月火水木金土日"
+# 最終決定（16〜19時）より前に動いても「まだ決める前」なので知らせない。
+# Scheduler の時刻は UTC 指定で、AM/PM を取り違えると朝に動いてしまうための保険
+NOTIFY_FROM_HOUR = 17
 
 
 def build_message(target_date, last_failed):
@@ -40,6 +43,10 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true", help="送らずに内容だけ表示")
 
     def handle(self, *args, **options):
+        now = timezone.localtime()
+        if now.hour < NOTIFY_FROM_HOUR:
+            self.stdout.write(f"{now:%H:%M} は最終決定の前なのでスキップ（{NOTIFY_FROM_HOUR}時以降に実行してください。Scheduler は UTC 10:30 AM＝日本時間19:30）")
+            return
         today = timezone.localdate()
         if not is_business_day(today):
             self.stdout.write(f"{today} は営業日ではないためスキップ")
