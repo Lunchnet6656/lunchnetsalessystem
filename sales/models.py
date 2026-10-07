@@ -163,6 +163,12 @@ class Product(models.Model):
     price_B = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     price_C = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     container_type = models.CharField(max_length=255, default='黒容器')  # デフォルト値を追加
+    # 値段の種類。入っていれば価格表から日付で値段を引く（週の途中の値上げに対応するため）。
+    # 空の古いメニューは price_A/B/C をそのまま使う。
+    rank = models.ForeignKey(
+        'PriceRank', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='products', verbose_name="値段の種類",
+    )
 
     def __str__(self):
         return f"{self.name}"
@@ -305,6 +311,9 @@ class DailyReportEntry(models.Model):
     sales_quantity = models.IntegerField()  # 販売数
     remaining_number = models.IntegerField()  # 残数
     total_sales = models.DecimalField(max_digits=10, decimal_places=0)  # 売上
+    # 保存した時点の販売単価。あとで値上げしても過去の日計表の金額が変わらないように残す。
+    # 空＝移行前の古い記録（backfill_pricing で埋める）。
+    unit_price = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
     sold_out = models.BooleanField(default=False)  # 完売かどうか
     popular = models.BooleanField(default=False)  # 人気商品かどうか
     unpopular = models.BooleanField(default=False)  # 不人気商品かどうか
@@ -450,3 +459,123 @@ class ReportMessage(models.Model):
 
     def __str__(self):
         return f"[{self.sender_role}] {self.report} / {self.field_target} ({self.created_at:%Y-%m-%d %H:%M})"
+
+
+# ===== 価格と割引のマスタ =====
+# 仕様: .company/engineering/harness/specs/lunchnetsale-価格と割引のマスタ化-要件定義.md
+# 値上げのたびにコードやExcelを直さずに済むよう、値段と割引の金額は日付つきでDBに持つ。
+
+# 販売所の価格パターン。D価格を足すときはここと SalesLocation の運用だけを直せば済むよう1か所に置く。
+PRICE_PATTERNS = ("A", "B", "C")
+
+
+class PriceRank(models.Model):
+    """値段の種類（★特選・通常・お手頃・大盛り）。値段そのものは PriceTableCell が持つ。"""
+    name = models.CharField(max_length=50, unique=True, verbose_name="値段の種類")
+    # 大盛りは弁当ではない。クーポン・サービスの欄を作るときに除くため。
+    is_bento = models.BooleanField(default=True, verbose_name="弁当")
+    sort_order = models.IntegerField(default=0, verbose_name="並び順")
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "値段の種類"
+        verbose_name_plural = "値段の種類"
+
+    def __str__(self):
+        return self.name
+
+
+class PriceTable(models.Model):
+    """価格表の版。ある日の値段は「その日に始まっている一番新しい版」で決まる。
+    版は丸ごと1枚で持つ（本部の人が「10/1からの価格表」を1枚で見られるように）。"""
+    valid_from = models.DateField(unique=True, verbose_name="開始日")
+    note = models.CharField(max_length=100, blank=True, verbose_name="メモ")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-valid_from"]
+        verbose_name = "価格表"
+        verbose_name_plural = "価格表"
+
+    def __str__(self):
+        return f"{self.valid_from:%Y-%m-%d}〜 {self.note}"
+
+
+class PriceTableCell(models.Model):
+    table = models.ForeignKey(PriceTable, on_delete=models.CASCADE, related_name="cells")
+    rank = models.ForeignKey(PriceRank, on_delete=models.PROTECT, related_name="cells")
+    pattern = models.CharField(max_length=10, choices=[(p, f"価格{p}") for p in PRICE_PATTERNS])
+    price = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["table", "rank", "pattern"], name="uniq_pricecell_table_rank_pattern"),
+        ]
+
+    def __str__(self):
+        return f"{self.table.valid_from:%Y-%m-%d} {self.rank} {self.pattern}={self.price}"
+
+
+class DiscountItem(models.Model):
+    """日計表の割引項目のうち、弁当の値段から決まらないもの（ご飯・割引返金）。
+    金額は書き換えず、値上げは「前日で終了＋新しい項目を開始」で表す（いつからいくらかを残すため）。"""
+    GROUP_CHOICES = [("rice", "ご飯"), ("refund", "割引・返金")]
+    DIRECTION_CHOICES = [("minus", "引く"), ("plus", "足す")]
+
+    group = models.CharField(max_length=10, choices=GROUP_CHOICES)
+    label = models.CharField(max_length=50, verbose_name="表示名")
+    direction = models.CharField(max_length=5, choices=DIRECTION_CHOICES)
+    amount = models.PositiveIntegerField(verbose_name="金額")
+    sort_order = models.IntegerField(default=0)
+    valid_from = models.DateField(verbose_name="開始日")
+    valid_to = models.DateField(null=True, blank=True, verbose_name="終了日")
+    # 移行期間に旧カラム（no_rice_quantity など）へも同じ数を書くための対応表。新しく足した項目は空。
+    legacy_field = models.CharField(max_length=50, blank=True)
+    csv_label = models.CharField(max_length=50, blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["group", "sort_order", "valid_from"]
+        verbose_name = "割引項目"
+        verbose_name_plural = "割引項目"
+
+    def __str__(self):
+        return f"{self.get_group_display()} {self.label}（{self.valid_from:%Y-%m-%d}〜）"
+
+    @property
+    def unit_amount(self):
+        return -self.amount if self.direction == "minus" else self.amount
+
+
+class DailyReportDiscountLine(models.Model):
+    """日計表1件の割引明細。保存した時点の名前と単価を残し、あとの値上げで過去の金額が変わらないようにする。"""
+    GROUP_CHOICES = [
+        ("rice", "ご飯"), ("refund", "割引・返金"), ("coupon", "クーポン"), ("service", "サービス販売"),
+    ]
+
+    report = models.ForeignKey(DailyReport, on_delete=models.CASCADE, related_name="discount_lines")
+    group = models.CharField(max_length=10, choices=GROUP_CHOICES)
+    # クーポン・サービスは弁当の値段から作るので項目を持たない（空）。
+    item = models.ForeignKey(DiscountItem, on_delete=models.PROTECT, null=True, blank=True, related_name="lines")
+    label = models.CharField(max_length=50)
+    base_price = models.IntegerField(default=0)  # クーポン・サービスの元になった弁当の値段
+    unit_amount = models.IntegerField()           # 1個あたりの割引額（符号付き）
+    quantity = models.PositiveIntegerField(default=0)
+    amount = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["report", "group", "-base_price", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["report", "group", "label"], name="uniq_discountline_report_group_label"),
+        ]
+
+    def __str__(self):
+        return f"{self.report} {self.label} ×{self.quantity}"
