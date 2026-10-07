@@ -12,7 +12,7 @@ from sales.item_quantity_import import next_business_day, parse_item_quantity_wo
 from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, pattern_of
 from sales import daily_report_calc as drc
-from sales.discounts import save_lines
+from sales.discounts import SERVICE_FLAT_LABEL, save_lines
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
@@ -2425,6 +2425,28 @@ def download_csv(request):
 
     return response
 
+def _csv_breakdowns(report):
+    """日計表CSVの末尾の内訳3列：単価別（商品ごとの記録から）・クーポン・サービス（割引明細から）。"""
+    by_price = {}
+    for entry in report.entries.all():
+        unit = int(entry.unit_price) if entry.unit_price is not None else (
+            int(entry.total_sales) // entry.sales_quantity if entry.sales_quantity else 0)
+        if unit > 0:
+            by_price[unit] = by_price.get(unit, 0) + entry.sales_quantity
+    price_text = " / ".join(f"{p}:{q}" for p, q in sorted(by_price.items(), reverse=True))
+
+    def lines_text(group):
+        parts = []
+        for line in sorted(report.discount_lines.all(), key=lambda l: -l.base_price):
+            if line.group != group:
+                continue
+            parts.append(f"割引{line.unit_amount}:{line.quantity}" if line.label == SERVICE_FLAT_LABEL
+                         else f"{line.base_price}:{line.quantity}")
+        return " / ".join(parts)
+
+    return [price_text, lines_text("coupon"), lines_text("service")]
+
+
 CSV_ENTRY_SLOTS = 11  # 日計表CSVの商品枠数（ヘッダーの商品名1〜11）
 CSV_ENTRY_COLS = 9    # 1商品あたりの列数
 
@@ -2467,6 +2489,8 @@ def download_csv_allreport(request):
               '商品名11', '商品NO11', '持参数11', '販売数11', '残数11', '売上11', '完売11', '人気11', '不人気11',
               # 後から増えた列は既存列の位置を動かさないよう末尾に足す
               'クーポン750', 'サービス750',
+              # 値段の種類が増えても列が増えないよう、内訳は「値段:個数」を1列にまとめる（S2）
+              '単価別内訳', 'クーポン内訳', 'サービス内訳',
               ]# ヘッダーにエントリのフィールドを追加
 
     # ヘッダーを書き込む
@@ -2478,7 +2502,7 @@ def download_csv_allreport(request):
     search_location = request.GET.get('search_location')
     search_person = request.GET.get('search_person')
 
-    reports = DailyReport.objects.all()
+    reports = DailyReport.objects.all().prefetch_related('entries', 'discount_lines')
 
     if search_date_start and search_date_end:
         start_date = datetime.strptime(search_date_start, '%Y-%m-%d')
@@ -2558,7 +2582,8 @@ def download_csv_allreport(request):
         entry_data.extend([''] * (CSV_ENTRY_SLOTS * CSV_ENTRY_COLS - len(entry_data)))
 
         # 1行にまとめて書き込む（末尾の追加列はヘッダーの並びと合わせる）
-        writer.writerow(row + entry_data + [report.coupon_type_750, report.service_type_750])
+        writer.writerow(row + entry_data + [report.coupon_type_750, report.service_type_750]
+                        + _csv_breakdowns(report))
 
     return response
 

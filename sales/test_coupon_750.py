@@ -58,11 +58,37 @@ class Coupon750Test(TestCase):
         header, row = rows[0], rows[1]
 
         self.assertEqual(len(header), len(row))
-        self.assertEqual(header[-2:], ['クーポン750', 'サービス750'])
-        self.assertEqual(row[-2:], ['3', '4'])
+        self.assertEqual(header[-5:], ['クーポン750', 'サービス750', '単価別内訳', 'クーポン内訳', 'サービス内訳'])
+        self.assertEqual(row[-5:-3], ['3', '4'])
         # 既存のクーポン列は同じ位置のまま（見出しだけ 600→650）
         self.assertEqual(header.index('クーポン650'), 23)
         self.assertEqual(header.index('クーポン700'), 24)
         self.assertEqual(row[23], '1')
         self.assertEqual(row[24], '2')
         self.assertNotIn('クーポン600', header)
+
+
+class CsvBreakdownTest(TestCase):
+    """S2-4：CSV末尾の内訳列（値段の種類が増えても列は増えない）。"""
+
+    def setUp(self):
+        from sales.discounts import legacy_lines, save_lines
+        self.user = User.objects.create_user(username='csv', password='pass', is_staff=True)
+        report = DailyReport.objects.create(date=timezone.now().date(), location='広尾', total_revenue=0,
+                                            coupon_type_750=1, coupon_type_700=2, service_name='-100',
+                                            service_type_100=3, submitted_by=self.user)
+        for no, unit, sold in [(1, 750, 5), (2, 700, 69), (10, 650, 3), (11, 50, 14)]:
+            DailyReportEntry.objects.create(report=report, product_no=no, product=f'商品{no}', quantity=sold,
+                                            sales_quantity=sold, remaining_number=0, total_sales=unit * sold,
+                                            unit_price=unit)
+        save_lines(report, legacy_lines(report))
+
+    def test_breakdown_columns(self):
+        request = RequestFactory().get('/download_csv_allreport/')
+        request.user = self.user
+        rows = list(csv.reader(io.StringIO(download_csv_allreport(request).content.decode('utf-8-sig'))))
+        header, row = rows[0], rows[1]
+        self.assertEqual(len(header), len(row))
+        self.assertEqual(row[-3], '750:5 / 700:69 / 650:3 / 50:14')  # 10/1以降に欠けていた大盛りも出る
+        self.assertEqual(row[-2], '750:1 / 700:2')
+        self.assertEqual(row[-1], '割引-100:3')
