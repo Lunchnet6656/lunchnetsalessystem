@@ -231,3 +231,215 @@ def cancel_table(user, table):
     table.delete()
     log_change(user, "price_table", summary)
     return summary
+
+
+# ===== 割引設定（ご飯・割引返金） =====
+from django.db.models import Q
+
+from sales.models import DiscountItem
+
+GROUP_TITLES = dict(DiscountItem.GROUP_CHOICES)
+
+
+def yen(item_or_amount, direction=None):
+    if isinstance(item_or_amount, DiscountItem):
+        amount, direction = item_or_amount.amount, item_or_amount.direction
+    else:
+        amount = item_or_amount
+    return f"▲{amount:,}円" if direction == "minus" else f"＋{amount:,}円"
+
+
+def _successor(item):
+    """金額を変える予定で作った、次の項目（同じグループ・同じ名前で、終了日の翌日から始まる）。"""
+    if item.valid_to is None:
+        return None
+    return DiscountItem.objects.filter(group=item.group, label=item.label,
+                                       valid_from=item.valid_to + datetime.timedelta(days=1)).first()
+
+
+def _predecessor(item):
+    return DiscountItem.objects.filter(group=item.group, label=item.label,
+                                       valid_to=item.valid_from - datetime.timedelta(days=1)).first()
+
+
+def discount_overview(today):
+    """一覧の中身：グループごとの今の項目と予定、終わった項目、これから始まる新しい項目。"""
+    items = list(DiscountItem.objects.all())
+    current = [i for i in items if i.valid_from <= today and (i.valid_to is None or i.valid_to >= today)]
+    groups = []
+    for group, title in DiscountItem.GROUP_CHOICES:
+        rows = []
+        for item in sorted((i for i in current if i.group == group), key=lambda i: (i.sort_order, i.id)):
+            successor = _successor(item)
+            if successor:
+                plan = f"{md(successor.valid_from)}から {yen(successor)}"
+                plan_item = successor
+            elif item.valid_to is not None:
+                plan = f"{md(item.valid_to)}で終了"
+                plan_item = item
+            else:
+                plan, plan_item = "", None
+            rows.append({"item": item, "plan": plan, "plan_item": plan_item})
+        upcoming = [i for i in items if i.group == group and i.valid_from > today and _predecessor(i) is None]
+        groups.append({"group": group, "title": title, "rows": rows, "upcoming": upcoming})
+    ended = [i for i in items if i.valid_to is not None and i.valid_to < today]
+    return groups, sorted(ended, key=lambda i: i.valid_to, reverse=True)
+
+
+def _read_date(text, errors, label="開始日"):
+    text = (text or "").strip()
+    if not text:
+        errors.append(f"{label}を入れてください。")
+        return None
+    try:
+        return datetime.date.fromisoformat(text)
+    except ValueError:
+        errors.append(f"{label}を正しく入れてください。")
+        return None
+
+
+def _read_amount(text, errors):
+    text = (text or "").strip()
+    if text.isdigit() and int(text) >= 1:
+        return int(text)
+    errors.append("金額は1円以上の整数で入れてください。")
+    return None
+
+
+def plan_change(item, post, today):
+    """「金額を変える」の入力チェックと確認の文章。戻り値：(errors, plan)"""
+    errors = []
+    amount = _read_amount(post.get("amount"), errors)
+    start = _read_date(post.get("valid_from"), errors)
+    if start and start < today:
+        errors.append("開始日に過去の日付は選べません。過去の値段を直すときは開発部に相談してください。")
+    if start and start <= item.valid_from:
+        errors.append(f"開始日は {md(item.valid_from)} より後にしてください。")
+    if _successor(item) or item.valid_to is not None:
+        errors.append("この項目にはもう予定があります。先に予定を取り消してください。")
+    if amount is not None and amount == item.amount:
+        errors.append("今と同じ金額です。")
+    if errors:
+        return errors, None
+    sentence = (f"{md(start)}から「{item.label}」は {yen(item)} → {yen(amount, item.direction)} になります。"
+                f"{md(start - datetime.timedelta(days=1))}までは {yen(item)} のままです。")
+    return [], {"action": "change", "item": item, "amount": amount, "valid_from": start, "sentence": sentence,
+                "summary": f"「{item.label}」{yen(item)} → {yen(amount, item.direction)}（{md(start)}から）"}
+
+
+def plan_add(post, today):
+    errors = []
+    group = post.get("group")
+    if group not in GROUP_TITLES:
+        errors.append("グループを選んでください。")
+    label = (post.get("label") or "").strip()[:50]
+    if not label:
+        errors.append("項目の名前を入れてください。")
+    direction = post.get("direction")
+    if direction not in ("minus", "plus"):
+        errors.append("引くか足すかを選んでください。")
+    amount = _read_amount(post.get("amount"), errors)
+    start = _read_date(post.get("valid_from"), errors)
+    if start and start < today:
+        errors.append("開始日に過去の日付は選べません。過去の値段を直すときは開発部に相談してください。")
+    still_used = Q(valid_to__isnull=True) | Q(valid_to__gte=start or today)
+    if group in GROUP_TITLES and label and DiscountItem.objects.filter(group=group, label=label).filter(
+            still_used).exists():
+        errors.append(f"『{GROUP_TITLES[group]}』にはもう『{label}』があります。別の名前にしてください。")
+    if errors:
+        return errors, None
+    sentence = (f"{md(start)}から、日計表の『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』の欄が増えます。"
+                f"日計表送信データ（CSV）の一番後ろに『{label}』の列が増えます。")
+    return [], {"action": "add", "group": group, "label": label, "direction": direction, "amount": amount,
+                "valid_from": start, "sentence": sentence,
+                "summary": f"『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』を追加（{md(start)}から）"}
+
+
+def plan_end(item, post, today):
+    errors = []
+    last_day = _read_date(post.get("valid_to"), errors, label="最後の日")
+    if last_day and last_day < today:
+        errors.append("最後の日に過去の日付は選べません。")
+    if last_day and last_day < item.valid_from:
+        errors.append(f"最後の日は {md(item.valid_from)} 以降にしてください。")
+    if item.valid_to is not None:
+        errors.append("この項目にはもう予定があります。先に予定を取り消してください。")
+    if errors:
+        return errors, None
+    sentence = (f"「{item.label}」の欄は {md(last_day)} の日計表まで出ます。"
+                f"{md(last_day + datetime.timedelta(days=1))}から出なくなります。それより前の日計表は変わりません。")
+    return [], {"action": "end", "item": item, "valid_to": last_day, "sentence": sentence,
+                "summary": f"「{item.label}」を{md(last_day)}で終了"}
+
+
+def _csv_label_for(group, label):
+    if DiscountItem.objects.filter(csv_label=label).exclude(group=group).exists():
+        return f"{GROUP_TITLES[group]}{label}"
+    return label
+
+
+@transaction.atomic
+def apply_plan(user, plan):
+    by = user if user.is_authenticated else None
+    if plan["action"] == "change":
+        old = plan["item"]
+        old.valid_to = plan["valid_from"] - datetime.timedelta(days=1)
+        old.updated_by = by
+        old.save()
+        # CSVの列と旧カラムは前の項目から引き継ぐ（金額を変えるたびに列が増えないように）
+        DiscountItem.objects.create(
+            group=old.group, label=old.label, direction=old.direction, amount=plan["amount"],
+            sort_order=old.sort_order, valid_from=plan["valid_from"], legacy_field=old.legacy_field,
+            csv_label=old.csv_label, updated_by=by,
+        )
+    elif plan["action"] == "add":
+        last = DiscountItem.objects.filter(group=plan["group"]).order_by("-sort_order").first()
+        DiscountItem.objects.create(
+            group=plan["group"], label=plan["label"], direction=plan["direction"], amount=plan["amount"],
+            sort_order=(last.sort_order + 1) if last else 1, valid_from=plan["valid_from"],
+            csv_label=_csv_label_for(plan["group"], plan["label"]), updated_by=by,
+        )
+    elif plan["action"] == "end":
+        item = plan["item"]
+        item.valid_to, item.updated_by = plan["valid_to"], by
+        item.save()
+    log_change(user, "discount", plan["summary"])
+
+
+@transaction.atomic
+def cancel_plan(user, item, today):
+    """予定の取り消し。金額変更の予定（これから始まる項目）は消して前の項目を戻す。終了予定は終了日を外す。"""
+    if item.valid_from > today:
+        predecessor = _predecessor(item)
+        summary = (f"「{item.label}」の{md(item.valid_from)}からの金額変更（{yen(item)}）を取り消し" if predecessor
+                   else f"「{item.label}」の追加（{md(item.valid_from)}から）を取り消し")
+        item.delete()
+        if predecessor:
+            predecessor.valid_to = None
+            predecessor.save()
+    elif item.valid_to is not None and item.valid_to >= today:
+        summary = f"「{item.label}」の{md(item.valid_to)}での終了を取り消し"
+        item.valid_to = None
+        item.save()
+    else:
+        return None
+    log_change(user, "discount", summary)
+    return summary
+
+
+@transaction.atomic
+def move_item(item, step, today):
+    """並び順を1つ上（-1）か下（+1）へ。金額変更の予定の項目も同じ並びにする。"""
+    siblings = sorted((i for i in DiscountItem.objects.filter(group=item.group)
+                       if i.valid_to is None or i.valid_to >= today), key=lambda i: (i.sort_order, i.id))
+    names = []
+    for i in siblings:
+        if i.label not in names:
+            names.append(i.label)
+    pos = names.index(item.label)
+    target = pos + step
+    if not 0 <= target < len(names):
+        return
+    names[pos], names[target] = names[target], names[pos]
+    for order, label in enumerate(names, start=1):
+        DiscountItem.objects.filter(group=item.group, label=label).update(sort_order=order)

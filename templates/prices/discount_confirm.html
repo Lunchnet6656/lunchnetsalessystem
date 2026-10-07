@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}確認：割引設定{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width:720px;">
+    <h1 class="h3">確認：この内容で登録しますか？</h1>
+    <hr>
+    <div class="pm-sentence mb-3"><p class="mb-0">{{ plan.sentence }}</p></div>
+    <form method="POST" action="{% url 'discount_apply' %}" id="apply-form">{% csrf_token %}
+        <input type="hidden" name="action" value="{{ plan.action }}">
+        {% if plan.item %}<input type="hidden" name="item" value="{{ plan.item.pk }}">{% endif %}
+        <input type="hidden" name="amount" value="{{ post.amount }}">
+        <input type="hidden" name="valid_from" value="{{ post.valid_from }}">
+        <input type="hidden" name="valid_to" value="{{ post.valid_to }}">
+        <input type="hidden" name="group" value="{{ post.group }}">
+        <input type="hidden" name="label" value="{{ post.label }}">
+        <input type="hidden" name="direction" value="{{ post.direction }}">
+        <div class="d-flex gap-2 justify-content-end my-4">
+            <button type="button" class="btn btn-outline-secondary" onclick="history.back()">← 戻って直す</button>
+            <button type="submit" class="btn {% if plan.action == 'end' %}btn-danger{% else %}btn-primary{% endif %}" id="apply-button">登録する</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById('apply-form').addEventListener('submit', function () {
+    var b = document.getElementById('apply-button');
+    b.disabled = true;
+    b.textContent = '登録しています…';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}項目を終わらせる{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width:640px;">
+    <h1 class="h3">「{{ item.label }}」を終わらせる</h1>
+    <hr>
+    {% include "prices/_discount_errors.html" %}
+    <form method="POST">{% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label" for="valid_to">最後の日</label>
+            <input type="date" id="valid_to" name="valid_to" class="form-control" value="{{ post.valid_to }}" style="max-width:220px;font-size:16px;">
+            <div class="form-text">この日まで日計表に欄が出ます。次の日から出ません。</div>
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="{% url 'discount_item_list' %}" class="btn btn-outline-secondary">戻る</a>
+            <button class="btn btn-primary">確認画面へ進む →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

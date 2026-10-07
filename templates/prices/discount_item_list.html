@@ -1,7 +1,89 @@
 {% extends 'base.html' %}
 {% block title %}割引設定{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4">
-  <h1 class="h3">割引設定</h1>
+    <h1 class="h3 mb-2">割引設定</h1>
+    <p class="text-muted small mb-3">日計表の「ご飯」と「割引・返金」の欄の金額です。金額を変えるときは、開始日を決めて登録します。</p>
+    <div class="alert alert-info small">
+        クーポンとサービスの金額は、ここでは設定しません。価格表の弁当の値段から自動で決まります。
+        <a href="{% url 'price_table_list' %}">価格表を見る</a>
+    </div>
+    <hr class="mb-3">
+
+    {% for g in groups %}
+    <h2 class="h5 mt-4">{{ g.title }}</h2>
+    {% if g.rows or g.upcoming %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>並び</th><th>項目</th><th>金額</th><th>いつから</th><th>予定</th><th></th></tr></thead>
+        <tbody>
+        {% for row in g.rows %}
+        <tr>
+            <td class="text-nowrap">
+                <form method="POST" action="{% url 'discount_move' row.item.pk 'up' %}" class="d-inline">{% csrf_token %}
+                    <button class="btn btn-sm btn-link p-0" title="上へ" {% if forloop.first %}disabled{% endif %}>↑</button></form>
+                <form method="POST" action="{% url 'discount_move' row.item.pk 'down' %}" class="d-inline">{% csrf_token %}
+                    <button class="btn btn-sm btn-link p-0" title="下へ" {% if forloop.last %}disabled{% endif %}>↓</button></form>
+            </td>
+            <td>{{ row.item.label }}</td>
+            <td class="text-nowrap">{% if row.item.direction == "minus" %}▲{% else %}＋{% endif %}{{ row.item.amount }}円</td>
+            <td class="text-nowrap">{{ row.item.valid_from|date:"Y/m/d" }}</td>
+            <td class="text-nowrap">
+                {% if row.plan %}<span class="pm-diff-cell px-1">{{ row.plan }}</span>
+                <a href="{% url 'discount_cancel_plan' row.plan_item.pk %}" class="small">予定を取り消す</a>{% else %}—{% endif %}
+            </td>
+            <td class="text-nowrap">
+                {% if not row.plan %}
+                <a href="{% url 'discount_change' row.item.pk %}" class="btn btn-sm btn-outline-secondary">金額を変える</a>
+                <a href="{% url 'discount_end' row.item.pk %}" class="btn btn-sm btn-outline-danger">終わらせる</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        {% for item in g.upcoming %}
+        <tr>
+            <td></td>
+            <td>{{ item.label }}</td>
+            <td class="text-nowrap">{% if item.direction == "minus" %}▲{% else %}＋{% endif %}{{ item.amount }}円</td>
+            <td class="text-nowrap pm-diff-cell">{{ item.valid_from|date:"Y/m/d" }}から追加</td>
+            <td><a href="{% url 'discount_cancel_plan' item.pk %}" class="small">予定を取り消す</a></td>
+            <td></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-muted small">まだ項目がありません。「項目を足す」から登録できます。</p>
+    {% endif %}
+    {% endfor %}
+
+    <div class="my-4">
+        <a href="{% url 'discount_add' %}" class="btn btn-primary">＋ 項目を足す</a>
+    </div>
+
+    <details class="mb-3">
+        <summary>終わった項目（{{ ended|length }}件）</summary>
+        {% if ended %}
+        <table class="table table-sm small mt-2">
+            <tbody>{% for item in ended %}
+            <tr class="pm-ended"><td>{{ item.get_group_display }}</td><td>{{ item.label }}</td>
+                <td>{% if item.direction == "minus" %}▲{% else %}＋{% endif %}{{ item.amount }}円</td>
+                <td>{{ item.valid_from|date:"Y/m/d" }}〜{{ item.valid_to|date:"Y/m/d" }}</td></tr>
+            {% endfor %}</tbody>
+        </table>
+        {% else %}<p class="text-muted small mt-2">終わった項目はありません。</p>{% endif %}
+    </details>
+
+    <details class="mb-5">
+        <summary>変更履歴</summary>
+        {% if history %}
+        <table class="table table-sm small mt-2"><tbody>
+            {% for log in history %}<tr><td class="text-nowrap">{{ log.created_at|date:"n/j H:i" }}</td>
+                <td class="text-nowrap">{{ log.user_label }}</td><td>{{ log.summary }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% else %}<p class="text-muted small mt-2">まだ変更はありません。</p>{% endif %}
+    </details>
 </div>
 {% endblock %}

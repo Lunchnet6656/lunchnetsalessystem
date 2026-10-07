@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from sales import price_admin as pa
-from sales.models import PriceTable
+from sales.models import DiscountItem, PriceTable
 
 NO_PERMISSION_MESSAGE = "このページを開く権限がありません。本部の担当者に相談してください。"
 
@@ -170,6 +170,82 @@ def price_table_cancel(request, pk):
     })
 
 
+# ===== 割引設定 =====
+
 @price_master_required
 def discount_item_list(request):
-    return render(request, "prices/discount_item_list.html", {})
+    today = timezone.localdate()
+    groups, ended = pa.discount_overview(today)
+    return render(request, "prices/discount_item_list.html", {
+        "groups": groups, "ended": ended, "history": pa.recent_changes("discount"),
+    })
+
+
+def _discount_page(request, template, context, plan=None, errors=None):
+    """入力画面（エラー時も）か、入力が正しければ確認画面を出す。"""
+    if plan is not None:
+        return render(request, "prices/discount_confirm.html", {"plan": plan, "post": request.POST})
+    return render(request, template, {**context, "errors": errors or [], "post": request.POST})
+
+
+def _plan_from_post(request, today):
+    """確認画面の［登録する］から来たPOSTを、もう一度チェックして予定に戻す。"""
+    action = request.POST.get("action")
+    if action == "add":
+        return pa.plan_add(request.POST, today)
+    item = get_object_or_404(DiscountItem, pk=request.POST.get("item"))
+    if action == "change":
+        return pa.plan_change(item, request.POST, today)
+    if action == "end":
+        return pa.plan_end(item, request.POST, today)
+    return ["操作が分かりませんでした。もう一度やり直してください。"], None
+
+
+@price_master_required
+def discount_change(request, pk):
+    item = get_object_or_404(DiscountItem, pk=pk)
+    errors, plan = pa.plan_change(item, request.POST, timezone.localdate()) if request.method == "POST" else ([], None)
+    return _discount_page(request, "prices/discount_change.html", {"item": item, "now": pa.yen(item)}, plan, errors)
+
+
+@price_master_required
+def discount_add(request):
+    errors, plan = pa.plan_add(request.POST, timezone.localdate()) if request.method == "POST" else ([], None)
+    return _discount_page(request, "prices/discount_add.html", {}, plan, errors)
+
+
+@price_master_required
+def discount_end(request, pk):
+    item = get_object_or_404(DiscountItem, pk=pk)
+    errors, plan = pa.plan_end(item, request.POST, timezone.localdate()) if request.method == "POST" else ([], None)
+    return _discount_page(request, "prices/discount_end.html", {"item": item}, plan, errors)
+
+
+@price_master_required
+@require_POST
+def discount_apply(request):
+    errors, plan = _plan_from_post(request, timezone.localdate())
+    if errors:
+        messages.error(request, "　".join(errors), extra_tags="alert alert-danger")
+    else:
+        pa.apply_plan(request.user, plan)
+        messages.success(request, f"{plan['summary']}を登録しました。", extra_tags="alert alert-success")
+    return redirect("discount_item_list")
+
+
+@price_master_required
+def discount_cancel_plan(request, pk):
+    item = get_object_or_404(DiscountItem, pk=pk)
+    if request.method == "POST":
+        summary = pa.cancel_plan(request.user, item, timezone.localdate())
+        if summary:
+            messages.success(request, f"{summary}しました。", extra_tags="alert alert-success")
+        return redirect("discount_item_list")
+    return render(request, "prices/discount_cancel.html", {"item": item})
+
+
+@price_master_required
+@require_POST
+def discount_move(request, pk, step):
+    pa.move_item(get_object_or_404(DiscountItem, pk=pk), -1 if step == "up" else 1, timezone.localdate())
+    return redirect("discount_item_list")

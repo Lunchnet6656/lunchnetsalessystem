@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}割引の項目を足す{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width:640px;">
+    <h1 class="h3">割引の項目を足す</h1>
+    <hr>
+    {% include "prices/_discount_errors.html" %}
+    <form method="POST">{% csrf_token %}
+        <div class="mb-3">
+            <div class="form-label">グループ</div>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="group" id="g_rice" value="rice" {% if post.group != "refund" %}checked{% endif %}><label class="form-check-label" for="g_rice">ご飯</label></div>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="group" id="g_refund" value="refund" {% if post.group == "refund" %}checked{% endif %}><label class="form-check-label" for="g_refund">割引・返金</label></div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="label">項目の名前</label>
+            <input type="text" id="label" name="label" class="form-control" maxlength="50" value="{{ post.label }}" placeholder="例：半額">
+            <div class="form-text">日計表の欄にこの名前で出ます</div>
+        </div>
+        <div class="mb-3">
+            <div class="form-label">引く／足す</div>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="direction" id="d_minus" value="minus" {% if post.direction != "plus" %}checked{% endif %}><label class="form-check-label" for="d_minus">引く（▲）</label></div>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="direction" id="d_plus" value="plus" {% if post.direction == "plus" %}checked{% endif %}><label class="form-check-label" for="d_plus">足す（＋）</label></div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="amount">金額</label>
+            <div class="input-group" style="max-width:220px;">
+                <input type="number" min="1" step="1" inputmode="numeric" id="amount" name="amount" class="form-control" value="{{ post.amount }}" style="font-size:16px;">
+                <span class="input-group-text">円</span>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="valid_from">開始日</label>
+            <input type="date" id="valid_from" name="valid_from" class="form-control" value="{{ post.valid_from }}" style="max-width:220px;font-size:16px;">
+        </div>
+        <p class="text-muted small">項目を足すと、日計表送信データ（CSV）の一番後ろに列が1つ増えます。一度増えた列は消えません。</p>
+        <div class="d-flex gap-2 justify-content-end">
+            <a href="{% url 'discount_item_list' %}" class="btn btn-outline-secondary">戻る</a>
+            <button class="btn btn-primary">確認画面へ進む →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

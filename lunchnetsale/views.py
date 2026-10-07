@@ -13,6 +13,7 @@ from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, pattern_of
 from sales import daily_report_calc as drc
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
+from sales.models import DiscountItem
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
@@ -2475,6 +2476,15 @@ def _csv_breakdowns(report):
     return [price_text, lines_text("coupon"), lines_text("service")]
 
 
+def _csv_extra_items(report, labels):
+    """割引設定で後から足した項目の枚数（列の並びは labels）。"""
+    counts = {}
+    for line in report.discount_lines.all():
+        if line.item is not None and not line.item.legacy_field:
+            counts[line.item.csv_label] = counts.get(line.item.csv_label, 0) + line.quantity
+    return [counts.get(label, 0) for label in labels]
+
+
 CSV_ENTRY_SLOTS = 11  # 日計表CSVの商品枠数（ヘッダーの商品名1〜11）
 CSV_ENTRY_COLS = 9    # 1商品あたりの列数
 
@@ -2521,6 +2531,11 @@ def download_csv_allreport(request):
               '単価別内訳', 'クーポン内訳', 'サービス内訳',
               ]# ヘッダーにエントリのフィールドを追加
 
+    # 割引設定で後から足した項目は、内訳列のさらに後ろに作った順で列を足す（一度出した列は消さない）
+    extra_labels = list(dict.fromkeys(
+        DiscountItem.objects.filter(legacy_field='').order_by('id').values_list('csv_label', flat=True)))
+    header = header + extra_labels
+
     # ヘッダーを書き込む
     writer.writerow(header)
 
@@ -2530,7 +2545,7 @@ def download_csv_allreport(request):
     search_location = request.GET.get('search_location')
     search_person = request.GET.get('search_person')
 
-    reports = DailyReport.objects.all().prefetch_related('entries', 'discount_lines')
+    reports = DailyReport.objects.all().prefetch_related('entries', 'discount_lines__item')
 
     if search_date_start and search_date_end:
         start_date = datetime.strptime(search_date_start, '%Y-%m-%d')
@@ -2611,7 +2626,7 @@ def download_csv_allreport(request):
 
         # 1行にまとめて書き込む（末尾の追加列はヘッダーの並びと合わせる）
         writer.writerow(row + entry_data + [report.coupon_type_750, report.service_type_750]
-                        + _csv_breakdowns(report))
+                        + _csv_breakdowns(report) + _csv_extra_items(report, extra_labels))
 
     return response
 

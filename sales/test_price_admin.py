@@ -156,3 +156,82 @@ class PriceTableScreenTest(TestCase):
         self.assertRedirects(res, "/prices/", fetch_redirect_response=False)
         self.client.post(f"/prices/{started.pk}/cancel/")
         self.assertTrue(PriceTable.objects.filter(pk=started.pk).exists())
+
+
+from sales.discounts import items_on
+from sales.models import DiscountItem
+
+
+@mock.patch("django.utils.timezone.localdate", return_value=TODAY)
+class DiscountScreenTest(TestCase):
+    """S3-4：割引設定画面。"""
+
+    def setUp(self):
+        self.client.force_login(make_user("honbu", price_master=True))
+        self.no_rice = DiscountItem.objects.get(group="rice", label="なし")
+
+    def labels_on(self, day):
+        return [(i.label, i.unit_amount) for i in items_on(day) if i.group == "rice"]
+
+    def test_list(self, _):
+        res = self.client.get("/discounts/")
+        self.assertContains(res, "クーポンとサービスの金額は、ここでは設定しません。")
+        self.assertContains(res, "▲100円")
+
+    def test_change_amount(self, _):
+        post = {"amount": "120", "valid_from": "2026-11-01"}
+        res = self.client.post(f"/discounts/{self.no_rice.pk}/change/", post)
+        self.assertContains(res, "11/1（日）から「なし」は ▲100円 → ▲120円 になります。10/31（土）までは ▲100円 のままです。")
+        self.assertEqual(DiscountItem.objects.filter(label="なし").count(), 1)  # 確認画面ではまだ保存しない
+        self.client.post("/discounts/apply/", {**post, "action": "change", "item": self.no_rice.pk})
+        self.assertEqual(self.labels_on(datetime.date(2026, 10, 31))[0], ("なし", -100))
+        self.assertEqual(self.labels_on(datetime.date(2026, 11, 1))[0], ("なし", -120))
+        new = DiscountItem.objects.get(label="なし", valid_from="2026-11-01")
+        self.assertEqual((new.legacy_field, new.csv_label), ("no_rice_quantity", "ご飯なし"))  # CSVの列を引き継ぐ
+        self.assertIn("▲100円 → ▲120円", PriceChangeLog.objects.get().summary)
+
+    def test_cancel_change_restores(self, _):
+        self.client.post("/discounts/apply/", {"amount": "120", "valid_from": "2026-11-01",
+                                               "action": "change", "item": self.no_rice.pk})
+        new = DiscountItem.objects.get(label="なし", valid_from="2026-11-01")
+        self.client.post(f"/discounts/{new.pk}/cancel-plan/")
+        self.no_rice.refresh_from_db()
+        self.assertIsNone(self.no_rice.valid_to)
+        self.assertFalse(DiscountItem.objects.filter(pk=new.pk).exists())
+
+    def test_add_item_appears_from_start_and_in_csv(self, _):
+        post = {"group": "rice", "label": "半額", "direction": "minus", "amount": "300", "valid_from": "2026-10-08"}
+        res = self.client.post("/discounts/add/", post)
+        self.assertContains(res, "日計表送信データ（CSV）の一番後ろに『半額』の列が増えます。")
+        self.client.post("/discounts/apply/", {**post, "action": "add"})
+        self.assertNotIn(("半額", -300), self.labels_on(datetime.date(2026, 10, 7)))
+        self.assertIn(("半額", -300), self.labels_on(datetime.date(2026, 10, 8)))
+        # CSV：内訳列の後ろに「半額」列
+        import csv as csvmod, io
+        from sales.discounts import save_lines
+        from sales.daily_report_calc import LineSpec
+        from sales.models import DailyReport
+        report = DailyReport.objects.create(date=datetime.date(2026, 10, 8), location="広尾", total_revenue=0)
+        item = DiscountItem.objects.get(label="半額")
+        save_lines(report, [LineSpec("rice", item, "半額", 300, -300, 2)])
+        rows = list(csvmod.reader(io.StringIO(self.client.get("/download_csv_allreport/").content.decode("utf-8-sig"))))
+        self.assertEqual(rows[0][-1], "半額")
+        self.assertEqual(rows[1][-1], "2")
+
+    def test_end_item(self, _):
+        self.client.post("/discounts/apply/", {"valid_to": "2026-10-31", "action": "end", "item": self.no_rice.pk})
+        self.assertIn(("なし", -100), self.labels_on(datetime.date(2026, 10, 31)))
+        self.assertNotIn(("なし", -100), self.labels_on(datetime.date(2026, 11, 1)))
+
+    def test_validation(self, _):
+        res = self.client.post(f"/discounts/{self.no_rice.pk}/change/", {"amount": "0", "valid_from": "2026-10-01"})
+        self.assertIn("金額は1円以上の整数で入れてください。", res.context["errors"])
+        self.assertTrue(any("過去" in e for e in res.context["errors"]))
+        res = self.client.post("/discounts/add/", {"group": "rice", "label": "なし", "direction": "minus",
+                                                   "amount": "50", "valid_from": "2026-11-01"})
+        self.assertIn("『ご飯』にはもう『なし』があります。別の名前にしてください。", res.context["errors"])
+
+    def test_move(self, _):
+        extra = DiscountItem.objects.get(group="rice", label="追加")
+        self.client.post(f"/discounts/{extra.pk}/move/up/")
+        self.assertEqual([i.label for i in items_on(TODAY) if i.group == "rice"], ["追加", "なし"])
