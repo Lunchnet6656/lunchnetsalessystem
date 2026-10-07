@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}確認：価格表{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3">確認：この内容で登録しますか？</h1>
+    <hr class="mb-3">
+
+    {% if c.is_today %}
+    <div class="alert alert-danger">開始日が今日です。今日すでに送られた日計表は、今の値段のままです。これから送る日計表から新しい値段になります。</div>
+    {% endif %}
+
+    <div class="pm-sentence mb-3">
+        <p class="mb-1">{{ c.start }}から、次の値段に変わります。</p>
+        {% if c.until %}<p>{{ c.until }}までは今の値段のままです。</p>{% endif %}
+        <ul>
+            {% for line in c.lines %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <p>それ以外の{{ c.unchanged }}マスは変わりません。</p>
+        {% if c.coupons %}
+        <p class="mb-1">クーポン・サービスの欄も、{{ c.start }}から変わります。</p>
+        <ul>{% for line in c.coupons %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if c.mid_week %}
+        <p class="mb-0">{{ c.start }}は週の途中です。{{ c.week_start }}からの週のメニューは、{% if c.until %}{{ c.until }}まで今の値段、{% endif %}{{ c.start }}から新しい値段で売ります。</p>
+        {% endif %}
+    </div>
+
+    {% for w in c.warnings %}<p class="pm-warning mb-1">⚠ {{ w }}</p>{% endfor %}
+
+    <details class="my-3">
+        <summary>表で見る（今の価格表と並べて表示）</summary>
+        <div class="row g-3 mt-1">
+            <div class="col-md-6"><div class="small fw-bold mb-1">今</div>{% include "prices/_price_matrix.html" with rows=base_rows locations=locations %}</div>
+            <div class="col-md-6"><div class="small fw-bold mb-1">{{ c.start }}から</div>{% include "prices/_price_matrix.html" with rows=new_rows %}</div>
+        </div>
+    </details>
+
+    <form method="POST" action="{% url 'price_table_register' %}" id="register-form">
+        {% csrf_token %}
+        {% if editing %}<input type="hidden" name="editing" value="{{ editing.pk }}">{% endif %}
+        <input type="hidden" name="valid_from" value="{{ form.valid_from|date:'Y-m-d' }}">
+        <input type="hidden" name="note" value="{{ form.note }}">
+        {% for name, value in hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+
+        {% if c.warnings or c.is_today %}
+        <div class="form-check my-3">
+            <input class="form-check-input" type="checkbox" id="checked" name="checked" value="1">
+            <label class="form-check-label" for="checked">内容を確かめました</label>
+        </div>
+        {% endif %}
+
+        <div class="d-flex justify-content-end gap-2 my-4">
+            <button type="button" class="btn btn-outline-secondary" onclick="history.back()">← 戻って直す</button>
+            <button type="submit" class="btn btn-primary" id="register-button"
+                    {% if c.warnings or c.is_today %}disabled{% endif %}>{{ c.start }}からの価格表を登録する</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+var check = document.getElementById('checked');
+var button = document.getElementById('register-button');
+if (check) {
+    check.addEventListener('change', function () { button.disabled = !check.checked; });
+}
+// 二重登録を防ぐ
+document.getElementById('register-form').addEventListener('submit', function () {
+    button.disabled = true;
+    button.textContent = '登録しています…';
+});
+</script>
+{% endblock %}

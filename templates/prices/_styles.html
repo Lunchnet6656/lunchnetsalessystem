@@ -1,0 +1,25 @@
+{# 価格・割引設定の画面で共通の見た目。色は tokens.css のトークンだけを使う #}
+<style>
+    .pm-table th, .pm-table td { white-space: nowrap; }
+    .pm-table .pm-rank { background-color: var(--ln-color-surface-muted); }
+    .pm-diff-cell {
+        background-color: var(--ln-cal-blue-light) !important;
+        color: var(--ln-cal-blue);
+        font-weight: bold;
+    }
+    .pm-locations summary { cursor: pointer; list-style: none; }
+    .pm-locations summary::-webkit-details-marker { display: none; }
+    .pm-locations div { max-width: 220px; white-space: normal; }
+    .pm-sentence {
+        border: 1px solid var(--ln-color-border);
+        border-radius: 6px;
+        padding: 1rem 1.25rem;
+        background-color: var(--ln-color-white);
+        line-height: 1.9;
+    }
+    .pm-sentence ul { margin-bottom: 0.5rem; }
+    .pm-warning { color: var(--ln-color-danger); font-weight: bold; }
+    .pm-price-input { max-width: 110px; font-size: 16px; }
+    .pm-was { font-size: 0.8rem; color: var(--ln-color-text-muted); }
+    .pm-ended { background-color: var(--ln-color-surface-disabled); }
+</style>

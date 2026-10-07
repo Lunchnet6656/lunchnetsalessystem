@@ -1,7 +1,93 @@
 {% extends 'base.html' %}
 {% block title %}価格表{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4">
-  <h1 class="h3">価格表</h1>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h1 class="h3 mb-0">価格表</h1>
+    </div>
+    <p class="text-muted small mb-3">今の弁当の値段です。値上げは「新しい価格表を作る」から、開始日を決めて登録します。</p>
+    <hr class="mb-3">
+
+    <a href="{% url 'price_table_new' %}" class="btn btn-primary w-100 mb-3 d-md-none">＋ 新しい価格表を作る</a>
+
+    {% if not current and not nearest %}
+    <p class="text-muted">まだ価格表がありません。「新しい価格表を作る」から最初の値段を登録してください。</p>
+    {% else %}
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header fw-bold">
+                    {% if current %}今の価格表（{{ current.valid_from|date:"Y/n/j" }}から）{% else %}今の価格表はまだありません{% endif %}
+                </div>
+                <div class="card-body p-2">
+                    {% if current %}
+                    {% include "prices/_price_matrix.html" with rows=current_rows show_locations=True %}
+                    {% if current.note %}<div class="small text-muted">メモ：{{ current.note }}</div>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% if nearest %}
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header fw-bold">開始待ち：{{ nearest.valid_from|date:"n/j" }}からの価格表</div>
+                <div class="card-body p-2">
+                    {% include "prices/_price_matrix.html" with rows=nearest_rows show_locations=False %}
+                    {% if nearest.note %}<div class="small text-muted">メモ：{{ nearest.note }}</div>{% endif %}
+                    <div class="small text-muted mb-2">青いマスが変わります（あと{{ nearest_days }}日）</div>
+                    <a href="{% url 'price_table_edit' nearest.pk %}" class="btn btn-sm btn-outline-secondary">直す</a>
+                    <a href="{% url 'price_table_cancel' nearest.pk %}" class="btn btn-sm btn-outline-danger">この価格表を取り消す</a>
+                </div>
+            </div>
+            {% for table in other_pending %}
+            <div class="small mt-2">ほかの開始待ち：{{ table.valid_from|date:"n/j" }}から
+                <a href="{% url 'price_table_edit' table.pk %}">見る・直す</a></div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="text-center my-4 d-none d-md-block">
+        <a href="{% url 'price_table_new' %}" class="btn btn-primary">＋ 新しい価格表を作る</a>
+    </div>
+
+    <details class="mb-3">
+        <summary>前の価格表（{{ past|length }}件）</summary>
+        {% if past %}
+        <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle small">
+                <thead><tr><th>開始日</th><th>終了日</th>{% for rank in rank_list %}<th>{{ rank.name }} A/B/C</th>{% endfor %}<th>メモ</th></tr></thead>
+                <tbody>
+                {% for row in past %}
+                <tr>
+                    <td>{{ row.table.valid_from|date:"Y/m/d" }}</td>
+                    <td>{{ row.valid_to|date:"Y/m/d" }}</td>
+                    {% for prices in row.by_rank %}<td>{{ prices }}</td>{% endfor %}
+                    <td>{{ row.table.note }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="text-muted small mt-2">前の価格表はありません。</p>{% endif %}
+    </details>
+
+    <details class="mb-5">
+        <summary>変更履歴</summary>
+        {% if history %}
+        <table class="table table-sm small mt-2">
+            <tbody>
+            {% for log in history %}
+            <tr><td class="text-nowrap">{{ log.created_at|date:"n/j H:i" }}</td>
+                <td class="text-nowrap">{{ log.user_label }}</td>
+                <td>{{ log.summary }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if not show_all_history %}<a href="?history=all" class="small">もっと見る</a>{% endif %}
+        {% else %}<p class="text-muted small mt-2">まだ変更はありません。</p>{% endif %}
+    </details>
 </div>
 {% endblock %}

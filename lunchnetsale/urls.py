@@ -40,6 +40,11 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     # 価格・メニュー（本部の担当者用）
     path('prices/', price_admin_views.price_table_list, name='price_table_list'),
+    path('prices/new/', price_admin_views.price_table_new, name='price_table_new'),
+    path('prices/<int:pk>/edit/', price_admin_views.price_table_edit, name='price_table_edit'),
+    path('prices/confirm/', price_admin_views.price_table_confirm, name='price_table_confirm'),
+    path('prices/register/', price_admin_views.price_table_register, name='price_table_register'),
+    path('prices/<int:pk>/cancel/', price_admin_views.price_table_cancel, name='price_table_cancel'),
     path('discounts/', price_admin_views.discount_item_list, name='discount_item_list'),
     path('upload/', views.upload_view, name='upload'),
     path('api/item-quantity/', sales_api_views.api_item_quantity, name='api_item_quantity'),

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{% if editing %}価格表を直す{% else %}新しい価格表を作る{% endif %}{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3">{% if editing %}{{ editing.valid_from|date:"n/j" }}からの価格表を直す{% else %}新しい価格表を作る{% endif %}</h1>
+    <p class="text-muted small mb-3">
+        {% if editing %}開始待ちの価格表です。直すマスを変えてください。{% else %}今の価格表をコピーしました。変わるマスだけ直して、開始日を入れてください。{% endif %}
+    </p>
+    <hr class="mb-3">
+
+    {% if errors %}
+    <div class="alert alert-danger">
+        {% for e in errors %}<div>{{ e }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{% url 'price_table_confirm' %}" id="price-form">
+        {% csrf_token %}
+        {% if editing %}<input type="hidden" name="editing" value="{{ editing.pk }}">{% endif %}
+        <div class="row mb-3 g-2 align-items-center">
+            <div class="col-12 col-md-auto"><label for="valid_from" class="form-label mb-0 fw-bold">開始日</label></div>
+            <div class="col-12 col-md-auto">
+                <input type="date" id="valid_from" name="valid_from" class="form-control" value="{{ valid_from }}" required style="font-size:16px;">
+            </div>
+            <div class="col-12 col-md text-muted small">この日の日計表から新しい値段になります</div>
+        </div>
+        <div class="row mb-3 g-2 align-items-center">
+            <div class="col-12 col-md-auto"><label for="note" class="form-label mb-0 fw-bold">メモ</label></div>
+            <div class="col-12 col-md-6">
+                <input type="text" id="note" name="note" class="form-control" value="{{ note }}" maxlength="100" placeholder="例：2026年11月 値上げ">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+        <table class="table table-sm align-middle pm-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    {% for pattern, names in locations.items %}
+                    <th><span class="d-none d-md-inline">価格</span>{{ pattern }}<div class="small text-muted">{{ names|length }}か所</div></th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <th scope="row" class="pm-rank">
+                        {{ row.rank.name }}
+                        {% if not row.rank.is_bento %}<div class="small text-muted fw-normal">ご飯大盛りの追加料金</div>{% endif %}
+                    </th>
+                    {% for cell in row.cells %}
+                    <td>
+                        <div class="d-flex align-items-center gap-1">
+                            {% if not row.rank.is_bento %}<span>＋</span>{% endif %}
+                            <input type="number" min="1" step="1" inputmode="numeric" name="{{ cell.name }}"
+                                   value="{{ cell.price|default_if_none:'' }}" data-was="{{ cell.base|default_if_none:'' }}"
+                                   class="form-control pm-price-input {% if cell.changed %}pm-diff-cell{% endif %} {% if cell.invalid %}is-invalid{% endif %}">
+                            <span>円</span>
+                        </div>
+                        {% if cell.base is not None %}<div class="pm-was">今 {{ cell.base }}</div>{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 my-4">
+            <a href="{% url 'price_table_list' %}" class="btn btn-outline-secondary">戻る</a>
+            <button type="submit" class="btn btn-primary">確認画面へ進む →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// 今の値段と違うマスを青くする（どこを直しているかを見失わないように）
+document.querySelectorAll('.pm-price-input').forEach(function (input) {
+    input.addEventListener('input', function () {
+        var was = input.getAttribute('data-was');
+        input.classList.toggle('pm-diff-cell', was !== '' && input.value !== was);
+    });
+});
+</script>
+{% endblock %}

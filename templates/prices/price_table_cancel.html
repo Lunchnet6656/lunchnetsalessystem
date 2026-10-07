@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}確認：価格表を取り消す{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3">確認：この価格表を取り消しますか？</h1>
+    <hr class="mb-3">
+    <div class="pm-sentence mb-3">
+        <p class="mb-0">{{ start }}からの価格表を取り消します。{{ start }}以降も{{ base_label }}の値段のまま売ります。</p>
+    </div>
+    <form method="POST">
+        {% csrf_token %}
+        <div class="d-flex justify-content-end gap-2 my-4">
+            <a href="{% url 'price_table_list' %}" class="btn btn-outline-secondary">← 戻る</a>
+            <button type="submit" class="btn btn-danger">取り消す</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
