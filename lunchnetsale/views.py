@@ -1067,10 +1067,13 @@ def daily_report_view(request):
         'selected_person': selected_person  # first_nameを渡す
     })
 
-def _discount_context(location, fields, bento_prices, rows, note=''):
-    """日計表の割引欄・値段ごとの販売数のテンプレート用の値（入力フォーム・編集画面で共通）。"""
+def _discount_context(location, fields, bento_prices, rows, note='', layout='input'):
+    """日計表の割引欄・値段ごとの販売数のテンプレート用の値（入力フォーム・編集画面で共通）。
+    layout='edit' は編集画面のほかのセクションと同じ見た目（ラベル「〜:」・横並び）で出す。"""
     mode = drc.service_mode(location) if location else None
     return {
+        'discount_layout': layout,
+        'discount_edit_rows': drc.edit_rows(fields),
         'discount_groups': drc.grouped(fields),
         'discount_signature': drc.signature(fields),
         'discount_note': note,
@@ -1312,7 +1315,7 @@ def _edit_discount_setup(report, entries):
     bento_prices = sorted({r.unit_price for r in rows if not r.is_large and r.unit_price > 0}, reverse=True)
     fields = drc.edit_fields(report, location, bento_prices)
     context = _discount_context(location, fields, bento_prices, rows,
-                                note=f"この日（{report.date:%Y/%m/%d}）の値段で表示しています。")
+                                note=f"この日（{report.date:%Y/%m/%d}）の値段で表示しています。", layout='edit')
     return fields, context
 
 

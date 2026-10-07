@@ -1,6 +1,20 @@
 {# 割引の個数入力。欄はサーバーがその日・その販売所の値段から作る（金額はJSに書かず data-unit で持つ） #}
 <input type="hidden" name="discount_signature" value="{{ discount_signature }}">
 {% if discount_note %}<p class="text-muted small mb-2">{{ discount_note }}</p>{% endif %}
+{% if discount_layout == 'edit' %}
+{# 編集画面：ほかのセクションと同じ見た目（ラベル「〜:」・横並び）。1行目＝ご飯・クーポン、2行目＝割引返金・サービス #}
+{% for row in discount_edit_rows %}
+<div class="row mb-3">
+    {% for f in row %}
+    <div class="col">
+        <label for="{{ f.name }}">{% if f.name == 'disc_service_flat' and service_label %}サービス: {{ service_label }}{% else %}{{ f.edit_label }}{% endif %}</label>
+        <input type="number" id="{{ f.name }}" class="form-control disc-input" name="{{ f.name }}" min="0"
+               value="{{ f.quantity }}" data-unit="{{ f.unit_amount }}" data-group="{{ f.group }}" oninput="updateDiscount()">
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+{% else %}
 {% for group, title, fields in discount_groups %}
 <div class="dr-disc-group" data-group="{{ group }}">
     <div class="dr-disc-head">
@@ -20,6 +34,7 @@
     <hr class="my-2">
 </div>
 {% endfor %}
+{% endif %}
 {% if bento_prices_missing %}
 <p class="dr-warning">この日の弁当の値段が見つかりません。本部に連絡してください。</p>
 {% endif %}

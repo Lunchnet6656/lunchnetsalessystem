@@ -38,6 +38,7 @@ class DiscountField:
     base_price: int
     item: object = None
     quantity: int = 0
+    edit_label: str = ""  # 編集画面のラベル（ほかのセクションと同じ「〜:」の書き方）
 
 
 def _yen(amount):
@@ -47,23 +48,24 @@ def _yen(amount):
 def _item_field(item, quantity=0):
     unit = item.unit_amount
     label = item.label if item.label.endswith("円") else f"{item.label}（{_yen(unit)}）"
+    edit_label = f"ご飯{item.label}個数:" if item.group == "rice" else f"割引・返金{item.amount}円:"
     return DiscountField("rice" if item.group == "rice" else "refund", f"disc_item_{item.id}",
-                         label, item.label, unit, item.amount, item, quantity)
+                         label, item.label, unit, item.amount, item, quantity, edit_label)
 
 
 def _coupon_field(base, quantity=0):
     return DiscountField("coupon", f"disc_coupon_{base}", f"{base:,}円", f"クーポン{base}円",
-                         -base, base, None, quantity)
+                         -base, base, None, quantity, f"クーポン{base}円:")
 
 
 def _service_field(base, service_price, quantity=0):
     return DiscountField("service", f"disc_service_{base}", f"{base:,}円", f"サービス{base}円",
-                         service_price - base, base, None, quantity)
+                         service_price - base, base, None, quantity, f"サービス{base}円:")
 
 
 def _service_flat_field(service_price, quantity=0):
     return DiscountField("service", "disc_service_flat", "サービス販売数", SERVICE_FLAT_LABEL,
-                         service_price, service_price, None, quantity)
+                         service_price, service_price, None, quantity, "サービス販売数:")
 
 
 def service_mode(location):
@@ -132,6 +134,13 @@ def grouped(fields):
     """テンプレート用：[(グループ名, 見出し, [欄...]), ...]（欄のないグループは出さない）。"""
     return [(g, GROUP_TITLES[g], [f for f in fields if f.group == g])
             for g in GROUP_ORDER if any(f.group == g for f in fields)]
+
+
+def edit_rows(fields):
+    """編集画面の並べ方：1行目＝ご飯・クーポン、2行目＝割引返金・サービス（元の編集画面と同じ）。"""
+    rows = [[f for f in fields if f.group in ("rice", "coupon")],
+            [f for f in fields if f.group in ("refund", "service")]]
+    return [row for row in rows if row]
 
 
 def signature(fields):
