@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from sales.management.commands.generate_status_json import is_business_day
 from sales.models import Product, SalesLocation
+from sales.pricing import legacy_price, pattern_of, price_for
 from reservations.models import LineMember, Reservation, ReservationItem
 
 
@@ -111,17 +112,20 @@ def is_open_for(pickup_date: date, now: datetime | None = None) -> bool:
 DEFAULT_LARGE_SURCHARGE = 50  # 「大盛りごはん」Product が無い週のフォールバック
 
 
-def unit_price_for(location: SalesLocation, product: Product):
-    """拠点の price_type に対応する単価（price_A / price_B / price_C）。"""
-    mapping = {"A": product.price_A, "B": product.price_B, "C": product.price_C}
-    return mapping.get((location.price_type or "A").upper().strip(), product.price_A)
+def unit_price_for(location: SalesLocation, product: Product, on_date: date | None = None):
+    """拠点の価格パターンでの単価。on_date があれば価格表（週の途中の値上げ）も見る。
+    パターンが読めない拠点は今までどおり価格Aとして扱う。"""
+    pattern = pattern_of(location, default="A")
+    if on_date is None:
+        return legacy_price(product, pattern)
+    return price_for(product, pattern, on_date)
 
 
 def large_surcharge_for(location: SalesLocation, d: date):
     """大盛り1個あたりの割増。その週の「大盛りごはん」Product 価格を採用（無ければ既定50）。"""
     big = Product.objects.filter(week=week_key_for_date(d), name__contains="大盛").first()
     if big is not None:
-        return unit_price_for(location, big)
+        return unit_price_for(location, big, d)
     return DEFAULT_LARGE_SURCHARGE
 
 
@@ -188,7 +192,7 @@ def create_reservation(member: LineMember, location: SalesLocation, pickup_date:
                 ReservationItem.objects.create(
                     reservation=reservation, product=product, product_name=product.name,
                     quantity_large=large, quantity_regular=regular, quantity_small=small,
-                    unit_price=unit_price_for(locked, product), large_surcharge=surcharge,
+                    unit_price=unit_price_for(locked, product, pickup_date), large_surcharge=surcharge,
                 )
     except IntegrityError:
         existing = (Reservation.objects

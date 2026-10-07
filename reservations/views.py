@@ -140,7 +140,7 @@ def _form_context(request, location, token, selected_date, error=None, selectabl
             rows.append({
                 "product": p,
                 "remaining": remaining,
-                "price": services.unit_price_for(location, p),
+                "price": services.unit_price_for(location, p, selected_date),
                 "choices": list(range(0, remaining + 1)),
             })
     return {

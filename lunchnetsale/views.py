@@ -10,6 +10,7 @@ from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, Produ
 import pandas as pd
 from sales.item_quantity_import import next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
+from sales.pricing import PriceBook, pattern_of
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
@@ -844,18 +845,12 @@ def daily_report_view(request):
         # 各商品の持参数を計算
         item_data = []
         unique_prices = set()  # ユニークな価格を格納するセット
+        price_book = PriceBook(selected_date)
         for item in item_quantities:
             product = product_data.get(item.product.no)
             if product:
-                # SalesLocationのprice_typeに応じて価格を設定
-                if item.sales_location.price_type == 'A':
-                    price = product.price_A
-                elif item.sales_location.price_type == 'B':
-                    price = product.price_B
-                elif item.sales_location.price_type == 'C':
-                    price = product.price_C
-                else:
-                    price = 0  # デフォルト値として0などを設定
+                # 販売所の価格パターン×日付で値段を決める（パターン不明の販売所は0円）
+                price = price_book.price(product, pattern_of(item.sales_location))
 
                 unique_prices.add(price)  # ユニークな価格を追加
 
@@ -957,6 +952,7 @@ def daily_report_view(request):
                             'sales_quantity': request.POST.get(f'sales_quantity_{item["menu_no"]}', 0),
                             'remaining_number': request.POST.get(f'remaining_{item["menu_no"]}', 0),
                             'total_sales': parse_value(request.POST.get(f'total_sales_{item["menu_no"]}', '0')),
+                            'unit_price': item['price'],
                             'sold_out': request.POST.get(f'sold_out_{item["menu_no"]}', 'off') == 'on',
                             'popular': request.POST.get(f'popular_{item["menu_no"]}', 'off') == 'on',
                             'unpopular': request.POST.get(f'unpopular_{item["menu_no"]}', 'off') == 'on'
@@ -1143,24 +1139,20 @@ def _prepare_report_pricing(report):
     report に拠点のサービス情報を付与し、(entries, product_prices) を返す。"""
     entries = report.entries.all().order_by('product_no')
 
-    price_type = 'A'
+    pattern = 'A'
     for location in SalesLocation.objects.all():
         if location.name == report.location:
             report.service_name = location.service_name
             report.service_price = location.service_price
             report.service_style = location.service_style
-            price_type = location.price_type
+            pattern = pattern_of(location)
             break
 
+    price_book = PriceBook(report.date)
+
     def _price_for(product):
-        # 拠点の price_type に応じた単価を返す（derived_priceが0のときのフォールバック用）
-        if price_type == 'A':
-            return int(product.price_A)
-        if price_type == 'B':
-            return int(product.price_B)
-        if price_type == 'C':
-            return int(product.price_C)
-        return 0
+        # 単価を保存していない古い明細で、販売数0のときのフォールバック用
+        return price_book.price(product, pattern)
 
     date_str = str(report.date)  # ISO形式。ItemQuantity.target_dateの保存形式と一致
     product_prices = {}
@@ -1180,9 +1172,12 @@ def _prepare_report_pricing(report):
     return entries, product_prices
 
 
-def _save_report_entries(request, entries):
+def _save_report_entries(request, entries, product_prices):
     """日計表明細（entries）をPOST値で更新保存する。daily_report_edit / _rol 共通。"""
     for entry in entries:
+        if entry.unit_price is None:
+            # 移行前の古い明細：編集画面に出していた単価（_attach_derived_prices と同じ決め方）で残す
+            entry.unit_price = _derive_unit_price(entry, product_prices)
         pno = entry.product_no
         quantity = request.POST.get(f'quantity_{pno}')
         sales_quantity = request.POST.get(f'sales_quantity_{pno}')
@@ -1200,15 +1195,20 @@ def _save_report_entries(request, entries):
         entry.save()
 
 
+def _derive_unit_price(entry, product_prices):
+    """明細の単価。保存済みならそれ、古い明細は「売上÷販売数」、販売数0ならその日の値段。"""
+    if entry.unit_price is not None:
+        return int(entry.unit_price)
+    if entry.sales_quantity and entry.sales_quantity > 0:
+        return int(entry.total_sales / entry.sales_quantity)
+    return product_prices.get(entry.product_no, 0)
+
+
 def _attach_derived_prices(entries, product_prices):
-    """各 entry に derived_price を付与し、ユニーク単価リスト（降順）を返す。
-    sales_quantityが0のときは product_prices の単価をフォールバックに使う。"""
+    """各 entry に derived_price を付与し、ユニーク単価リスト（降順）を返す。"""
     unique_prices = set()
     for entry in entries:
-        if entry.sales_quantity and entry.sales_quantity > 0:
-            entry.derived_price = int(entry.total_sales / entry.sales_quantity)
-        else:
-            entry.derived_price = product_prices.get(entry.product_no, 0)
+        entry.derived_price = _derive_unit_price(entry, product_prices)
         if entry.derived_price > 0:
             unique_prices.add(entry.derived_price)
     return sorted(unique_prices, reverse=True)
@@ -1242,7 +1242,7 @@ def daily_report_edit(request, pk):
             with transaction.atomic():
                 report = form.save(commit=False)
                 report.save()
-                _save_report_entries(request, entries)
+                _save_report_entries(request, entries, product_prices)
             messages.success(request, "更新されました")
             return redirect('daily_report_detail', date=report.date)
         else:
@@ -1321,7 +1321,7 @@ def daily_report_edit_rol(request, pk):
                 # フォームと明細をまとめて保存（C7: 途中で失敗したらロールバック）
                 with transaction.atomic():
                     report = form.save()
-                    _save_report_entries(request, entries)
+                    _save_report_entries(request, entries, product_prices)
                 messages.success(request, "更新されました")
                 return redirect('daily_report_detail_rol')
             except Exception as e:
