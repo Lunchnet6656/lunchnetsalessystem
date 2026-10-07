@@ -581,3 +581,24 @@ class DailyReportDiscountLine(models.Model):
 
     def __str__(self):
         return f"{self.report} {self.label} ×{self.quantity}"
+
+
+class PriceChangeLog(models.Model):
+    """価格表・割引設定の変更履歴。お金の設定なので、だれが・いつ・何を変えたかを画面で追えるようにする。"""
+    KIND_CHOICES = [("price_table", "価格表"), ("discount", "割引設定")]
+
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    summary = models.TextField(verbose_name="内容")  # 確認画面の文章を要約したもの
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "価格・割引の変更履歴"
+        verbose_name_plural = "価格・割引の変更履歴"
+
+    def __str__(self):
+        return f"{self.created_at:%Y-%m-%d %H:%M} {self.get_kind_display()} {self.summary}"

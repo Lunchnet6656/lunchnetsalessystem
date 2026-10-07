@@ -35,3 +35,20 @@ class PermissionTest(TestCase):
     def test_new_staff_does_not_get_permission_automatically(self):
         user = User.objects.create_user(username="newstaff", password="pass", is_staff=True)
         self.assertFalse(user.menu_permission.can_view_price_master)
+
+
+class ChangeLogTest(TestCase):
+    """S3-2：変更履歴。"""
+
+    def test_log_and_recent(self):
+        from sales.price_admin import log_change, recent_changes, user_label
+        user = make_user("honbu2", price_master=True)
+        user.last_name, user.first_name = "田中", "花子"
+        user.save()
+        log_change(user, "price_table", "11/1からの価格表を登録")
+        log_change(None, "discount", "ご飯なし ▲100円→▲120円")
+        logs = recent_changes("price_table")
+        self.assertEqual([l.summary for l in logs], ["11/1からの価格表を登録"])
+        self.assertEqual(user_label(logs[0].user), "田中 花子")
+        self.assertIsNone(recent_changes("discount")[0].user)
+        self.assertEqual(user_label(None), "（不明）")
