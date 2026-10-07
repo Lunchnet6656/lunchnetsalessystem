@@ -129,6 +129,16 @@
             </div>
 
             <div class="row mb-3">
+                <div class="col-sm-2 fw-bold">価格・メニュー</div>
+                <div class="col-sm-10">
+                    <div class="form-check">
+                        {{ menu_form.can_view_price_master }} <label class="form-check-label">{{ menu_form.can_view_price_master.label }}</label>
+                        <div class="form-text">価格表・割引設定を変えられます。値段を決める本部の担当者だけONにしてください。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
                 <div class="col-sm-2 fw-bold">実績管理</div>
                 <div class="col-sm-10">
                     <div class="form-check">

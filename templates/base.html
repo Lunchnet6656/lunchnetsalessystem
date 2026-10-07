@@ -170,6 +170,26 @@
                     </li>
                     {% endif %}
 
+                    <!-- 価格・メニューセクション（本部の担当者用） -->
+                    {% if user.menu_permission.can_view_price_master %}
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-yen-sign"></i> 価格・メニュー</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
+                        <a href="{% url 'price_table_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-yen-sign"></i> 価格表
+                        </a>
+                        <a href="{% url 'discount_item_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-tags"></i> 割引設定
+                        </a>
+                            </div>
+                        </details>
+                    </li>
+                    {% endif %}
+
                     <!-- 実績管理セクション（管理者用） -->
                     {% if user.menu_permission.can_view_dashboard or user.menu_permission.can_view_daily_report_list or user.menu_permission.can_view_performance_data or user.menu_permission.can_view_performance_by_location or user.menu_permission.can_view_menu_history %}
                     <li class="list-group-item p-0">

@@ -383,6 +383,8 @@ class UserMenuPermission(models.Model):
     can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")
     can_view_attendance = models.BooleanField(default=False, verbose_name="勤怠アプリ")
     can_view_stamp = models.BooleanField(default=False, verbose_name="公式LINE（スタンプ）")
+    # 価格表・割引設定・メニュー辞書。お金の設定なので、本部の担当者にだけ個別にONにする（staffでも自動ではONにしない）
+    can_view_price_master = models.BooleanField(default=False, verbose_name="価格・メニュー設定")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
     shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
 
