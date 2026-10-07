@@ -8,6 +8,7 @@
 {% block content %}
 
   <link href="{% static 'css/styles_daily_report.css' %}" rel="stylesheet">
+  <link href="{% static 'css/daily_report_shared.css' %}" rel="stylesheet">
   <div class="container mt-4"
        data-shin-yokohama-url="{% url 'shin_yokohama_users' %}"
        data-selected-person="{{ selected_person|escapejs }}">

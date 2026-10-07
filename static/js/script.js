@@ -218,7 +218,7 @@ function calculateTotals() {
     var summarySales = 0;
     Object.entries(salesByPrice)
         .sort(([priceA], [priceB]) => parseInt(priceB) - parseInt(priceA))
-        .forEach(([price, data], index) => {
+        .forEach(([price, data]) => {
             const priceDisplay = document.getElementById(`price_${price}_sales_quantity`);
             const priceDisplay2 = document.getElementById(`price_${price}_sales`);
             if (priceDisplay) {
@@ -227,9 +227,6 @@ function calculateTotals() {
             }
             summaryQuantity += data.quantity;
             summarySales += data.sales;
-            // 旧画面の送信用の欄（編集画面の切り替えまで）。サーバーは商品ごとの記録から計算し直す
-            const legacyInput = document.querySelector(`input[name="sales_price_quantity_${index + 1}"]`);
-            if (legacyInput) legacyInput.value = data.quantity;
         });
     var totalQtyEl = document.getElementById('price_total_sales_quantity');
     var totalSalesEl = document.getElementById('price_total_sales');
@@ -303,10 +300,6 @@ document.querySelectorAll('.others-input').forEach(function(input) {
 // 割引合計：欄ごとの data-unit（1個あたりの割引額・符号付き）× 個数を足すだけ。金額はサーバーが決める
 function updateDiscount() {
     var inputs = document.querySelectorAll('.disc-input');
-    if (inputs.length === 0) {
-        updateDiscountLegacy();  // 編集画面の切り替え（S2-3）までの互換
-        return;
-    }
     var totalDiscount = 0;
     var subtotals = {};
     inputs.forEach(function(input) {
@@ -333,103 +326,6 @@ function formatDiscount(amount) {
         return '▲' + Math.abs(amount).toLocaleString();
     }
     return '＋' + amount.toLocaleString();
-}
-
-function updateDiscountLegacy() {
-    var noRiceQuantity = parseInt(document.getElementById('no_rice_quantity').value, 10) || 0;
-    var extraRiceQuantity = parseInt(document.getElementById('extra_rice_quantity').value, 10) || 0;
-    var couponQuantity600 = parseInt(document.getElementById('coupon_type_600').value, 10) || 0;
-    var couponQuantity700 = parseInt(document.getElementById('coupon_type_700').value, 10) || 0;
-    var coupon750El = document.getElementById('coupon_type_750');
-    var couponQuantity750 = coupon750El ? (parseInt(coupon750El.value, 10) || 0) : 0;
-    var discount50 = parseInt(document.getElementById('discount_50').value, 10) || 0;
-    var discount100 = parseInt(document.getElementById('discount_100').value, 10) || 0;
-
-    // ご飯なし・追加の単価を設定
-    var noRiceUnitPrice = -100;
-    var extraRiceUnitPrice = 100;
-
-    // 割引・返品・返金の単価を設定
-    var discountPrice50 = -50;
-    var discountPrice100 = -100;
-
-    var noRiceTotal = noRiceQuantity * noRiceUnitPrice;
-    var extraRiceTotal = extraRiceQuantity * extraRiceUnitPrice;
-    // クーポン（coupon_type_600 は旧名のまま中身は650円）
-    var couponTotal = (-650 * couponQuantity600) + (-700 * couponQuantity700) + (-750 * couponQuantity750);
-    var discount50Total = discount50 * discountPrice50;
-    var discount100Total = discount100 * discountPrice100;
-
-    var skipProcessing_a = false;
-    var skipProcessing_b = false;
-    var serviceNameElement = document.getElementById('service_name');
-    var servicePrice = 0;
-    if (!serviceNameElement) {
-        skipProcessing_a = true;
-        skipProcessing_b = true;
-    } else {
-        // <select>（入力フォーム）と <input>（編集フォーム）の両方に対応
-        if (serviceNameElement.tagName === 'SELECT') {
-            var selectedOption = serviceNameElement.options[serviceNameElement.selectedIndex];
-            servicePrice = parseInt(selectedOption.value, 10) || 0;
-        } else {
-            servicePrice = parseInt(serviceNameElement.value, 10) || 0;
-        }
-
-        var serviceStyleEl = document.getElementById('service_style');
-        var serviceStyleValue = serviceStyleEl ? serviceStyleEl.value : '';
-
-        if (serviceStyleValue === 'なし' || !serviceStyleValue) {
-            skipProcessing_a = true;
-            skipProcessing_b = true;
-        }
-        else if (serviceStyleValue === '割引') {
-            skipProcessing_a = true;
-            skipProcessing_b = false;
-        }
-        else {
-            skipProcessing_a = false;
-            skipProcessing_b = true;
-        }
-    }
-
-    var serviceTotal = 0;
-
-    if (!skipProcessing_a) {
-      servicePrice = parseInt(serviceNameElement.value, 10) || 0;
-      var serviceType600 = parseInt(document.getElementById('service_type_600').value, 10) || 0;
-      var serviceType700 = parseInt(document.getElementById('service_type_700').value, 10) || 0;
-      var service750El = document.getElementById('service_type_750');
-      var serviceType750 = service750El ? (parseInt(service750El.value, 10) || 0) : 0;
-        // service_type_600 は旧名のまま中身は650円の弁当
-        if (serviceType600 > 0 || serviceType700 > 0 || serviceType750 > 0) {
-            serviceTotal += ((-650 + servicePrice) * serviceType600) +  ((-700 + servicePrice) * serviceType700) + ((-750 + servicePrice) * serviceType750);
-        }
-    }
-
-    if (!skipProcessing_b) {
-      var service100 = parseInt(document.getElementById('service_type_100').value, 10) || 0;
-      serviceTotal += service100 * servicePrice;
-    }
-
-    var totalDiscount = noRiceTotal + extraRiceTotal + couponTotal + discount50Total + discount100Total + serviceTotal;
-    var totalDiscountElement = document.getElementById('total_discount');
-
-    function formatDiscount(amount) {
-        if (amount < 0) {
-            return '▲' + Math.abs(amount).toLocaleString();
-        } else {
-            return '＋' + amount.toLocaleString();
-        }
-    }
-
-    if (totalDiscountElement) {
-        totalDiscountElement.value = formatDiscount(totalDiscount);
-        totalDiscountElement.dispatchEvent(new Event('change'));
-    }
-
-    // 割引が変更されたら再計算する
-    updateRevenue();
 }
 
 function toggleSoldOutTotal() {

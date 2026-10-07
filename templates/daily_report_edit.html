@@ -5,6 +5,8 @@
 
 {% block content %}
 {% load custom_filters %}
+{% load static %}
+<link href="{% static 'css/daily_report_shared.css' %}" rel="stylesheet">
 <div class="container mt-4">
 <h1>日計表明細・編集</h1>
 <form method="POST" class="mb-4">
@@ -161,25 +163,7 @@
             {% endfor %}
         </tbody>
     </table>
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>単価</th>
-                <th>販売数</th>
-                <th>合計金額</th>
-            </tr>
-        </thead>
-        <tbody class="price-summary">
-            {% for price in unique_prices %}
-            <tr>
-                <td>{{ price }}円商品</td>
-                <td id="price_{{ price }}_sales_quantity">0</td>
-                <input type="hidden" name="sales_price_quantity_{{ forloop.counter }}" value="0">
-                <td id="price_{{ price }}_sales">0</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {% include "includes/daily_report_price_summary.html" %}
     </div>
         <h2 class="bg-dark text-white mt-4">その他売上情報</h2>
         <div class="row mb-3">
@@ -217,75 +201,10 @@
 
 
         <h2 class="bg-dark text-white mt-4">割引情報</h2>
-        <div class="row mb-3">
-            <div class="col">
-                <label for="no_rice_quantity">ご飯なし個数:</label>
-                <input type="number" id="no_rice_quantity" class="form-control" name="no_rice_quantity" value="{{ report.no_rice_quantity }}" oninput="updateDiscount()">
-            </div>
-            <div class="col">
-                <label for="extra_rice_quantity">ご飯追加個数:</label>
-                <input type="number" id="extra_rice_quantity" class="form-control" name="extra_rice_quantity" value="{{ report.extra_rice_quantity }}" oninput="updateDiscount()">
-            </div>
-            <div class="col">
-                <label for="coupon_type_750">クーポン750円:</label>
-                <input type="number" id="coupon_type_750" class="form-control" name="coupon_type_750" value="{{ report.coupon_type_750 }}" oninput="updateDiscount()">
-            </div>
-            <div class="col">
-                <label for="coupon_type_700">クーポン700円:</label>
-                <input type="number" id="coupon_type_700" class="form-control" name="coupon_type_700" value="{{ report.coupon_type_700 }}" oninput="updateDiscount()">
-            </div>
-            <div class="col">
-                <label for="coupon_type_600">クーポン650円:</label>
-                <input type="number" id="coupon_type_600" class="form-control" name="coupon_type_600" value="{{ report.coupon_type_600 }}" oninput="updateDiscount()">
-            </div>
-        </div>
-        <div class="row mb-3">
-            <div class="col">
-                <label for="discount_50">割引・返金50円:</label>
-                <input type="number" id="discount_50" class="form-control" name="discount_50" value="{{ report.discount_50 }}" oninput="updateDiscount()">
-            </div>
-            <div class="col">
-                <label for="discount_100">割引・返金100円:</label>
-                <input type="number" id="discount_100" class="form-control" name="discount_100" value="{{ report.discount_100 }}" oninput="updateDiscount()">
-            </div>
-            {% if report.service_style == 'なし' %}
-            <input type="hidden" id="service_style" value="{{ report.service_style }}">
-            <input type="hidden" id="service_name" class="form-control" name="service_name" value="{{ report.service_name }}">
-            <input type="hidden" id="service_price" class="form-control" name="service_price" value="{{ report.service_price }}">
-            <input type="hidden" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}">
-            <input type="hidden" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}">
-            <input type="hidden" id="service_type_750" class="form-control" name="service_type_750" value="{{ report.service_type_750 }}">
-            <input type="hidden" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}">
-            {% elif report.service_style == '割引' %}
-            <input type="hidden" id="service_style" value="{{ report.service_style }}">
-            <input type="hidden" id="service_name" name="service_name" value="{{ report.service_price }}">
-            <input type="hidden" id="service_price" name="service_price" value="{{ report.service_price }}">
-            <input type="hidden" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}">
-            <input type="hidden" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}">
-            <input type="hidden" id="service_type_750" class="form-control" name="service_type_750" value="{{ report.service_type_750 }}">
-            <div class="col">
-                <label for="service_type_100">サービス: {{ report.service_name }}{{ report.service_price }}円</label>
-                <input type="number" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}" oninput="updateDiscount()">
-            </div>
-            {% else %}
-            <input type="hidden" id="service_style" value="{{ report.service_style }}">
-            <input type="hidden" id="service_name" name="service_name" value="{{ report.service_price }}">
-            <input type="hidden" id="service_price" name="service_price" value="{{ report.service_price }}">
-            <div class="col">
-                <label for="service_type_750">サービス: {{ report.service_name }}{{ report.service_price }}円</label>
-
-                <div class="input-group">
-                  <span class="input-group-text">750円</span>
-                  <input type="number" id="service_type_750" class="form-control" name="service_type_750" value="{{ report.service_type_750 }}" oninput="updateDiscount()">
-                  <span class="input-group-text">700円</span>
-                  <input type="number" id="service_type_700" class="form-control" name="service_type_700" value="{{ report.service_type_700 }}" oninput="updateDiscount()">
-                  <span class="input-group-text">650円</span>
-                  <input type="number" id="service_type_600" class="form-control" name="service_type_600" value="{{ report.service_type_600 }}" oninput="updateDiscount()">
-                  <input type="hidden" id="service_type_100" class="form-control" name="service_type_100" value="{{ report.service_type_100 }}">
-                </div>
-            </div>
-            {% endif %}
-        </div>
+        {% include "includes/daily_report_discounts.html" %}
+        {# サービスは今までどおり service_name・service_price に残す（CSVの互換） #}
+        <input type="hidden" name="service_name" value="{% if service_mode %}{{ report.service_price }}{% else %}{{ report.service_name }}{% endif %}">
+        <input type="hidden" name="service_price" value="{{ report.service_price }}">
         <h2 class="bg-dark text-white mt-4">売上情報</h2>
         <div class="row mb-3">
             <div class="col">

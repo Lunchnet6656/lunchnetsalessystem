@@ -41,8 +41,9 @@ class Coupon750Test(TestCase):
         """編集フォームから750円のクーポン枚数・サービス販売個数を保存できること。"""
         form = DailyReportForm(instance=self.report)
         data = {name: '' if form[name].value() is None else str(form[name].value()) for name in form.fields}
-        data['coupon_type_750'] = '5'
-        data['service_type_750'] = '6'
+        # 割引は割引欄（disc_*）から送り、旧カラムはサーバーが明細から書く（S2）
+        data['disc_coupon_750'] = '5'
+        data['disc_service_750'] = '6'
         request = self._request('post', f'/daily_report_detail_rol/{self.report.pk}/edit/', data)
         response = daily_report_edit_rol(request, pk=self.report.pk)
         self.assertEqual(response.status_code, 302)

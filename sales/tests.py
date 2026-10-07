@@ -109,7 +109,8 @@ class DailyReportSaveTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.report.refresh_from_db()
         self.entry.refresh_from_db()
-        self.assertEqual(self.report.total_revenue, 50000)
+        # 総売上は画面の値（50000）ではなく、サーバーで計算し直した値（商品の売上 8個×500円）で保存する（S2）
+        self.assertEqual(self.report.total_revenue, 4000)
         self.assertEqual(self.entry.sales_quantity, 8)
         self.assertEqual(self.entry.remaining_number, 2)
         self.assertEqual(self.entry.total_sales, 4000)

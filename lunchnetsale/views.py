@@ -1271,21 +1271,83 @@ def _save_report_entries(request, entries, product_prices):
         if entry.unit_price is None:
             # 移行前の古い明細：編集画面に出していた単価（_attach_derived_prices と同じ決め方）で残す
             entry.unit_price = _derive_unit_price(entry, product_prices)
+        entry.unit_price = _edit_unit_price(entry, request.POST)
         pno = entry.product_no
         quantity = request.POST.get(f'quantity_{pno}')
-        sales_quantity = request.POST.get(f'sales_quantity_{pno}')
         remaining_number = request.POST.get(f'remaining_{pno}')
-        total_sales = request.POST.get(f'total_sales_{pno}')
 
         entry.product = request.POST.get(f'product_{pno}', entry.product)
-        entry.quantity = int(quantity) if quantity else 0
-        entry.sales_quantity = int(sales_quantity) if sales_quantity else 0
-        entry.remaining_number = int(remaining_number) if remaining_number else 0
-        entry.total_sales = int(total_sales) if total_sales else 0
+        entry.quantity = safe_int(quantity, min_val=0)
+        entry.remaining_number = safe_int(remaining_number, min_val=0)
+        # 販売数と売上は画面の値を使わず、持参数−残数 と 保存済みの単価 で出す（画面の計算と同じ式）
+        entry.sales_quantity = max(0, entry.quantity - entry.remaining_number)
+        entry.total_sales = entry.sales_quantity * int(entry.unit_price or 0)
         entry.sold_out = request.POST.get(f'sold_out_{pno}') is not None
         entry.popular = request.POST.get(f'popular_{pno}') is not None
         entry.unpopular = request.POST.get(f'unpopular_{pno}') is not None
         entry.save()
+
+
+def _edit_unit_price(entry, post):
+    """編集の計算に使う単価。単価が分からない古い明細（販売数0でメニューも見つからない）だけは、
+    今までどおり画面の売上から出す（売上を0円で上書きしないため）。"""
+    unit = int(getattr(entry, 'derived_price', None) or entry.unit_price or 0)
+    if unit:
+        return unit
+    sales = max(0, safe_int(post.get(f'quantity_{entry.product_no}'), min_val=0)
+                - safe_int(post.get(f'remaining_{entry.product_no}'), min_val=0))
+    total = safe_int(post.get(f'total_sales_{entry.product_no}'), min_val=0)
+    return total // sales if sales else 0
+
+
+def _is_large_entry(entry):
+    return entry.product_no == 11 or '大盛り' in (entry.product or '')
+
+
+def _edit_discount_setup(report, entries):
+    """編集画面の割引欄と、値段ごとの販売数の元データ。entries には derived_price を付けておくこと。"""
+    location = SalesLocation.objects.filter(name=report.location).first()
+    rows = [drc.EntryRow(e.product_no, e.derived_price, e.quantity, e.remaining_number,
+                         is_large=_is_large_entry(e)) for e in entries]
+    bento_prices = sorted({r.unit_price for r in rows if not r.is_large and r.unit_price > 0}, reverse=True)
+    fields = drc.edit_fields(report, location, bento_prices)
+    context = _discount_context(location, fields, bento_prices, rows,
+                                note=f"この日（{report.date:%Y/%m/%d}）の値段で表示しています。")
+    return fields, context
+
+
+def _edit_post_data(request):
+    """編集画面のPOSTに、フォームの必須欄だけど画面にない欄の初期値を入れる。"""
+    post_data = request.POST.copy()
+    if not post_data.get('service_name'):
+        post_data['service_name'] = 'なし'
+    if not post_data.get('service_price'):
+        post_data['service_price'] = '0'
+    # 単価別販売数・割引の旧カラムはサーバーで計算し直すので、画面からは送らない
+    for name in [f'sales_price_quantity_{i}' for i in range(1, 4)] + list(drc.LEGACY_DISCOUNT_FIELDS):
+        if not post_data.get(name):
+            post_data[name] = '0'
+    return post_data
+
+
+def _apply_edit_totals(request, report, entries, fields):
+    """編集の保存前に、割引明細と合計をサーバーで計算して report に入れる。割引明細を返す。"""
+    lines = drc.read_quantities(fields, request.POST)
+    rows = [drc.EntryRow(e.product_no, _edit_unit_price(e, request.POST),
+                         safe_int(request.POST.get(f'quantity_{e.product_no}'), min_val=0),
+                         safe_int(request.POST.get(f'remaining_{e.product_no}'), min_val=0),
+                         is_large=_is_large_entry(e)) for e in entries]
+    others_total = (int(report.others_price1 or 0) * int(report.others_sales_quantity1 or 0)
+                    + int(report.others_price2 or 0) * int(report.others_sales_quantity2 or 0))
+    calc = drc.totals(rows, others_total, lines,
+                      [int(report.paypay or 0), int(report.digital_payment or 0), int(report.cash or 0)])
+    _log_if_client_totals_differ(report.date, report.location, calc, {
+        'total_discount': report.total_discount, 'total_revenue': report.total_revenue,
+        'sales_difference': report.sales_difference,
+    })
+    for name, value in {**calc, **drc.legacy_values(lines, report.date)}.items():
+        setattr(report, name, value)
+    return lines
 
 
 def _derive_unit_price(entry, product_prices):
@@ -1313,29 +1375,23 @@ def _attach_derived_prices(entries, product_prices):
 def daily_report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
     entries, product_prices = _prepare_report_pricing(report)
+    entries = list(entries)
+    unique_prices = _attach_derived_prices(entries, product_prices)
+    discount_fields, discount_context = _edit_discount_setup(report, entries)
 
     if request.method == "POST":
         # TimeFormのインスタンスを作成
         time_form = TimeForm(request.POST)
-
-        post_data = request.POST.copy()
-        if not post_data.get('service_name'):
-            post_data['service_name'] = 'なし'
-        if not post_data.get('service_price'):
-            post_data['service_price'] = '0'
-        # 単価別販売数はunique_pricesの数により欠損する場合があるためデフォルト設定
-        for i in range(1, 4):
-            if not post_data.get(f'sales_price_quantity_{i}'):
-                post_data[f'sales_price_quantity_{i}'] = '0'
-
-        form = DailyReportForm(post_data, instance=report)
+        form = DailyReportForm(_edit_post_data(request), instance=report)
 
         if form.is_valid() and time_form.is_valid():
             # フォームと明細をまとめて保存（C7: 途中で失敗したらロールバック）
             with transaction.atomic():
                 report = form.save(commit=False)
+                discount_lines = _apply_edit_totals(request, report, entries, discount_fields)
                 report.save()
                 _save_report_entries(request, entries, product_prices)
+                save_lines(report, discount_lines)
             messages.success(request, "更新されました")
             return redirect('daily_report_detail', date=report.date)
         else:
@@ -1350,8 +1406,6 @@ def daily_report_edit(request, pk):
             'sold_out_time': report.sold_out_time,
             'closing_time': report.closing_time,
         })
-
-    unique_prices = _attach_derived_prices(entries, product_prices)
 
     # 管理者がページを開いたとき、自分宛の従業員返信を既読にする
     ReportMessage.objects.filter(
@@ -1381,6 +1435,7 @@ def daily_report_edit(request, pk):
         'report': report,
         'entries': entries,
         'unique_prices': unique_prices,
+        **discount_context,
         'field_thread_pairs': field_thread_pairs,
         'emoji_choices': ['👍', '❤️', '😊', '👏', '🎉'],
     })
@@ -1394,27 +1449,23 @@ def daily_report_edit_rol(request, pk):
         raise PermissionDenied("この日計表を編集する権限がありません。")
     entries, product_prices = _prepare_report_pricing(report)
 
+    entries = list(entries)
+    unique_prices = _attach_derived_prices(entries, product_prices)
+    discount_fields, discount_context = _edit_discount_setup(report, entries)
+
     if request.method == "POST":
         time_form = TimeForm(request.POST)
-
-        post_data = request.POST.copy()
-        if not post_data.get('service_name'):
-            post_data['service_name'] = 'なし'
-        if not post_data.get('service_price'):
-            post_data['service_price'] = '0'
-        # 単価別販売数はunique_pricesの数により欠損する場合があるためデフォルト設定
-        for i in range(1, 4):
-            if not post_data.get(f'sales_price_quantity_{i}'):
-                post_data[f'sales_price_quantity_{i}'] = '0'
-
-        form = DailyReportForm(post_data, instance=report)
+        form = DailyReportForm(_edit_post_data(request), instance=report)
 
         if form.is_valid() and time_form.is_valid():
             try:
                 # フォームと明細をまとめて保存（C7: 途中で失敗したらロールバック）
                 with transaction.atomic():
-                    report = form.save()
+                    report = form.save(commit=False)
+                    discount_lines = _apply_edit_totals(request, report, entries, discount_fields)
+                    report.save()
                     _save_report_entries(request, entries, product_prices)
+                    save_lines(report, discount_lines)
                 messages.success(request, "更新されました")
                 return redirect('daily_report_detail_rol')
             except Exception as e:
@@ -1432,8 +1483,6 @@ def daily_report_edit_rol(request, pk):
             'sold_out_time': report.sold_out_time,
             'closing_time': report.closing_time,
         })
-
-    unique_prices = _attach_derived_prices(entries, product_prices)
 
     user = request.user
     full_name = f"{user.last_name} {user.first_name}".strip()
@@ -1479,6 +1528,7 @@ def daily_report_edit_rol(request, pk):
         'report': report,
         'entries': entries,
         'unique_prices': unique_prices,
+        **discount_context,
         'text_messages': text_messages,
         'field_thread_pairs': [
             ('comments', 'コメント', text_messages_comments),

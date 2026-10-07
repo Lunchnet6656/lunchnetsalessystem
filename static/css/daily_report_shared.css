@@ -1,0 +1,41 @@
+/* ===== 割引の個数入力・値段ごとの販売数（入力フォーム・編集画面で共通） =====
+   欄の数が販売所と日付で2〜4個に変わるので、決め打ちの列ではなく「入るだけ並べて折り返す」 */
+.dr-subhead {
+    font-size: 0.9rem;
+    color: var(--ln-color-text-muted);
+    margin: 0.75rem 0 0.25rem;
+}
+.price-summary-total td {
+    background-color: var(--ln-color-surface-muted);
+    font-weight: bold;
+}
+.dr-disc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+.dr-qty-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+    margin-bottom: 0.5rem;
+}
+.dr-qty-grid--2 {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+.dr-qty-cell label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 2px;
+    white-space: nowrap;
+}
+.dr-qty-cell input {
+    width: 100%;
+    font-size: 16px; /* iOS のズーム防止 */
+}
+.dr-warning {
+    color: var(--ln-color-danger);
+    font-size: 0.9rem;
+    margin: 0.25rem 0 0.5rem;
+}
