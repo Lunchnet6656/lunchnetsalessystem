@@ -18,7 +18,10 @@ from collections import Counter
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from sales.discounts import COUPON_650_SINCE, items_on, legacy_lines, save_lines, total_discount
+from sales.discounts import (
+    COUPON_650_SINCE, SERVICE_FLAT_LABEL, items_on, legacy_lines, save_lines, service_price_of,
+    total_discount,
+)
 from sales.models import DailyReport, DailyReportEntry, ItemQuantity, SalesLocation
 from sales.pricing import PriceBook, pattern_of
 
@@ -53,9 +56,12 @@ class Command(BaseCommand):
         for report in reports.iterator(chunk_size=200):
             stats["reports"] += 1
             items = items_cache.setdefault(report.date, list(items_on(report.date)))
-            lines = legacy_lines(report, items, opts["coupon_650_since"])
-            discount = total_discount(report, lines)
             stored_discount = int(report.total_discount or 0)
+            lines = legacy_lines(report, items, opts["coupon_650_since"], infer_from_total=stored_discount)
+            discount = total_discount(report, lines)
+            if report.service_type_100 and service_price_of(report) == 0 and any(
+                    l.label == SERVICE_FLAT_LABEL and l.unit_amount for l in lines):
+                stats["service_inferred"] += 1
 
             entries = list(report.entries.all())
             filled = self._fill_unit_prices(report, entries, patterns, books, stats)
@@ -65,19 +71,27 @@ class Command(BaseCommand):
             bad_units = [e for e in entries if e.unit_price is not None
                          and int(e.unit_price) * int(e.sales_quantity or 0) != int(e.total_sales or 0)]
 
-            problems = []
+            problems, kind = [], ""
             if discount != stored_discount:
                 problems.append(f"割引 明細{discount} / 保存{stored_discount}")
-                stats["discount_mismatch"] += 1
-                by_month[report.date.strftime("%Y-%m")] += 1
+                if stored_discount == 0 and discount > 0:
+                    # 全角「＋」を parse_value が読めず0円で保存していた（2026-03-23 の送信前の記号除去で解消）
+                    kind = "説明済み：プラスの割引が0円で保存"
+                    stats["discount_plus_zero"] += 1
+                    revenue = sales_total + int(report.total_others_sales or 0) + discount
+                else:
+                    kind = "要確認"
+                    stats["discount_mismatch"] += 1
+                    by_month[report.date.strftime("%Y-%m")] += 1
             if revenue != stored_revenue:
                 problems.append(f"売上 計算{revenue} / 保存{stored_revenue}")
+                kind = kind or "要確認"
                 stats["revenue_mismatch"] += 1
             if bad_units:
                 problems.append("単価×販売数≠売上：" + "、".join(f"No.{e.product_no}" for e in bad_units))
                 stats["unit_mismatch"] += 1
             if problems:
-                rows.append([report.id, report.date, report.location, " ／ ".join(problems)])
+                rows.append([report.id, report.date, report.location, kind, " ／ ".join(problems)])
 
             if opts["apply"]:
                 with transaction.atomic():
@@ -89,7 +103,7 @@ class Command(BaseCommand):
         if opts["csv"]:
             with open(opts["csv"], "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-                writer.writerow(["日計表ID", "日付", "販売所", "一致しない内容"])
+                writer.writerow(["日計表ID", "日付", "販売所", "区分", "一致しない内容"])
                 writer.writerows(rows)
             self.stdout.write(f"一致しない日計表 {len(rows)} 件を {opts['csv']} に書き出しました")
 
@@ -126,6 +140,8 @@ class Command(BaseCommand):
         self.stdout.write(f"600円欄を650円として数え始める日：{opts['coupon_650_since']}")
         self.stdout.write(f"日計表 {stats['reports']} 件")
         self.stdout.write(f"  単価を埋めた明細 {stats['units_filled']} 件／単価が決められない明細 {stats['unit_unknown']} 件")
+        self.stdout.write(f"  サービス割引の価格を割引合計から逆算 {stats['service_inferred']} 件")
+        self.stdout.write(f"  割引：プラスの割引が0円で保存（説明済み） {stats['discount_plus_zero']} 件")
         self.stdout.write(f"  割引が一致しない {stats['discount_mismatch']} 件")
         self.stdout.write(f"  売上が一致しない {stats['revenue_mismatch']} 件")
         self.stdout.write(f"  単価×販売数≠売上 {stats['unit_mismatch']} 件")

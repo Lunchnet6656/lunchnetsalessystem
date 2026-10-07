@@ -24,6 +24,11 @@ class BackfillPricingTest(TestCase):
             coupon_type_600=1, total_discount=-650, total_revenue=-650,  # 当時は600円のはず
         )
 
+        self.plus = DailyReport.objects.create(
+            date=datetime.date(2025, 8, 1), location="中里",
+            extra_rice_quantity=1, total_discount=0, total_revenue=100,  # 全角＋で0円保存
+        )
+
     def run_command(self, *args):
         out = io.StringIO()
         call_command("backfill_pricing", *args, stdout=out)
@@ -33,6 +38,8 @@ class BackfillPricingTest(TestCase):
         out = self.run_command()
         self.assertIn("照合のみ", out)
         self.assertIn("割引が一致しない 1 件", out)
+        self.assertIn("プラスの割引が0円で保存（説明済み） 1 件", out)
+        self.assertIn("売上が一致しない 0 件", out)  # 中里は説明済みの割引（＋100）で計算すると売上が合う
         self.assertIn("2025-04: 1", out)
         self.assertIsNone(DailyReportEntry.objects.get(report=self.ok).unit_price)
         self.assertEqual(self.ok.discount_lines.count(), 0)

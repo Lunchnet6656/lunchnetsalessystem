@@ -3,9 +3,9 @@
 割引明細（DailyReportDiscountLine）のグループ：
 - rice / refund : DiscountItem の金額 × 枚数
 - coupon        : −弁当の値段 × 枚数
-- service       : （サービス価格 − 弁当の値段）× 個数
-これに加えて、サービス方式「割引」（service_type_100）は サービス価格 × 個数 を足す。
-計算式は static/js/script.js の updateDiscount と同じ。
+- service       : （サービス価格 − 弁当の値段）× 個数。サービス方式「割引」（service_type_100）は
+                  「サービス割引」の1行で サービス価格 × 個数
+割引合計は明細の合計。計算式は static/js/script.js の updateDiscount と同じ。
 """
 import datetime
 from collections import namedtuple
@@ -20,6 +20,7 @@ from sales.models import DailyReportDiscountLine, DiscountItem
 COUPON_650_SINCE = datetime.date(2025, 5, 5)
 
 LineSpec = namedtuple("LineSpec", "group item label base_price unit_amount quantity")
+SERVICE_FLAT_LABEL = "サービス割引"
 
 
 def service_price_of(report):
@@ -43,8 +44,11 @@ def items_on(on_date):
     return DiscountItem.objects.filter(valid_from__lte=on_date).exclude(valid_to__lt=on_date)
 
 
-def legacy_lines(report, items=None, coupon_650_since=COUPON_650_SINCE):
-    """旧カラム（no_rice_quantity・coupon_type_* など）から割引明細を作る。枚数0の行は作らない。"""
+def legacy_lines(report, items=None, coupon_650_since=COUPON_650_SINCE, infer_from_total=None):
+    """旧カラム（no_rice_quantity・coupon_type_* など）から割引明細を作る。枚数0の行は作らない。
+
+    infer_from_total：保存済みの割引合計。サービス方式「割引」の個数があるのにサービス価格が
+    日計表に残っていない古い記録（本番2025年に約70件）は、ここから1個あたりの価格を逆算する。"""
     items = list(items_on(report.date)) if items is None else items
     lines = []
     for item in items:
@@ -66,13 +70,23 @@ def legacy_lines(report, items=None, coupon_650_since=COUPON_650_SINCE):
         if qty:
             base = legacy_base_price(field, report.date, coupon_650_since)
             lines.append(LineSpec("service", None, f"サービス{base}円", base, service_price - base, qty))
+
+    qty = int(report.service_type_100 or 0)
+    if qty:
+        price = service_price_of(report)
+        # 保存済みの割引合計が0円のときは、全角「＋」が読めず0円保存になった記録と区別できないので逆算しない
+        if price == 0 and infer_from_total:
+            rest = infer_from_total - sum(line.unit_amount * line.quantity for line in lines)
+            # サービス割引はマイナスの値段。0円やプラスになるなら逆算しない（別の原因のずれを隠さないため）
+            if rest % qty == 0 and rest < 0:
+                price = rest // qty
+        lines.append(LineSpec("service", None, SERVICE_FLAT_LABEL, price, price, qty))
     return lines
 
 
 def total_discount(report, lines):
-    """割引合計＝明細の合計＋サービス方式「割引」の分。"""
-    total = sum(line.unit_amount * line.quantity for line in lines)
-    return total + service_price_of(report) * int(report.service_type_100 or 0)
+    """割引合計＝明細の合計。"""
+    return sum(line.unit_amount * line.quantity for line in lines)
 
 
 @transaction.atomic

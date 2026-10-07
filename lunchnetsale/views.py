@@ -706,8 +706,8 @@ def parse_value(value_str):
     if value_str.startswith('▲'):
         # '▲'の場合、マイナス記号を追加して数値を変換
         value_str = '-' + value_str[1:]
-    elif value_str.startswith('±') or value_str.startswith('+'):
-        # '±'や'+'の場合、記号を取り除いて数値に変換
+    elif value_str[0] in '±+＋':
+        # 画面の割引合計は全角の「＋」で表示している。読めずに0円で保存していた（2025年に485件）
         value_str = value_str[1:]
 
     # カンマを取り除く
