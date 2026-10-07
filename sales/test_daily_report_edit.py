@@ -30,7 +30,8 @@ class DailyReportEditTest(TestCase):
         form = DailyReportForm(instance=report)
         data = {n: "" if form[n].value() is None else str(form[n].value()) for n in form.fields}
         data.update({"product_1": "唐揚げ", "quantity_1": "10", "remaining_1": "2",
-                     "product_11": "大盛りごはん", "quantity_11": "10", "remaining_11": "6"})
+                     "product_11": "大盛りごはん", "quantity_11": "10", "remaining_11": "6",
+                     "discount_signature": "new-form"})
         data.update(extra)
         return self.client.post(f"/daily_report_detail_rol/{report.pk}/edit/", data)
 
@@ -74,3 +75,23 @@ class DailyReportEditTest(TestCase):
         self.assertEqual(res.status_code, 302)
         entry = report.entries.get(product_no=1)
         self.assertEqual((int(entry.unit_price), entry.sales_quantity, int(entry.total_sales)), (700, 5, 3500))
+
+
+class LegacyEditFormTest(DailyReportEditTest):
+    """古い編集画面（旧名の割引欄）から保存されても、割引を0にしない。"""
+
+    def test_old_edit_form(self):
+        report = self.make_report(datetime.date(2026, 10, 6), coupon_type_750=1, total_discount=-750)
+        form = DailyReportForm(instance=report)
+        data = {n: "" if form[n].value() is None else str(form[n].value()) for n in form.fields}
+        data.update({"product_1": "唐揚げ", "quantity_1": "10", "remaining_1": "2",
+                     "product_11": "大盛りごはん", "quantity_11": "10", "remaining_11": "6",
+                     "coupon_type_750": "2"})  # discount_signature なし＝古い画面
+        res = self.client.post(f"/daily_report_detail_rol/{report.pk}/edit/", data)
+        self.assertEqual(res.status_code, 302)
+        report.refresh_from_db()
+        self.assertEqual((int(report.total_discount), int(report.coupon_type_750)), (-1500, 2))
+        self.assertEqual(list(report.discount_lines.values_list("label", "quantity")), [("クーポン750円", 2)])
+
+    test_old_report_shows_old_coupon_price = test_save_keeps_old_amounts = None
+    test_save_fixes_plus_saved_as_zero = test_unknown_unit_price_uses_screen_total = None

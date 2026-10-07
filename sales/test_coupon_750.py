@@ -42,6 +42,7 @@ class Coupon750Test(TestCase):
         form = DailyReportForm(instance=self.report)
         data = {name: '' if form[name].value() is None else str(form[name].value()) for name in form.fields}
         # 割引は割引欄（disc_*）から送り、旧カラムはサーバーが明細から書く（S2）
+        data['discount_signature'] = 'new-form'
         data['disc_coupon_750'] = '5'
         data['disc_service_750'] = '6'
         request = self._request('post', f'/daily_report_detail_rol/{self.report.pk}/edit/', data)

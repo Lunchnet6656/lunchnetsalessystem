@@ -12,7 +12,7 @@ from sales.item_quantity_import import next_business_day, parse_item_quantity_wo
 from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, pattern_of
 from sales import daily_report_calc as drc
-from sales.discounts import SERVICE_FLAT_LABEL, save_lines
+from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
@@ -892,7 +892,17 @@ def daily_report_view(request):
                 return redirect('daily_report')
                 
             # 画面に出した割引欄と、送信時に作り直した欄が食い違う＝表示後に日付・販売所を変えた
-            discount_lines = drc.read_quantities(discount_fields, request.POST)
+            if _is_legacy_discount_form(request.POST):
+                discount_lines = _legacy_form_lines(DailyReport(
+                    date=report_date, service_name=service_name or '', service_price=service_price or 0,
+                    no_rice_quantity=no_rice_quantity, extra_rice_quantity=extra_rice_quantity,
+                    discount_50=discount_50, discount_100=discount_100,
+                    coupon_type_600=coupon_type_600, coupon_type_700=coupon_type_700, coupon_type_750=coupon_type_750,
+                    service_type_600=service_type_600, service_type_700=service_type_700,
+                    service_type_750=service_type_750, service_type_100=service_type_100,
+                ), selected_date, selected_location)
+            else:
+                discount_lines = drc.read_quantities(discount_fields, request.POST)
             if _has_unknown_discount_input(request.POST, discount_fields):
                 messages.error(request, '日付か販売所が「データを表示」のときと変わっています。「データを表示」を押し直してから送信してください。',
                                extra_tags='alert alert-danger')
@@ -1082,6 +1092,17 @@ def _discount_context(location, fields, bento_prices, rows, note='', layout='inp
         'service_label': f"{location.service_name} {int(location.service_price)}円" if mode else '',
         'bento_prices_missing': not bento_prices,
     }
+
+
+def _is_legacy_discount_form(post):
+    """デプロイ前から開いていた古い画面からの送信か（新しい画面にだけ discount_signature がある）。"""
+    return 'discount_signature' not in post
+
+
+def _legacy_form_lines(report_like, date, location):
+    """古い画面の旧カラム（coupon_type_700 など）から割引明細を作る。入れた割引を0にしないため。"""
+    logger.warning("日計表 %s %s：古い画面から送信されたため、旧カラムから割引を読み取りました", date, location)
+    return legacy_lines(report_like)
 
 
 def _has_unknown_discount_input(post, fields):
@@ -1335,7 +1356,11 @@ def _edit_post_data(request):
 
 def _apply_edit_totals(request, report, entries, fields):
     """編集の保存前に、割引明細と合計をサーバーで計算して report に入れる。割引明細を返す。"""
-    lines = drc.read_quantities(fields, request.POST)
+    if _is_legacy_discount_form(request.POST):
+        # 古い画面の旧カラムはフォームが report に入れている
+        lines = _legacy_form_lines(report, report.date, report.location)
+    else:
+        lines = drc.read_quantities(fields, request.POST)
     rows = [drc.EntryRow(e.product_no, _edit_unit_price(e, request.POST),
                          safe_int(request.POST.get(f'quantity_{e.product_no}'), min_val=0),
                          safe_int(request.POST.get(f'remaining_{e.product_no}'), min_val=0),

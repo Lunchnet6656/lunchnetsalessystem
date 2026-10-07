@@ -33,8 +33,9 @@ class DailyReportFormTest(TestCase):
         return loc
 
     def post(self, loc, action, **extra):
+        # 新しい画面は割引欄の一覧（discount_signature）を必ず送る
         data = {"action": action, "date": DAY.isoformat(), "location": loc.name,
-                "paypay": "0", "digital_payment": "0", "cash": "0"}
+                "paypay": "0", "digital_payment": "0", "cash": "0", "discount_signature": "new-form"}
         for p in self.menu:
             data[f"quantity_{p.no}"] = "10"
             data[f"remaining_{p.no}"] = "10"
@@ -87,3 +88,26 @@ class DailyReportFormTest(TestCase):
         res = self.post(loc, "send", disc_coupon_750="1")
         self.assertRedirects(res, "/daily_report/", fetch_redirect_response=False)
         self.assertFalse(DailyReport.objects.filter(location="KONO").exists())
+
+
+class LegacyFormSubmissionTest(DailyReportFormTest):
+    """デプロイ前から開いていた古い画面（割引欄が coupon_type_700 などの旧名）から送られても、割引を0にしない。"""
+
+    def test_old_input_form(self):
+        loc = self.make_location("広尾", "A")
+        data = {"action": "send", "date": DAY.isoformat(), "location": loc.name,
+                "paypay": "0", "digital_payment": "0", "cash": "0",
+                "coupon_type_700": "1", "extra_rice_quantity": "2", "coupon_type_600": "1"}
+        for p in self.menu:
+            data[f"quantity_{p.no}"] = "10"
+            data[f"remaining_{p.no}"] = "10"
+        self.client.post("/daily_report/", data)  # discount_signature なし＝古い画面
+        report = DailyReport.objects.get(location="広尾")
+        self.assertEqual(int(report.total_discount), -700 + 200 - 650)
+        self.assertEqual(int(report.coupon_type_700), 1)
+        self.assertEqual(sorted(report.discount_lines.values_list("label", "quantity")),
+                         [("クーポン650円", 1), ("クーポン700円", 1), ("追加", 2)])
+
+    # 親クラスのテストはここでは流さない
+    test_display_price_a = test_display_price_c = None
+    test_send_recalculates_and_saves_lines = test_send_rejects_stale_location = None
