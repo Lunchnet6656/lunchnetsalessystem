@@ -18,6 +18,7 @@ from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm, BankAccountForm, MenuWeekAssignmentForm
 from . import services
 from sales.models import Product
+from sales.pricing import PriceBook
 from datetime import datetime, timedelta, date
 import calendar
 
@@ -57,18 +58,44 @@ def _get_products_data_for_date(target):
     else:
         candidates = [(target - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
         products = Product.objects.filter(week__in=candidates).order_by('no')
+    # 納品日で価格表を引く（週の途中の値上げに対応）。種類のないメニューは price_A/B/C のまま
+    book = PriceBook(target)
     return [
         {
             'id': p.id,
             'no': p.no,
             'name': p.name,
-            'price_A': int(p.price_A),
-            'price_B': int(p.price_B),
-            'price_C': int(p.price_C),
+            'price_A': book.price(p, 'A'),
+            'price_B': book.price(p, 'B'),
+            'price_C': book.price(p, 'C'),
             'container_type': p.container_type,
+            'rank': p.rank.name if p.rank_id else '',
         }
-        for p in products
+        for p in products.select_related('rank')
     ]
+
+
+def _price_key(product):
+    """顧客別価格表の列（★あり＝star／★なし＝normal／大盛り＝large）。お手頃は列がないので None。"""
+    if product['rank']:
+        return {'特選': 'star', '通常': 'normal', '大盛り': 'large'}.get(product['rank'])
+    if '大盛りごはん' in product['name']:
+        return 'large'
+    return 'star' if '★' in product['name'] else 'normal'
+
+
+def customer_price_table(target):
+    """納品日 target の週のメニューから、価格タイプ別の ★あり／★なし／大盛り の単価を作る。
+    注文画面と同じ週の決め方（_get_products_data_for_date）と同じ値段を使う。"""
+    table = {pt: {'star': None, 'normal': None, 'large': None} for pt in ('A', 'B', 'C')}
+    for prod in _get_products_data_for_date(target):
+        key = _price_key(prod)
+        if key is None:
+            continue
+        for pt in ('A', 'B', 'C'):
+            if table[pt][key] is None:
+                table[pt][key] = prod[f'price_{pt}'] or None
+    return table
 
 
 @login_required
@@ -1859,34 +1886,10 @@ def order_csv_export(request):
     # ---- シート2: 顧客別価格表 ----
     ws2 = wb.create_sheet(title='顧客別価格表')
 
-    # 期間内の最新週のProductから A/B/C 価格を取得
+    # 期間の最終日の時点の値段（注文画面と同じ週・同じ価格表）
     # product_prices[価格タイプ]['star'|'normal'|'large'] = 単価（円）
-    product_prices = {
-        'A': {'star': None, 'normal': None, 'large': None},
-        'B': {'star': None, 'normal': None, 'large': None},
-        'C': {'star': None, 'normal': None, 'large': None},
-    }
-    latest_week = (
-        Product.objects
-        .filter(week__lte=date_to.strftime('%Y%m%d'))
-        .order_by('-week')
-        .values_list('week', flat=True)
-        .first()
-    )
-    if latest_week:
-        for prod in Product.objects.filter(week=latest_week):
-            if '大盛りごはん' in prod.name:
-                key = 'large'
-            elif '★' in prod.name:
-                key = 'star'
-            else:
-                key = 'normal'
-            for pt in ('A', 'B', 'C'):
-                if product_prices[pt][key] is None:
-                    val = getattr(prod, f'price_{pt}')
-                    product_prices[pt][key] = int(val) if val else None
-
-    week_label = f"（{latest_week[:4]}/{latest_week[4:6]}/{latest_week[6:]}週）" if latest_week else ''
+    product_prices = customer_price_table(date_to)
+    week_label = f"（{date_to:%Y/%m/%d}時点）"
 
     header_fill2 = PatternFill(fill_type='solid', fgColor='1565C0')
     headers2 = [
