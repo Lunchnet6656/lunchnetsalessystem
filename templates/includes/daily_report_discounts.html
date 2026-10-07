@@ -1,0 +1,25 @@
+{# 割引の個数入力。欄はサーバーがその日・その販売所の値段から作る（金額はJSに書かず data-unit で持つ） #}
+<input type="hidden" name="discount_signature" value="{{ discount_signature }}">
+{% if discount_note %}<p class="text-muted small mb-2">{{ discount_note }}</p>{% endif %}
+{% for group, title, fields in discount_groups %}
+<div class="dr-disc-group" data-group="{{ group }}">
+    <div class="dr-disc-head">
+        <span class="form-label mb-1">{{ title }}{% if group == 'service' and service_label %}（{{ service_label }}）{% endif %}</span>
+        <span class="text-muted small" id="disc_subtotal_{{ group }}"></span>
+    </div>
+    <div class="dr-qty-grid{% if group == 'rice' or group == 'refund' %} dr-qty-grid--2{% endif %}">
+        {% for f in fields %}
+        <div class="dr-qty-cell">
+            <label for="{{ f.name }}">{{ f.label }}</label>
+            <input type="number" id="{{ f.name }}" name="{{ f.name }}" class="form-control disc-input"
+                   min="0" inputmode="numeric" value="{{ f.quantity }}"
+                   data-unit="{{ f.unit_amount }}" data-group="{{ group }}" oninput="updateDiscount()">
+        </div>
+        {% endfor %}
+    </div>
+    <hr class="my-2">
+</div>
+{% endfor %}
+{% if bento_prices_missing %}
+<p class="dr-warning">この日の弁当の値段が見つかりません。本部に連絡してください。</p>
+{% endif %}

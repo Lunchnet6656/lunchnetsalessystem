@@ -10,7 +10,9 @@ from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, Produ
 import pandas as pd
 from sales.item_quantity_import import next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
-from sales.pricing import PriceBook, pattern_of
+from sales.pricing import PriceBook, is_bento, pattern_of
+from sales import daily_report_calc as drc
+from sales.discounts import save_lines
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
@@ -860,13 +862,19 @@ def daily_report_view(request):
                     'price': price,
                     'quantity': item.quantity,
                     'remaining': item.quantity,
-                    'total_sales': 0
+                    'total_sales': 0,
+                    'is_bento': is_bento(product),
                 })
         # unique_pricesをリストに変換し、降順にソート
         unique_prices = sorted(list(unique_prices), reverse=True)
 
         # menu_noでソート
         item_data = sorted(item_data, key=lambda x: x['menu_no'])
+
+        # 割引欄はその日の割引項目と、この販売所で売る弁当の値段から作る（金額をコードに書かない）
+        report_date = parse_date(selected_date) if selected_date else None
+        bento_prices = sorted({it['price'] for it in item_data if it['is_bento'] and it['price'] > 0}, reverse=True)
+        discount_fields = drc.input_fields(report_date, service, bento_prices) if report_date else []
         
         # 日付と販売場所に基づいて既存のDailyReportを取得または作成
         if action == 'send':
@@ -883,6 +891,54 @@ def daily_report_view(request):
                 messages.error(request, f'この日付（{selected_date}）の{selected_location}の日計表は既に集計済みのため、送信できません。', extra_tags='alert alert-danger')
                 return redirect('daily_report')
                 
+            # 画面に出した割引欄と、送信時に作り直した欄が食い違う＝表示後に日付・販売所を変えた
+            discount_lines = drc.read_quantities(discount_fields, request.POST)
+            if _has_unknown_discount_input(request.POST, discount_fields):
+                messages.error(request, '日付か販売所が「データを表示」のときと変わっています。「データを表示」を押し直してから送信してください。',
+                               extra_tags='alert alert-danger')
+                return redirect('daily_report')
+
+            # 合計はサーバーで計算し直す（画面のJSが古くても正しい値を残す）
+            rows = [
+                drc.EntryRow(it['menu_no'], it['price'],
+                             safe_int(request.POST.get(f'quantity_{it["menu_no"]}', 0), min_val=0),
+                             safe_int(request.POST.get(f'remaining_{it["menu_no"]}', 0), min_val=0),
+                             is_large=not it['is_bento'])
+                for it in item_data
+            ]
+            calc = drc.totals(
+                rows, others_price1 * others_sales_quantity1 + others_price2 * others_sales_quantity2,
+                discount_lines, [paypay, digital_payment, cash],
+            )
+            _log_if_client_totals_differ(selected_date, selected_location, calc, {
+                'total_discount': total_discount, 'total_revenue': total_revenue, 'sales_difference': sales_difference,
+            })
+            total_quantity = calc['total_quantity']
+            total_remaining = calc['total_remaining']
+            total_sales_quantity = calc['total_sales_quantity']
+            total_others_sales = calc['total_others_sales']
+            total_discount = calc['total_discount']
+            total_revenue = calc['total_revenue']
+            sales_difference = calc['sales_difference']
+            sales_price_quantity_1 = calc['sales_price_quantity_1']
+            sales_price_quantity_2 = calc['sales_price_quantity_2']
+            sales_price_quantity_3 = calc['sales_price_quantity_3']
+            legacy = drc.legacy_values(discount_lines, report_date)
+            no_rice_quantity = legacy['no_rice_quantity']
+            extra_rice_quantity = legacy['extra_rice_quantity']
+            discount_50 = legacy['discount_50']
+            discount_100 = legacy['discount_100']
+            coupon_type_600 = legacy['coupon_type_600']
+            coupon_type_700 = legacy['coupon_type_700']
+            coupon_type_750 = legacy['coupon_type_750']
+            service_type_600 = legacy['service_type_600']
+            service_type_700 = legacy['service_type_700']
+            service_type_750 = legacy['service_type_750']
+            service_type_100 = legacy['service_type_100']
+            if drc.service_mode(service):
+                service_price = service.service_price
+            rows_by_no = {row.product_no: row for row in rows}
+
             # 既存の処理を続行（C7: ヘッダ・明細・古エントリ削除をまとめてトランザクション保存）
             with transaction.atomic():
                 report, created = DailyReport.objects.update_or_create(
@@ -943,15 +999,16 @@ def daily_report_view(request):
                 # DailyReportEntryの作成または更新
                 processed_product_nos = []
                 for item in item_data:
+                    row = rows_by_no[item['menu_no']]
                     DailyReportEntry.objects.update_or_create(
                         report=report,
                         product_no=item.get('menu_no', 0),
                         defaults={
                             'product': item.get('menu_name', ''),
-                            'quantity': request.POST.get(f'quantity_{item["menu_no"]}', 0),
-                            'sales_quantity': request.POST.get(f'sales_quantity_{item["menu_no"]}', 0),
-                            'remaining_number': request.POST.get(f'remaining_{item["menu_no"]}', 0),
-                            'total_sales': parse_value(request.POST.get(f'total_sales_{item["menu_no"]}', '0')),
+                            'quantity': row.quantity,
+                            'sales_quantity': row.sales_quantity,
+                            'remaining_number': row.remaining,
+                            'total_sales': row.total_sales,
                             'unit_price': item['price'],
                             'sold_out': request.POST.get(f'sold_out_{item["menu_no"]}', 'off') == 'on',
                             'popular': request.POST.get(f'popular_{item["menu_no"]}', 'off') == 'on',
@@ -961,6 +1018,7 @@ def daily_report_view(request):
                     processed_product_nos.append(item.get('menu_no', 0))
                 # 現在のitem_dataに存在しない古いエントリを削除
                 report.entries.exclude(product_no__in=processed_product_nos).delete()
+                save_lines(report, discount_lines)
         else:
             context = {
                 'dates': dates,
@@ -977,7 +1035,12 @@ def daily_report_view(request):
                 'service': service,
                 'comment': comment,
                 'food_count_setting': food_count_setting,
-                'unique_prices': unique_prices
+                'unique_prices': unique_prices,
+                **_discount_context(service, discount_fields, bento_prices, [
+                    drc.EntryRow(it['menu_no'], it['price'], it['quantity'], it['quantity'],
+                                 is_large=not it['is_bento'])
+                    for it in item_data
+                ]),
             }
             # 保存処理やバリデーションなどの処理をここに記述
             return render(request, 'daily_report.html', context)
@@ -1003,6 +1066,36 @@ def daily_report_view(request):
         'service': service,
         'selected_person': selected_person  # first_nameを渡す
     })
+
+def _discount_context(location, fields, bento_prices, rows, note=''):
+    """日計表の割引欄・値段ごとの販売数のテンプレート用の値（入力フォーム・編集画面で共通）。"""
+    mode = drc.service_mode(location) if location else None
+    return {
+        'discount_groups': drc.grouped(fields),
+        'discount_signature': drc.signature(fields),
+        'discount_note': note,
+        'price_rows': drc.price_summary(rows),
+        'service_mode': mode,
+        'service_label': f"{location.service_name} {int(location.service_price)}円" if mode else '',
+        'bento_prices_missing': not bento_prices,
+    }
+
+
+def _has_unknown_discount_input(post, fields):
+    """作り直した割引欄にない名前で、1個以上入っている欄があるか。"""
+    known = {f.name for f in fields}
+    for name, value in post.items():
+        if name.startswith('disc_') and name not in known and safe_int(value, min_val=0) > 0:
+            return True
+    return False
+
+
+def _log_if_client_totals_differ(date, location, calc, client):
+    diffs = {k: (client[k], calc[k]) for k in client if int(client[k] or 0) != int(calc[k])}
+    if diffs:
+        logger.warning("日計表 %s %s：画面の合計とサーバー計算が違うためサーバーの値で保存（画面, サーバー）=%s",
+                       date, location, diffs)
+
 
 @login_required
 def submission_complete_view(request):

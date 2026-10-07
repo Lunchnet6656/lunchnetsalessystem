@@ -1,0 +1,26 @@
+{% load humanize %}
+{# 値段ごとの販売数。値段の種類がいくつでも全部出す（入力フォーム・編集画面2つで共通） #}
+<p class="dr-subhead">値段ごとの販売数</p>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>単価</th>
+            <th>販売数</th>
+            <th>合計金額</th>
+        </tr>
+    </thead>
+    <tbody class="price-summary">
+        {% for row in price_rows %}
+        <tr>
+            <td>{{ row.price|intcomma }}円{% if row.is_large %}（大盛り）{% endif %}</td>
+            <td id="price_{{ row.price }}_sales_quantity">{{ row.quantity|intcomma }}</td>
+            <td id="price_{{ row.price }}_sales">{{ row.amount|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="price-summary-total">
+            <td>合計</td>
+            <td id="price_total_sales_quantity">0</td>
+            <td id="price_total_sales">0</td>
+        </tr>
+    </tbody>
+</table>

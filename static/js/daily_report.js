@@ -134,8 +134,29 @@ function validateTimeOrder() {
     return null;
 }
 
-// 未入力項目を優先順（現金 → 閉店時間 → 確認チェック）で1件返す。全部OKならnull
+// 「データを表示」のあとで日付・販売所を変えたか。変えたまま送るとクーポン欄の値段が食い違うので止める
+function isStaleSelection() {
+    var form = document.querySelector('form[data-shown-date]');
+    if (!form) return false;
+    var dateEl = document.getElementById('date');
+    var locationEl = document.getElementById('location');
+    return (dateEl && dateEl.value !== form.getAttribute('data-shown-date')) ||
+           (locationEl && locationEl.value !== form.getAttribute('data-shown-location'));
+}
+
+function updateStaleWarning() {
+    var stale = isStaleSelection();
+    ['stale-date-warning', 'stale-location-warning'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.toggle('d-none', !stale);
+    });
+}
+
+// 未入力項目を優先順（日付・販売所の変更 → 現金 → 閉店時間 → 確認チェック）で1件返す。全部OKならnull
 function getFirstIncomplete() {
+    if (isStaleSelection()) {
+        return { el: document.getElementById('display-data-btn'), msg: '日付か販売所が変わっています。「データを表示」を押し直してください' };
+    }
     var cashEl = document.getElementById('cash');
     // 現金：欄が存在し、対象外(disabled)でなく、空欄のときだけ未入力扱い（0の入力はOK＝違算許容）
     if (cashEl && !cashEl.disabled && cashEl.value.trim() === '') {
@@ -206,6 +227,10 @@ function scrollToAndPop(target) {
 // フォーム送信ガード（グレーボタンのタップ・Enter 送信の両方をここで止める）
 // テンプレの onsubmit="return confirmSubmission(event)" から呼ばれる
 function confirmSubmission(event) {
+    // 「データを表示」は未入力チェックの対象外（日付・販売所を変えたあとに押し直せるように）
+    if (event && event.submitter && event.submitter.value === 'display') {
+        return true;
+    }
     var incomplete = getFirstIncomplete();
     if (incomplete) {
         if (event) {
@@ -418,7 +443,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (locationEl) {
         locationEl.addEventListener('change', function() {
             switchPersonField(this.value, null);
+            updateStaleWarning();
+            updateSubmitButtonState();
         });
+        var dateSelectEl = document.getElementById('date');
+        if (dateSelectEl) {
+            dateSelectEl.addEventListener('change', function() {
+                updateStaleWarning();
+                updateSubmitButtonState();
+            });
+        }
 
         // POST後に新横浜が選択された状態なら担当者セレクトを復元
         if (locationEl.value === '新横浜') {

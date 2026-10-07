@@ -213,7 +213,9 @@ function calculateTotals() {
     document.querySelector('input[name="total_sales_quantity"]').value = totalSalesQuantity;
     document.querySelector('input[name="total_remaining"]').value = totalRemaining;
 
-    // 単価別の集計結果を表示（単価の降順で処理）
+    // 値段ごとの販売数（単価の降順）。値段の行はサーバーが全部出している
+    var summaryQuantity = 0;
+    var summarySales = 0;
     Object.entries(salesByPrice)
         .sort(([priceA], [priceB]) => parseInt(priceB) - parseInt(priceA))
         .forEach(([price, data], index) => {
@@ -222,10 +224,17 @@ function calculateTotals() {
             if (priceDisplay) {
                 priceDisplay.textContent = `${numberWithCommas(data.quantity)}`;
                 priceDisplay2.textContent = `${numberWithCommas(data.sales)}`;
-                // valueも書き換え
-                document.querySelector(`input[name="sales_price_quantity_${index + 1}"]`).value = data.quantity;
             }
+            summaryQuantity += data.quantity;
+            summarySales += data.sales;
+            // 旧画面の送信用の欄（編集画面の切り替えまで）。サーバーは商品ごとの記録から計算し直す
+            const legacyInput = document.querySelector(`input[name="sales_price_quantity_${index + 1}"]`);
+            if (legacyInput) legacyInput.value = data.quantity;
         });
+    var totalQtyEl = document.getElementById('price_total_sales_quantity');
+    var totalSalesEl = document.getElementById('price_total_sales');
+    if (totalQtyEl) totalQtyEl.textContent = numberWithCommas(summaryQuantity);
+    if (totalSalesEl) totalSalesEl.textContent = numberWithCommas(summarySales);
 
     // 割引計算の更新
     updateDiscount();
@@ -291,7 +300,42 @@ document.querySelectorAll('.others-input').forEach(function(input) {
 });
 
 
+// 割引合計：欄ごとの data-unit（1個あたりの割引額・符号付き）× 個数を足すだけ。金額はサーバーが決める
 function updateDiscount() {
+    var inputs = document.querySelectorAll('.disc-input');
+    if (inputs.length === 0) {
+        updateDiscountLegacy();  // 編集画面の切り替え（S2-3）までの互換
+        return;
+    }
+    var totalDiscount = 0;
+    var subtotals = {};
+    inputs.forEach(function(input) {
+        var qty = parseInt(input.value, 10) || 0;
+        var amount = qty * (parseInt(input.getAttribute('data-unit'), 10) || 0);
+        var group = input.getAttribute('data-group');
+        subtotals[group] = (subtotals[group] || 0) + amount;
+        totalDiscount += amount;
+    });
+    Object.keys(subtotals).forEach(function(group) {
+        var el = document.getElementById('disc_subtotal_' + group);
+        if (el) el.textContent = subtotals[group] ? '小計 ' + formatDiscount(subtotals[group]) + '円' : '';
+    });
+    var totalDiscountElement = document.getElementById('total_discount');
+    if (totalDiscountElement) {
+        totalDiscountElement.value = formatDiscount(totalDiscount);
+        totalDiscountElement.dispatchEvent(new Event('change'));
+    }
+    updateRevenue();
+}
+
+function formatDiscount(amount) {
+    if (amount < 0) {
+        return '▲' + Math.abs(amount).toLocaleString();
+    }
+    return '＋' + amount.toLocaleString();
+}
+
+function updateDiscountLegacy() {
     var noRiceQuantity = parseInt(document.getElementById('no_rice_quantity').value, 10) || 0;
     var extraRiceQuantity = parseInt(document.getElementById('extra_rice_quantity').value, 10) || 0;
     var couponQuantity600 = parseInt(document.getElementById('coupon_type_600').value, 10) || 0;

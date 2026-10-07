@@ -12,7 +12,8 @@
        data-shin-yokohama-url="{% url 'shin_yokohama_users' %}"
        data-selected-person="{{ selected_person|escapejs }}">
   <h1 class="text-center">ランチネット日計表入力</h1>
-  <form method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission(event);">
+  <form method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission(event);"
+        {% if item_data %}data-shown-date="{{ selected_date }}" data-shown-location="{{ selected_location }}"{% endif %}>
     {% csrf_token %}
     <div class="mb-3">
         <label for="date" class="form-label">日付</label>
@@ -25,6 +26,7 @@
             <label for="date">日付を選択:</label>
             <input type="date" id="date" name="date" class="form-select" required>-->
         </select>
+        <p class="dr-warning d-none" id="stale-date-warning">日付か販売所を変えたら「データを表示」を押し直してください。</p>
     </div>
     <div class="row">
     <!-- 天気セクション -->
@@ -59,6 +61,7 @@
                 <option value="{{ location.name }}" {% if location.name == selected_location %}selected{% endif %}>{{ location.name }}</option>
             {% endfor %}
         </select>
+        <p class="dr-warning d-none" id="stale-location-warning">日付か販売所を変えたら「データを表示」を押し直してください。</p>
     </div>
     <div class="mb-3" id="person-section">
         <label for="担当者" class="form-label">担当者</label>
@@ -198,25 +201,7 @@
               </tbody>
             </table>
             </div>
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>単価</th>
-                        <th>販売数</th>
-                        <th>合計金額</th>
-                    </tr>
-                </thead>
-                <tbody class="price-summary">
-                    {% for price in unique_prices %}
-                    <tr>
-                        <td>{{ price }}円商品</td>
-                        <td id="price_{{ price }}_sales_quantity">0</td>
-                        <input type="hidden" name="sales_price_quantity_{{ forloop.counter }}" value="price_{{ price }}_sales">
-                        <td id="price_{{ price }}_sales">0</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            {% include "includes/daily_report_price_summary.html" %}
             {% else %}
             {% endif %}
           </div>
@@ -298,114 +283,11 @@
           <!--割引セクション-->
           <div id="discount-section">
                     <h2 class="bg-dark text-white mt-4">割引入力</h2>
-                    <div class="row">
-                        <label class="form-label">ご飯 なし＆追加</label>
-                        <!-- ご飯なし -->
-                        <div class="col-6 mb-2 discount-item">
-                            <div class="discount-item">
-                              <label for="no_rice_quantity" class="form-label">なし(▲100円)</label>
-                              <input type="number" id="no_rice_quantity" name="no_rice_quantity" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <!-- ご飯追加 -->
-                        <div class="col-6 mb-2 discount-item">
-                            <div class="discount-item">
-                              <label for="extra_rice_quantity" class="form-label">追加(＋100円)</label>
-                              <input type="number" id="extra_rice_quantity" name="extra_rice_quantity" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-
-                        <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
-
-                        <!-- クーポン -->
-                        <label class="form-label">クーポン</label>
-                        <div class="col-4 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="coupon_type_750">750円</label>
-                                <input type="number" id="coupon_type_750" name="coupon_type_750" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <div class="col-4 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="coupon_type_700">700円</label>
-                                <input type="number" id="coupon_type_700" name="coupon_type_700" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <div class="col-4 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="coupon_type_600">650円</label>
-                                <input type="number" id="coupon_type_600" name="coupon_type_600" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-
-                        <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
-
-                        <!-- 割引・返金円 -->
-                        <label class="form-label">割引・返金</label>
-                        <div class="col-6 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="discount_50" class="form-label">▲50円</label>
-                                <input type="number" id="discount_50" name="discount_50" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="discount_100" class="form-label">▲100円</label>
-                                <input type="number" id="discount_100" name="discount_100" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-
-                        <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
-
-
-                      {% if service.service_name == 'なし' %}
-                      {% elif service.service_style == '割引' %}
-                        <div class="col-12 col-md-4 mb-2">
-                            <label for="service_name" class="form-label">サービス名:</label>
-                            <input type="hidden" id="service_style" value="{{ service.service_style }}">
-                            <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
-                                <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected>{{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円{% endif %}</option>
-                            </select>
-                        </div>
-                        <!-- 100円引き -->
-                        <div class="col-12 col-md-4 mb-2 discount-item">
-                            <label for="service_type_100" class="form-label">サービス販売数</label>
-                            <input type="number" id="service_type_100" name="service_type_100" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                        </div>
-                        <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
-                      {% else %}
-                        <div class="col-12 col-md-4 mb-2">
-                            <label for="service_name" class="form-label">サービス名:</label>
-                            <input type="hidden" id="service_style" value="{{ service.service_style }}">
-                            <select id="service_name" name="service_name" class="form-control" onchange="updateServiceDiscount()">
-                                <option value="0">選択してください</option>
-                                <option value="{{ service.service_price }}" selected>{{ service.service_name }}{% if service.service_name != 'なし' %}　{{ service.service_price }}円{% endif %}</option>
-                            </select>
-                        </div>
-                        <!-- サービスの割引（750円・700円・650円の個数入力）-->
-                        <label class="form-label">サービス販売個数</label>
-                        <div class="col-4 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="service_type_750">750円</label>
-                                <input type="number" id="service_type_750" name="service_type_750" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <div class="col-4 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="service_type_700">700円</label>
-                                <input type="number" id="service_type_700" name="service_type_700" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <div class="col-4 mb-2 discount-item">
-                            <div class="discount-item">
-                                <label for="service_type_600">650円</label>
-                                <input type="number" id="service_type_600" name="service_type_600" class="form-control" min="0" value="0" oninput="updateDiscount()">
-                            </div>
-                        </div>
-                        <hr class="my-2"> <!-- マージンを追加して区切り線のスタイルを調整 -->
-                      </div>
-                      {% endif %}
+                    {% include "includes/daily_report_discounts.html" %}
+                    {% if service_mode %}
+                    {# 日計表には今までどおりサービス価格を service_name に残す（CSVの「サービス名」列の互換） #}
+                    <input type="hidden" name="service_name" value="{{ service.service_price }}">
+                    {% endif %}
                     <div class="mb-3">
                         <label for="total_discount" class="form-label">割引合計</label>
                         <div class="input-group">
