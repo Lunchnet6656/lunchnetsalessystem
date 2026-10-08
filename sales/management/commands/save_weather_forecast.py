@@ -6,22 +6,28 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from sales.models import WeatherForecastSnapshot
-from sales.weather import fetch_lunch_weather
+from sales.weather import WEATHER_AREAS, fetch_lunch_weather
 
 
 class Command(BaseCommand):
-    help = "Open-Meteo の昼11〜13時の予報（7日分）を保存する"
+    help = "Open-Meteo の昼11〜13時の予報（7日分・地点ごと）を保存する"
 
     def handle(self, *args, **options):
-        try:
-            days = fetch_lunch_weather()
-        except Exception as e:
-            raise CommandError(f"天気予報を取得できませんでした: {e}")
-        WeatherForecastSnapshot.objects.bulk_create([
-            WeatherForecastSnapshot(
-                target_date=day, lunch_precip=w["precip"], lunch_snow=w["snow"],
-                lunch_temp=w["temp"], lunch_feels=w["feels"],
-            )
-            for day, w in sorted(days.items())
-        ])
-        self.stdout.write(f"{len(days)}日分の予報を保存しました")
+        snapshots, failed = [], []
+        for area in WEATHER_AREAS:
+            try:
+                days = fetch_lunch_weather(area)
+            except Exception as e:
+                failed.append(f"{area}: {e}")
+                continue
+            snapshots += [
+                WeatherForecastSnapshot(
+                    target_date=day, area=area, lunch_precip=w["precip"], lunch_snow=w["snow"],
+                    lunch_temp=w["temp"], lunch_feels=w["feels"],
+                )
+                for day, w in sorted(days.items())
+            ]
+        WeatherForecastSnapshot.objects.bulk_create(snapshots)
+        if failed and not snapshots:
+            raise CommandError("天気予報を取得できませんでした: " + " / ".join(failed))
+        self.stdout.write(f"{len(snapshots)}件の予報を保存しました" + (f"（取得できなかった地点: {', '.join(failed)}）" if failed else ""))

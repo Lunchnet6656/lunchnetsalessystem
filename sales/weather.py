@@ -8,11 +8,20 @@ import urllib.request
 
 OPEN_METEO_URL = (
     "https://api.open-meteo.com/v1/forecast"
-    "?latitude=35.667&longitude=139.75"
+    "?latitude={lat}&longitude={lon}"
     "&hourly=precipitation,snowfall,temperature_2m,apparent_temperature"
     "&timezone=Asia%2FTokyo&forecast_days=7"
 )
 LUNCH_HOURS = (11, 12)  # 11:00〜12:59
+
+# 予報を取る地点。横浜は雨の日の半分近くで都心と予報が違う（2025-09〜の前日予報で、
+# 雨の段階が新橋と違った日：日本大通り12/27日・新横浜13/30日・渋谷5/27日）
+WEATHER_AREAS = {
+    "tokyo": ("東京", 35.667, 139.75),          # 新橋・内幸町
+    "yokohama": ("横浜みなと", 35.444, 139.643),  # 日本大通り
+    "shinyokohama": ("新横浜", 35.507, 139.617),
+}
+DEFAULT_AREA = "tokyo"
 
 # (下限mm, 段階)。雪が少しでもあれば大雨扱い
 RAIN_LEVELS = [(8.0, "大雨"), (3.0, "雨"), (1.0, "小雨")]
@@ -40,9 +49,10 @@ def rain_factor(level, sales_type):
     return RAIN_FACTORS[level].get(sales_type, 1.0)
 
 
-def fetch_lunch_weather():
+def fetch_lunch_weather(area=DEFAULT_AREA):
     """日付('YYYY-MM-DD')ごとの昼の予報。取得できなければ例外を投げる（呼び出し側で扱う）。"""
-    with urllib.request.urlopen(OPEN_METEO_URL, timeout=5) as resp:
+    _, lat, lon = WEATHER_AREAS[area]
+    with urllib.request.urlopen(OPEN_METEO_URL.format(lat=lat, lon=lon), timeout=5) as resp:
         data = json.loads(resp.read().decode())
     hourly = data.get("hourly", {})
     days = {}
@@ -69,4 +79,15 @@ def fetch_lunch_weather():
             "feels": round(sum(d["feels"]) / len(d["feels"]), 1) if d["feels"] else None,
             "level": rain_level(precip, snow),
         }
+    return result
+
+
+def fetch_all_areas():
+    """{地点: {日付: 昼の予報}}。取れなかった地点は入れない。"""
+    result = {}
+    for area in WEATHER_AREAS:
+        try:
+            result[area] = fetch_lunch_weather(area)
+        except Exception:
+            continue
     return result

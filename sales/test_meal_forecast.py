@@ -33,8 +33,8 @@ def report(d, name, no, sold, rem=5, sold_out=None):
 class DemandTests(TestCase):
     def test_sold_out_early_is_lifted(self):
         self.assertEqual(estimated_demand(100, 5, None, time(11), time(13)), 100)
-        # 12:00完売・11〜13時営業 → 残り時間の割合0.5 × 0.4 = +20%
-        self.assertAlmostEqual(estimated_demand(100, 0, time(12), time(11), time(13)), 120)
+        # 12:00完売・11〜13時営業 → 残り時間の割合0.5 × 0.2 = +10%
+        self.assertAlmostEqual(estimated_demand(100, 0, time(12), time(11), time(13)), 110)
         # 完売時刻が分からなければ上乗せなし
         self.assertEqual(estimated_demand(100, 0, None, time(11), time(13)), 100)
 
@@ -99,3 +99,20 @@ class RenumberingTests(TestCase):
         self.assertEqual(locs["B店"]["type"], "室内")
         self.assertNotIn("店", locs)
         self.assertContains(res, "直近の流れ")
+
+
+class MonthThirdTests(TestCase):
+    def test_clear_late_month_weakness_is_flagged(self):
+        from sales.meal_forecast import third_effect
+        rows = []
+        for d in weekdays_before(TODAY, 240):
+            demand = 80 if d.day > 20 else 100   # 下旬だけ2割少ない店
+            rows.append({"date": d, "wd": d.weekday(), "sold": demand, "rem": 5, "demand": demand, "sold_out": False})
+        self.assertLess(third_effect(rows, 2), -0.03)
+        self.assertIsNone(third_effect(rows[:50], 2))  # データが少なければ出さない
+
+    def test_no_pattern_no_flag(self):
+        from sales.meal_forecast import third_effect
+        rows = [{"date": d, "wd": d.weekday(), "sold": 100, "rem": 5, "demand": 100.0, "sold_out": False}
+                for d in weekdays_before(TODAY, 240)]
+        self.assertIsNone(third_effect(rows, 2))
