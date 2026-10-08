@@ -46,7 +46,7 @@ class MenuWeekScreenTest(TestCase):
         gapao = Product.objects.get(week="2026-10-14", no=9)
         self.assertEqual((gapao.rank.name, int(gapao.price_A)), ("お手頃", 650))
         self.assertEqual(MenuProfile.objects.get(name="ガパオライス").rank.name, "お手頃")
-        self.assertFalse(MenuProfile.objects.filter(confirmed=False).exclude(name="大盛りごはん").exists())
+        self.assertFalse(MenuProfile.objects.filter(confirmed=False).exists())
 
     @mock.patch("django.utils.timezone.localdate", return_value=datetime.date(2026, 10, 16))
     def test_selling_week_change_needs_confirmation(self, _):
@@ -93,3 +93,18 @@ class MenuWeekScreenTest(TestCase):
     def test_permission(self):
         self.client.force_login(make_user("staff_only"))
         self.assertRedirects(self.client.get(self.url), "/dashboard/", fetch_redirect_response=False)
+
+
+class LoginNextTest(TestCase):
+    """Excelから確認画面を開いてログイン画面になったとき、ログイン後に確認画面へ戻る（同じサイト内だけ）。"""
+
+    def test_login_returns_to_next(self):
+        make_user("honbu", price_master=True)
+        res = self.client.post("/login/?next=/menus/week/2026-10-14/",
+                               {"username": "honbu", "password": "pass", "next": "/menus/week/2026-10-14/"})
+        self.assertRedirects(res, "/menus/week/2026-10-14/", fetch_redirect_response=False)
+
+    def test_external_next_is_ignored(self):
+        make_user("honbu2", price_master=True)
+        res = self.client.post("/login/", {"username": "honbu2", "password": "pass", "next": "https://evil.example/"})
+        self.assertRedirects(res, "/dashboard/", fetch_redirect_response=False)

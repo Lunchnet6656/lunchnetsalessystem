@@ -13,6 +13,7 @@ from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, pattern_of
 from sales import daily_report_calc as drc
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
+from django.utils.http import url_has_allowed_host_and_scheme
 from sales.models import DiscountItem
 from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
@@ -340,6 +341,11 @@ def login_view(request):
                 request.session.set_expiry(24 * 60 * 60)        # 管理者: 24時間
             else:
                 request.session.set_expiry(30 * 24 * 60 * 60)   # 一般: 30日
+            # Excelの「メニュー送信」などから確認画面を開いたとき、ログイン後にそのページへ戻す（同じサイト内だけ）
+            next_url = request.POST.get('next') or request.GET.get('next')
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()},
+                                                            require_https=request.is_secure()):
+                return redirect(next_url)
             return redirect(_post_login_destination(user))
         else:
             logger.error(f'Authentication failed for user: {username}')

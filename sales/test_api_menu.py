@@ -25,7 +25,7 @@ class ApiMenuTest(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertTrue(data["ok"])
         self.assertEqual(data["saved_count"], 11)
-        self.assertIn("10/14週 11品を登録しました（要確認 11品）。", data["message"])
+        self.assertIn("10/14週 11品を登録しました（要確認 10品）。", data["message"])
         self.assertIn("確認画面を開きます。", data["message"])
         self.assertTrue(data["url"].endswith("/menus/week/2026-10-14/"))
         self.assertEqual(Product.objects.filter(week="2026-10-14").count(), 11)

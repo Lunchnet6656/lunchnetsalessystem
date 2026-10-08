@@ -24,4 +24,18 @@
     .pm-ended { background-color: var(--ln-color-surface-disabled); }
     .pm-row-attention td:first-child { box-shadow: inset 4px 0 0 var(--ln-color-danger); }
     .pm-confirmed { color: var(--ln-color-success); background-color: var(--ln-color-success-bg); padding: 0 .25rem; }
+    /* 週のメニュー確認：スマホでは1品＝1ブロック（1行目＝No・名前、2行目＝種類・容器、3行目＝価格A/B/C） */
+    @media (max-width: 767.98px) {
+        .pm-week-table thead { display: none; }
+        .pm-week-table, .pm-week-table tbody { display: block; }
+        .pm-week-table tr { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--ln-color-border); padding: .4rem 0; }
+        .pm-week-table td { display: block; border: none; padding: .15rem .25rem; }
+        .pm-week-table .pm-w-heading td { width: 100%; }
+        .pm-week-table .pm-w-no { width: 2.2rem; font-weight: bold; }
+        .pm-week-table .pm-w-name { width: calc(100% - 2.2rem); font-weight: bold; }
+        .pm-week-table .pm-w-half { width: 50%; }
+        .pm-week-table .pm-w-third { width: 33.33%; white-space: normal; }
+        .pm-week-table .pm-w-third::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--ln-color-text-muted); }
+        .pm-week-table select { font-size: 16px; }
+    }
 </style>

@@ -22,7 +22,7 @@ class MenuDictionaryTest(TestCase):
 
     def test_list_shows_needs_check(self, _):
         res = self.client.get("/menus/dictionary/")
-        self.assertContains(res, "要確認 11件")
+        self.assertContains(res, "要確認 10件")
         self.assertContains(res, 'data-prices="A 650／B 650／C 600"')   # お手頃の今の値段
 
     def test_confirm_one_reflects_upcoming_only(self, _):
@@ -33,7 +33,7 @@ class MenuDictionaryTest(TestCase):
         }, follow=True)
         gapao.refresh_from_db()
         self.assertTrue(gapao.confirmed)
-        self.assertEqual(MenuProfile.objects.filter(confirmed=False).count(), 10)   # ほかの行は触らない
+        self.assertEqual(MenuProfile.objects.filter(confirmed=False).count(), 9)   # ほかの行は触らない
         self.assertEqual(Product.objects.get(week="2026-10-14", no=9).rank.name, "お手頃")   # 開始前は反映
         self.assertEqual(Product.objects.get(week="2026-10-07", no=9).rank.name, "通常")     # 販売中は変えない
         text = "".join(str(m) for m in res.context["messages"])

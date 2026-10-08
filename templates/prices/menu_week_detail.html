@@ -44,31 +44,31 @@
     <form method="POST" id="week-form">
         {% csrf_token %}
         <div class="table-responsive">
-        <table class="table table-sm align-middle pm-table">
+        <table class="table table-sm align-middle pm-table pm-week-table">
             <thead>
                 <tr><th>No</th><th>メニュー名</th><th>値段の種類</th><th>容器</th><th>価格A</th><th>価格B</th><th>価格C</th></tr>
             </thead>
             <tbody>
             {% if needs_check_count %}
-                <tr><td colspan="7" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（初めて出たメニューです。種類と容器を決めてください）</td></tr>
+                <tr class="pm-w-heading"><td colspan="7" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（初めて出たメニューです。種類と容器を決めてください）</td></tr>
             {% endif %}
             {% for row in rows %}
                 {% if needs_check_count and not row.needs_check %}{% ifchanged row.needs_check %}
-                <tr><td colspan="7" class="small text-muted">ここから下は辞書で決まったメニュー</td></tr>
+                <tr class="pm-w-heading"><td colspan="7" class="small text-muted">ここから下は辞書で決まったメニュー</td></tr>
                 {% endifchanged %}{% endif %}
                 <tr class="{% if row.needs_check %}pm-row-attention{% endif %}" data-no="{{ row.product.no }}">
-                    <td>{{ row.product.no }}</td>
-                    <td>{{ row.product.name }}{% if row.needs_check %} <span class="badge bg-danger">要確認</span>{% endif %}</td>
+                    <td class="pm-w-no">{{ row.product.no }}</td>
+                    <td class="pm-w-name">{{ row.product.name }}{% if row.needs_check %} <span class="badge bg-danger">要確認</span>{% endif %}</td>
                     {% if row.fixed %}
-                    <td>{{ row.product.rank.name|default:"—" }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
-                    <td>{{ row.product.container_type }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
+                    <td class="pm-w-half">{{ row.product.rank.name|default:"—" }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
+                    <td class="pm-w-half">{{ row.product.container_type }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
                     {% else %}
-                    <td>
+                    <td class="pm-w-half">
                         <select name="rank_{{ row.product.no }}" class="form-select form-select-sm pm-rank-select" {% if state == "ended" %}disabled{% endif %}>
                             {% for r in ranks %}<option value="{{ r.id }}" {% if r.id == row.product.rank_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
                         </select>
                     </td>
-                    <td>
+                    <td class="pm-w-half">
                         <select name="container_{{ row.product.no }}" class="form-select form-select-sm pm-container-select" {% if state == "ended" %}disabled{% endif %}>
                             {% for c in containers %}<option value="{{ c }}" {% if c == row.product.container_type %}selected{% endif %}>{{ c }}</option>{% endfor %}
                         </select>
@@ -76,7 +76,7 @@
                     </td>
                     {% endif %}
                     {% for cell in row.price_cells %}
-                    <td class="text-nowrap pm-price-cell" data-pattern="{{ cell.pattern }}">
+                    <td class="text-nowrap pm-price-cell pm-w-third" data-pattern="{{ cell.pattern }}" data-label="価格{{ cell.pattern }}">
                         {% for label, value in cell.lines %}
                         <div>{% if label %}<span class="small text-muted">{{ label }}</span> {% endif %}{% if value is None %}<span class="text-danger">値段なし</span>{% else %}{% if row.product.no == 11 %}＋{% endif %}{{ value }}円{% endif %}</div>
                         {% endfor %}

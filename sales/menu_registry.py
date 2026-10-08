@@ -113,6 +113,10 @@ def register_week(week, names, now=None):
     products, needs_check = [], []
     for no, name in [(i + 1, n) for i, n in enumerate(names)] + [(LARGE_RICE_NO, LARGE_RICE_NAME)]:
         profile = profile_for(name, week, rules, ranks)
+        if no == LARGE_RICE_NO and not profile.confirmed:
+            # 大盛りごはんはアプリが足す固定の行（確認画面でも選べない）ので、要確認にしない
+            profile.confirmed = True
+            profile.save(update_fields=["confirmed", "updated_at"])
         if not profile.confirmed:
             needs_check.append(profile.name)
         product, _ = Product.objects.update_or_create(

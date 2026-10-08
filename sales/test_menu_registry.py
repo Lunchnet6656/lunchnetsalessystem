@@ -47,7 +47,8 @@ class RegisterWeekTest(TestCase):
         self.assertEqual((products[9].rank.name, products[9].container_type), ("通常", "一体型"))
         # 週の初日の価格表（2026-10-01版）の値段も入れておく
         self.assertEqual((int(products[1].price_A), int(products[1].price_B), int(products[1].price_C)), (750, 700, 700))
-        self.assertEqual(len(result.needs_check), 11)  # 辞書が空なので全部「要確認」
+        self.assertEqual(len(result.needs_check), 10)  # 辞書が空なので①〜⑩は全部「要確認」（大盛りごはんは除く）
+        self.assertTrue(MenuProfile.objects.get(name="大盛りごはん").confirmed)
         check = MenuWeekCheck.objects.get(week=WEEK)
         self.assertFalse(check.is_confirmed)
         self.assertEqual(check.received_count, 11)
