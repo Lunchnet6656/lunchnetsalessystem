@@ -303,41 +303,42 @@ def _pct(numer, denom):
     return round(numer / denom * 100, 1) if denom else None
 
 
-def _sales_correlation_rows(start, end, loc_no=None, stamp_only=True):
+def _sales_correlation_rows(start, end, loc_name=None, stamp_only=True):
     """売上×スタンプ相関の行を作る（日付×販売場所）。
 
     - 売上系（持参/販売/残/総売上）は sales.DailyReport（同日・同店で1行）。
-    - スタンプ利用者数は StampLog を (stamped_on, location.no) で distinct member 集計し突き合わせる。
-    - 結合キー：DailyReport.location_no == SalesLocation.no。
+    - スタンプ利用者数は StampLog を (stamped_on, 店名) で distinct member 集計し突き合わせる。
+    - 結合キーは店名。販売場所No.は途中で振り直されていて（2026-06・2026-10）、日計表には
+      当時のNo.が残るため、No.で結ぶと過去の売上が別の店のスタンプと結びついてしまう。
     """
-    enabled_nos = set(SalesLocation.objects.filter(stamp_enabled=True)
-                      .values_list("no", flat=True))
+    enabled_names = set(SalesLocation.objects.filter(stamp_enabled=True)
+                        .values_list("name", flat=True))
 
     reports = DailyReport.objects.filter(date__gte=start, date__lte=end)
-    if loc_no is not None:
-        reports = reports.filter(location_no=loc_no)
+    if loc_name is not None:
+        reports = reports.filter(location=loc_name)
     elif stamp_only:
-        reports = reports.filter(location_no__in=enabled_nos)
+        reports = reports.filter(location__in=enabled_names)
     reports = reports.order_by("-date", "location_no")
 
-    # スタンプ利用者数＝(日付, 店no) ごとの distinct 会員数。2クエリで一括取得。
+    # スタンプ利用者数＝(日付, 店名) ごとの distinct 会員数。2クエリで一括取得。
     usage = (StampLog.objects
              .filter(stamped_on__gte=start, stamped_on__lte=end)
-             .values("stamped_on", "location__no")
+             .values("stamped_on", "location__name")
              .annotate(u=Count("card__member_id", distinct=True)))
-    usage_map = {(r["stamped_on"], r["location__no"]): r["u"] for r in usage}
+    usage_map = {(r["stamped_on"], r["location__name"]): r["u"] for r in usage}
 
     rows = []
     for rep in reports:
         brought = int(rep.total_quantity or 0)
         sold = int(rep.total_sales_quantity or 0)
         remaining = int(rep.total_remaining or 0)
-        users = usage_map.get((rep.date, rep.location_no), 0)
+        users = usage_map.get((rep.date, rep.location), 0)
         rows.append({
             "date": rep.date,
             "location": rep.location,
             "location_no": rep.location_no,
-            "stamp_enabled": rep.location_no in enabled_nos,
+            "stamp_enabled": rep.location in enabled_names,
             "brought": brought,
             "sold": sold,
             "remaining": remaining,
@@ -357,15 +358,15 @@ def sales_correlation(request):
     """
     start, end = _period(request)
     loc_id = request.GET.get("loc") or ""
-    # 店舗フィルタは SalesLocation.id → no に変換して DailyReport と結合。
-    loc_no = None
+    # 店舗フィルタは SalesLocation.id → 店名に変換して DailyReport と結合（No.は振り直されるため）。
+    loc_name = None
     if loc_id:
         loc = SalesLocation.objects.filter(id=loc_id).first()
-        loc_no = loc.no if loc else -1  # 該当なしは -1（0件に）
+        loc_name = loc.name if loc else ""  # 該当なしは空名（0件に）
     # トグル：未指定は既定ON。store フィルタ時は全店（loc優先）。
     stamp_only = request.GET.get("stamp_only", "1") == "1"
 
-    rows = _sales_correlation_rows(start, end, loc_no=loc_no, stamp_only=stamp_only)
+    rows = _sales_correlation_rows(start, end, loc_name=loc_name, stamp_only=stamp_only)
 
     if request.GET.get("export") == "csv":
         return _sales_correlation_csv(rows, start, end)
