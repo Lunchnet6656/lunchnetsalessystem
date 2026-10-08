@@ -70,7 +70,8 @@ class SaveForecastCommandTests(TestCase):
         payload = open_meteo_payload("2026-10-05", {11: 4.0})
         with patch("sales.weather.urllib.request.urlopen", fake_urlopen(payload)):
             call_command("save_weather_forecast", stdout=io.StringIO())
-        snap = WeatherForecastSnapshot.objects.get()
+        self.assertEqual(set(WeatherForecastSnapshot.objects.values_list("area", flat=True)), {"tokyo", "yokohama", "shinyokohama"})
+        snap = WeatherForecastSnapshot.objects.get(area="tokyo")
         self.assertEqual(snap.target_date, date(2026, 10, 5))
         self.assertEqual(snap.lunch_precip, 4.0)
         self.assertEqual(snap.lunch_temp, 20.0)
@@ -89,14 +90,19 @@ class MealForecastRainTests(TestCase):
         self.client.force_login(user)
         SalesLocation.objects.create(no=1, name="テーブルの店", type="テーブル", price_type="A", service_name="")
         SalesLocation.objects.create(no=2, name="ビルの店", type="室内", price_type="A", service_name="")
-        # 直近4週の平日すべて、どちらも100食売れた（残りあり＝完売補正なし）
+        SalesLocation.objects.create(no=3, name="横浜の店", type="行商", price_type="A", service_name="",
+                                     weather_area="yokohama")
+        # 直近4週の平日すべて、どの店も100食売れた（残りあり＝完売補正なし）
         d = TODAY - timedelta(days=28)
         while d < TODAY:
             if d.weekday() < 5:
-                for no, name in ((1, "テーブルの店"), (2, "ビルの店")):
+                for no, name in ((1, "テーブルの店"), (2, "ビルの店"), (3, "横浜の店")):
                     DailyReport.objects.create(date=d, location=name, location_no=no, total_quantity=110,
                                                total_sales_quantity=100, total_remaining=10, total_revenue=0)
             d += timedelta(days=1)
+
+    def wx(self, precip, level):
+        return {"precip": precip, "snow": 0.0, "temp": 15, "feels": 13, "level": level}
 
     def get(self, weather):
         with patch("lunchnetsale.views.timezone.localdate", return_value=TODAY), \
@@ -104,29 +110,72 @@ class MealForecastRainTests(TestCase):
             return self.client.get(reverse("meal_forecast"))
 
     def monday(self, res):
-        return res.context["fc"]["days"][0]
+        return {l["name"]: l for l in res.context["fc"]["days"][0]["locs"]}
 
-    def test_heavy_rain_reduces_only_outdoor(self):
-        res = self.get({"2026-10-05": {"precip": 9.0, "snow": 0.0, "temp": 15, "feels": 13, "level": "大雨"}})
-        day = self.monday(res)
-        adj = {l["name"]: l["adj"] for l in day["locs"]}
-        self.assertEqual(adj["テーブルの店"], 60)
-        self.assertEqual(adj["ビルの店"], 100)
-        self.assertEqual(day["adj_total"], 160)
-        self.assertContains(res, "室内は減らしません")
-        self.assertContains(res, "テーブル 0.60倍")
+    def test_heavy_rain_is_built_into_prediction_only_outdoor(self):
+        res = self.get({"tokyo": {"2026-10-05": self.wx(9.0, "大雨")}, "yokohama": {"2026-10-05": self.wx(0.0, None)}})
+        locs = self.monday(res)
+        self.assertEqual(locs["テーブルの店"]["pred"], 60)
+        self.assertEqual(locs["テーブルの店"]["base"], 100)
+        self.assertEqual(locs["ビルの店"]["pred"], 100)
+        day = res.context["fc"]["days"][0]
+        self.assertEqual(day["total"], 260)       # 60 + 100 + 横浜は晴れで100
+        self.assertEqual(day["base_total"], 300)
+        self.assertContains(res, "雨の補正あり")
 
-    def test_light_rain_also_shows_guidance(self):
-        day = self.monday(self.get({"2026-10-05": {"precip": 1.5, "snow": 0.0, "temp": 15, "feels": 13, "level": "小雨"}}))
-        self.assertEqual(day["rain"], "小雨")
-        self.assertEqual({l["name"]: l["adj"] for l in day["locs"]}["テーブルの店"], 85)
+    def test_each_store_uses_its_area_forecast(self):
+        res = self.get({"tokyo": {"2026-10-05": self.wx(0.0, None)}, "yokohama": {"2026-10-05": self.wx(4.0, "雨")}})
+        locs = self.monday(res)
+        self.assertEqual(locs["横浜の店"]["pred"], 80)   # 行商・雨 0.80
+        self.assertEqual(locs["テーブルの店"]["pred"], 100)
+        self.assertEqual(locs["横浜の店"]["area"], "横浜みなと")
 
-    def test_no_rain_no_guidance(self):
-        res = self.get({"2026-10-05": {"precip": 0.2, "snow": 0.0, "temp": 15, "feels": 13, "level": None}})
-        self.assertIsNone(self.monday(res)["rain"])
-        self.assertNotContains(res, "雨の日の目安")
+    def test_weather_table_shows_all_areas(self):
+        res = self.get({"tokyo": {"2026-10-05": self.wx(1.5, "小雨")}})
+        table = res.context["fc"]["weather_table"]
+        self.assertEqual([r["label"] for r in table], ["東京", "横浜みなと", "新横浜"])
+        self.assertEqual(table[0]["days"][0]["level"], "小雨")
+        self.assertIsNone(table[1]["days"][0])          # 取れなかった地点
+        self.assertContains(res, "取得できませんでした")
 
     def test_weather_unavailable(self):
         res = self.get({})
         self.assertEqual(res.status_code, 200)
-        self.assertIsNone(self.monday(res)["rain"])
+        self.assertFalse(res.context["fc"]["days"][0]["rainy"])
+
+    def test_staff_comment_on_first_day_only(self):
+        latest = DailyReport.objects.filter(location="テーブルの店").latest("date")
+        latest.food_count_setting = "明日は45でお願いします"
+        latest.save()
+        res = self.get({})
+        days = res.context["fc"]["days"]
+        c = {l["name"]: l["comment"] for l in days[0]["locs"]}
+        self.assertEqual(c["テーブルの店"]["num"], 45)
+        self.assertIsNone(c["ビルの店"])
+        self.assertTrue(all(l["comment"] is None for l in days[1]["locs"]))
+        self.assertContains(res, "明日は45でお願いします")
+
+    def test_small_adjustment_number_is_not_badged(self):
+        latest = DailyReport.objects.filter(location="テーブルの店").latest("date")
+        latest.food_count_setting = "10個程増やしてください"
+        latest.save()
+        c = {l["name"]: l["comment"] for l in self.get({}).context["fc"]["days"][0]["locs"]}
+        self.assertIsNone(c["テーブルの店"]["num"])
+        self.assertEqual(c["テーブルの店"]["text"], "10個程増やしてください")
+
+
+class LocationWeatherAreaSettingTests(TestCase):
+    def test_area_saved_from_location_settings(self):
+        staff = get_user_model().objects.create_user("boss", password="pw-boss-123456", is_staff=True)
+        self.client.force_login(staff)
+        loc = SalesLocation.objects.create(no=1, name="新横浜", type="室内", price_type="A", service_name="")
+        res = self.client.post(reverse("shifts:admin_location_settings"),
+                               {f"priority_{loc.id}": "A", f"weather_area_{loc.id}": "shinyokohama"})
+        self.assertEqual(res.status_code, 302)
+        loc.refresh_from_db()
+        self.assertEqual(loc.weather_area, "shinyokohama")
+        # 知らない値は無視して元のまま
+        self.client.post(reverse("shifts:admin_location_settings"),
+                         {f"priority_{loc.id}": "A", f"weather_area_{loc.id}": "osaka"})
+        loc.refresh_from_db()
+        self.assertEqual(loc.weather_area, "shinyokohama")

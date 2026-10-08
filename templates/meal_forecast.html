@@ -4,47 +4,81 @@
 
 {% block content %}
 {% load humanize %}
+{% load custom_filters %}
 
 <div class="container mt-4">
     <h1 class="mb-1">食数予測（仕込みの目安）</h1>
     <p class="text-muted mb-2">
         直近{{ fc.days|length }}営業日ぶんの<strong>需要（売れそうな数）を店舗別に予測</strong>します。
-        計算は「<strong>直近5営業日の平均 × その店の曜日の癖</strong>」。完売した日は、完売時刻が早いほど上乗せして数えています。
-        「直近の流れ」は参考表示です（掛け算すると反応しすぎて外れやすくなるため、予測には入れていません）。
+        計算は「<strong>直近5営業日の平均 × その店の曜日の癖 × 昼の雨の補正</strong>」。
+        雨の補正は、その店の地点の天気予報で<strong>外の売場（テーブル・行商・車）だけ</strong>減らします（室内・配達はそのまま）。
+        完売した日は、完売時刻が早いほど少し上乗せして数えています。
     </p>
     {% if fc.backtest %}
     <span class="badge bg-success fs-6 mb-3">
         精度：直近28日・完売しなかった日で平均誤差 ±{{ fc.backtest.mae }}食（{{ fc.backtest.mape }}％）・{{ fc.backtest.n }}件で検証
     </span>
     {% endif %}
-    <hr class="my-3">
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header"><strong>昼（11〜13時）の天気予報</strong> <span class="text-muted small ms-2">Open-Meteo</span></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table mb-0 align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-start">地点</th>
+                            {% for d in fc.weather_dates %}<th>{{ d|date:'n/j' }}（{{ d|japanese_weekday }}）</th>{% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in fc.weather_table %}
+                        <tr>
+                            <td class="text-start"><strong>{{ row.label }}</strong></td>
+                            {% for w in row.days %}
+                            <td>
+                                {% if w %}
+                                    {% if w.level == '大雨' %}<span class="badge bg-danger">大雨</span>
+                                    {% elif w.level == '雨' %}<span class="badge bg-warning text-dark">雨</span>
+                                    {% elif w.level == '小雨' %}<span class="badge bg-info text-dark">小雨</span>
+                                    {% else %}<span class="badge bg-light text-dark border">降らない</span>{% endif %}
+                                    <div class="small mt-1">{{ w.precip }}mm{% if w.snow %}・雪{{ w.snow }}cm{% endif %}</div>
+                                    <div class="small text-muted">{{ w.temp|floatformat:0 }}℃（体感{{ w.feels|floatformat:0 }}℃）</div>
+                                {% else %}
+                                    <span class="text-muted small">取得できませんでした</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted px-3 py-2 mb-0">
+                雨の段階：小雨 1mm〜／雨 3mm〜／大雨 8mm〜または雪。
+                外の売場の減らし方：テーブル・行商 小雨{{ fc.rain_factors.小雨.テーブル|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.テーブル|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.テーブル|floatformat:2 }}倍／
+                車 小雨{{ fc.rain_factors.小雨.車|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.車|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.車|floatformat:2 }}倍
+            </p>
+        </div>
+    </div>
 
     {% for day in fc.days %}
     <div class="card mb-4 shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap {% if day.rain %}bg-warning-subtle{% endif %}">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap {% if day.rainy %}bg-warning-subtle{% endif %}">
             <span>
                 <strong class="fs-5">{{ day.date|date:'n月j日' }}（{{ day.weekday }}）</strong>
                 <span class="text-muted ms-2">
                     {% if forloop.first %}あす{% elif forloop.counter == 2 %}あさって{% else %}{{ forloop.counter }}営業日後{% endif %}
+                    ・{{ day.third_label }}
                 </span>
-                {% if day.rain %}<span class="badge {% if day.rain == '大雨' %}bg-danger{% else %}bg-warning text-dark{% endif %} ms-2"><i class="fas fa-cloud-showers-heavy"></i> 昼に{{ day.rain }}の予報</span>{% endif %}
+                {% if day.rainy %}<span class="badge bg-warning text-dark ms-2"><i class="fas fa-cloud-showers-heavy"></i> 雨の補正あり</span>{% endif %}
             </span>
             <span class="text-muted">
                 この日の合計予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong> 食
-                {% if day.rain %}<span class="ms-2">→ 雨の日の目安 <strong class="fs-4 text-danger">{{ day.adj_total|intcomma }}</strong> 食</span>{% endif %}
+                {% if day.rainy %}<span class="small ms-2">（雨がなければ {{ day.base_total|intcomma }} 食）</span>{% endif %}
             </span>
         </div>
         <div class="card-body p-0">
-            {% if day.rain %}
-            <div class="alert alert-warning m-3 mb-2 py-2 small">
-                <i class="fas fa-cloud-showers-heavy"></i>
-                <strong>昼どきに{{ day.rain }}の予報です</strong>（昼11〜13時の予想降水量 {{ day.weather.precip }}mm{% if day.weather.snow %}・雪 {{ day.weather.snow }}cm{% endif %}）。
-                雨で減るのは<strong>外の売場だけ</strong>です：
-                テーブル {{ day.rain_factors.テーブル|floatformat:2 }}倍・行商 {{ day.rain_factors.行商|floatformat:2 }}倍・車 {{ day.rain_factors.車|floatformat:2 }}倍。
-                <strong>室内は減らしません</strong>（ビル内は雨でも落ちず、むしろ少し増える）。
-                右の「雨の日の目安」を参考に、最後は現場判断で。
-            </div>
-            {% endif %}
             {% if day.locs %}
             <div class="table-responsive">
                 <table class="table table-hover table-striped mb-0 align-middle">
@@ -53,10 +87,11 @@
                             <th>店舗</th>
                             <th>販売形式</th>
                             <th class="text-end">予測食数</th>
-                            {% if day.rain %}<th class="text-end text-danger">雨の日の目安</th>{% endif %}
                             <th class="text-end">直近5日</th>
                             <th class="text-end">曜日の癖</th>
+                            <th class="text-center">月内のクセ</th>
                             <th class="text-end">直近の流れ</th>
+                            {% if day.show_comments %}<th>現場のひと言（前日の日計表）</th>{% endif %}
                             <th>同じ曜日の実績（新→古）</th>
                             <th class="text-end">完売率</th>
                             <th class="text-end">平均残</th>
@@ -66,12 +101,24 @@
                         {% for l in day.locs %}
                         <tr>
                             <td><strong>{{ l.name }}</strong></td>
-                            <td class="text-muted small">{{ l.type }}</td>
-                            <td class="text-end"><span class="fs-5 fw-bold text-primary">{{ l.pred }}</span></td>
-                            {% if day.rain %}<td class="text-end">{% if l.adj_pct %}<span class="fs-5 fw-bold text-danger">{{ l.adj }}</span> <span class="small text-danger">({{ l.adj_pct }}%)</span>{% else %}<span class="text-muted">{{ l.adj }}（そのまま）</span>{% endif %}</td>{% endif %}
+                            <td class="text-muted small">{{ l.type }}{% if l.area != '東京' %}<div>{{ l.area }}</div>{% endif %}</td>
+                            <td class="text-end">
+                                <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
+                                {% if l.rain_pct %}<div class="small text-danger">雨{{ l.rain_pct }}%（なし{{ l.base }}）</div>{% endif %}
+                            </td>
                             <td class="text-end text-muted">{{ l.recent }}</td>
                             <td class="text-end small {% if l.weekday_pct > 0 %}text-success{% elif l.weekday_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.weekday_pct > 0 %}+{% endif %}{{ l.weekday_pct }}%</td>
+                            <td class="text-center small">{% if l.third_pct is not None %}<span class="badge {% if l.third_pct > 0 %}bg-success{% else %}bg-secondary{% endif %}">{{ l.third_label }}{% if l.third_pct > 0 %}+{% endif %}{{ l.third_pct }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                             <td class="text-end small">{% if l.trend_pct is None %}<span class="text-muted">—</span>{% elif l.trend_pct >= 5 %}<span class="text-success">↑+{{ l.trend_pct }}%</span>{% elif l.trend_pct <= -5 %}<span class="text-danger">↓{{ l.trend_pct }}%</span>{% else %}<span class="text-muted">→{% if l.trend_pct > 0 %}+{% endif %}{{ l.trend_pct }}%</span>{% endif %}</td>
+                            {% if day.show_comments %}
+                            <td class="small" style="max-width:16rem">
+                                {% if l.comment %}
+                                    {% if l.comment.num %}<span class="badge bg-primary fs-6 me-1">{{ l.comment.num }}</span>{% endif %}
+                                    <span class="text-muted">{{ l.comment.text|truncatechars:40 }}</span>
+                                    <div class="text-muted" style="font-size:.75rem">{{ l.comment.date|date:'n/j' }}の日計表</div>
+                                {% else %}<span class="text-muted">—</span>{% endif %}
+                            </td>
+                            {% endif %}
                             <td class="text-muted small">
                                 {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% endif %}{% if not forloop.last %}　/　{% endif %}{% endfor %}
                             </td>
@@ -83,7 +130,7 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted p-3 mb-0">この曜日に稼働実績のある店舗が（直近{{ 56 }}日で）ありません。</p>
+            <p class="text-muted p-3 mb-0">予測できる店舗がありません（直近の実績が足りません）。</p>
             {% endif %}
         </div>
     </div>
@@ -91,9 +138,8 @@
 
     <div class="alert alert-warning small">
         ⚠️ 予測は「売れそうな数（需要）」です。<span class="text-primary fw-bold">完売率が高い店（60%以上）</span>は需要がさらに上のことも（＝もう少し積める余地）、
-        残りがちな店は予測どおりかやや下で。「店」・配達・お試しは対象外です。<strong>昼どき（11〜13時）に1mm以上の雨・雪の予報が出ると、販売形式ごとの目安を出します</strong>（外の売場だけ減らし、室内は減らさない）。
-        イベントなどのブレは加味していないので、最後は現場判断で微調整してください（給料日・月初は実績上ほぼ影響なし）。
-        「直近の平均残」が<span class="text-danger fw-bold">赤（6食以上）</span>の店は仕込み過多ぎみ＝削りどころ。
+        残りがちな店は予測どおりかやや下で。「直近の流れ」と「月内のクセ」は参考表示です（予測には入れていません。入れても当たりが良くならなかったため）。
+        「店」・配達・お試しは対象外。給料日・月初は実績上ほぼ影響なし。最後は現場判断で。
     </div>
 </div>
 {% endblock %}

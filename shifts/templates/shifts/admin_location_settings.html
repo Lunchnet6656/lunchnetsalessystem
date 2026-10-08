@@ -17,6 +17,7 @@
                     <th class="px-4 py-3 text-center font-semibold">優先度</th>
                     <th class="px-4 py-3 text-center font-semibold">運転必須</th>
                     <th class="px-4 py-3 text-center font-semibold">シフト対象外</th>
+                    <th class="px-4 py-3 text-center font-semibold">天気の地点</th>
                 </tr>
             </thead>
             <tbody>
@@ -43,6 +44,14 @@
                                {% if loc.excluded_from_shift %}checked{% endif %}
                                class="h-4 w-4"
                                onchange="toggleRow(this, '{{ loc.id }}')">
+                    </td>
+                    <td class="px-4 py-2 text-center">
+                        <select name="weather_area_{{ loc.id }}"
+                                class="border rounded px-2 py-1 text-sm">
+                            {% for value, label in weather_areas %}
+                            <option value="{{ value }}" {% if loc.weather_area == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </td>
                 </tr>
                 {% endfor %}

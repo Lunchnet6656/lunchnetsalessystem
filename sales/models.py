@@ -63,6 +63,11 @@ class SalesLocation(models.Model):
     )
     requires_drive = models.BooleanField(default=False, verbose_name="運転必須")
     priority = models.CharField(max_length=1, choices=[("S","S"),("A","A"),("B","B")], default="A", verbose_name="優先度")
+    WEATHER_AREA_CHOICES = [("tokyo", "東京"), ("yokohama", "横浜みなと"), ("shinyokohama", "新横浜")]
+    weather_area = models.CharField(
+        max_length=20, choices=WEATHER_AREA_CHOICES, default="tokyo", verbose_name="天気の地点",
+        help_text="食数予測の雨の補正に使う天気予報の地点。横浜は都心と予報が違う日が多い。",
+    )
     excluded_from_shift = models.BooleanField(default=False, verbose_name="シフト対象外")
     excluded_from_public_status = models.BooleanField(
         default=False,
@@ -206,6 +211,7 @@ class WeatherForecastSnapshot(models.Model):
     """決めた時点の昼の天気予報。過去の予報は後から取れないので、検証のために毎日残す。"""
     fetched_at = models.DateTimeField(auto_now_add=True)
     target_date = models.DateField(db_index=True)
+    area = models.CharField(max_length=20, default="tokyo")  # sales.weather.WEATHER_AREAS のキー
     lunch_precip = models.FloatField()        # 昼11〜13時の予想降水量(mm)
     lunch_snow = models.FloatField(default=0)  # 同・降雪(cm)
     lunch_temp = models.FloatField(null=True, blank=True)

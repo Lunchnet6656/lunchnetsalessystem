@@ -3492,7 +3492,7 @@ def stamp_list_api(request):
 
 FORECAST_DAYS_AHEAD = 3      # 先の営業日を何日分予測するか
 FORECAST_ACTIVE_DAYS = 56    # 直近この日数に稼働している店だけ対象（撤退店を除外）
-FORECAST_HISTORY_DAYS = 200  # 予測・バックテストに使う遡り日数
+FORECAST_HISTORY_DAYS = 400  # 予測・答え合わせ・月内のクセに使う遡り日数
 FORECAST_WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 
 
@@ -3502,26 +3502,38 @@ FORECAST_WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 
 
 def _fetch_lunch_weather(today):
-    """日付ごとの昼の予報。取得失敗時は {}（＝補正なしで安全側に倒す）。日次でキャッシュ。"""
+    """{地点: {日付: 昼の予報}}。取れなかった地点は入らない（＝補正なしで安全側に倒す）。日次でキャッシュ。"""
     from django.core.cache import cache
-    from sales.weather import fetch_lunch_weather
+    from sales.weather import fetch_all_areas
 
-    cache_key = "meal_forecast_lunch_weather_%s" % today.isoformat()
+    cache_key = "meal_forecast_lunch_weather_v2_%s" % today.isoformat()
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    try:
-        result = fetch_lunch_weather()
-    except Exception:
-        result = {}
+    result = fetch_all_areas()
     cache.set(cache_key, result, 3 * 3600)
     return result
 
 
+def _latest_comments(names, today):
+    """店ごとに、今日までで一番新しい日計表の「明日の食数設定」。(日付, 本文, 数字 or None)"""
+    import re
+    latest = {}
+    for d, name, text in (DailyReport.objects
+                          .filter(date__lte=today, date__gte=today - timedelta(days=7), location__in=names)
+                          .exclude(food_count_setting="")
+                          .order_by("date")
+                          .values_list("date", "location", "food_count_setting")):
+        body = (text or "").strip()
+        nums = re.findall(r"\d{2,3}", body.translate(str.maketrans("０１２３４５６７８９", "0123456789")))
+        latest[name.strip()] = (d, body, int(nums[0]) if len(nums) == 1 else None)
+    return latest
+
+
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
-    from sales.meal_forecast import backtest, load_history, predict
-    from sales.weather import RAIN_FACTORS, rain_factor
+    from sales.meal_forecast import THIRD_LABELS, backtest, load_history, month_third, predict, third_effect
+    from sales.weather import DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, rain_factor
 
     hist = load_history(today - timedelta(days=FORECAST_HISTORY_DAYS), today)
     active_since = today - timedelta(days=FORECAST_ACTIVE_DAYS)
@@ -3534,44 +3546,65 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             target_dates.append(d)
         d += timedelta(days=1)
 
-    weather_map = _fetch_lunch_weather(today)         # 昼の予報（Open-Meteo・失敗時は空）
-    type_map = {name.strip(): t for name, t in SalesLocation.objects.values_list("name", "type")}
+    weather = _fetch_lunch_weather(today)            # {地点: {日付: 昼の予報}}（取れない地点は無い）
+    loc_info = {name.strip(): (t, area) for name, t, area in
+                SalesLocation.objects.values_list("name", "type", "weather_area")}
+    comments = _latest_comments(list(active), today)
+
+    weather_table = [
+        {"area": area, "label": label,
+         "days": [weather.get(area, {}).get(td.isoformat()) for td in target_dates]}
+        for area, (label, _, _) in WEATHER_AREAS.items()
+    ]
 
     forecast_days = []
-    for td in target_dates:
+    for n_day, td in enumerate(target_dates):
         wd = td.weekday()
-        wx = weather_map.get(td.isoformat())
-        level = wx["level"] if wx else None
+        third = month_third(td)
         locs = []
         for name, rows in active.items():
             p = predict(rows, wd)
             if not p:
                 continue
+            sales_type, area = loc_info.get(name, ("", DEFAULT_AREA))
+            wx = weather.get(area, {}).get(td.isoformat())
+            level = wx["level"] if wx else None
+            factor = rain_factor(level, sales_type)
             same = [r for r in rows if r["wd"] == wd]
             recent10 = rows[-10:]
-            sales_type = type_map.get(name, "")
-            factor = rain_factor(level, sales_type)
+            eff = third_effect(rows, third)
+            comment = comments.get(name) if n_day == 0 else None
+            # 「10個程増やして」のような増減の数を、合計の数と取り違えて強調しない
+            # （「明日は45で」のように大きく減らす合計は強調したいので、増減の言葉があるときだけ）
+            num = comment[2] if comment else None
+            if num is not None and num < p["pred"] * 0.5 and any(
+                    w in comment[1] for w in ("増", "減", "追加", "足し", "プラス", "マイナス", "＋", "+")):
+                num = None
             locs.append({
-                "name": name, "type": sales_type,
-                "pred": int(p["pred"] + 0.5),
+                "name": name, "type": sales_type, "area": WEATHER_AREAS.get(area, WEATHER_AREAS[DEFAULT_AREA])[0],
+                "base": int(p["pred"] + 0.5),                 # 雨がない場合
+                "pred": int(p["pred"] * factor + 0.5),        # 雨の補正込み（これを見る）
+                "rain": level, "rain_pct": int(round((factor - 1) * 100)),
                 "recent": int(p["recent"] + 0.5),
                 "weekday_pct": int(round((p["weekday_idx"] - 1) * 100)),
                 "trend_pct": None if p["trend"] is None else int(round(p["trend"] * 100)),
+                "third_pct": None if eff is None else int(round(eff * 100)),
+                "third_label": THIRD_LABELS[third],
                 "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"]} for r in same[-3:]][::-1],
                 "avg_rem": round(sum(r["rem"] for r in same[-4:]) / len(same[-4:]), 1) if same else 0,
                 "sold_out_pct": int(round(sum(r["sold_out"] for r in recent10) / len(recent10) * 100)),
-                "adj": int(p["pred"] * factor + 0.5),
-                "adj_pct": int(round((factor - 1) * 100)),
+                "comment": None if not comment else {"date": comment[0], "text": comment[1], "num": num},
             })
         locs.sort(key=lambda x: -x["pred"])
-        day = {"date": td, "weekday": FORECAST_WEEKDAY_JA[wd],
-               "locs": locs, "total": sum(l["pred"] for l in locs),
-               "weather": wx, "rain": level}
-        if level:
-            day["adj_total"] = sum(l["adj"] for l in locs)
-            day["rain_factors"] = RAIN_FACTORS[level]
-        forecast_days.append(day)
-    return {"days": forecast_days, "backtest": backtest(active, today)}
+        rainy = any(l["rain_pct"] for l in locs)
+        forecast_days.append({
+            "date": td, "weekday": FORECAST_WEEKDAY_JA[wd], "locs": locs,
+            "total": sum(l["pred"] for l in locs), "base_total": sum(l["base"] for l in locs),
+            "rainy": rainy, "third_label": THIRD_LABELS[third], "show_comments": n_day == 0,
+        })
+    return {"days": forecast_days, "backtest": backtest(active, today),
+            "weather_table": weather_table, "weather_dates": target_dates,
+            "rain_factors": RAIN_FACTORS}
 
 
 @login_required

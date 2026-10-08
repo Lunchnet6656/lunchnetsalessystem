@@ -6,6 +6,8 @@
 - 予測＝直近5営業日の需要 × その店の曜日の癖。実データ（2026-06〜10・30店）で
   「同じ曜日4回の加重平均」より誤差が小さかった（ズレ率 10.0%→9.1%）。
   直近の増減率をさらに掛けると反応しすぎて悪化したので、増減率は表示だけにする。
+- 月内のクセ（上旬・中旬・下旬）は一部の店にだけ本物があるが、予測に掛けても当たりは変わらなかった
+  （2026-10検証）ので、はっきりしている店に目印を出すだけにする。
 """
 from datetime import timedelta
 
@@ -19,7 +21,7 @@ LEVEL_DAYS = 40          # 曜日の癖の分母：直近何営業日の平均
 WEEKDAY_MIN = 4          # 曜日の癖を使う最低回数（足りなければ癖なし＝1倍）
 WEEKDAY_CLIP = (0.7, 1.3)
 TREND_DAYS = 10          # 増減率：直近10営業日 vs その前の10営業日
-SOLD_OUT_UPLIFT = 0.4    # 完売日の上乗せ：閉店までに残っていた時間の割合 × 0.4
+SOLD_OUT_UPLIFT = 0.2    # 完売日の上乗せ：閉店までに残っていた時間の割合 × 0.2（0.4は強すぎた・2026-10検証）
 MIN_HISTORY = 5
 
 
@@ -112,3 +114,30 @@ def backtest(hist, today, days=28):
     if not errors:
         return None
     return {"n": len(errors), "mae": round(_mean(errors), 1), "mape": round(_mean(pcts) * 100)}
+
+
+THIRD_LABELS = ("上旬", "中旬", "下旬")
+THIRD_SHRINK = 40        # データが少ないほど「クセなし」に寄せる強さ
+THIRD_MIN_EFFECT = 0.03  # これ以上の差がある店だけ目印を出す
+
+
+def month_third(d):
+    return 0 if d.day <= 10 else 1 if d.day <= 20 else 2
+
+
+def third_effect(rows, third):
+    """その店の、上旬・中旬・下旬のどれかでの売れ方の差（直近20営業日の水準比）。はっきりしなければ None。"""
+    rel = []
+    for i in range(20, len(rows)):
+        level = sorted(r["demand"] for r in rows[i - 20:i])[10]
+        if level > 0:
+            rel.append((month_third(rows[i]["date"]), rows[i]["demand"] / level))
+    if len(rel) < 60:
+        return None
+    overall = _mean([v for _, v in rel])
+    same = [v for t, v in rel if t == third]
+    if not same or not overall:
+        return None
+    n = len(same)
+    effect = (_mean(same) / overall - 1) * n / (n + THIRD_SHRINK)
+    return effect if abs(effect) >= THIRD_MIN_EFFECT else None

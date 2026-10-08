@@ -1126,10 +1126,13 @@ def admin_location_settings(request):
             loc.requires_drive = request.POST.get(f'requires_drive_{loc.id}') == 'on'
             loc.priority = request.POST.get(f'priority_{loc.id}', 'A')
             loc.excluded_from_shift = request.POST.get(f'excluded_from_shift_{loc.id}') == 'on'
+            area = request.POST.get(f'weather_area_{loc.id}', loc.weather_area)
+            if area in dict(SalesLocation.WEATHER_AREA_CHOICES):
+                loc.weather_area = area
             loc.save()
         messages.success(request, '販売場所設定を更新しました。')
         return redirect('shifts:admin_location_settings')
-    context = {'locations': locations}
+    context = {'locations': locations, 'weather_areas': SalesLocation.WEATHER_AREA_CHOICES}
     return render(request, 'shifts/admin_location_settings.html', context)
 
 
