@@ -3102,9 +3102,11 @@ def sales_dashboard_view(request):
         trend_order_data.append(order_rev)
 
     # ===== チャート2: 販売場所別売上（横棒グラフ） =====
+    # 店名でまとめる。販売場所No.は途中で振り直されていて日計表には当時のNo.が残るため、
+    # No.込みで集計すると振り直しをまたぐ月に同じ店が2本に分かれる。
     dr_by_location = list(
         DailyReport.objects.filter(date__range=(start_date, end_date))
-        .values('location_no', 'location')
+        .values('location')
         .annotate(revenue=Sum('total_revenue'))
         .order_by('-revenue')
     )
@@ -3121,7 +3123,7 @@ def sales_dashboard_view(request):
     location_data = []
     for loc in dr_by_location:
         location_data.append({
-            'label': loc['location'] or f"場所{loc['location_no']}",
+            'label': loc['location'] or "（店名なし）",
             'revenue': float(loc['revenue'] or 0),
         })
     if order_total > 0:
