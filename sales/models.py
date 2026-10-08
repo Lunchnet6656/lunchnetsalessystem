@@ -602,3 +602,74 @@ class PriceChangeLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%Y-%m-%d %H:%M} {self.get_kind_display()} {self.summary}"
+
+
+# ===== メニュー辞書（S4） =====
+# 元のメニュー表（Excel）には値段も容器も書かれていないので、メニュー名ごとに「値段の種類」と「容器」を覚える。
+CONTAINER_CHOICES = ["赤容器", "黒容器", "一体型", "ご飯容器"]
+
+
+class MenuProfile(models.Model):
+    """メニュー辞書（メニュー名で1行）。1回直せば、次にこの名前が出た週から自動で決まる。"""
+    name = models.CharField(max_length=255, unique=True, verbose_name="メニュー名")
+    rank = models.ForeignKey(PriceRank, on_delete=models.PROTECT, related_name="menu_profiles",
+                             verbose_name="値段の種類")
+    container = models.CharField(max_length=20, verbose_name="容器")
+    # False＝判定ルールで仮に決めただけ（画面では「要確認」）
+    confirmed = models.BooleanField(default=False, verbose_name="確認済み")
+    first_seen = models.DateField(null=True, blank=True, verbose_name="初めて出た週")
+    last_seen = models.DateField(null=True, blank=True, verbose_name="最後に出た週")
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "メニュー辞書"
+        verbose_name_plural = "メニュー辞書"
+
+    def __str__(self):
+        return f"{self.name}（{self.rank}・{self.container}）"
+
+
+class ClassifyRule(models.Model):
+    """初めて見るメニューの仮の決め方。上から順に見て、種類と容器をそれぞれ最初に当たったルールで決める。"""
+    keyword = models.CharField(max_length=50, verbose_name="メニュー名にこの言葉があれば")
+    rank = models.ForeignKey(PriceRank, on_delete=models.PROTECT, null=True, blank=True,
+                             related_name="+", verbose_name="値段の種類")  # 空＝種類は決めない
+    container = models.CharField(max_length=20, blank=True, verbose_name="容器")  # 空＝容器は決めない
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "判定ルール"
+        verbose_name_plural = "判定ルール"
+
+    def __str__(self):
+        return f"{self.keyword} → {self.rank or '—'}・{self.container or '—'}"
+
+
+class MenuWeekCheck(models.Model):
+    """週のメニューの受信と確認の状態。送るたびに「未確認」に戻り、毎週必ず人が確かめる。"""
+    week = models.DateField(unique=True, verbose_name="週（水曜）")
+    received_at = models.DateTimeField(null=True, blank=True, verbose_name="届いた日時")
+    received_count = models.IntegerField(default=0)
+    confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name="確認した日時")
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    # 確認済みのあとで送り直された（画面で「もう一度確認してください」と出す）
+    resent_after_confirm = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-week"]
+        verbose_name = "週のメニュー確認"
+        verbose_name_plural = "週のメニュー確認"
+
+    @property
+    def is_confirmed(self):
+        return self.confirmed_at is not None
+
+    def __str__(self):
+        return f"{self.week:%Y-%m-%d}週 {'確認済み' if self.is_confirmed else '未確認'}"
