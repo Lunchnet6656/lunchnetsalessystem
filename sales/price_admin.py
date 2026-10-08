@@ -129,9 +129,9 @@ def read_price_form(post, rank_list):
         try:
             form.valid_from = datetime.date.fromisoformat(raw_date)
         except ValueError:
-            form.errors.append("開始日を正しく入れてください。")
+            form.errors.append("開始日を正しく入力してください。")
     else:
-        form.errors.append("開始日を入れてください。")
+        form.errors.append("開始日を入力してください。")
     for rank in rank_list:
         for pattern in PRICE_PATTERNS:
             name = f"cell_{rank.id}_{pattern}"
@@ -142,7 +142,7 @@ def read_price_form(post, rank_list):
                 form.cell_errors.add(name)
                 form.cells[(rank.id, pattern)] = text
     if form.cell_errors:
-        form.errors.append("値段は1円以上の整数で入れてください。")
+        form.errors.append("値段は1円以上の整数で入力してください。")
     return form
 
 
@@ -151,15 +151,15 @@ def validate_price_form(form, today, editing=None):
     if form.valid_from is None:
         return None
     if form.valid_from < today:
-        form.errors.append("開始日に過去の日付は選べません。過去の値段を直すときは開発部に相談してください。")
+        form.errors.append("開始日に過去の日付は指定できません。過去の値段を変更する場合は開発部に相談してください。")
     duplicate = PriceTable.objects.filter(valid_from=form.valid_from)
     if editing is not None:
         duplicate = duplicate.exclude(pk=editing.pk)
     if duplicate.exists():
-        form.errors.append(f"{md(form.valid_from)}から始まる価格表はもうあります。")
+        form.errors.append(f"{md(form.valid_from)}から始まる価格表はすでに登録されています。")
     base = table_before(form.valid_from, exclude=editing)
     if not form.cell_errors and base is not None and cells_of(base) == form.cells:
-        form.errors.append("今の価格表と同じ値段です。変えるマスを直してください。")
+        form.errors.append("今の価格表と同じ値段です。変更するマスを編集してください。")
     return base
 
 
@@ -233,7 +233,7 @@ def register_table(user, form, editing=None):
 
 @transaction.atomic
 def cancel_table(user, table):
-    summary = f"{md(table.valid_from)}からの価格表を取り消し"
+    summary = f"{md(table.valid_from)}からの価格表を取り消しました"
     table.delete()
     log_change(user, "price_table", summary)
     return summary
@@ -295,12 +295,12 @@ def discount_overview(today):
 def _read_date(text, errors, label="開始日"):
     text = (text or "").strip()
     if not text:
-        errors.append(f"{label}を入れてください。")
+        errors.append(f"{label}を入力してください。")
         return None
     try:
         return datetime.date.fromisoformat(text)
     except ValueError:
-        errors.append(f"{label}を正しく入れてください。")
+        errors.append(f"{label}を正しく入力してください。")
         return None
 
 
@@ -308,7 +308,7 @@ def _read_amount(text, errors):
     text = (text or "").strip()
     if text.isdigit() and int(text) >= 1:
         return int(text)
-    errors.append("金額は1円以上の整数で入れてください。")
+    errors.append("金額は1円以上の整数で入力してください。")
     return None
 
 
@@ -318,64 +318,64 @@ def plan_change(item, post, today):
     amount = _read_amount(post.get("amount"), errors)
     start = _read_date(post.get("valid_from"), errors)
     if start and start < today:
-        errors.append("開始日に過去の日付は選べません。過去の値段を直すときは開発部に相談してください。")
+        errors.append("開始日に過去の日付は指定できません。過去の値段を変更する場合は開発部に相談してください。")
     if start and start <= item.valid_from:
-        errors.append(f"開始日は {md(item.valid_from)} より後にしてください。")
+        errors.append(f"開始日は {md(item.valid_from)} より後の日付を指定してください。")
     if _successor(item) or item.valid_to is not None:
-        errors.append("この項目にはもう予定があります。先に予定を取り消してください。")
+        errors.append("この項目にはすでに予定があります。先に［予定取消］してください。")
     if amount is not None and amount == item.amount:
-        errors.append("今と同じ金額です。")
+        errors.append("今と同じ金額です。変更する金額を入力してください。")
     if errors:
         return errors, None
     sentence = (f"{md(start)}から「{item.label}」は {yen(item)} → {yen(amount, item.direction)} になります。"
                 f"{md(start - datetime.timedelta(days=1))}までは {yen(item)} のままです。")
     return [], {"action": "change", "item": item, "amount": amount, "valid_from": start, "sentence": sentence,
-                "summary": f"「{item.label}」{yen(item)} → {yen(amount, item.direction)}（{md(start)}から）"}
+                "summary": f"「{item.label}」の金額変更を登録しました（{md(start)}から {yen(item)} → {yen(amount, item.direction)}）"}
 
 
 def plan_add(post, today):
     errors = []
     group = post.get("group")
     if group not in GROUP_TITLES:
-        errors.append("グループを選んでください。")
+        errors.append("グループを選択してください。")
     label = (post.get("label") or "").strip()[:50]
     if not label:
-        errors.append("項目の名前を入れてください。")
+        errors.append("項目名を入力してください。")
     direction = post.get("direction")
     if direction not in ("minus", "plus"):
-        errors.append("引くか足すかを選んでください。")
+        errors.append("引く／足すを選択してください。")
     amount = _read_amount(post.get("amount"), errors)
     start = _read_date(post.get("valid_from"), errors)
     if start and start < today:
-        errors.append("開始日に過去の日付は選べません。過去の値段を直すときは開発部に相談してください。")
+        errors.append("開始日に過去の日付は指定できません。過去の値段を変更する場合は開発部に相談してください。")
     still_used = Q(valid_to__isnull=True) | Q(valid_to__gte=start or today)
     if group in GROUP_TITLES and label and DiscountItem.objects.filter(group=group, label=label).filter(
             still_used).exists():
-        errors.append(f"『{GROUP_TITLES[group]}』にはもう『{label}』があります。別の名前にしてください。")
+        errors.append(f"『{GROUP_TITLES[group]}』にはすでに『{label}』があります。別の項目名を入力してください。")
     if errors:
         return errors, None
     sentence = (f"{md(start)}から、日計表の『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』の欄が増えます。"
                 f"日計表送信データ（CSV）の一番後ろに『{label}』の列が増えます。")
     return [], {"action": "add", "group": group, "label": label, "direction": direction, "amount": amount,
                 "valid_from": start, "sentence": sentence,
-                "summary": f"『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』を追加（{md(start)}から）"}
+                "summary": f"項目「{label}（{yen(amount, direction)}）」を追加しました（{GROUP_TITLES[group]}・{md(start)}から）"}
 
 
 def plan_end(item, post, today):
     errors = []
     last_day = _read_date(post.get("valid_to"), errors, label="最後の日")
     if last_day and last_day < today:
-        errors.append("最後の日に過去の日付は選べません。")
+        errors.append("最後の日に過去の日付は指定できません。")
     if last_day and last_day < item.valid_from:
-        errors.append(f"最後の日は {md(item.valid_from)} 以降にしてください。")
+        errors.append(f"最後の日は {md(item.valid_from)} 以降の日付を指定してください。")
     if item.valid_to is not None:
-        errors.append("この項目にはもう予定があります。先に予定を取り消してください。")
+        errors.append("この項目にはすでに予定があります。先に［予定取消］してください。")
     if errors:
         return errors, None
     sentence = (f"「{item.label}」の欄は {md(last_day)} の日計表まで出ます。"
                 f"{md(last_day + datetime.timedelta(days=1))}から出なくなります。それより前の日計表は変わりません。")
     return [], {"action": "end", "item": item, "valid_to": last_day, "sentence": sentence,
-                "summary": f"「{item.label}」を{md(last_day)}で終了"}
+                "summary": f"「{item.label}」の終了を登録しました（{md(last_day)}まで）"}
 
 
 def _csv_label_for(group, label):
@@ -417,14 +417,14 @@ def cancel_plan(user, item, today):
     """予定の取り消し。金額変更の予定（これから始まる項目）は消して前の項目を戻す。終了予定は終了日を外す。"""
     if item.valid_from > today:
         predecessor = _predecessor(item)
-        summary = (f"「{item.label}」の{md(item.valid_from)}からの金額変更（{yen(item)}）を取り消し" if predecessor
-                   else f"「{item.label}」の追加（{md(item.valid_from)}から）を取り消し")
+        summary = (f"「{item.label}」の金額変更（{md(item.valid_from)}から {yen(item)}）を取り消しました" if predecessor
+                   else f"「{item.label}」の追加予定（{md(item.valid_from)}から）を取り消しました")
         item.delete()
         if predecessor:
             predecessor.valid_to = None
             predecessor.save()
     elif item.valid_to is not None and item.valid_to >= today:
-        summary = f"「{item.label}」の{md(item.valid_to)}での終了を取り消し"
+        summary = f"「{item.label}」の終了予定（{md(item.valid_to)}まで）を取り消しました"
         item.valid_to = None
         item.save()
     else:

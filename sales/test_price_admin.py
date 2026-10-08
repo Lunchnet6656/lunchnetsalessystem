@@ -125,11 +125,11 @@ class PriceTableScreenTest(TestCase):
 
     def test_validation_errors(self, _):
         res = self.client.post("/prices/confirm/", cell_post(valid_from="2026-10-06"))
-        self.assertIn("開始日に過去の日付は選べません。過去の値段を直すときは開発部に相談してください。", res.context["errors"])
+        self.assertIn("開始日に過去の日付は指定できません。過去の値段を変更する場合は開発部に相談してください。", res.context["errors"])
         res = self.client.post("/prices/confirm/", cell_post())
-        self.assertIn("今の価格表と同じ値段です。変えるマスを直してください。", res.context["errors"])
+        self.assertIn("今の価格表と同じ値段です。変更するマスを編集してください。", res.context["errors"])
         res = self.client.post("/prices/confirm/", cell_post({("通常", "A"): "0"}))
-        self.assertIn("値段は1円以上の整数で入れてください。", res.context["errors"])
+        self.assertIn("値段は1円以上の整数で入力してください。", res.context["errors"])
         res = self.client.post("/prices/confirm/", cell_post({("通常", "A"): 750}, valid_from="2026-10-01"))
         self.assertTrue(any("過去" in e for e in res.context["errors"]))
 
@@ -146,9 +146,10 @@ class PriceTableScreenTest(TestCase):
         self.client.post("/prices/register/", {**cell_post({("通常", "A"): 760}), "editing": table.pk})
         self.assertEqual(PriceTable.objects.filter(valid_from="2026-11-01").count(), 1)
         self.assertEqual(table.cells.get(rank__name="通常", pattern="A").price, 760)
+        self.assertTrue(PriceChangeLog.objects.first().summary.endswith("を更新しました"))   # 編集は「更新」
         self.client.post(f"/prices/{table.pk}/cancel/")
         self.assertFalse(PriceTable.objects.filter(pk=table.pk).exists())
-        self.assertIn("取り消し", PriceChangeLog.objects.first().summary)
+        self.assertEqual(PriceChangeLog.objects.first().summary, "11/1（日）からの価格表を取り消しました")
 
     def test_started_table_cannot_be_edited(self, _):
         started = PriceTable.objects.get(valid_from="2026-10-01")
@@ -188,7 +189,7 @@ class DiscountScreenTest(TestCase):
         self.assertEqual(self.labels_on(datetime.date(2026, 11, 1))[0], ("なし", -120))
         new = DiscountItem.objects.get(label="なし", valid_from="2026-11-01")
         self.assertEqual((new.legacy_field, new.csv_label), ("no_rice_quantity", "ご飯なし"))  # CSVの列を引き継ぐ
-        self.assertIn("▲100円 → ▲120円", PriceChangeLog.objects.get().summary)
+        self.assertEqual(PriceChangeLog.objects.get().summary, "「なし」の金額変更を登録しました（11/1（日）から ▲100円 → ▲120円）")
 
     def test_cancel_change_restores(self, _):
         self.client.post("/discounts/apply/", {"amount": "120", "valid_from": "2026-11-01",
@@ -225,11 +226,11 @@ class DiscountScreenTest(TestCase):
 
     def test_validation(self, _):
         res = self.client.post(f"/discounts/{self.no_rice.pk}/change/", {"amount": "0", "valid_from": "2026-10-01"})
-        self.assertIn("金額は1円以上の整数で入れてください。", res.context["errors"])
+        self.assertIn("金額は1円以上の整数で入力してください。", res.context["errors"])
         self.assertTrue(any("過去" in e for e in res.context["errors"]))
         res = self.client.post("/discounts/add/", {"group": "rice", "label": "なし", "direction": "minus",
                                                    "amount": "50", "valid_from": "2026-11-01"})
-        self.assertIn("『ご飯』にはもう『なし』があります。別の名前にしてください。", res.context["errors"])
+        self.assertIn("『ご飯』にはすでに『なし』があります。別の項目名を入力してください。", res.context["errors"])
 
     def test_move(self, _):
         extra = DiscountItem.objects.get(group="rice", label="追加")

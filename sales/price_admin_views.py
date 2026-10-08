@@ -94,7 +94,7 @@ def price_table_new(request):
 def price_table_edit(request, pk):
     table = get_object_or_404(PriceTable, pk=pk)
     if table.valid_from <= timezone.localdate():
-        messages.error(request, "始まった価格表は直せません。値段を変えるときは、新しい価格表を作ってください。",
+        messages.error(request, "開始済みの価格表は編集できません。値段を変更する場合は、［新規作成］から新しい価格表を登録してください。",
                        extra_tags="alert alert-danger")
         return redirect("price_table_list")
     base = pa.table_before(table.valid_from, exclude=table)
@@ -147,13 +147,14 @@ def price_table_register(request):
         return redirect("price_table_list")
     c = pa.confirmation(form, base, today, rank_list)
     if (c["warnings"] or c["is_today"]) and not request.POST.get("checked"):
-        messages.error(request, "「内容を確認しました」にチェックを入れてから登録してください。",
+        messages.error(request, "「内容を確認しました」にチェックを入れてから［登録］してください。",
                        extra_tags="alert alert-danger")
         return redirect("price_table_list")
     pa.register_table(request.user, form, editing)
-    pa.log_change(request.user, "price_table", c["summary"] + ("を直しました" if editing else "を登録しました"))
-    messages.success(request, f"{c['start']}からの価格表を登録しました。", extra_tags="alert alert-success")
-    messages.info(request, "アプリの外の値段（お店のPOP・振分表・請求書の文面）も直しましたか？",
+    action = "更新" if editing else "登録"
+    pa.log_change(request.user, "price_table", f"{c['summary']}を{action}しました")
+    messages.success(request, f"{c['start']}からの価格表を{action}しました。", extra_tags="alert alert-success")
+    messages.info(request, "アプリ外の価格表示（店頭POP・振分表・請求書の文面）も更新してください。",
                   extra_tags="alert alert-info")
     return redirect("price_table_list")
 
@@ -162,12 +163,12 @@ def price_table_register(request):
 def price_table_cancel(request, pk):
     table = get_object_or_404(PriceTable, pk=pk)
     if table.valid_from <= timezone.localdate():
-        messages.error(request, "始まった価格表は取り消せません。", extra_tags="alert alert-danger")
+        messages.error(request, "開始済みの価格表は取り消せません。", extra_tags="alert alert-danger")
         return redirect("price_table_list")
     base = pa.table_before(table.valid_from, exclude=table)
     if request.method == "POST":
         summary = pa.cancel_table(request.user, table)
-        messages.success(request, f"{summary}しました。", extra_tags="alert alert-success")
+        messages.success(request, f"{summary}。", extra_tags="alert alert-success")
         return redirect("price_table_list")
     return render(request, "prices/price_table_cancel.html", {
         "table": table, "start": pa.md(table.valid_from),
@@ -234,7 +235,7 @@ def discount_apply(request):
         messages.error(request, "　".join(errors), extra_tags="alert alert-danger")
     else:
         pa.apply_plan(request.user, plan)
-        messages.success(request, f"{plan['summary']}を登録しました。", extra_tags="alert alert-success")
+        messages.success(request, f"{plan['summary']}。", extra_tags="alert alert-success")
     return redirect("discount_item_list")
 
 
@@ -244,7 +245,7 @@ def discount_cancel_plan(request, pk):
     if request.method == "POST":
         summary = pa.cancel_plan(request.user, item, timezone.localdate())
         if summary:
-            messages.success(request, f"{summary}しました。", extra_tags="alert alert-success")
+            messages.success(request, f"{summary}。", extra_tags="alert alert-success")
         return redirect("discount_item_list")
     return render(request, "prices/discount_cancel.html", {"item": item})
 
@@ -278,7 +279,7 @@ def menu_week_detail(request, week):
     ranks = pa.ranks()
     if request.method == "POST":
         if view["state"] == "ended" or view["legacy"] or not view["rows"]:
-            messages.error(request, "この週はここでは直せません。", extra_tags="alert alert-danger")
+            messages.error(request, "この週は編集できません（終了した週、または旧方式で登録された週です）。", extra_tags="alert alert-danger")
             return redirect("menu_week_detail", week=week.isoformat())
         changes, errors = mw.read_choices(request.POST, [r.product for r in view["rows"]], ranks)
         if errors:
@@ -290,7 +291,7 @@ def menu_week_detail(request, week):
                 **view, "summary": mw.selling_week_summary(week, changes, today), "post": request.POST.items(),
             })
         mw.confirm_week(week, changes, request.user)
-        messages.success(request, f"{view['label']}を確認済みにしました。", extra_tags="alert alert-success")
+        messages.success(request, f"{view['label']}の確認を完了しました。", extra_tags="alert alert-success")
         return redirect("menu_week_detail", week=week.isoformat())
     return render(request, "prices/menu_week_detail.html", {
         **view, "ranks": ranks, "containers": CONTAINER_CHOICES,
@@ -317,15 +318,15 @@ def menu_dictionary(request):
             rank = rank_by_id.get(request.POST.get(f"rank_{profile.pk}"))
             container = request.POST.get(f"container_{profile.pk}")
             if rank is None or container not in CONTAINER_CHOICES:
-                messages.error(request, f"『{profile.name}』の種類か容器を選び直してください。",
+                messages.error(request, f"『{profile.name}』の値段の種類と容器を選択してください。",
                                extra_tags="alert alert-danger")
                 continue
             upcoming, selling = menu_registry.update_profile(profile, rank, container, request.user, today)
-            text = f"『{profile.name}』を {rank.name}・{container} で覚えました。"
+            text = f"『{profile.name}』を更新しました（{rank.name}・{container}）。"
             if upcoming:
                 text += f"{_week_labels(upcoming)}（開始前）のメニューにも反映しました。"
             if selling:
-                text += f"{_week_labels(selling)}（販売中）のメニューは変わりません。変えるときは週のメニュー確認で直してください。"
+                text += f"{_week_labels(selling)}（販売中）のメニューは変更されません。変更する場合は［週のメニュー確認］から編集してください。"
             messages.success(request, text, extra_tags="alert alert-success")
         return redirect(request.get_full_path())
 
@@ -356,19 +357,19 @@ def menu_rules(request):
             rank = next((r for r in ranks if str(r.id) == request.POST.get("rank")), None)
             container = request.POST.get("container") or ""
             if not keyword:
-                messages.error(request, "メニュー名に含まれる言葉を入れてください。", extra_tags="alert alert-danger")
+                messages.error(request, "メニュー名に含まれる言葉を入力してください。", extra_tags="alert alert-danger")
             elif rank is None and container not in CONTAINER_CHOICES:
-                messages.error(request, "値段の種類か容器の、どちらかは決めてください。", extra_tags="alert alert-danger")
+                messages.error(request, "値段の種類か容器のどちらかを選択してください。", extra_tags="alert alert-danger")
             else:
                 last = ClassifyRule.objects.order_by("-sort_order").first()
                 ClassifyRule.objects.create(keyword=keyword, rank=rank,
                                             container=container if container in CONTAINER_CHOICES else "",
                                             sort_order=(last.sort_order + 1) if last else 1)
-                messages.success(request, f"ルール「{keyword}」を足しました。", extra_tags="alert alert-success")
+                messages.success(request, f"ルール「{keyword}」を追加しました。", extra_tags="alert alert-success")
         elif action == "delete":
             rule = get_object_or_404(ClassifyRule, pk=request.POST.get("rule"))
             rule.delete()
-            messages.success(request, f"ルール「{rule.keyword}」を消しました。", extra_tags="alert alert-success")
+            messages.success(request, f"ルール「{rule.keyword}」を削除しました。", extra_tags="alert alert-success")
         elif action in ("up", "down"):
             rules = list(ClassifyRule.objects.all())
             index = next(i for i, r in enumerate(rules) if str(r.pk) == request.POST.get("rule"))

@@ -117,7 +117,7 @@ def read_choices(post, products, ranks):
         rank = by_id.get(post.get(f"rank_{p.no}", str(p.rank_id)))
         container = post.get(f"container_{p.no}", p.container_type)
         if rank is None or container not in CONTAINER_CHOICES:
-            errors.append(f"No.{p.no} {p.name} の種類か容器を選び直してください。")
+            errors.append(f"No.{p.no} {p.name} の値段の種類と容器を選択してください。")
             continue
         changes.append(Change(p, rank, container, rank.id != p.rank_id, container != p.container_type))
     return changes, errors

@@ -38,7 +38,8 @@ class MenuDictionaryTest(TestCase):
         self.assertEqual(Product.objects.get(week="2026-10-07", no=9).rank.name, "通常")     # 販売中は変えない
         text = "".join(str(m) for m in res.context["messages"])
         self.assertIn("10/14週（開始前）のメニューにも反映しました。", text)
-        self.assertIn("10/7週（販売中）のメニューは変わりません。", text)
+        self.assertIn("10/7週（販売中）のメニューは変更されません。", text)
+        self.assertIn("『ガパオライス』を更新しました（お手頃・一体型）。", text)
 
     def test_confirm_all(self, _):
         data = {"action": "confirm_all", "profile": []}
@@ -66,7 +67,7 @@ class MenuRulesTest(TestCase):
         rule = ClassifyRule.objects.get(keyword="ロコモコ")
         self.assertIsNone(rule.rank)
         res = self.client.post("/menus/rules/", {"action": "add", "keyword": "丼", "rank": "", "container": ""}, follow=True)
-        self.assertIn("どちらかは決めてください", "".join(str(m) for m in res.context["messages"]))
+        self.assertIn("どちらかを選択してください", "".join(str(m) for m in res.context["messages"]))
         self.client.post("/menus/rules/", {"action": "up", "rule": rule.pk})
         rules = list(ClassifyRule.objects.values_list("keyword", flat=True))
         self.assertEqual(rules.index("ロコモコ"), len(rules) - 2)
