@@ -8,14 +8,13 @@
 <div class="container mt-4">
     <h1 class="mb-1">食数予測（仕込みの目安）</h1>
     <p class="text-muted mb-2">
-        直近{{ fc.days|length }}営業日ぶんの<strong>販売数（＝食数）を店舗別に予測</strong>します。
-        モデルは「その店の同じ曜日・直近4回の販売数を、新しいものほど重く平均」。
-        <strong>予測＝そのくらい売れそう＝仕込みの下地</strong>。売り切れが怖い店は予測＋少し、
-        残りがちな店は予測どおりで詰めると廃棄が減ります。
+        直近{{ fc.days|length }}営業日ぶんの<strong>需要（売れそうな数）を店舗別に予測</strong>します。
+        計算は「<strong>直近5営業日の平均 × その店の曜日の癖</strong>」。完売した日は、完売時刻が早いほど上乗せして数えています。
+        「直近の流れ」は参考表示です（掛け算すると反応しすぎて外れやすくなるため、予測には入れていません）。
     </p>
     {% if fc.backtest %}
     <span class="badge bg-success fs-6 mb-3">
-        精度：直近28日の実績で平均誤差 ±{{ fc.backtest.mae }}食（{{ fc.backtest.mape }}％）・{{ fc.backtest.n }}件で検証
+        精度：直近28日・完売しなかった日で平均誤差 ±{{ fc.backtest.mae }}食（{{ fc.backtest.mape }}％）・{{ fc.backtest.n }}件で検証
     </span>
     {% endif %}
     <hr class="my-3">
@@ -55,9 +54,12 @@
                             <th>販売形式</th>
                             <th class="text-end">予測食数</th>
                             {% if day.rain %}<th class="text-end text-danger">雨の日の目安</th>{% endif %}
-                            <th>直近同曜日の実績（新→古）</th>
-                            <th class="text-end">直近の平均残</th>
-                            <th class="text-end">実績数</th>
+                            <th class="text-end">直近5日</th>
+                            <th class="text-end">曜日の癖</th>
+                            <th class="text-end">直近の流れ</th>
+                            <th>同じ曜日の実績（新→古）</th>
+                            <th class="text-end">完売率</th>
+                            <th class="text-end">平均残</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -67,11 +69,14 @@
                             <td class="text-muted small">{{ l.type }}</td>
                             <td class="text-end"><span class="fs-5 fw-bold text-primary">{{ l.pred }}</span></td>
                             {% if day.rain %}<td class="text-end">{% if l.adj_pct %}<span class="fs-5 fw-bold text-danger">{{ l.adj }}</span> <span class="small text-danger">({{ l.adj_pct }}%)</span>{% else %}<span class="text-muted">{{ l.adj }}（そのまま）</span>{% endif %}</td>{% endif %}
+                            <td class="text-end text-muted">{{ l.recent }}</td>
+                            <td class="text-end small {% if l.weekday_pct > 0 %}text-success{% elif l.weekday_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.weekday_pct > 0 %}+{% endif %}{{ l.weekday_pct }}%</td>
+                            <td class="text-end small">{% if l.trend_pct is None %}<span class="text-muted">—</span>{% elif l.trend_pct >= 5 %}<span class="text-success">↑+{{ l.trend_pct }}%</span>{% elif l.trend_pct <= -5 %}<span class="text-danger">↓{{ l.trend_pct }}%</span>{% else %}<span class="text-muted">→{% if l.trend_pct > 0 %}+{% endif %}{{ l.trend_pct }}%</span>{% endif %}</td>
                             <td class="text-muted small">
-                                {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}食{% if not forloop.last %}　/　{% endif %}{% endfor %}
+                                {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% endif %}{% if not forloop.last %}　/　{% endif %}{% endfor %}
                             </td>
+                            <td class="text-end small {% if l.sold_out_pct >= 60 %}text-primary fw-bold{% else %}text-muted{% endif %}">{{ l.sold_out_pct }}%</td>
                             <td class="text-end {% if l.avg_rem >= 6 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ l.avg_rem }}食</td>
-                            <td class="text-end text-muted small">{{ l.samples }}回</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -85,8 +90,8 @@
     {% endfor %}
 
     <div class="alert alert-warning small">
-        ⚠️ 予測は「販売数（実際に売れた数）」の見込みです。ほぼ完売の店は実需がこれより上のことも（＝もう少し積める余地）、
-        残りがちな店は予測どおりかやや下で。<strong>昼どき（11〜13時）に1mm以上の雨・雪の予報が出ると、販売形式ごとの目安を出します</strong>（外の売場だけ減らし、室内は減らさない）。
+        ⚠️ 予測は「売れそうな数（需要）」です。<span class="text-primary fw-bold">完売率が高い店（60%以上）</span>は需要がさらに上のことも（＝もう少し積める余地）、
+        残りがちな店は予測どおりかやや下で。「店」・配達・お試しは対象外です。<strong>昼どき（11〜13時）に1mm以上の雨・雪の予報が出ると、販売形式ごとの目安を出します</strong>（外の売場だけ減らし、室内は減らさない）。
         イベントなどのブレは加味していないので、最後は現場判断で微調整してください（給料日・月初は実績上ほぼ影響なし）。
         「直近の平均残」が<span class="text-danger fw-bold">赤（6食以上）</span>の店は仕込み過多ぎみ＝削りどころ。
     </div>
