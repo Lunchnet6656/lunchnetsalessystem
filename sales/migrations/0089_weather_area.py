@@ -15,7 +15,7 @@ def set_areas(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sales', '0086_price_change_log'),
+        ('sales', '0088_menu_dictionary_initial_rules'),
     ]
 
     operations = [
