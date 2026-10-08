@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}金額を変える{% endblock %}
+{% block title %}金額変更{% endblock %}
 {% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4" style="max-width:640px;">
-    <h1 class="h3">「{{ item.label }}」の金額を変える</h1>
+    <h1 class="h3">金額変更：{{ item.label }}</h1>
     <p class="text-muted small">今の金額：{{ now }}（{{ item.valid_from|date:"Y/m/d" }}から）</p>
     <hr>
     {% include "prices/_discount_errors.html" %}
@@ -23,7 +23,7 @@
         </div>
         <div class="d-flex gap-2 justify-content-end">
             <a href="{% url 'discount_item_list' %}" class="btn btn-outline-secondary">戻る</a>
-            <button class="btn btn-primary">確認画面へ進む →</button>
+            <button class="btn btn-primary">確認</button>
         </div>
     </form>
 </div>

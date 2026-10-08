@@ -32,7 +32,7 @@ class MenuWeekScreenTest(TestCase):
         res = self.client.get(self.url)
         self.assertContains(res, "10/14週のメニュー確認")
         self.assertContains(res, "未確認")
-        self.assertContains(res, "種類・容器・価格を確認しました")
+        self.assertContains(res, "確認完了")
         self.assertEqual(res.context["needs_check_count"], 10)   # 大盛りごはんは数えない
         self.assertEqual(len(res.context["rows"]), 11)
         tokusen = next(r for r in res.context["rows"] if r.product.no == 1)
@@ -69,7 +69,7 @@ class MenuWeekScreenTest(TestCase):
     def test_ended_week_is_read_only(self, _):
         res = self.client.get(self.url)
         self.assertContains(res, "この週は終わっています。見るだけです。")
-        self.assertNotContains(res, "種類・容器・価格を確認しました")
+        self.assertNotContains(res, "確認完了")
         self.post_confirm()
         self.assertFalse(MenuWeekCheck.objects.get(week=WEEK).is_confirmed)
 

@@ -15,8 +15,8 @@
         {% for name, value in post %}{% if name != "csrfmiddlewaretoken" %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}
         <input type="hidden" name="selling_ok" value="1">
         <div class="d-flex justify-content-end gap-2 my-4">
-            <a href="{% url 'menu_week_detail' week|date:'Y-m-d' %}" class="btn btn-outline-secondary">← 戻る</a>
-            <button class="btn btn-primary">保存して確認済みにする</button>
+            <a href="{% url 'menu_week_detail' week|date:'Y-m-d' %}" class="btn btn-outline-secondary">戻る</a>
+            <button class="btn btn-primary">確認完了</button>
         </div>
     </form>
 </div>

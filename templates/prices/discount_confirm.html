@@ -16,8 +16,8 @@
         <input type="hidden" name="label" value="{{ post.label }}">
         <input type="hidden" name="direction" value="{{ post.direction }}">
         <div class="d-flex gap-2 justify-content-end my-4">
-            <button type="button" class="btn btn-outline-secondary" onclick="history.back()">← 戻って直す</button>
-            <button type="submit" class="btn {% if plan.action == 'end' %}btn-danger{% else %}btn-primary{% endif %}" id="apply-button">登録する</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="history.back()">戻る</button>
+            <button type="submit" class="btn {% if plan.action == 'end' %}btn-danger{% else %}btn-primary{% endif %}" id="apply-button">登録</button>
         </div>
     </form>
 </div>

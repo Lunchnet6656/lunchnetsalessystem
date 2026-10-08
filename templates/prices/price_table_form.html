@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}{% if editing %}価格表を直す{% else %}新しい価格表を作る{% endif %}{% endblock %}
+{% block title %}{% if editing %}価格表の編集{% else %}価格表の新規作成{% endif %}{% endblock %}
 {% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <h1 class="h3">{% if editing %}{{ editing.valid_from|date:"n/j" }}からの価格表を直す{% else %}新しい価格表を作る{% endif %}</h1>
+    <h1 class="h3">{% if editing %}価格表の編集（{{ editing.valid_from|date:"n/j" }}から）{% else %}価格表の新規作成{% endif %}</h1>
     <p class="text-muted small mb-3">
         {% if editing %}開始待ちの価格表です。直すマスを変えてください。{% else %}今の価格表をコピーしました。変わるマスだけ直して、開始日を入れてください。{% endif %}
     </p>
@@ -69,7 +69,7 @@
 
         <div class="d-flex justify-content-end gap-2 my-4">
             <a href="{% url 'price_table_list' %}" class="btn btn-outline-secondary">戻る</a>
-            <button type="submit" class="btn btn-primary">確認画面へ進む →</button>
+            <button type="submit" class="btn btn-primary">確認</button>
         </div>
     </form>
 </div>

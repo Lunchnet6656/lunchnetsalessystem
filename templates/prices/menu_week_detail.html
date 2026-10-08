@@ -34,7 +34,7 @@
     {% if legacy %}
     <p class="text-muted">この週は古い登録方法のため、ここでは直せません。</p>
     {% elif state != "ended" %}
-    <p class="text-muted small">種類・容器・値段を確かめて、一番下の「確認しました」を押してください。</p>
+    <p class="text-muted small">種類・容器・値段を確かめて、一番下の［確認完了］を押してください。</p>
     {% endif %}
     {% if missing_price %}
     <div class="alert alert-danger">価格表に値段がない種類があります。<a href="{% url 'price_table_list' %}" class="alert-link">価格表を見る</a></div>
@@ -93,7 +93,7 @@
         {% if state != "ended" and not legacy %}
         <div class="border rounded p-3 my-4 text-center">
             <button type="submit" class="btn {% if check and check.is_confirmed %}btn-outline-primary{% else %}btn-primary{% endif %} w-100 py-3" id="confirm-button">
-                {% if check and check.is_confirmed %}もう一度確認する（変更したとき）{% else %}種類・容器・価格を確認しました{% endif %}
+                {% if check and check.is_confirmed %}再確認{% else %}確認完了{% endif %}
             </button>
             <div class="small text-muted mt-2">押すと、この週のメニューに反映し、メニューデータベースにも覚えさせます。</div>
         </div>

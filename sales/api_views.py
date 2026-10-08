@@ -177,7 +177,7 @@ def api_menu(request):
     lines = [f"{label} {len(result.products)}品を登録しました（要確認 {len(result.needs_check)}品）。"]
     if result.state == "selling":
         lines.append("販売中の週を上書きしました。これから入力する日計表のメニューが変わります。")
-    lines.append("確認画面を開きます。種類・容器・値段を確かめて『確認しました』を押してください。")
+    lines.append("確認画面を開きます。種類・容器・値段を確かめて［確認完了］を押してください。")
     logger.info("メニュー受信 %s：%d品（要確認 %d品・%s）", week, len(result.products), len(result.needs_check),
                 result.state)
     return _menu_reply(True, "\n".join(lines), week=week.isoformat(), saved_count=len(result.products),

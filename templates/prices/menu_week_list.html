@@ -20,7 +20,7 @@
                 {% else %}<span class="badge bg-danger">未確認</span>{% endif %}
             </td>
             <td>{% if w.has_menu and not w.legacy %}{{ w.needs_check }}品{% else %}—{% endif %}</td>
-            <td><a href="{% url 'menu_week_detail' w.week|date:'Y-m-d' %}" class="btn btn-sm btn-outline-secondary">{% if w.state == "ended" %}見る{% else %}開く{% endif %}</a></td>
+            <td><a href="{% url 'menu_week_detail' w.week|date:'Y-m-d' %}" class="btn btn-sm btn-outline-secondary">{% if w.state == "ended" %}表示{% else %}開く{% endif %}</a></td>
         </tr>
         {% endfor %}
         </tbody>

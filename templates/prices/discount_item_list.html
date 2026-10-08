@@ -24,7 +24,7 @@
             </div>
             <div class="small text-muted">{{ row.item.valid_from|date:"Y/m/d" }}から
                 {% if row.plan %}／<span class="pm-diff-cell px-1">{{ row.plan }}</span>
-                <a href="{% url 'discount_cancel_plan' row.plan_item.pk %}">予定を取り消す</a>{% endif %}
+                <a href="{% url 'discount_cancel_plan' row.plan_item.pk %}">予定取消</a>{% endif %}
             </div>
             <div class="d-flex gap-2 mt-2 align-items-center">
                 <form method="POST" action="{% url 'discount_move' row.item.pk 'up' %}">{% csrf_token %}
@@ -32,8 +32,8 @@
                 <form method="POST" action="{% url 'discount_move' row.item.pk 'down' %}">{% csrf_token %}
                     <button class="btn btn-sm btn-outline-secondary" title="下へ" {% if forloop.last %}disabled{% endif %}>↓</button></form>
                 {% if not row.plan %}
-                <a href="{% url 'discount_change' row.item.pk %}" class="btn btn-sm btn-outline-secondary flex-fill">金額を変える</a>
-                <a href="{% url 'discount_end' row.item.pk %}" class="btn btn-sm btn-outline-danger flex-fill">終わらせる</a>
+                <a href="{% url 'discount_change' row.item.pk %}" class="btn btn-sm btn-outline-secondary flex-fill">金額変更</a>
+                <a href="{% url 'discount_end' row.item.pk %}" class="btn btn-sm btn-outline-danger flex-fill">終了</a>
                 {% endif %}
             </div>
         </div>
@@ -43,7 +43,7 @@
             <div class="d-flex justify-content-between"><span class="fw-bold">{{ item.label }}</span>
                 <span>{% if item.direction == "minus" %}▲{% else %}＋{% endif %}{{ item.amount }}円</span></div>
             <div class="small"><span class="pm-diff-cell px-1">{{ item.valid_from|date:"Y/m/d" }}から追加</span>
-                <a href="{% url 'discount_cancel_plan' item.pk %}">予定を取り消す</a></div>
+                <a href="{% url 'discount_cancel_plan' item.pk %}">予定取消</a></div>
         </div>
         {% endfor %}
     </div>
@@ -64,12 +64,12 @@
             <td class="text-nowrap">{{ row.item.valid_from|date:"Y/m/d" }}</td>
             <td class="text-nowrap">
                 {% if row.plan %}<span class="pm-diff-cell px-1">{{ row.plan }}</span>
-                <a href="{% url 'discount_cancel_plan' row.plan_item.pk %}" class="small">予定を取り消す</a>{% else %}—{% endif %}
+                <a href="{% url 'discount_cancel_plan' row.plan_item.pk %}" class="small">予定取消</a>{% else %}—{% endif %}
             </td>
             <td class="text-nowrap">
                 {% if not row.plan %}
-                <a href="{% url 'discount_change' row.item.pk %}" class="btn btn-sm btn-outline-secondary">金額を変える</a>
-                <a href="{% url 'discount_end' row.item.pk %}" class="btn btn-sm btn-outline-danger">終わらせる</a>
+                <a href="{% url 'discount_change' row.item.pk %}" class="btn btn-sm btn-outline-secondary">金額変更</a>
+                <a href="{% url 'discount_end' row.item.pk %}" class="btn btn-sm btn-outline-danger">終了</a>
                 {% endif %}
             </td>
         </tr>
@@ -80,7 +80,7 @@
             <td>{{ item.label }}</td>
             <td class="text-nowrap">{% if item.direction == "minus" %}▲{% else %}＋{% endif %}{{ item.amount }}円</td>
             <td class="text-nowrap pm-diff-cell">{{ item.valid_from|date:"Y/m/d" }}から追加</td>
-            <td><a href="{% url 'discount_cancel_plan' item.pk %}" class="small">予定を取り消す</a></td>
+            <td><a href="{% url 'discount_cancel_plan' item.pk %}" class="small">予定取消</a></td>
             <td></td>
         </tr>
         {% endfor %}
@@ -88,12 +88,12 @@
     </table>
     </div>
     {% else %}
-    <p class="text-muted small">まだ項目がありません。「項目を足す」から登録できます。</p>
+    <p class="text-muted small">まだ項目がありません。［項目追加］から登録できます。</p>
     {% endif %}
     {% endfor %}
 
     <div class="my-4">
-        <a href="{% url 'discount_add' %}" class="btn btn-primary">＋ 項目を足す</a>
+        <a href="{% url 'discount_add' %}" class="btn btn-primary">＋ 項目追加</a>
     </div>
 
     <details class="mb-3">

@@ -147,7 +147,7 @@ def price_table_register(request):
         return redirect("price_table_list")
     c = pa.confirmation(form, base, today, rank_list)
     if (c["warnings"] or c["is_today"]) and not request.POST.get("checked"):
-        messages.error(request, "「内容を確かめました」にチェックを入れてから登録してください。",
+        messages.error(request, "「内容を確認しました」にチェックを入れてから登録してください。",
                        extra_tags="alert alert-danger")
         return redirect("price_table_list")
     pa.register_table(request.user, form, editing)

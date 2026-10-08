@@ -4,7 +4,7 @@
     <i class="fas {% if a.selling %}fa-triangle-exclamation{% else %}fa-clipboard-check{% endif %} me-2 fs-5"></i>
     <div>
         {% if a.selling %}{{ a.label }}のメニューが未確認のまま販売中です。{% else %}{{ a.label }}のメニューが未確認です（要確認 {{ a.needs_check }}品）。{% endif %}
-        <a href="{% url 'menu_week_detail' a.week|date:'Y-m-d' %}" class="alert-link">確認する</a>
+        <a href="{% url 'menu_week_detail' a.week|date:'Y-m-d' %}" class="alert-link">確認</a>
     </div>
 </div>
 {% endfor %}

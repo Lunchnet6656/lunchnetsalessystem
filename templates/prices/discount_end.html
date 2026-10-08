@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}項目を終わらせる{% endblock %}
+{% block title %}終了{% endblock %}
 {% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4" style="max-width:640px;">
-    <h1 class="h3">「{{ item.label }}」を終わらせる</h1>
+    <h1 class="h3">終了：{{ item.label }}</h1>
     <hr>
     {% include "prices/_discount_errors.html" %}
     <form method="POST">{% csrf_token %}
@@ -14,7 +14,7 @@
         </div>
         <div class="d-flex gap-2 justify-content-end">
             <a href="{% url 'discount_item_list' %}" class="btn btn-outline-secondary">戻る</a>
-            <button class="btn btn-primary">確認画面へ進む →</button>
+            <button class="btn btn-primary">確認</button>
         </div>
     </form>
 </div>

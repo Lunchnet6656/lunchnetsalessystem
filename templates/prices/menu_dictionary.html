@@ -9,7 +9,7 @@
         <div class="card-header fw-bold">要確認 {{ needs_check|length }}件</div>
         <div class="card-body p-2">
         {% if needs_check %}
-            <p class="small text-muted mb-2">ルールで仮に決めたメニューです。種類と容器を確かめて「確認済みにする」を押してください。</p>
+            <p class="small text-muted mb-2">ルールで仮に決めたメニューです。種類と容器を確かめて［確認］を押してください。</p>
             <form method="POST">{% csrf_token %}
             <div class="table-responsive">
             <table class="table table-sm align-middle mb-2">
@@ -23,13 +23,13 @@
                         {% for c in containers %}<option value="{{ c }}" {% if c == profile.container %}selected{% endif %}>{{ c }}</option>{% endfor %}
                     </select></td>
                     <td class="text-nowrap">{% if profile.first_seen %}{{ profile.first_seen|date:"n/j" }}週{% endif %}</td>
-                    <td><button class="btn btn-sm btn-primary text-nowrap" name="confirm_one" value="{{ profile.pk }}">確認済みにする</button></td>
+                    <td><button class="btn btn-sm btn-primary text-nowrap" name="confirm_one" value="{{ profile.pk }}">確認</button></td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
             </div>
-            <div class="text-end"><button class="btn btn-sm btn-outline-primary" name="action" value="confirm_all">表示中の{{ needs_check|length }}件をまとめて確認済みにする</button></div>
+            <div class="text-end"><button class="btn btn-sm btn-outline-primary" name="action" value="confirm_all">一括確認（{{ needs_check|length }}件）</button></div>
             </form>
         {% else %}
             <p class="pm-confirmed mb-0">要確認のメニューはありません。</p>
@@ -41,7 +41,7 @@
         <h2 class="h5 mb-0">全メニュー（{{ total }}件）</h2>
         <form method="GET" class="d-flex gap-2">
             <input type="search" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="メニュー名で探す">
-            <button class="btn btn-sm btn-outline-secondary text-nowrap">探す</button>
+            <button class="btn btn-sm btn-outline-secondary text-nowrap">検索</button>
         </form>
     </div>
     {% if page.object_list %}
@@ -60,7 +60,7 @@
                 </select></div>
                 <div class="col-12 col-md-3 d-flex gap-2">
                     <button class="btn btn-sm btn-primary" name="profile" value="{{ profile.pk }}">保存</button>
-                    <a href="?q={{ query|urlencode }}&page={{ page.number }}" class="btn btn-sm btn-outline-secondary">やめる</a>
+                    <a href="?q={{ query|urlencode }}&page={{ page.number }}" class="btn btn-sm btn-outline-secondary">キャンセル</a>
                 </div>
             </form>
         </td></tr>
@@ -70,7 +70,7 @@
             <td>{{ profile.rank.name }}</td>
             <td>{{ profile.container }}</td>
             <td class="text-nowrap">{% if profile.last_seen %}{{ profile.last_seen|date:"n/j" }}週{% endif %}</td>
-            <td><a href="?q={{ query|urlencode }}&page={{ page.number }}&edit={{ profile.pk }}" class="btn btn-sm btn-outline-secondary">直す</a></td>
+            <td><a href="?q={{ query|urlencode }}&page={{ page.number }}&edit={{ profile.pk }}" class="btn btn-sm btn-outline-secondary">編集</a></td>
         </tr>
         {% endif %}
         {% endfor %}

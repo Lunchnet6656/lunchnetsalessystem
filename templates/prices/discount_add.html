@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}割引の項目を足す{% endblock %}
+{% block title %}項目追加{% endblock %}
 {% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4" style="max-width:640px;">
-    <h1 class="h3">割引の項目を足す</h1>
+    <h1 class="h3">項目追加</h1>
     <hr>
     {% include "prices/_discount_errors.html" %}
     <form method="POST">{% csrf_token %}
@@ -36,7 +36,7 @@
         <p class="text-muted small">項目を足すと、日計表送信データ（CSV）の一番後ろに列が1つ増えます。一度増えた列は消えません。</p>
         <div class="d-flex gap-2 justify-content-end">
             <a href="{% url 'discount_item_list' %}" class="btn btn-outline-secondary">戻る</a>
-            <button class="btn btn-primary">確認画面へ進む →</button>
+            <button class="btn btn-primary">確認</button>
         </div>
     </form>
 </div>
