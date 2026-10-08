@@ -4,16 +4,19 @@
 仕様: .company/engineering/harness/specs/lunchnetsale-価格と割引のマスタ化-要件定義.md §8.1・§8.2・§13
 画面: .company/engineering/harness/specs/lunchnetsale-価格と割引のマスタ化-画面設計.md §1・§2
 """
+import datetime
 from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from sales import menu_week as mw
 from sales import price_admin as pa
-from sales.models import DiscountItem, PriceTable
+from sales.models import CONTAINER_CHOICES, DiscountItem, PriceTable
 
 NO_PERMISSION_MESSAGE = "このページを開く権限がありません。本部の担当者に相談してください。"
 
@@ -251,8 +254,43 @@ def discount_move(request, pk, step):
     return redirect("discount_item_list")
 
 
-# ===== 週のメニュー確認（S4-3で中身を作る） =====
+# ===== 週のメニュー確認 =====
+
+def _parse_week(text):
+    try:
+        return datetime.date.fromisoformat(text)
+    except ValueError:
+        raise Http404("週の日付が読めません")
+
+
+@price_master_required
+def menu_week_list(request):
+    return render(request, "prices/menu_week_list.html", {"weeks": mw.recent_weeks(timezone.localdate())})
+
 
 @price_master_required
 def menu_week_detail(request, week):
-    return render(request, "prices/menu_week_detail.html", {"week": week})
+    week = _parse_week(week)
+    today = timezone.localdate()
+    view = mw.week_view(week, today)
+    ranks = pa.ranks()
+    if request.method == "POST":
+        if view["state"] == "ended" or view["legacy"] or not view["rows"]:
+            messages.error(request, "この週はここでは直せません。", extra_tags="alert alert-danger")
+            return redirect("menu_week_detail", week=week.isoformat())
+        changes, errors = mw.read_choices(request.POST, [r.product for r in view["rows"]], ranks)
+        if errors:
+            messages.error(request, "　".join(errors), extra_tags="alert alert-danger")
+            return redirect("menu_week_detail", week=week.isoformat())
+        changed = any(c.rank_changed or c.container_changed for c in changes)
+        if view["state"] == "selling" and changed and not request.POST.get("selling_ok"):
+            return render(request, "prices/menu_week_selling_confirm.html", {
+                **view, "summary": mw.selling_week_summary(week, changes, today), "post": request.POST.items(),
+            })
+        mw.confirm_week(week, changes, request.user)
+        messages.success(request, f"{view['label']}を確認済みにしました。", extra_tags="alert alert-success")
+        return redirect("menu_week_detail", week=week.isoformat())
+    return render(request, "prices/menu_week_detail.html", {
+        **view, "ranks": ranks, "containers": CONTAINER_CHOICES,
+        "prices_json": mw.prices_json(view["segments"], ranks),
+    })

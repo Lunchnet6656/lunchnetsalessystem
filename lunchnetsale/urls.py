@@ -52,6 +52,7 @@ urlpatterns = [
     path('discounts/<int:pk>/cancel-plan/', price_admin_views.discount_cancel_plan, name='discount_cancel_plan'),
     path('discounts/<int:pk>/move/<str:step>/', price_admin_views.discount_move, name='discount_move'),
     path('discounts/apply/', price_admin_views.discount_apply, name='discount_apply'),
+    path('menus/week/', price_admin_views.menu_week_list, name='menu_week_list'),
     path('menus/week/<str:week>/', price_admin_views.menu_week_detail, name='menu_week_detail'),
     path('upload/', views.upload_view, name='upload'),
     path('api/item-quantity/', sales_api_views.api_item_quantity, name='api_item_quantity'),

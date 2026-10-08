@@ -87,7 +87,7 @@ def profile_for(name, week, rules=None, ranks=None):
     return profile
 
 
-def _prices_for(rank, week):
+def prices_for_rank(rank, week):
     """Product.price_A/B/C にも、週の初日の価格表の値段を入れておく（古い画面の表示と予備のため）。"""
     book = PriceBook(week)
     probe = Product(rank=rank)
@@ -118,7 +118,7 @@ def register_week(week, names, now=None):
         product, _ = Product.objects.update_or_create(
             week=week_key, no=no,
             defaults={"name": profile.name, "rank": profile.rank, "container_type": profile.container,
-                      **_prices_for(profile.rank, week)},
+                      **prices_for_rank(profile.rank, week)},
         )
         products.append(product)
 

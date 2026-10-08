@@ -1,3 +1,154 @@
 {% extends 'base.html' %}
-{% block title %}週のメニュー確認{% endblock %}
-{% block content %}<div class="container mt-4"><h1 class="h3">週のメニュー確認</h1></div>{% endblock %}
+{% block title %}{{ label }}のメニュー確認{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h1 class="h3 mb-0">{{ label }}のメニュー確認</h1>
+        <div>
+            <a href="{% url 'menu_week_detail' prev_week|date:'Y-m-d' %}" class="btn btn-sm btn-outline-secondary">‹ 前の週</a>
+            <a href="{% url 'menu_week_detail' next_week|date:'Y-m-d' %}" class="btn btn-sm btn-outline-secondary">次の週 ›</a>
+        </div>
+    </div>
+
+    {% if not rows %}
+    <hr>
+    <p class="text-muted">{{ label }}のメニューはまだ届いていません。元のメニュー表の『メニュー送信』ボタンで送ってください。</p>
+    {% else %}
+    <div class="my-2">
+        状態：
+        {% if check and check.is_confirmed %}
+        <span class="pm-confirmed">確認済み {{ check.confirmed_at|date:"n/j H:i" }}{% if check.confirmed_by %} {{ check.confirmed_by.last_name }} {{ check.confirmed_by.first_name }}{% endif %}</span>
+        {% elif legacy %}<span class="text-muted">—（古い登録方法）</span>
+        {% else %}<span class="badge bg-danger">未確認</span>{% endif %}
+        {% if check and check.received_at %}<span class="small text-muted ms-2">{{ check.received_at|date:"n/j H:i" }} にExcelから届きました（{{ check.received_count }}品）</span>{% endif %}
+    </div>
+    {% if check and check.resent_after_confirm %}
+    <div class="alert alert-info">確認済みのあとでExcelから送り直されたため、もう一度確認してください。</div>
+    {% endif %}
+    {% if state == "ended" %}
+    <div class="p-2 mb-2 pm-ended">この週は終わっています。見るだけです。</div>
+    {% elif state == "selling" %}
+    <div class="alert alert-warning py-2">この週は販売中です。種類や容器を変えると、これから入力する日計表の値段が変わります。</div>
+    {% endif %}
+    {% if legacy %}
+    <p class="text-muted">この週は古い登録方法のため、ここでは直せません。</p>
+    {% elif state != "ended" %}
+    <p class="text-muted small">種類・容器・値段を確かめて、一番下の「確認しました」を押してください。</p>
+    {% endif %}
+    {% if missing_price %}
+    <div class="alert alert-danger">価格表に値段がない種類があります。<a href="{% url 'price_table_list' %}" class="alert-link">価格表を見る</a></div>
+    {% endif %}
+    <hr>
+
+    <form method="POST" id="week-form">
+        {% csrf_token %}
+        <div class="table-responsive">
+        <table class="table table-sm align-middle pm-table">
+            <thead>
+                <tr><th>No</th><th>メニュー名</th><th>値段の種類</th><th>容器</th><th>価格A</th><th>価格B</th><th>価格C</th></tr>
+            </thead>
+            <tbody>
+            {% if needs_check_count %}
+                <tr><td colspan="7" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（初めて出たメニューです。種類と容器を決めてください）</td></tr>
+            {% endif %}
+            {% for row in rows %}
+                {% if needs_check_count and not row.needs_check %}{% ifchanged row.needs_check %}
+                <tr><td colspan="7" class="small text-muted">ここから下は辞書で決まったメニュー</td></tr>
+                {% endifchanged %}{% endif %}
+                <tr class="{% if row.needs_check %}pm-row-attention{% endif %}" data-no="{{ row.product.no }}">
+                    <td>{{ row.product.no }}</td>
+                    <td>{{ row.product.name }}{% if row.needs_check %} <span class="badge bg-danger">要確認</span>{% endif %}</td>
+                    {% if row.fixed %}
+                    <td>{{ row.product.rank.name|default:"—" }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
+                    <td>{{ row.product.container_type }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
+                    {% else %}
+                    <td>
+                        <select name="rank_{{ row.product.no }}" class="form-select form-select-sm pm-rank-select" {% if state == "ended" %}disabled{% endif %}>
+                            {% for r in ranks %}<option value="{{ r.id }}" {% if r.id == row.product.rank_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="container_{{ row.product.no }}" class="form-select form-select-sm pm-container-select" {% if state == "ended" %}disabled{% endif %}>
+                            {% for c in containers %}<option value="{{ c }}" {% if c == row.product.container_type %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                        </select>
+                        <div class="small text-muted pm-ittai-note" {% if row.product.container_type != "一体型" %}hidden{% endif %}>大盛りの追加料金なし</div>
+                    </td>
+                    {% endif %}
+                    {% for cell in row.price_cells %}
+                    <td class="text-nowrap pm-price-cell" data-pattern="{{ cell.pattern }}">
+                        {% for label, value in cell.lines %}
+                        <div>{% if label %}<span class="small text-muted">{{ label }}</span> {% endif %}{% if value is None %}<span class="text-danger">値段なし</span>{% else %}{% if row.product.no == 11 %}＋{% endif %}{{ value }}円{% endif %}</div>
+                        {% endfor %}
+                    </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% if multi_segment %}<p class="small text-muted mb-1">週の途中で新しい価格表になるため、値段を2段で出しています。</p>{% endif %}
+        <p class="small text-muted">メニュー名を直すときは、元のメニュー表（Excel）を直して送り直してください。</p>
+
+        {% if state != "ended" and not legacy %}
+        <div class="border rounded p-3 my-4 text-center">
+            <button type="submit" class="btn {% if check and check.is_confirmed %}btn-outline-primary{% else %}btn-primary{% endif %} w-100 py-3" id="confirm-button">
+                {% if check and check.is_confirmed %}もう一度確認する（変更したとき）{% else %}種類・容器・価格を確認しました{% endif %}
+            </button>
+            <div class="small text-muted mt-2">押すと、この週のメニューに反映し、辞書にも覚えさせます。</div>
+        </div>
+        {% endif %}
+    </form>
+    {% endif %}
+</div>
+{{ prices_json|json_script:"week-prices" }}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var el = document.getElementById('week-prices');
+    if (!el) return;
+    var segments = JSON.parse(el.textContent);
+    var dirty = false;
+    // 種類を変えたら、その行の価格A/B/Cをその場で変える（サーバーに聞かない）
+    document.querySelectorAll('.pm-rank-select').forEach(function (select) {
+        var initial = select.value;
+        select.addEventListener('change', function () {
+            dirty = true;
+            var row = select.closest('tr');
+            row.querySelectorAll('.pm-price-cell').forEach(function (cell) {
+                var pattern = cell.getAttribute('data-pattern');
+                cell.innerHTML = segments.map(function (seg) {
+                    var v = seg.cells[select.value] ? seg.cells[select.value][pattern] : null;
+                    var label = seg.label ? '<span class="small text-muted">' + seg.label + '</span> ' : '';
+                    return '<div>' + label + (v === null || v === undefined ? '<span class="text-danger">値段なし</span>' : v + '円') + '</div>';
+                }).join('');
+                cell.classList.toggle('pm-diff-cell', select.value !== initial);
+            });
+        });
+    });
+    document.querySelectorAll('.pm-container-select').forEach(function (select) {
+        select.addEventListener('change', function () {
+            dirty = true;
+            select.parentElement.querySelector('.pm-ittai-note').hidden = select.value !== '一体型';
+        });
+    });
+    var form = document.getElementById('week-form');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            if (document.querySelector('.pm-price-cell .text-danger') &&
+                !window.confirm('値段がないメニューがあります。このまま確認済みにしますか？')) {
+                e.preventDefault();
+                return;
+            }
+            dirty = false;
+            var b = document.getElementById('confirm-button');
+            if (b) { b.disabled = true; b.textContent = '保存しています…'; }
+        });
+    }
+    window.addEventListener('beforeunload', function (e) {
+        if (dirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+})();
+</script>
+{% endblock %}
