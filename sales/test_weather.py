@@ -155,6 +155,14 @@ class MealForecastRainTests(TestCase):
         self.assertTrue(all(l["comment"] is None for l in days[1]["locs"]))
         self.assertContains(res, "明日は45でお願いします")
 
+    def test_small_adjustment_number_is_not_badged(self):
+        latest = DailyReport.objects.filter(location="テーブルの店").latest("date")
+        latest.food_count_setting = "10個程増やしてください"
+        latest.save()
+        c = {l["name"]: l["comment"] for l in self.get({}).context["fc"]["days"][0]["locs"]}
+        self.assertIsNone(c["テーブルの店"]["num"])
+        self.assertEqual(c["テーブルの店"]["text"], "10個程増やしてください")
+
 
 class LocationWeatherAreaSettingTests(TestCase):
     def test_area_saved_from_location_settings(self):

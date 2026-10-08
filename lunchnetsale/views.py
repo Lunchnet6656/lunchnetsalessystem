@@ -3574,6 +3574,12 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             recent10 = rows[-10:]
             eff = third_effect(rows, third)
             comment = comments.get(name) if n_day == 0 else None
+            # 「10個程増やして」のような増減の数を、合計の数と取り違えて強調しない
+            # （「明日は45で」のように大きく減らす合計は強調したいので、増減の言葉があるときだけ）
+            num = comment[2] if comment else None
+            if num is not None and num < p["pred"] * 0.5 and any(
+                    w in comment[1] for w in ("増", "減", "追加", "足し", "プラス", "マイナス", "＋", "+")):
+                num = None
             locs.append({
                 "name": name, "type": sales_type, "area": WEATHER_AREAS.get(area, WEATHER_AREAS[DEFAULT_AREA])[0],
                 "base": int(p["pred"] + 0.5),                 # 雨がない場合
@@ -3587,7 +3593,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"]} for r in same[-3:]][::-1],
                 "avg_rem": round(sum(r["rem"] for r in same[-4:]) / len(same[-4:]), 1) if same else 0,
                 "sold_out_pct": int(round(sum(r["sold_out"] for r in recent10) / len(recent10) * 100)),
-                "comment": None if not comment else {"date": comment[0], "text": comment[1], "num": comment[2]},
+                "comment": None if not comment else {"date": comment[0], "text": comment[1], "num": num},
             })
         locs.sort(key=lambda x: -x["pred"])
         rainy = any(l["rain_pct"] for l in locs)
