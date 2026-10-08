@@ -383,7 +383,7 @@ class UserMenuPermission(models.Model):
     can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")
     can_view_attendance = models.BooleanField(default=False, verbose_name="勤怠アプリ")
     can_view_stamp = models.BooleanField(default=False, verbose_name="公式LINE（スタンプ）")
-    # 価格表・割引設定・メニュー辞書。お金の設定なので、本部の担当者にだけ個別にONにする（staffでも自動ではONにしない）
+    # 価格表・割引設定・メニューデータベース。お金の設定なので、本部の担当者にだけ個別にONにする（staffでも自動ではONにしない）
     can_view_price_master = models.BooleanField(default=False, verbose_name="価格・メニュー設定")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
     shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
@@ -604,13 +604,13 @@ class PriceChangeLog(models.Model):
         return f"{self.created_at:%Y-%m-%d %H:%M} {self.get_kind_display()} {self.summary}"
 
 
-# ===== メニュー辞書（S4） =====
+# ===== メニューデータベース（S4） =====
 # 元のメニュー表（Excel）には値段も容器も書かれていないので、メニュー名ごとに「値段の種類」と「容器」を覚える。
 CONTAINER_CHOICES = ["赤容器", "黒容器", "一体型", "ご飯容器"]
 
 
 class MenuProfile(models.Model):
-    """メニュー辞書（メニュー名で1行）。1回直せば、次にこの名前が出た週から自動で決まる。"""
+    """メニューデータベース（メニュー名で1行）。1回直せば、次にこの名前が出た週から自動で決まる。"""
     name = models.CharField(max_length=255, unique=True, verbose_name="メニュー名")
     rank = models.ForeignKey(PriceRank, on_delete=models.PROTECT, related_name="menu_profiles",
                              verbose_name="値段の種類")
@@ -626,8 +626,8 @@ class MenuProfile(models.Model):
 
     class Meta:
         ordering = ["name"]
-        verbose_name = "メニュー辞書"
-        verbose_name_plural = "メニュー辞書"
+        verbose_name = "メニューデータベース"
+        verbose_name_plural = "メニューデータベース"
 
     def __str__(self):
         return f"{self.name}（{self.rank}・{self.container}）"

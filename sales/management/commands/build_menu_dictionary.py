@@ -1,7 +1,7 @@
-"""過去のメニュー（Product）からメニュー辞書の初期データを作る。最初の送信から、よく出るメニューを自動で決めるため。
+"""過去のメニュー（Product）からメニューデータベースの初期データを作る。最初の送信から、よく出るメニューを自動で決めるため。
 
     python manage.py build_menu_dictionary            # 作る内容を見るだけ（書き込まない）
-    python manage.py build_menu_dictionary --apply    # 書き込む（辞書にもうある名前は変えない）
+    python manage.py build_menu_dictionary --apply    # 書き込む（メニューデータベースにもうある名前は変えない）
 
 決め方（メニュー名ごとに、最後に出た週のメニューで）：
 - 値段の種類：★→特選／大盛り→大盛り／それ以外は、その週の「通常」の値段（★と大盛り以外で一番多い価格A）と比べて
@@ -19,10 +19,10 @@ from sales.models import CONTAINER_CHOICES, MenuProfile, PriceRank, Product
 
 
 class Command(BaseCommand):
-    help = "過去のメニューからメニュー辞書の初期データを作る（既定は見るだけ）"
+    help = "過去のメニューからメニューデータベースの初期データを作る（既定は見るだけ）"
 
     def add_arguments(self, parser):
-        parser.add_argument("--apply", action="store_true", help="辞書に書き込む")
+        parser.add_argument("--apply", action="store_true", help="メニューデータベースに書き込む")
 
     def handle(self, *args, **opts):
         ranks = {r.name: r for r in PriceRank.objects.all()}
@@ -83,7 +83,7 @@ class Command(BaseCommand):
                 MenuProfile.objects.bulk_create(rows)
         mode = "書き込みました" if opts["apply"] else "見るだけ（書き込みなし）"
         self.stdout.write(f"== build_menu_dictionary：{mode} ==")
-        self.stdout.write(f"メニュー名 {len(latest)} 件（辞書にもうある {stats['skip_existing']} 件は変えない）")
+        self.stdout.write(f"メニュー名 {len(latest)} 件（メニューデータベースにもうある {stats['skip_existing']} 件は変えない）")
         self.stdout.write(f"  確認済みで登録 {stats['confirmed']} 件／要確認で登録 {stats['needs_check']} 件")
         for name in ("特選", "通常", "お手頃", "大盛り"):
             self.stdout.write(f"  {name}：{stats[f'rank:{name}']} 件")

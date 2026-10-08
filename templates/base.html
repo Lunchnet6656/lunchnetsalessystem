@@ -185,9 +185,10 @@
                         <a href="{% url 'discount_item_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-tags"></i> 割引設定
                         </a>
-                        <a href="{% url 'menu_dictionary' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-book"></i> メニュー辞書
-                            {% if pm_needs_check_count %}<span class="badge bg-danger rounded-pill ms-1">{{ pm_needs_check_count }}</span>{% endif %}
+                        {# 名前が長くバッジが折り返すので、1行に固定してバッジを右端に寄せる #}
+                        <a href="{% url 'menu_dictionary' %}" class="list-group-item list-group-item-action d-flex align-items-center text-nowrap">
+                            <i class="fas fa-book me-1"></i>メニューデータベース
+                            {% if pm_needs_check_count %}<span class="badge bg-danger rounded-pill ms-auto">{{ pm_needs_check_count }}</span>{% endif %}
                         </a>
                         <a href="{% url 'menu_week_list' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-clipboard-check"></i> 週のメニュー確認

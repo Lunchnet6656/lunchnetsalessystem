@@ -1,4 +1,4 @@
-"""S4-4：メニュー辞書・判定ルール画面、サイドバーとTOPの未確認表示のテスト。"""
+"""S4-4：メニューデータベース・判定ルール画面、サイドバーとTOPの未確認表示のテスト。"""
 import datetime
 from unittest import mock
 
@@ -86,9 +86,9 @@ class WeekAlertsTest(TestCase):
         res = self.client.get("/dashboard/")
         self.assertContains(res, "10/7週のメニューが未確認のまま販売中です。")
         self.assertContains(res, "10/14週のメニューが未確認です（要確認 10品）。")
-        self.assertContains(res, "メニュー辞書")
+        self.assertContains(res, "メニューデータベース")
         MenuWeekCheck.objects.update(confirmed_at=datetime.datetime(2026, 10, 9, 1, tzinfo=datetime.timezone.utc))
         self.assertNotContains(self.client.get("/dashboard/"), "のメニューが未確認")
         self.client.force_login(make_user("staff_only"))
         res = self.client.get("/dashboard/")
-        self.assertNotContains(res, "メニュー辞書")
+        self.assertNotContains(res, "メニューデータベース")

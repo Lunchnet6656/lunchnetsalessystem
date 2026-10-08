@@ -61,7 +61,7 @@
     {% if result %}
     <p class="small mb-5">
         →「{{ trial }}」は、値段の種類は{% if result.rank_rule %}「{{ result.rank_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.rank.name }}」、
-        容器は{% if result.container_rule %}「{{ result.container_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.container }}」。（辞書にない名前なら、要確認として登録されます）
+        容器は{% if result.container_rule %}「{{ result.container_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.container }}」。（メニューデータベースにない名前なら、要確認として登録されます）
     </p>
     {% endif %}
 </div>

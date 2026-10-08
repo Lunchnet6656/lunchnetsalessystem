@@ -54,7 +54,7 @@
             {% endif %}
             {% for row in rows %}
                 {% if needs_check_count and not row.needs_check %}{% ifchanged row.needs_check %}
-                <tr class="pm-w-heading"><td colspan="7" class="small text-muted">ここから下は辞書で決まったメニュー</td></tr>
+                <tr class="pm-w-heading"><td colspan="7" class="small text-muted">ここから下はメニューデータベースで決まったメニュー</td></tr>
                 {% endifchanged %}{% endif %}
                 <tr class="{% if row.needs_check %}pm-row-attention{% endif %}" data-no="{{ row.product.no }}">
                     <td class="pm-w-no">{{ row.product.no }}</td>
@@ -95,7 +95,7 @@
             <button type="submit" class="btn {% if check and check.is_confirmed %}btn-outline-primary{% else %}btn-primary{% endif %} w-100 py-3" id="confirm-button">
                 {% if check and check.is_confirmed %}もう一度確認する（変更したとき）{% else %}種類・容器・価格を確認しました{% endif %}
             </button>
-            <div class="small text-muted mt-2">押すと、この週のメニューに反映し、辞書にも覚えさせます。</div>
+            <div class="small text-muted mt-2">押すと、この週のメニューに反映し、メニューデータベースにも覚えさせます。</div>
         </div>
         {% endif %}
     </form>

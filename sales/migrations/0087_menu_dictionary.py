@@ -42,8 +42,8 @@ class Migration(migrations.Migration):
                 ('updated_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'verbose_name': 'メニュー辞書',
-                'verbose_name_plural': 'メニュー辞書',
+                'verbose_name': 'メニューデータベース',
+                'verbose_name_plural': 'メニューデータベース',
                 'ordering': ['name'],
             },
         ),
