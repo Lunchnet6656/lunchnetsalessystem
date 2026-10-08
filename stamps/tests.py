@@ -760,6 +760,24 @@ class SalesCorrelationTests(TestCase):
         r = [x for x in rows if x["location"] == "旧データ店"][0]
         self.assertEqual(r["stamp_users"], 0)
 
+    def test_renumbered_location_matches_by_name(self):
+        # 販売場所No.の振り直し：当時「スタンプ店」はNo.9、今のNo.1は別の店が当時使っていた。
+        # No.で結ぶと別店の売上にスタンプが付く。店名で結ぶこと。
+        from stamps.manage_views import _sales_correlation_rows
+        self._report(9, "スタンプ店", brought=100, sold=80, remaining=20, revenue=50000)
+        self._report(1, "非対応店", brought=60, sold=60, remaining=0, revenue=30000)
+        self._stamp("a", self.loc)
+        rows = _sales_correlation_rows(self.day, self.day)
+        self.assertEqual([r["location"] for r in rows], ["スタンプ店"])
+        self.assertEqual(rows[0]["stamp_users"], 1)
+        self.assertTrue(rows[0]["stamp_enabled"])
+
+    def test_store_filter_uses_name(self):
+        self._report(9, "スタンプ店", brought=100, sold=80, remaining=20, revenue=50000)
+        self._report(1, "非対応店", brought=60, sold=60, remaining=0, revenue=30000)
+        rows = self._get(loc=str(self.loc.id)).context["rows"]
+        self.assertEqual([r["location"] for r in rows], ["スタンプ店"])
+
     def test_csv_export(self):
         self._report(1, "スタンプ店", brought=100, sold=80, remaining=20, revenue=50000)
         resp = self._get(export="csv")

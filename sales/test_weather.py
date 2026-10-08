@@ -89,12 +89,14 @@ class MealForecastRainTests(TestCase):
         self.client.force_login(user)
         SalesLocation.objects.create(no=1, name="テーブルの店", type="テーブル", price_type="A", service_name="")
         SalesLocation.objects.create(no=2, name="ビルの店", type="室内", price_type="A", service_name="")
-        # 過去の月曜4回、どちらも100食売れた
-        for i in range(1, 5):
-            d = date(2026, 10, 5) - timedelta(weeks=i)
-            for no, name in ((1, "テーブルの店"), (2, "ビルの店")):
-                DailyReport.objects.create(date=d, location=name, location_no=no, total_quantity=110,
-                                           total_sales_quantity=100, total_remaining=10, total_revenue=0)
+        # 直近4週の平日すべて、どちらも100食売れた（残りあり＝完売補正なし）
+        d = TODAY - timedelta(days=28)
+        while d < TODAY:
+            if d.weekday() < 5:
+                for no, name in ((1, "テーブルの店"), (2, "ビルの店")):
+                    DailyReport.objects.create(date=d, location=name, location_no=no, total_quantity=110,
+                                               total_sales_quantity=100, total_remaining=10, total_revenue=0)
+            d += timedelta(days=1)
 
     def get(self, weather):
         with patch("lunchnetsale.views.timezone.localdate", return_value=TODAY), \
