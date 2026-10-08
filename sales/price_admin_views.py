@@ -9,14 +9,16 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from sales import menu_registry
 from sales import menu_week as mw
 from sales import price_admin as pa
-from sales.models import CONTAINER_CHOICES, DiscountItem, PriceTable
+from sales.models import CONTAINER_CHOICES, ClassifyRule, DiscountItem, MenuProfile, PriceTable
 
 NO_PERMISSION_MESSAGE = "このページを開く権限がありません。本部の担当者に相談してください。"
 
@@ -293,4 +295,95 @@ def menu_week_detail(request, week):
     return render(request, "prices/menu_week_detail.html", {
         **view, "ranks": ranks, "containers": CONTAINER_CHOICES,
         "prices_json": mw.prices_json(view["segments"], ranks),
+    })
+
+
+# ===== メニュー辞書・判定ルール =====
+
+def _week_labels(weeks):
+    return "・".join(f"{w.month}/{w.day}週" for w in weeks)
+
+
+@price_master_required
+def menu_dictionary(request):
+    today = timezone.localdate()
+    ranks = pa.ranks()
+    if request.method == "POST":
+        rank_by_id = {str(r.id): r for r in ranks}
+        # 要確認の表は1つのフォームに全行の profile が入っているので、行のボタンは confirm_one で送る
+        ids = request.POST.getlist("profile") if request.POST.get("action") == "confirm_all" \
+            else [request.POST.get("confirm_one") or request.POST.get("profile")]
+        for profile in MenuProfile.objects.filter(pk__in=[i for i in ids if i]):
+            rank = rank_by_id.get(request.POST.get(f"rank_{profile.pk}"))
+            container = request.POST.get(f"container_{profile.pk}")
+            if rank is None or container not in CONTAINER_CHOICES:
+                messages.error(request, f"『{profile.name}』の種類か容器を選び直してください。",
+                               extra_tags="alert alert-danger")
+                continue
+            upcoming, selling = menu_registry.update_profile(profile, rank, container, request.user, today)
+            text = f"『{profile.name}』を {rank.name}・{container} で覚えました。"
+            if upcoming:
+                text += f"{_week_labels(upcoming)}（開始前）のメニューにも反映しました。"
+            if selling:
+                text += f"{_week_labels(selling)}（販売中）のメニューは変わりません。変えるときは週のメニュー確認で直してください。"
+            messages.success(request, text, extra_tags="alert alert-success")
+        return redirect(request.get_full_path())
+
+    prices = pa.current_rank_prices(today, ranks)
+    for rank in ranks:
+        rank.prices_text = prices[rank.id]
+    query = (request.GET.get("q") or "").strip()
+    profiles = MenuProfile.objects.select_related("rank")
+    found = profiles.filter(name__contains=query) if query else profiles
+    paginator = Paginator(found.order_by("name"), 50)
+    page = paginator.get_page(request.GET.get("page"))
+    edit_id = request.GET.get("edit")
+    return render(request, "prices/menu_dictionary.html", {
+        "needs_check": list(profiles.filter(confirmed=False).order_by("first_seen", "name")),
+        "page": page, "total": profiles.count(), "query": query,
+        "edit_id": int(edit_id) if edit_id and edit_id.isdigit() else None,
+        "ranks": ranks, "containers": CONTAINER_CHOICES,
+    })
+
+
+@price_master_required
+def menu_rules(request):
+    ranks = pa.ranks()
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "add":
+            keyword = (request.POST.get("keyword") or "").strip()[:50]
+            rank = next((r for r in ranks if str(r.id) == request.POST.get("rank")), None)
+            container = request.POST.get("container") or ""
+            if not keyword:
+                messages.error(request, "メニュー名に含まれる言葉を入れてください。", extra_tags="alert alert-danger")
+            elif rank is None and container not in CONTAINER_CHOICES:
+                messages.error(request, "値段の種類か容器の、どちらかは決めてください。", extra_tags="alert alert-danger")
+            else:
+                last = ClassifyRule.objects.order_by("-sort_order").first()
+                ClassifyRule.objects.create(keyword=keyword, rank=rank,
+                                            container=container if container in CONTAINER_CHOICES else "",
+                                            sort_order=(last.sort_order + 1) if last else 1)
+                messages.success(request, f"ルール「{keyword}」を足しました。", extra_tags="alert alert-success")
+        elif action == "delete":
+            rule = get_object_or_404(ClassifyRule, pk=request.POST.get("rule"))
+            rule.delete()
+            messages.success(request, f"ルール「{rule.keyword}」を消しました。", extra_tags="alert alert-success")
+        elif action in ("up", "down"):
+            rules = list(ClassifyRule.objects.all())
+            index = next(i for i, r in enumerate(rules) if str(r.pk) == request.POST.get("rule"))
+            target = index + (-1 if action == "up" else 1)
+            if 0 <= target < len(rules):
+                rules[index], rules[target] = rules[target], rules[index]
+                for order, rule in enumerate(rules, start=1):
+                    if rule.sort_order != order:
+                        rule.sort_order = order
+                        rule.save(update_fields=["sort_order"])
+        return redirect("menu_rules")
+
+    trial = (request.GET.get("try") or "").strip()
+    result = menu_registry.classify(menu_registry.normalize_name(trial)) if trial else None
+    return render(request, "prices/menu_rules.html", {
+        "rules": ClassifyRule.objects.select_related("rank"), "ranks": ranks, "containers": CONTAINER_CHOICES,
+        "trial": trial, "result": result,
     })

@@ -44,3 +44,21 @@ def unread_message_count(request):
         is_read=False
     ).count()
     return {'unread_admin_replies': count, 'unread_employee_replies': 0}
+
+
+def price_master_status(request):
+    """価格・メニュー設定の権限がある人にだけ、要確認のメニュー数と未確認の週を全ページに渡す（サイドバーとTOP用）。"""
+    user = request.user
+    try:
+        allowed = user.is_authenticated and user.menu_permission.can_view_price_master
+    except Exception:
+        allowed = False
+    if not allowed:
+        return {}
+    from django.utils import timezone
+    from sales.menu_week import week_alerts
+    from sales.models import MenuProfile
+    return {
+        "pm_needs_check_count": MenuProfile.objects.filter(confirmed=False).count(),
+        "pm_week_alerts": week_alerts(timezone.localdate()),
+    }

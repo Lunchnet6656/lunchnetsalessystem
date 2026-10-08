@@ -129,3 +129,36 @@ def register_week(week, names, now=None):
     check.resent_after_confirm = resent
     check.save()
     return RegisterResult(week, products, needs_check, week_state(week, timezone.localdate()), resent)
+
+
+@transaction.atomic
+def update_profile(profile, rank, container, user, today):
+    """辞書を直して確認済みにする。開始前の週のメニューにもすぐ反映する（販売中・終わった週は変えない）。
+    戻り値：(反映した開始前の週, そのメニューが出ている販売中の週)"""
+    profile.rank, profile.container, profile.confirmed = rank, container, True
+    profile.updated_by = user if getattr(user, "is_authenticated", False) else None
+    profile.save()
+    upcoming, selling = [], []
+    for product in Product.objects.filter(name=profile.name):
+        week = parse_week(product.week)
+        if week is None:
+            continue
+        state = week_state(week, today)
+        if state == "upcoming":
+            product.rank, product.container_type = rank, container
+            for field_name, value in prices_for_rank(rank, week).items():
+                setattr(product, field_name, value)
+            product.save()
+            upcoming.append(week)
+        elif state == "selling" and (product.rank_id != rank.id or product.container_type != container):
+            selling.append(week)
+    return sorted(set(upcoming)), sorted(set(selling))
+
+
+def parse_week(text):
+    for fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            return datetime.datetime.strptime(str(text).strip(), fmt).date()
+        except ValueError:
+            continue
+    return None

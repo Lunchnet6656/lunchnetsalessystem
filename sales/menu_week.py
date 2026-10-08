@@ -176,3 +176,21 @@ def recent_weeks(today, count=8):
             "needs_check": sum(1 for p in products if p.name in unconfirmed_names and p.no != LARGE_RICE_NO),
         })
     return rows
+
+
+def week_alerts(today):
+    """TOPと価格表画面に出す「未確認」のお知らせ（今の週・次の週）。週が始まっても未確認なら急ぎ（赤）。"""
+    this_week = today - datetime.timedelta(days=(today.weekday() - 2) % 7)
+    alerts = []
+    for week in (this_week, this_week + datetime.timedelta(days=7)):
+        products = week_products(week)
+        if not products or not any(p.rank_id for p in products):
+            continue
+        check = MenuWeekCheck.objects.filter(week=week).first()
+        if check and check.is_confirmed:
+            continue
+        names = [p.name for p in products if p.no != LARGE_RICE_NO]
+        needs = MenuProfile.objects.filter(name__in=names, confirmed=False).count()
+        alerts.append({"week": week, "label": f"{week.month}/{week.day}週", "needs_check": needs,
+                       "selling": week_state(week, today) == "selling"})
+    return alerts

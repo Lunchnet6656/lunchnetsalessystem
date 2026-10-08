@@ -45,6 +45,12 @@ def ranks():
     return list(PriceRank.objects.all())
 
 
+def current_rank_prices(today, rank_list):
+    """種類ごとの今の値段の文字（例「A 700／B 650／C 600」）。辞書で種類を選ぶときの判断材料。"""
+    cells = cells_of(table_in_effect(today))
+    return {r.id: "／".join(f"{p} {cells.get((r.id, p), '—')}" for p in PRICE_PATTERNS) for r in rank_list}
+
+
 def cells_of(table):
     if table is None:
         return {}

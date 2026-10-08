@@ -8,6 +8,7 @@
     </div>
     <p class="text-muted small mb-3">今の弁当の値段です。値上げは「新しい価格表を作る」から、開始日を決めて登録します。</p>
     <hr class="mb-3">
+    {% include "includes/menu_week_alerts.html" %}
 
     <a href="{% url 'price_table_new' %}" class="btn btn-primary w-100 mb-3 d-md-none">＋ 新しい価格表を作る</a>
 

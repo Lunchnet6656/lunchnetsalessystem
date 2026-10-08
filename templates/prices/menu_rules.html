@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}判定ルール{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    {% include "prices/_menu_tabs.html" with tab="rules" %}
+    <p class="small text-muted">
+        初めて出たメニューは、上から順に見て、最初に当てはまったルールで仮に決めます（「要確認」になります）。値段の種類と容器は、それぞれ別に探します。<br>
+        どれにも当てはまらないときは「通常・黒容器」で仮に決めます。<br>
+        ルールを変えても、もう覚えているメニューは変わりません。
+    </p>
+    {% if rules %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>並び</th><th>メニュー名にこの言葉があれば</th><th>値段の種類</th><th>容器</th><th></th></tr></thead>
+        <tbody>
+        {% for rule in rules %}
+        <tr>
+            <td class="text-nowrap">
+                <form method="POST" class="d-inline">{% csrf_token %}<input type="hidden" name="rule" value="{{ rule.pk }}">
+                    <button class="btn btn-sm btn-link p-0" name="action" value="up" {% if forloop.first %}disabled{% endif %}>↑</button>
+                    <button class="btn btn-sm btn-link p-0" name="action" value="down" {% if forloop.last %}disabled{% endif %}>↓</button>
+                </form>
+            </td>
+            <td>{{ rule.keyword }}</td>
+            <td>{{ rule.rank.name|default:"（決めない）" }}</td>
+            <td>{{ rule.container|default:"（決めない）" }}</td>
+            <td>
+                <form method="POST" class="d-inline">{% csrf_token %}<input type="hidden" name="rule" value="{{ rule.pk }}">
+                    <button class="btn btn-sm btn-outline-danger" name="action" value="delete">消す</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-muted">ルールがありません。初めてのメニューはすべて「通常・黒容器」で仮に決めます。</p>
+    {% endif %}
+
+    <h2 class="h6 mt-4">ルールを足す</h2>
+    <form method="POST" class="row g-2 align-items-end">{% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <div class="col-12 col-md-4"><label class="form-label small" for="keyword">メニュー名にこの言葉があれば</label>
+            <input type="text" id="keyword" name="keyword" class="form-control form-control-sm" maxlength="50" placeholder="例：ロコモコ"></div>
+        <div class="col-6 col-md-3"><label class="form-label small" for="rank">値段の種類</label>
+            <select id="rank" name="rank" class="form-select form-select-sm"><option value="">（決めない）</option>
+            {% for r in ranks %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
+        <div class="col-6 col-md-3"><label class="form-label small" for="container">容器</label>
+            <select id="container" name="container" class="form-select form-select-sm"><option value="">（決めない）</option>
+            {% for c in containers %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-12 col-md-2"><button class="btn btn-sm btn-primary w-100">＋ ルールを足す</button></div>
+    </form>
+
+    <h2 class="h6 mt-4">ためしてみる</h2>
+    <form method="GET" class="d-flex gap-2 mb-2" style="max-width:480px;">
+        <input type="text" name="try" value="{{ trial }}" class="form-control form-control-sm" placeholder="メニュー名を入れる">
+        <button class="btn btn-sm btn-outline-secondary text-nowrap">判定する</button>
+    </form>
+    {% if result %}
+    <p class="small mb-5">
+        →「{{ trial }}」は、値段の種類は{% if result.rank_rule %}「{{ result.rank_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.rank.name }}」、
+        容器は{% if result.container_rule %}「{{ result.container_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.container }}」。（辞書にない名前なら、要確認として登録されます）
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -9,24 +9,13 @@
 - 容器：最後に出たときの容器（「黒容器など」「ごはん容器」の表記ゆれはそろえる）。一覧にない容器は黒容器にして「要確認」
 - 実際にその値段・容器で売っていたので、決めきれたものは「確認済み」
 """
-import datetime
 from collections import Counter, defaultdict
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from sales.menu_registry import CONTAINER_ALIASES, normalize_name
+from sales.menu_registry import CONTAINER_ALIASES, normalize_name, parse_week
 from sales.models import CONTAINER_CHOICES, MenuProfile, PriceRank, Product
-
-
-def parse_week(text):
-    text = str(text).strip()
-    for fmt in ("%Y-%m-%d", "%Y%m%d"):
-        try:
-            return datetime.datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None
 
 
 class Command(BaseCommand):

@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}メニュー辞書{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    {% include "prices/_menu_tabs.html" with tab="menus" %}
+
+    <div class="card mb-4">
+        <div class="card-header fw-bold">要確認 {{ needs_check|length }}件</div>
+        <div class="card-body p-2">
+        {% if needs_check %}
+            <p class="small text-muted mb-2">ルールで仮に決めたメニューです。種類と容器を確かめて「確認済みにする」を押してください。</p>
+            <form method="POST">{% csrf_token %}
+            <div class="table-responsive">
+            <table class="table table-sm align-middle mb-2">
+                <thead><tr><th>メニュー名</th><th>値段の種類</th><th>容器</th><th>初めて出た週</th><th></th></tr></thead>
+                <tbody>
+                {% for profile in needs_check %}
+                <tr class="pm-row-attention">
+                    <td>{{ profile.name }}<input type="hidden" name="profile" value="{{ profile.pk }}"></td>
+                    <td>{% include "prices/_profile_selects.html" %}</td>
+                    <td><select name="container_{{ profile.pk }}" class="form-select form-select-sm" aria-label="容器">
+                        {% for c in containers %}<option value="{{ c }}" {% if c == profile.container %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                    </select></td>
+                    <td class="text-nowrap">{% if profile.first_seen %}{{ profile.first_seen|date:"n/j" }}週{% endif %}</td>
+                    <td><button class="btn btn-sm btn-primary text-nowrap" name="confirm_one" value="{{ profile.pk }}">確認済みにする</button></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            <div class="text-end"><button class="btn btn-sm btn-outline-primary" name="action" value="confirm_all">表示中の{{ needs_check|length }}件をまとめて確認済みにする</button></div>
+            </form>
+        {% else %}
+            <p class="pm-confirmed mb-0">要確認のメニューはありません。</p>
+        {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h2 class="h5 mb-0">全メニュー（{{ total }}件）</h2>
+        <form method="GET" class="d-flex gap-2">
+            <input type="search" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="メニュー名で探す">
+            <button class="btn btn-sm btn-outline-secondary text-nowrap">探す</button>
+        </form>
+    </div>
+    {% if page.object_list %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>メニュー名</th><th>値段の種類</th><th>容器</th><th>最後に出た週</th><th></th></tr></thead>
+        <tbody>
+        {% for profile in page.object_list %}
+        {% if profile.pk == edit_id %}
+        <tr><td colspan="5">
+            <form method="POST" class="row g-2 align-items-center">{% csrf_token %}
+                <div class="col-12 col-md-3 fw-bold">{{ profile.name }}</div>
+                <div class="col-6 col-md-3">{% include "prices/_profile_selects.html" %}</div>
+                <div class="col-6 col-md-3"><select name="container_{{ profile.pk }}" class="form-select form-select-sm">
+                    {% for c in containers %}<option value="{{ c }}" {% if c == profile.container %}selected{% endif %}>{{ c }}</option>{% endfor %}
+                </select></div>
+                <div class="col-12 col-md-3 d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" name="profile" value="{{ profile.pk }}">保存</button>
+                    <a href="?q={{ query|urlencode }}&page={{ page.number }}" class="btn btn-sm btn-outline-secondary">やめる</a>
+                </div>
+            </form>
+        </td></tr>
+        {% else %}
+        <tr {% if not profile.confirmed %}class="pm-row-attention"{% endif %}>
+            <td>{{ profile.name }}{% if not profile.confirmed %} <span class="badge bg-danger">要確認</span>{% endif %}</td>
+            <td>{{ profile.rank.name }}</td>
+            <td>{{ profile.container }}</td>
+            <td class="text-nowrap">{% if profile.last_seen %}{{ profile.last_seen|date:"n/j" }}週{% endif %}</td>
+            <td><a href="?q={{ query|urlencode }}&page={{ page.number }}&edit={{ profile.pk }}" class="btn btn-sm btn-outline-secondary">直す</a></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% if page.has_other_pages %}
+    <nav class="d-flex justify-content-center gap-2 mb-5">
+        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?q={{ query|urlencode }}&page={{ page.previous_page_number }}">« 前</a>{% endif %}
+        <span class="small align-self-center">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?q={{ query|urlencode }}&page={{ page.next_page_number }}">次 »</a>{% endif %}
+    </nav>
+    {% endif %}
+    {% elif query %}
+    <p class="text-muted">『{{ query }}』に当てはまるメニューはありません。</p>
+    {% else %}
+    <p class="text-muted">まだメニューがありません。『メニュー送信.xlsm』で送ると、ここに増えます。</p>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// 種類を選ぶと、その種類の今の値段を下に出す（どの種類にするかの判断材料）
+document.querySelectorAll('.pm-dict-rank').forEach(function (select) {
+    var show = function () {
+        var opt = select.options[select.selectedIndex];
+        select.parentElement.querySelector('.pm-dict-prices').textContent = opt.getAttribute('data-prices') || '';
+    };
+    select.addEventListener('change', show);
+    show();
+});
+</script>
+{% endblock %}

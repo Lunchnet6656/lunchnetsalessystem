@@ -1,0 +1,5 @@
+{# 1メニュー分の値段の種類のプルダウン（辞書画面）。r.prices_text は今の値段の文字 #}
+<select name="rank_{{ profile.pk }}" class="form-select form-select-sm pm-dict-rank" aria-label="値段の種類">
+    {% for r in ranks %}<option value="{{ r.id }}" data-prices="{{ r.prices_text }}" {% if r.id == profile.rank_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+</select>
+<div class="small text-muted pm-dict-prices"></div>
