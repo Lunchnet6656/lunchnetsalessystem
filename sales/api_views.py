@@ -4,7 +4,9 @@
 ログイン画面を経由できない（VBAから直接叩く）ため、セッションではなく Bearer トークンで認証する。
 """
 import csv
+import datetime
 import io
+import json
 import logging
 import secrets
 
@@ -16,7 +18,10 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from django.urls import reverse
+
 from sales.item_quantity_import import parse_item_quantity_workbook, save_item_quantities
+from sales.menu_registry import MENU_SLOTS, WEEK_START_WEEKDAY, register_week, week_end
 from sales.menu_history import COLUMNS, build_menu_history
 from sales.models import ItemQuantityUpload
 
@@ -119,3 +124,62 @@ def _json(data, status=200):
         lines += [f"・{e}" for e in data["errors"]]
     data["message"] = "\n".join(lines)
     return JsonResponse(data, status=status, json_dumps_params={"ensure_ascii": False})
+
+
+# ===== メニュー送信（元のメニュー表の「メニュー送信.xlsm」から） =====
+# 仕様: .company/engineering/harness/specs/lunchnetsale-価格と割引のマスタ化-要件定義.md §8.3
+CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫"
+
+
+def _menu_reply(ok, message, status=200, **extra):
+    # VBA は message をそのまま表示する（文言をアプリ側で直せるように）
+    return JsonResponse({"ok": ok, "message": message, **extra}, status=status,
+                        json_dumps_params={"ensure_ascii": False})
+
+
+def _refuse(message, status=422):
+    return _menu_reply(False, "送りませんでした。\n" + message, status=status)
+
+
+@csrf_exempt
+@require_POST
+def api_menu(request):
+    """本文はJSON：{"week": "2026-10-14", "menus": ["①の名前", …, "⑩の名前"], "extra": ["⑪", "⑫"]}"""
+    if not _authorized(request):
+        return _menu_reply(False, "送れませんでした。\n認証に失敗しました（合言葉ファイルを確認してください）", status=401)
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+        week = datetime.date.fromisoformat(str(body.get("week", "")))
+    except (ValueError, UnicodeDecodeError):
+        return _refuse("送られてきた内容を読めませんでした。開発部に連絡してください。", status=400)
+
+    label = f"{week.month}/{week.day}週"
+    if week.weekday() != WEEK_START_WEEKDAY:
+        return _refuse(f"『{week:%Y%m%d}』は水曜日ではありません。週のシート名は水曜日の日付です。")
+    today = timezone.localdate()
+    if week_end(week) < today:
+        return _refuse(f"{label}はもう終わっています。終わった週のメニューは変えられません。")
+
+    menus = [str(m or "").strip() for m in (body.get("menus") or [])]
+    menus += [""] * (MENU_SLOTS - len(menus))
+    blanks = [CIRCLED[i] for i, m in enumerate(menus[:MENU_SLOTS]) if not m]
+    if blanks or len(menus) > MENU_SLOTS:
+        if blanks:
+            return _refuse(f"メニューの欄が空いています：{'・'.join(blanks)}\n"
+                           "空いたまま送ると、メニューの番号がズレて登録されてしまうためです。")
+        return _refuse("メニューが10品より多く送られてきました。開発部に連絡してください。")
+    extra = [(CIRCLED[MENU_SLOTS + i], str(m).strip()) for i, m in enumerate(body.get("extra") or []) if str(m or "").strip()]
+    if extra:
+        return _refuse(f"⑪⑫の欄にメニューが入っています（{'、'.join(f'{c}：{n}' for c, n in extra)}）。\n"
+                       "⑪⑫はまだアプリが対応していません。開発部に連絡してください。")
+
+    result = register_week(week, menus)
+    lines = [f"{label} {len(result.products)}品を登録しました（要確認 {len(result.needs_check)}品）。"]
+    if result.state == "selling":
+        lines.append("販売中の週を上書きしました。これから入力する日計表のメニューが変わります。")
+    lines.append("確認画面を開きます。種類・容器・値段を確かめて『確認しました』を押してください。")
+    logger.info("メニュー受信 %s：%d品（要確認 %d品・%s）", week, len(result.products), len(result.needs_check),
+                result.state)
+    return _menu_reply(True, "\n".join(lines), week=week.isoformat(), saved_count=len(result.products),
+                       needs_check=result.needs_check, state=result.state,
+                       url=request.build_absolute_uri(reverse("menu_week_detail", args=[week.isoformat()])))

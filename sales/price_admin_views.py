@@ -249,3 +249,10 @@ def discount_cancel_plan(request, pk):
 def discount_move(request, pk, step):
     pa.move_item(get_object_or_404(DiscountItem, pk=pk), -1 if step == "up" else 1, timezone.localdate())
     return redirect("discount_item_list")
+
+
+# ===== 週のメニュー確認（S4-3で中身を作る） =====
+
+@price_master_required
+def menu_week_detail(request, week):
+    return render(request, "prices/menu_week_detail.html", {"week": week})
