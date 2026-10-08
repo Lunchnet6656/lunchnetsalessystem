@@ -112,3 +112,17 @@ class BuildMenuDictionaryTest(TestCase):
         MenuProfile.objects.create(name="唐揚げ", rank=otegoro, container="一体型", confirmed=True)
         self.run_command("--apply")
         self.assertEqual(MenuProfile.objects.get(name="唐揚げ").rank, otegoro)
+
+
+class BuildDictionaryRuleCrossCheckTest(TestCase):
+    """10/1の値上げ前はチャーハンも通常と同じ値段だった。昔の値段だけで「通常」にすると、今のお手頃を間違える。"""
+
+    def test_rule_disagreement_becomes_needs_check(self):
+        for no, name, price, container in [(1, "唐揚げ", 600, "黒容器"), (2, "生姜焼き", 600, "黒容器"),
+                                           (10, "海鮮チャーハン", 600, "黒容器")]:
+            Product.objects.create(week="2026-04-15", no=no, name=name, price_A=price, price_B=0, price_C=0,
+                                   container_type=container)
+        call_command("build_menu_dictionary", "--apply", stdout=io.StringIO())
+        chahan = MenuProfile.objects.get(name="海鮮チャーハン")
+        self.assertEqual((chahan.rank.name, chahan.container, chahan.confirmed), ("お手頃", "黒容器", False))
+        self.assertTrue(MenuProfile.objects.get(name="唐揚げ").confirmed)
