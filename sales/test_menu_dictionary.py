@@ -73,7 +73,7 @@ class MenuRulesTest(TestCase):
         self.assertEqual(rules.index("ロコモコ"), len(rules) - 2)
         res = self.client.get("/menus/rules/?try=ロコモコ丼")
         self.assertContains(res, "「ロコモコ」のルールで「一体型」")
-        self.assertContains(res, "どのルールでも決まらないので「通常」")
+        self.assertContains(res, "一致するルールがないため「通常」")
         self.client.post("/menus/rules/", {"action": "delete", "rule": rule.pk})
         self.assertFalse(ClassifyRule.objects.filter(keyword="ロコモコ").exists())
 

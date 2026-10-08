@@ -34,23 +34,23 @@ Public Sub メニュー送信()
     stepName = "元のメニュー表を開く"
     Set book = メニュー表を開く(openedHere)
     If book Is Nothing Then
-        MsgBox "送りませんでした。" & vbCrLf & "元のメニュー表が開けませんでした：" & vbCrLf & MENU_BOOK & vbCrLf & _
-               "ファイルの場所が変わっていないか確かめてください。", vbExclamation, MSG_TITLE
+        MsgBox "送信を中止しました。" & vbCrLf & "元のメニュー表を開けませんでした：" & vbCrLf & MENU_BOOK & vbCrLf & _
+               "ファイルの保存場所を確認してください。", vbExclamation, MSG_TITLE
         Exit Sub
     End If
 
     Do
         stepName = "週のシートを読む"
         If Not シートがある(book, Format(weekDate, "yyyymmdd")) Then
-            MsgBox "送りませんでした。" & vbCrLf & "『" & Format(weekDate, "yyyymmdd") & "』のシートが元のメニュー表にありません。" & vbCrLf & _
-                   "シート名（週の初日・水曜の日付）を確かめてください。", vbExclamation, MSG_TITLE
+            MsgBox "送信を中止しました。" & vbCrLf & "『" & Format(weekDate, "yyyymmdd") & "』のシートが元のメニュー表にありません。" & vbCrLf & _
+                   "シート名（週の初日・水曜の日付）を確認してください。", vbExclamation, MSG_TITLE
             GoTo Finish
         End If
         If Not メニューを読む(book.Sheets(Format(weekDate, "yyyymmdd")), names, extra) Then GoTo Finish
 
-        answer = MsgBox(Format(weekDate, "m/d(aaa)") & "週のメニュー" & MENU_SLOTS & "品をアプリに送ります。" & vbCrLf & _
-                        メニューの一覧(names) & vbCrLf & "（大盛りごはんはアプリが自動で足します）" & vbCrLf & vbCrLf & _
-                        "［はい］送る　［いいえ］別の週を選ぶ　［キャンセル］やめる", vbYesNoCancel + vbQuestion, MSG_TITLE)
+        answer = MsgBox(Format(weekDate, "m/d(aaa)") & "週のメニュー" & MENU_SLOTS & "品をアプリに送信します。" & vbCrLf & _
+                        メニューの一覧(names) & vbCrLf & "（大盛りごはんはアプリで自動追加されます）" & vbCrLf & vbCrLf & _
+                        "［はい］送信　［いいえ］別の週を選択　［キャンセル］中止", vbYesNoCancel + vbQuestion, MSG_TITLE)
         If answer = vbCancel Then GoTo Finish
         If answer = vbYes Then Exit Do
         If Not 別の週を選ぶ(weekDate) Then GoTo Finish
@@ -59,11 +59,11 @@ Public Sub メニュー送信()
     stepName = "合言葉の読み込み"
     token = 合言葉を読む()
     If token = "" Then
-        MsgBox "送れませんでした。" & vbCrLf & "合言葉ファイルが見つかりません：" & vbCrLf & LSS_FOLDER & TOKEN_FILE, vbExclamation, MSG_TITLE
+        MsgBox "送信できませんでした。" & vbCrLf & "合言葉ファイルが見つかりません：" & vbCrLf & LSS_FOLDER & TOKEN_FILE, vbExclamation, MSG_TITLE
         GoTo Finish
     End If
 
-    Application.StatusBar = "メニューをアプリに送っています…"
+    Application.StatusBar = "メニューを送信中…"
     stepName = "アプリへの送信"
     ok = 送信(送る内容(weekDate, names, extra), token, message, url)
     Application.StatusBar = False
@@ -81,7 +81,7 @@ Public Sub メニュー送信()
     On Error Resume Next
     ThisWorkbook.FollowHyperlink url
     If Err.Number <> 0 Or url = "" Then
-        MsgBox "メニューは登録できています。確認画面だけ開けませんでした。" & vbCrLf & _
+        MsgBox "メニューは登録済みです。確認画面を開けませんでした。" & vbCrLf & _
                "LSSの『週のメニュー確認』から" & Format(weekDate, "m/d") & "週を開いてください。", vbExclamation, MSG_TITLE
     End If
     On Error GoTo ErrHandler
@@ -94,8 +94,8 @@ Finish:
 ErrHandler:
     Application.StatusBar = False
     Application.ScreenUpdating = True
-    MsgBox "送れませんでした。" & vbCrLf & "止まった所: " & stepName & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）" & vbCrLf & vbCrLf & _
-           "急ぐときは、LSSの『データアップロード』から今までのExcelでアップロードできます。", vbExclamation, MSG_TITLE
+    MsgBox "送信できませんでした。" & vbCrLf & "停止箇所: " & stepName & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）" & vbCrLf & vbCrLf & _
+           "急ぎの場合は、LSSの『データアップロード』から従来のExcelでアップロードしてください。", vbExclamation, MSG_TITLE
     On Error Resume Next
     If openedHere Then book.Close SaveChanges:=False
 End Sub
@@ -155,14 +155,14 @@ Private Function メニューを読む(ws As Worksheet, names() As String, extra() As S
         If extra(i) <> "" Then used = used & 丸数字(MENU_SLOTS + i) & "：" & extra(i) & "　"
     Next i
     If blanks <> "" Then
-        MsgBox "送りませんでした。" & vbCrLf & "メニューの欄が空いています：" & blanks & vbCrLf & _
-               "空いたまま送ると、メニューの番号がズレて登録されてしまうためです。" & vbCrLf & _
-               "元のメニュー表に入れてから、もう一度[メニュー送信]を押してください。", vbExclamation, MSG_TITLE
+        MsgBox "送信を中止しました。" & vbCrLf & "メニューの欄が空欄です：" & blanks & vbCrLf & _
+               "空欄のまま送信すると、メニューの番号がずれて登録されるため送信できません。" & vbCrLf & _
+               "元のメニュー表に入力してから、再度［メニュー送信］を押してください。", vbExclamation, MSG_TITLE
         Exit Function
     End If
     If used <> "" Then
-        MsgBox "送りませんでした。" & vbCrLf & "⑪⑫の欄にメニューが入っています（" & used & "）。" & vbCrLf & _
-               "⑪⑫はまだアプリが対応していません。開発部に連絡してください。", vbExclamation, MSG_TITLE
+        MsgBox "送信を中止しました。" & vbCrLf & "⑪⑫の欄にメニューが入力されています（" & used & "）。" & vbCrLf & _
+               "⑪⑫は現在アプリが対応していません。開発部に連絡してください。", vbExclamation, MSG_TITLE
         Exit Function
     End If
     メニューを読む = True
@@ -187,15 +187,15 @@ Private Function 別の週を選ぶ(ByRef weekDate As Date) As Boolean
     Dim text As String
     Dim d As Date
 
-    text = InputBox("送る週のシート名を入れてください（例：" & Format(weekDate + 7, "yyyymmdd") & "）", MSG_TITLE, Format(weekDate, "yyyymmdd"))
+    text = InputBox("送信する週のシート名を入力してください（例：" & Format(weekDate + 7, "yyyymmdd") & "）", MSG_TITLE, Format(weekDate, "yyyymmdd"))
     If text = "" Then Exit Function
     If Len(text) <> 8 Or Not IsNumeric(text) Then
-        MsgBox "送りませんでした。" & vbCrLf & "『" & text & "』は週のシート名として読めません（例：20261021）。", vbExclamation, MSG_TITLE
+        MsgBox "送信を中止しました。" & vbCrLf & "『" & text & "』は週のシート名として認識できません（例：20261021）。", vbExclamation, MSG_TITLE
         Exit Function
     End If
     d = DateSerial(CInt(Left(text, 4)), CInt(Mid(text, 5, 2)), CInt(Right(text, 2)))
     If Weekday(d) <> vbWednesday Then
-        MsgBox "送りませんでした。" & vbCrLf & "『" & text & "』は水曜日ではありません。週のシート名は水曜日の日付です。", vbExclamation, MSG_TITLE
+        MsgBox "送信を中止しました。" & vbCrLf & "『" & text & "』は水曜日ではありません。週のシート名は水曜日の日付です。", vbExclamation, MSG_TITLE
         Exit Function
     End If
     weekDate = d
@@ -267,12 +267,12 @@ Private Function 送信(ByVal json As String, ByVal token As String, ByRef message
     respText = 返事を読む(http)
     message = 値を取り出す(respText, "message")
     url = 値を取り出す(respText, "url")
-    If message = "" Then message = "アプリから想定外の返事がありました（" & http.Status & "）"
+    If message = "" Then message = "アプリから想定外の応答がありました（" & http.Status & "）"
     送信 = (http.Status = 200)
     Exit Function
 
 NetError:
-    message = "メニューをアプリに送れませんでした（インターネットの接続か、合言葉ファイルの中身を確認してください）。" & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）"
+    message = "メニューを送信できませんでした（インターネット接続、または合言葉ファイルの内容を確認してください）。" & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）"
     送信 = False
 End Function
 

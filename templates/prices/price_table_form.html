@@ -5,7 +5,7 @@
 <div class="container mt-4">
     <h1 class="h3">{% if editing %}価格表の編集（{{ editing.valid_from|date:"n/j" }}から）{% else %}価格表の新規作成{% endif %}</h1>
     <p class="text-muted small mb-3">
-        {% if editing %}開始待ちの価格表です。直すマスを変えてください。{% else %}今の価格表をコピーしました。変わるマスだけ直して、開始日を入れてください。{% endif %}
+        {% if editing %}開始前の価格表です。変更するマスを編集してください。{% else %}現在の価格表をコピーしました。変更するマスを編集し、開始日を入力してください。{% endif %}
     </p>
     <hr class="mb-3">
 
@@ -23,7 +23,7 @@
             <div class="col-12 col-md-auto">
                 <input type="date" id="valid_from" name="valid_from" class="form-control" value="{{ valid_from }}" required style="font-size:16px;">
             </div>
-            <div class="col-12 col-md text-muted small">この日の日計表から新しい値段になります</div>
+            <div class="col-12 col-md text-muted small">この日の日計表から新しい値段が適用されます</div>
         </div>
         <div class="row mb-3 g-2 align-items-center">
             <div class="col-12 col-md-auto"><label for="note" class="form-label mb-0 fw-bold">メモ</label></div>
@@ -58,7 +58,7 @@
                                    class="form-control pm-price-input {% if cell.changed %}pm-diff-cell{% endif %} {% if cell.invalid %}is-invalid{% endif %}">
                             <span>円</span>
                         </div>
-                        {% if cell.base is not None %}<div class="pm-was">今 {{ cell.base }}</div>{% endif %}
+                        {% if cell.base is not None %}<div class="pm-was">現在 {{ cell.base }}</div>{% endif %}
                     </td>
                     {% endfor %}
                 </tr>

@@ -13,9 +13,9 @@
             <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="group" id="g_refund" value="refund" {% if post.group == "refund" %}checked{% endif %}><label class="form-check-label" for="g_refund">割引・返金</label></div>
         </div>
         <div class="mb-3">
-            <label class="form-label" for="label">項目の名前</label>
+            <label class="form-label" for="label">項目名</label>
             <input type="text" id="label" name="label" class="form-control" maxlength="50" value="{{ post.label }}" placeholder="例：半額">
-            <div class="form-text">日計表の欄にこの名前で出ます</div>
+            <div class="form-text">日計表の欄名として表示されます</div>
         </div>
         <div class="mb-3">
             <div class="form-label">引く／足す</div>
@@ -33,7 +33,7 @@
             <label class="form-label" for="valid_from">開始日</label>
             <input type="date" id="valid_from" name="valid_from" class="form-control" value="{{ post.valid_from }}" style="max-width:220px;font-size:16px;">
         </div>
-        <p class="text-muted small">項目を足すと、日計表送信データ（CSV）の一番後ろに列が1つ増えます。一度増えた列は消えません。</p>
+        <p class="text-muted small">項目を追加すると、日計表送信データ（CSV）の末尾に列が1つ追加されます。追加した列は削除されません。</p>
         <div class="d-flex gap-2 justify-content-end">
             <a href="{% url 'discount_item_list' %}" class="btn btn-outline-secondary">戻る</a>
             <button class="btn btn-primary">確認</button>

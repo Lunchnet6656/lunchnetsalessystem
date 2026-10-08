@@ -9,7 +9,7 @@
         <div class="card-header fw-bold">要確認 {{ needs_check|length }}件</div>
         <div class="card-body p-2">
         {% if needs_check %}
-            <p class="small text-muted mb-2">ルールで仮に決めたメニューです。種類と容器を確かめて［確認］を押してください。</p>
+            <p class="small text-muted mb-2">判定ルールで仮設定されたメニューです。値段の種類と容器を確認し、［確認］を押してください。</p>
             <form method="POST">{% csrf_token %}
             <div class="table-responsive">
             <table class="table table-sm align-middle mb-2">
@@ -40,7 +40,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
         <h2 class="h5 mb-0">全メニュー（{{ total }}件）</h2>
         <form method="GET" class="d-flex gap-2">
-            <input type="search" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="メニュー名で探す">
+            <input type="search" name="q" value="{{ query }}" class="form-control form-control-sm" placeholder="メニュー名で検索">
             <button class="btn btn-sm btn-outline-secondary text-nowrap">検索</button>
         </form>
     </div>
@@ -87,7 +87,7 @@
     {% elif query %}
     <p class="text-muted">『{{ query }}』に当てはまるメニューはありません。</p>
     {% else %}
-    <p class="text-muted">まだメニューがありません。『メニュー送信.xlsm』で送ると、ここに増えます。</p>
+    <p class="text-muted">メニューが登録されていません。『メニュー送信.xlsm』から送信すると、ここに追加されます。</p>
     {% endif %}
 </div>
 {% endblock %}

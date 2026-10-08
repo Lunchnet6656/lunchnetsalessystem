@@ -87,7 +87,7 @@ class PriceTableScreenTest(TestCase):
 
     def test_list_shows_current_table(self, _):
         res = self.client.get("/prices/")
-        self.assertContains(res, "今の価格表（2026/10/1から）")
+        self.assertContains(res, "現在の価格表（2026/10/1から）")
         self.assertContains(res, "3か所")
         self.assertContains(res, "ご飯大盛りの追加料金")
 
@@ -107,7 +107,7 @@ class PriceTableScreenTest(TestCase):
         post = cell_post({("通常", "B"): 6500})
         res = self.client.post("/prices/confirm/", post)
         self.assertEqual(len(res.context["c"]["warnings"]), 1)
-        self.assertIn("今の10倍", res.context["c"]["warnings"][0])
+        self.assertIn("現在の10倍", res.context["c"]["warnings"][0])
         self.client.post("/prices/register/", post)  # チェックなし
         self.assertFalse(PriceTable.objects.filter(valid_from="2026-11-01").exists())
         self.client.post("/prices/register/", {**post, "checked": "1"})
@@ -127,7 +127,7 @@ class PriceTableScreenTest(TestCase):
         res = self.client.post("/prices/confirm/", cell_post(valid_from="2026-10-06"))
         self.assertIn("開始日に過去の日付は指定できません。過去の値段を変更する場合は開発部に相談してください。", res.context["errors"])
         res = self.client.post("/prices/confirm/", cell_post())
-        self.assertIn("今の価格表と同じ値段です。変更するマスを編集してください。", res.context["errors"])
+        self.assertIn("現在の価格表と同じ値段です。変更するマスを編集してください。", res.context["errors"])
         res = self.client.post("/prices/confirm/", cell_post({("通常", "A"): "0"}))
         self.assertIn("値段は1円以上の整数で入力してください。", res.context["errors"])
         res = self.client.post("/prices/confirm/", cell_post({("通常", "A"): 750}, valid_from="2026-10-01"))
@@ -182,7 +182,7 @@ class DiscountScreenTest(TestCase):
     def test_change_amount(self, _):
         post = {"amount": "120", "valid_from": "2026-11-01"}
         res = self.client.post(f"/discounts/{self.no_rice.pk}/change/", post)
-        self.assertContains(res, "11/1（日）から「なし」は ▲100円 → ▲120円 になります。10/31（土）までは ▲100円 のままです。")
+        self.assertContains(res, "11/1（日）から「なし」は ▲100円 → ▲120円 に変更されます。10/31（土）までは ▲100円 が適用されます。")
         self.assertEqual(DiscountItem.objects.filter(label="なし").count(), 1)  # 確認画面ではまだ保存しない
         self.client.post("/discounts/apply/", {**post, "action": "change", "item": self.no_rice.pk})
         self.assertEqual(self.labels_on(datetime.date(2026, 10, 31))[0], ("なし", -100))
@@ -203,7 +203,7 @@ class DiscountScreenTest(TestCase):
     def test_add_item_appears_from_start_and_in_csv(self, _):
         post = {"group": "rice", "label": "半額", "direction": "minus", "amount": "300", "valid_from": "2026-10-08"}
         res = self.client.post("/discounts/add/", post)
-        self.assertContains(res, "日計表送信データ（CSV）の一番後ろに『半額』の列が増えます。")
+        self.assertContains(res, "日計表送信データ（CSV）の末尾に『半額』の列が追加されます。")
         self.client.post("/discounts/apply/", {**post, "action": "add"})
         self.assertNotIn(("半額", -300), self.labels_on(datetime.date(2026, 10, 7)))
         self.assertIn(("半額", -300), self.labels_on(datetime.date(2026, 10, 8)))

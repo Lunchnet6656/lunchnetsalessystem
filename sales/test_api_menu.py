@@ -38,15 +38,15 @@ class ApiMenuTest(TestCase):
 
     def test_refusals(self, _):
         cases = [
-            ({"week": "2026-09-30", "menus": NAMES}, "9/30週はもう終わっています。"),
+            ({"week": "2026-09-30", "menus": NAMES}, "9/30週は終了しています。"),
             ({"week": "2026-10-15", "menus": NAMES}, "『20261015』は水曜日ではありません。"),
-            ({"week": "2026-10-14", "menus": NAMES[:3] + [""] + NAMES[4:]}, "メニューの欄が空いています：④"),
+            ({"week": "2026-10-14", "menus": NAMES[:3] + [""] + NAMES[4:]}, "メニューの欄が空欄です：④"),
             ({"week": "2026-10-14", "menus": NAMES, "extra": ["お子様ランチ", ""]}, "⑪：お子様ランチ"),
         ]
         for body, expected in cases:
             res = self.post(body)
             self.assertEqual(res.status_code, 422, expected)
-            self.assertIn("送りませんでした。", res.json()["message"])
+            self.assertIn("送信を中止しました。", res.json()["message"])
             self.assertIn(expected, res.json()["message"])
         self.assertFalse(Product.objects.exists())
 

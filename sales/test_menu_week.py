@@ -54,7 +54,7 @@ class MenuWeekScreenTest(TestCase):
         res = self.post_confirm({"rank_9": str(self.ranks["お手頃"].id)})
         self.assertContains(res, "確認：販売中の週です")
         self.assertContains(res, "No.9 ガパオライス　通常 → お手頃")
-        self.assertContains(res, "すでに送られた日計表（10/14（水）〜10/16（金）、1件）の値段は変わりません。")
+        self.assertContains(res, "すでに送られた日計表（10/14（水）〜10/16（金）、1件）の値段は変更されません。")
         self.assertFalse(MenuWeekCheck.objects.get(week=WEEK).is_confirmed)
         self.post_confirm({"rank_9": str(self.ranks["お手頃"].id), "selling_ok": "1"})
         self.assertTrue(MenuWeekCheck.objects.get(week=WEEK).is_confirmed)
@@ -68,7 +68,7 @@ class MenuWeekScreenTest(TestCase):
     @mock.patch("django.utils.timezone.localdate", return_value=datetime.date(2026, 10, 21))
     def test_ended_week_is_read_only(self, _):
         res = self.client.get(self.url)
-        self.assertContains(res, "この週は終わっています。見るだけです。")
+        self.assertContains(res, "この週は終了しています（閲覧のみ）。")
         self.assertNotContains(res, "確認完了")
         self.post_confirm()
         self.assertFalse(MenuWeekCheck.objects.get(week=WEEK).is_confirmed)
@@ -88,7 +88,7 @@ class MenuWeekScreenTest(TestCase):
         res = self.client.get("/menus/week/")
         labels = [w["label"] for w in res.context["weeks"]]
         self.assertEqual(labels[:2], ["10/14週", "10/7週"])
-        self.assertContains(self.client.get("/menus/week/2026-10-21/"), "10/21週のメニューはまだ届いていません。")
+        self.assertContains(self.client.get("/menus/week/2026-10-21/"), "10/21週のメニューは未受信です。")
 
     def test_permission(self):
         self.client.force_login(make_user("staff_only"))

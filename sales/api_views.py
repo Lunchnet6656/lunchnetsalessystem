@@ -138,7 +138,7 @@ def _menu_reply(ok, message, status=200, **extra):
 
 
 def _refuse(message, status=422):
-    return _menu_reply(False, "送りませんでした。\n" + message, status=status)
+    return _menu_reply(False, "送信を中止しました。\n" + message, status=status)
 
 
 @csrf_exempt
@@ -146,38 +146,38 @@ def _refuse(message, status=422):
 def api_menu(request):
     """本文はJSON：{"week": "2026-10-14", "menus": ["①の名前", …, "⑩の名前"], "extra": ["⑪", "⑫"]}"""
     if not _authorized(request):
-        return _menu_reply(False, "送れませんでした。\n認証に失敗しました（合言葉ファイルを確認してください）", status=401)
+        return _menu_reply(False, "送信できませんでした。\n認証に失敗しました（合言葉ファイルを確認してください）", status=401)
     try:
         body = json.loads(request.body.decode("utf-8"))
         week = datetime.date.fromisoformat(str(body.get("week", "")))
     except (ValueError, UnicodeDecodeError):
-        return _refuse("送られてきた内容を読めませんでした。開発部に連絡してください。", status=400)
+        return _refuse("送信データを読み込めませんでした。開発部に連絡してください。", status=400)
 
     label = f"{week.month}/{week.day}週"
     if week.weekday() != WEEK_START_WEEKDAY:
         return _refuse(f"『{week:%Y%m%d}』は水曜日ではありません。週のシート名は水曜日の日付です。")
     today = timezone.localdate()
     if week_end(week) < today:
-        return _refuse(f"{label}はもう終わっています。終わった週のメニューは変えられません。")
+        return _refuse(f"{label}は終了しています。終了した週のメニューは変更できません。")
 
     menus = [str(m or "").strip() for m in (body.get("menus") or [])]
     menus += [""] * (MENU_SLOTS - len(menus))
     blanks = [CIRCLED[i] for i, m in enumerate(menus[:MENU_SLOTS]) if not m]
     if blanks or len(menus) > MENU_SLOTS:
         if blanks:
-            return _refuse(f"メニューの欄が空いています：{'・'.join(blanks)}\n"
-                           "空いたまま送ると、メニューの番号がズレて登録されてしまうためです。")
-        return _refuse("メニューが10品より多く送られてきました。開発部に連絡してください。")
+            return _refuse(f"メニューの欄が空欄です：{'・'.join(blanks)}\n"
+                           "空欄のまま送信すると、メニューの番号がずれて登録されるため送信できません。")
+        return _refuse("メニューが10品を超えています。開発部に連絡してください。")
     extra = [(CIRCLED[MENU_SLOTS + i], str(m).strip()) for i, m in enumerate(body.get("extra") or []) if str(m or "").strip()]
     if extra:
-        return _refuse(f"⑪⑫の欄にメニューが入っています（{'、'.join(f'{c}：{n}' for c, n in extra)}）。\n"
-                       "⑪⑫はまだアプリが対応していません。開発部に連絡してください。")
+        return _refuse(f"⑪⑫の欄にメニューが入力されています（{'、'.join(f'{c}：{n}' for c, n in extra)}）。\n"
+                       "⑪⑫は現在アプリが対応していません。開発部に連絡してください。")
 
     result = register_week(week, menus)
     lines = [f"{label} {len(result.products)}品を登録しました（要確認 {len(result.needs_check)}品）。"]
     if result.state == "selling":
-        lines.append("販売中の週を上書きしました。これから入力する日計表のメニューが変わります。")
-    lines.append("確認画面を開きます。種類・容器・値段を確かめて［確認完了］を押してください。")
+        lines.append("販売中の週を上書きしました。これから入力する日計表のメニューが変更されます。")
+    lines.append("確認画面を開きます。値段の種類・容器・値段を確認し、［確認完了］を押してください。")
     logger.info("メニュー受信 %s：%d品（要確認 %d品・%s）", week, len(result.products), len(result.needs_check),
                 result.state)
     return _menu_reply(True, "\n".join(lines), week=week.isoformat(), saved_count=len(result.products),

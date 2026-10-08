@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container mt-4" style="max-width:640px;">
     <h1 class="h3">金額変更：{{ item.label }}</h1>
-    <p class="text-muted small">今の金額：{{ now }}（{{ item.valid_from|date:"Y/m/d" }}から）</p>
+    <p class="text-muted small">現在の金額：{{ now }}（{{ item.valid_from|date:"Y/m/d" }}から）</p>
     <hr>
     {% include "prices/_discount_errors.html" %}
     <form method="POST">{% csrf_token %}

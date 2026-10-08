@@ -7,31 +7,31 @@
     <hr class="mb-3">
 
     {% if c.is_today %}
-    <div class="alert alert-danger">開始日が今日です。今日すでに送られた日計表は、今の値段のままです。これから送る日計表から新しい値段になります。</div>
+    <div class="alert alert-danger">開始日が本日です。本日送信済みの日計表は現在の値段のままです。これから送信する日計表から新しい値段が適用されます。</div>
     {% endif %}
 
     <div class="pm-sentence mb-3">
-        <p class="mb-1">{{ c.start }}から、次の値段に変わります。</p>
-        {% if c.until %}<p>{{ c.until }}までは今の値段のままです。</p>{% endif %}
+        <p class="mb-1">{{ c.start }}から、次の値段に変更されます。</p>
+        {% if c.until %}<p>{{ c.until }}までは現在の値段が適用されます。</p>{% endif %}
         <ul>
             {% for line in c.lines %}<li>{{ line }}</li>{% endfor %}
         </ul>
-        <p>それ以外の{{ c.unchanged }}マスは変わりません。</p>
+        <p>それ以外の{{ c.unchanged }}マスは変更されません。</p>
         {% if c.coupons %}
-        <p class="mb-1">クーポン・サービスの欄も、{{ c.start }}から変わります。</p>
+        <p class="mb-1">クーポン・サービスの欄も、{{ c.start }}から変更されます。</p>
         <ul>{% for line in c.coupons %}<li>{{ line }}</li>{% endfor %}</ul>
         {% endif %}
         {% if c.mid_week %}
-        <p class="mb-0">{{ c.start }}は週の途中です。{{ c.week_start }}からの週のメニューは、{% if c.until %}{{ c.until }}まで今の値段、{% endif %}{{ c.start }}から新しい値段で売ります。</p>
+        <p class="mb-0">{{ c.start }}は週の途中です。{{ c.week_start }}からの週のメニューは、{% if c.until %}{{ c.until }}まで現在の値段、{% endif %}{{ c.start }}から新しい値段で販売します。</p>
         {% endif %}
     </div>
 
     {% for w in c.warnings %}<p class="pm-warning mb-1">⚠ {{ w }}</p>{% endfor %}
 
     <details class="my-3">
-        <summary>表で見る（今の価格表と並べて表示）</summary>
+        <summary>表で比較（現在の価格表と並べて表示）</summary>
         <div class="row g-3 mt-1">
-            <div class="col-md-6"><div class="small fw-bold mb-1">今</div>{% include "prices/_price_matrix.html" with rows=base_rows locations=locations %}</div>
+            <div class="col-md-6"><div class="small fw-bold mb-1">現在</div>{% include "prices/_price_matrix.html" with rows=base_rows locations=locations %}</div>
             <div class="col-md-6"><div class="small fw-bold mb-1">{{ c.start }}から</div>{% include "prices/_price_matrix.html" with rows=new_rows %}</div>
         </div>
     </details>

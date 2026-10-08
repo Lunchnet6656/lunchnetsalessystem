@@ -172,7 +172,7 @@ def price_table_cancel(request, pk):
         return redirect("price_table_list")
     return render(request, "prices/price_table_cancel.html", {
         "table": table, "start": pa.md(table.valid_from),
-        "base_label": f"{pa.md(base.valid_from)}からの価格表" if base else "今の価格表",
+        "base_label": f"{pa.md(base.valid_from)}からの価格表" if base else "現在の価格表",
     })
 
 
@@ -204,7 +204,7 @@ def _plan_from_post(request, today):
         return pa.plan_change(item, request.POST, today)
     if action == "end":
         return pa.plan_end(item, request.POST, today)
-    return ["操作が分かりませんでした。もう一度やり直してください。"], None
+    return ["操作を判別できませんでした。もう一度操作してください。"], None
 
 
 @price_master_required

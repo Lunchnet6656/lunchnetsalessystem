@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container mt-4">
     <h1 class="h3">週のメニュー確認</h1>
-    <p class="text-muted small">確認する週を選んでください。Excelの「メニュー送信」から来たときは、その週の画面が直接開きます。</p>
+    <p class="text-muted small">確認する週を選択してください。Excelの［メニュー送信］から開いた場合は、その週の画面が表示されます。</p>
     <hr>
     <div class="table-responsive">
     <table class="table table-sm align-middle">
@@ -15,7 +15,7 @@
             <td class="text-nowrap">{{ w.label }}（{% if w.state == "upcoming" %}開始前{% elif w.state == "selling" %}販売中{% else %}終了{% endif %}）</td>
             <td>
                 {% if w.legacy %}<span class="text-muted">—（古い登録方法）</span>
-                {% elif not w.has_menu %}<span class="text-muted">まだ届いていません</span>
+                {% elif not w.has_menu %}<span class="text-muted">未受信</span>
                 {% elif w.check and w.check.is_confirmed %}<span class="pm-confirmed">確認済み {{ w.check.confirmed_at|date:"n/j H:i" }}</span>
                 {% else %}<span class="badge bg-danger">未確認</span>{% endif %}
             </td>

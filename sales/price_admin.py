@@ -159,7 +159,7 @@ def validate_price_form(form, today, editing=None):
         form.errors.append(f"{md(form.valid_from)}から始まる価格表はすでに登録されています。")
     base = table_before(form.valid_from, exclude=editing)
     if not form.cell_errors and base is not None and cells_of(base) == form.cells:
-        form.errors.append("今の価格表と同じ値段です。変更するマスを編集してください。")
+        form.errors.append("現在の価格表と同じ値段です。変更するマスを編集してください。")
     return base
 
 
@@ -182,15 +182,15 @@ def confirmation(form, base, today, rank_list=None):
             if old == new:
                 unchanged += 1
                 continue
-            where = f"（{counts[pattern]}か所）" if counts[pattern] else "（今は使っている販売所がありません）"
+            where = f"（{counts[pattern]}か所）" if counts[pattern] else "（使用中の販売所なし）"
             name = "大盛りの追加料金" if not rank.is_bento else rank.name
             sign = "" if rank.is_bento else "＋"
-            old_text = f"{sign}{old:,}円" if old is not None else "（新しく設定）"
+            old_text = f"{sign}{old:,}円" if old is not None else "（新規設定）"
             lines.append(f"{name} の 価格{pattern}　{old_text} → {sign}{new:,}円{where}")
             if old and abs(new - old) / old >= BIG_CHANGE_RATIO:
                 ratio = new / old
-                how = f"今の{ratio:.0f}倍" if ratio >= 2 else f"今より{abs(new - old) / old:.0%}{'高い' if new > old else '安い'}"
-                warnings.append(f"{name} の 価格{pattern}　{old:,}円 → {new:,}円 は、{how}です。桁を確かめてください。")
+                how = f"現在の{ratio:.0f}倍" if ratio >= 2 else f"現在より{abs(new - old) / old:.0%}{'高い' if new > old else '安い'}"
+                warnings.append(f"{name} の 価格{pattern}　{old:,}円 → {new:,}円 は、{how}です。桁を確認してください。")
     coupons = []
     for pattern in PRICE_PATTERNS:
         before, after = _bento_tiers(rank_list, base_cells, pattern), _bento_tiers(rank_list, form.cells, pattern)
@@ -324,11 +324,11 @@ def plan_change(item, post, today):
     if _successor(item) or item.valid_to is not None:
         errors.append("この項目にはすでに予定があります。先に［予定取消］してください。")
     if amount is not None and amount == item.amount:
-        errors.append("今と同じ金額です。変更する金額を入力してください。")
+        errors.append("現在と同じ金額です。変更する金額を入力してください。")
     if errors:
         return errors, None
-    sentence = (f"{md(start)}から「{item.label}」は {yen(item)} → {yen(amount, item.direction)} になります。"
-                f"{md(start - datetime.timedelta(days=1))}までは {yen(item)} のままです。")
+    sentence = (f"{md(start)}から「{item.label}」は {yen(item)} → {yen(amount, item.direction)} に変更されます。"
+                f"{md(start - datetime.timedelta(days=1))}までは {yen(item)} が適用されます。")
     return [], {"action": "change", "item": item, "amount": amount, "valid_from": start, "sentence": sentence,
                 "summary": f"「{item.label}」の金額変更を登録しました（{md(start)}から {yen(item)} → {yen(amount, item.direction)}）"}
 
@@ -354,8 +354,8 @@ def plan_add(post, today):
         errors.append(f"『{GROUP_TITLES[group]}』にはすでに『{label}』があります。別の項目名を入力してください。")
     if errors:
         return errors, None
-    sentence = (f"{md(start)}から、日計表の『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』の欄が増えます。"
-                f"日計表送信データ（CSV）の一番後ろに『{label}』の列が増えます。")
+    sentence = (f"{md(start)}から、日計表の『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』の欄が追加されます。"
+                f"日計表送信データ（CSV）の末尾に『{label}』の列が追加されます。")
     return [], {"action": "add", "group": group, "label": label, "direction": direction, "amount": amount,
                 "valid_from": start, "sentence": sentence,
                 "summary": f"項目「{label}（{yen(amount, direction)}）」を追加しました（{GROUP_TITLES[group]}・{md(start)}から）"}
@@ -363,17 +363,17 @@ def plan_add(post, today):
 
 def plan_end(item, post, today):
     errors = []
-    last_day = _read_date(post.get("valid_to"), errors, label="最後の日")
+    last_day = _read_date(post.get("valid_to"), errors, label="終了日")
     if last_day and last_day < today:
-        errors.append("最後の日に過去の日付は指定できません。")
+        errors.append("終了日に過去の日付は指定できません。")
     if last_day and last_day < item.valid_from:
-        errors.append(f"最後の日は {md(item.valid_from)} 以降の日付を指定してください。")
+        errors.append(f"終了日は {md(item.valid_from)} 以降の日付を指定してください。")
     if item.valid_to is not None:
         errors.append("この項目にはすでに予定があります。先に［予定取消］してください。")
     if errors:
         return errors, None
-    sentence = (f"「{item.label}」の欄は {md(last_day)} の日計表まで出ます。"
-                f"{md(last_day + datetime.timedelta(days=1))}から出なくなります。それより前の日計表は変わりません。")
+    sentence = (f"「{item.label}」の欄は {md(last_day)} の日計表まで表示されます。"
+                f"{md(last_day + datetime.timedelta(days=1))}から表示されなくなります。それより前の日計表は変更されません。")
     return [], {"action": "end", "item": item, "valid_to": last_day, "sentence": sentence,
                 "summary": f"「{item.label}」の終了を登録しました（{md(last_day)}まで）"}
 

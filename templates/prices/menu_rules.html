@@ -5,9 +5,9 @@
 <div class="container mt-4">
     {% include "prices/_menu_tabs.html" with tab="rules" %}
     <p class="small text-muted">
-        初めて出たメニューは、上から順に見て、最初に当てはまったルールで仮に決めます（「要確認」になります）。値段の種類と容器は、それぞれ別に探します。<br>
-        どれにも当てはまらないときは「通常・黒容器」で仮に決めます。<br>
-        ルールを変えても、もう覚えているメニューは変わりません。
+        新しいメニューは、上から順に照合し、最初に一致したルールで仮設定します（状態は「要確認」）。値段の種類と容器は、それぞれ個別に照合します。<br>
+        どのルールにも一致しない場合は「通常・黒容器」で仮設定します。<br>
+        ルールを変更しても、登録済みのメニューには影響しません。
     </p>
     {% if rules %}
     <div class="table-responsive">
@@ -23,8 +23,8 @@
                 </form>
             </td>
             <td>{{ rule.keyword }}</td>
-            <td>{{ rule.rank.name|default:"（決めない）" }}</td>
-            <td>{{ rule.container|default:"（決めない）" }}</td>
+            <td>{{ rule.rank.name|default:"（指定なし）" }}</td>
+            <td>{{ rule.container|default:"（指定なし）" }}</td>
             <td>
                 <form method="POST" class="d-inline">{% csrf_token %}<input type="hidden" name="rule" value="{{ rule.pk }}">
                     <button class="btn btn-sm btn-outline-danger" name="action" value="delete">削除</button>
@@ -36,7 +36,7 @@
     </table>
     </div>
     {% else %}
-    <p class="text-muted">ルールがありません。初めてのメニューはすべて「通常・黒容器」で仮に決めます。</p>
+    <p class="text-muted">ルールがありません。新しいメニューはすべて「通常・黒容器」で仮設定します。</p>
     {% endif %}
 
     <h2 class="h6 mt-4">ルール追加</h2>
@@ -45,23 +45,23 @@
         <div class="col-12 col-md-4"><label class="form-label small" for="keyword">メニュー名にこの言葉があれば</label>
             <input type="text" id="keyword" name="keyword" class="form-control form-control-sm" maxlength="50" placeholder="例：ロコモコ"></div>
         <div class="col-6 col-md-3"><label class="form-label small" for="rank">値段の種類</label>
-            <select id="rank" name="rank" class="form-select form-select-sm"><option value="">（決めない）</option>
+            <select id="rank" name="rank" class="form-select form-select-sm"><option value="">（指定なし）</option>
             {% for r in ranks %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
         <div class="col-6 col-md-3"><label class="form-label small" for="container">容器</label>
-            <select id="container" name="container" class="form-select form-select-sm"><option value="">（決めない）</option>
+            <select id="container" name="container" class="form-select form-select-sm"><option value="">（指定なし）</option>
             {% for c in containers %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
         <div class="col-12 col-md-2"><button class="btn btn-sm btn-primary w-100">＋ 追加</button></div>
     </form>
 
     <h2 class="h6 mt-4">判定テスト</h2>
     <form method="GET" class="d-flex gap-2 mb-2" style="max-width:480px;">
-        <input type="text" name="try" value="{{ trial }}" class="form-control form-control-sm" placeholder="メニュー名を入れる">
+        <input type="text" name="try" value="{{ trial }}" class="form-control form-control-sm" placeholder="メニュー名を入力">
         <button class="btn btn-sm btn-outline-secondary text-nowrap">判定</button>
     </form>
     {% if result %}
     <p class="small mb-5">
-        →「{{ trial }}」は、値段の種類は{% if result.rank_rule %}「{{ result.rank_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.rank.name }}」、
-        容器は{% if result.container_rule %}「{{ result.container_rule.keyword }}」のルールで{% else %}どのルールでも決まらないので{% endif %}「{{ result.container }}」。（メニューデータベースにない名前なら、要確認として登録されます）
+        →「{{ trial }}」は、値段の種類は{% if result.rank_rule %}「{{ result.rank_rule.keyword }}」のルールで{% else %}一致するルールがないため{% endif %}「{{ result.rank.name }}」、
+        容器は{% if result.container_rule %}「{{ result.container_rule.keyword }}」のルールで{% else %}一致するルールがないため{% endif %}「{{ result.container }}」。（メニューデータベースに未登録の場合は、要確認として登録されます）
     </p>
     {% endif %}
 </div>

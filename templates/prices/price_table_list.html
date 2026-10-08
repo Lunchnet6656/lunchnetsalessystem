@@ -6,20 +6,20 @@
     <div class="d-flex justify-content-between align-items-center mb-2">
         <h1 class="h3 mb-0">価格表</h1>
     </div>
-    <p class="text-muted small mb-3">今の弁当の値段です。値上げは［新規作成］から、開始日を決めて登録します。</p>
+    <p class="text-muted small mb-3">現在の弁当の値段です。値上げする場合は、［新規作成］から開始日を指定して登録します。</p>
     <hr class="mb-3">
     {% include "includes/menu_week_alerts.html" %}
 
     <a href="{% url 'price_table_new' %}" class="btn btn-primary w-100 mb-3 d-md-none">＋ 新規作成</a>
 
     {% if not current and not nearest %}
-    <p class="text-muted">まだ価格表がありません。［新規作成］から最初の値段を登録してください。</p>
+    <p class="text-muted">価格表が登録されていません。［新規作成］から登録してください。</p>
     {% else %}
     <div class="row g-3">
         <div class="col-lg-6">
             <div class="card">
                 <div class="card-header fw-bold">
-                    {% if current %}今の価格表（{{ current.valid_from|date:"Y/n/j" }}から）{% else %}今の価格表はまだありません{% endif %}
+                    {% if current %}現在の価格表（{{ current.valid_from|date:"Y/n/j" }}から）{% else %}現在の価格表はありません{% endif %}
                 </div>
                 <div class="card-body p-2">
                     {% if current %}
@@ -32,17 +32,17 @@
         {% if nearest %}
         <div class="col-lg-6">
             <div class="card">
-                <div class="card-header fw-bold">開始待ち：{{ nearest.valid_from|date:"n/j" }}からの価格表</div>
+                <div class="card-header fw-bold">開始前：{{ nearest.valid_from|date:"n/j" }}からの価格表</div>
                 <div class="card-body p-2">
                     {% include "prices/_price_matrix.html" with rows=nearest_rows show_locations=False %}
                     {% if nearest.note %}<div class="small text-muted">メモ：{{ nearest.note }}</div>{% endif %}
-                    <div class="small text-muted mb-2">青いマスが変わります（あと{{ nearest_days }}日）</div>
+                    <div class="small text-muted mb-2">青いマスが変更されます（開始まで{{ nearest_days }}日）</div>
                     <a href="{% url 'price_table_edit' nearest.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>
                     <a href="{% url 'price_table_cancel' nearest.pk %}" class="btn btn-sm btn-outline-danger">取消</a>
                 </div>
             </div>
             {% for table in other_pending %}
-            <div class="small mt-2">ほかの開始待ち：{{ table.valid_from|date:"n/j" }}から
+            <div class="small mt-2">その他の開始前：{{ table.valid_from|date:"n/j" }}から
                 <a href="{% url 'price_table_edit' table.pk %}">編集</a></div>
             {% endfor %}
         </div>
@@ -88,7 +88,7 @@
             </tbody>
         </table>
         {% if not show_all_history %}<a href="?history=all" class="small">もっと見る</a>{% endif %}
-        {% else %}<p class="text-muted small mt-2">まだ変更はありません。</p>{% endif %}
+        {% else %}<p class="text-muted small mt-2">変更履歴はありません。</p>{% endif %}
     </details>
 </div>
 {% endblock %}

@@ -23,14 +23,14 @@ def build_message(week, products, check):
     label = f"{week.month}/{week.day}(水)週"
     if not products:
         return "\n".join([
-            f"【メニュー 未受信】{label}のメニューがまだアプリに届いていません。",
-            "元のメニュー表を仕上げたら、「メニュー送信.xlsm」の[メニュー送信]を押してください。",
+            f"【メニュー 未受信】{label}のメニューが未受信です。",
+            "元のメニュー表の完成後、「メニュー送信.xlsm」の［メニュー送信］を押してください。",
         ])
     names = [p.name for p in products if p.no != LARGE_RICE_NO]   # 大盛りごはんはアプリが足す行なので数えない
     needs = MenuProfile.objects.filter(name__in=names, confirmed=False).count()
     return "\n".join([
-        f"【メニュー 未確認】{label}のメニューがまだ確認されていません（要確認 {needs}品）。",
-        "LSSの「週のメニュー確認」で種類・容器・値段を確かめて、［確認完了］を押してください。",
+        f"【メニュー 未確認】{label}のメニューが未確認です（要確認 {needs}品）。",
+        "LSSの「週のメニュー確認」で値段の種類・容器・値段を確認し、［確認完了］を押してください。",
     ])
 
 

@@ -6,10 +6,10 @@
     <h1 class="h3">確認：販売中の週です</h1>
     <hr>
     <div class="pm-sentence mb-3">
-        <p>{{ label }}は販売中です。保存すると、日計表の値段が変わります。</p>
+        <p>{{ label }}は販売中です。保存すると、日計表の値段が変更されます。</p>
         <ul>{% for line in summary.lines %}<li>{{ line }}</li>{% endfor %}</ul>
-        <p>今日（{{ summary.today }}）から後に入力する日計表がこの内容になります。</p>
-        {% if summary.sent_range %}<p class="mb-0">すでに送られた日計表（{{ summary.sent_range }}、{{ summary.sent }}件）の値段は変わりません。</p>{% endif %}
+        <p>今日（{{ summary.today }}）以降に入力する日計表に、この内容が適用されます。</p>
+        {% if summary.sent_range %}<p class="mb-0">すでに送られた日計表（{{ summary.sent_range }}、{{ summary.sent }}件）の値段は変更されません。</p>{% endif %}
     </div>
     <form method="POST">{% csrf_token %}
         {% for name, value in post %}{% if name != "csrfmiddlewaretoken" %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endif %}{% endfor %}

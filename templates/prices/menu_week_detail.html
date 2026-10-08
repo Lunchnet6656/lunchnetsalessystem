@@ -13,7 +13,7 @@
 
     {% if not rows %}
     <hr>
-    <p class="text-muted">{{ label }}のメニューはまだ届いていません。元のメニュー表の『メニュー送信』ボタンで送ってください。</p>
+    <p class="text-muted">{{ label }}のメニューは未受信です。元のメニュー表の［メニュー送信］から送信してください。</p>
     {% else %}
     <div class="my-2">
         状態：
@@ -21,20 +21,20 @@
         <span class="pm-confirmed">確認済み {{ check.confirmed_at|date:"n/j H:i" }}{% if check.confirmed_by %} {{ check.confirmed_by.last_name }} {{ check.confirmed_by.first_name }}{% endif %}</span>
         {% elif legacy %}<span class="text-muted">—（古い登録方法）</span>
         {% else %}<span class="badge bg-danger">未確認</span>{% endif %}
-        {% if check and check.received_at %}<span class="small text-muted ms-2">{{ check.received_at|date:"n/j H:i" }} にExcelから届きました（{{ check.received_count }}品）</span>{% endif %}
+        {% if check and check.received_at %}<span class="small text-muted ms-2">{{ check.received_at|date:"n/j H:i" }} にExcelから受信（{{ check.received_count }}品）</span>{% endif %}
     </div>
     {% if check and check.resent_after_confirm %}
-    <div class="alert alert-info">確認済みのあとでExcelから送り直されたため、もう一度確認してください。</div>
+    <div class="alert alert-info">確認済みの後にExcelから再送信されました。再度確認してください。</div>
     {% endif %}
     {% if state == "ended" %}
-    <div class="p-2 mb-2 pm-ended">この週は終わっています。見るだけです。</div>
+    <div class="p-2 mb-2 pm-ended">この週は終了しています（閲覧のみ）。</div>
     {% elif state == "selling" %}
-    <div class="alert alert-warning py-2">この週は販売中です。種類や容器を変えると、これから入力する日計表の値段が変わります。</div>
+    <div class="alert alert-warning py-2">この週は販売中です。値段の種類や容器を変更すると、これから入力する日計表の値段が変更されます。</div>
     {% endif %}
     {% if legacy %}
     <p class="text-muted">この週は古い登録方法のため、ここでは直せません。</p>
     {% elif state != "ended" %}
-    <p class="text-muted small">種類・容器・値段を確かめて、一番下の［確認完了］を押してください。</p>
+    <p class="text-muted small">値段の種類・容器・値段を確認し、画面下の［確認完了］を押してください。</p>
     {% endif %}
     {% if missing_price %}
     <div class="alert alert-danger">価格表に値段がない種類があります。<a href="{% url 'price_table_list' %}" class="alert-link">価格表を見る</a></div>
@@ -50,7 +50,7 @@
             </thead>
             <tbody>
             {% if needs_check_count %}
-                <tr class="pm-w-heading"><td colspan="7" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（初めて出たメニューです。種類と容器を決めてください）</td></tr>
+                <tr class="pm-w-heading"><td colspan="7" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（新しいメニューです。値段の種類と容器を選択してください）</td></tr>
             {% endif %}
             {% for row in rows %}
                 {% if needs_check_count and not row.needs_check %}{% ifchanged row.needs_check %}
@@ -87,15 +87,15 @@
             </tbody>
         </table>
         </div>
-        {% if multi_segment %}<p class="small text-muted mb-1">週の途中で新しい価格表になるため、値段を2段で出しています。</p>{% endif %}
-        <p class="small text-muted">メニュー名を直すときは、元のメニュー表（Excel）を直して送り直してください。</p>
+        {% if multi_segment %}<p class="small text-muted mb-1">週の途中で価格表が切り替わるため、値段を2段で表示しています。</p>{% endif %}
+        <p class="small text-muted">メニュー名を変更する場合は、元のメニュー表（Excel）を修正して再送信してください。</p>
 
         {% if state != "ended" and not legacy %}
         <div class="border rounded p-3 my-4 text-center">
             <button type="submit" class="btn {% if check and check.is_confirmed %}btn-outline-primary{% else %}btn-primary{% endif %} w-100 py-3" id="confirm-button">
                 {% if check and check.is_confirmed %}再確認{% else %}確認完了{% endif %}
             </button>
-            <div class="small text-muted mt-2">押すと、この週のメニューに反映し、メニューデータベースにも覚えさせます。</div>
+            <div class="small text-muted mt-2">この週のメニューに反映し、メニューデータベースにも登録します。</div>
         </div>
         {% endif %}
     </form>

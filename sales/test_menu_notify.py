@@ -32,7 +32,7 @@ class CheckMenuWeekConfirmedTest(TestCase):
     def test_unconfirmed(self):
         register_week(datetime.date(2026, 10, 14), NAMES)
         out, push = run(TUESDAY_EVENING)
-        self.assertIn("【メニュー 未確認】10/14(水)週のメニューがまだ確認されていません（要確認 10品）。", push.call_args[0][1])
+        self.assertIn("【メニュー 未確認】10/14(水)週のメニューが未確認です（要確認 10品）。", push.call_args[0][1])
 
     def test_confirmed_is_silent(self):
         register_week(datetime.date(2026, 10, 14), NAMES)
