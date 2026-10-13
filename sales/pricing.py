@@ -3,7 +3,8 @@
 値段の決め方：
 1. メニューに値段の種類（Product.rank）がある → その日に始まっている一番新しい価格表のマス
 2. 種類がない、またはその日に始まっている価格表がない → 今までどおり Product.price_A/B/C
-3. 独自価格の顧客 → その日に始まっている、その顧客だけの価格表のマス（種類のないメニューは役割で引く）
+3. 独自価格の顧客 → その日に始まっている、その顧客だけの価格表のマス
+   （種類のないメニューは、メニューデータベース→判定ルールで種類を決める）
 
 日付で価格表の版を引くので、同じ週のメニューのまま週の途中から値上げできる。
 仕様: .company/engineering/harness/specs/lunchnetsale-価格と割引のマスタ化-要件定義.md §7
@@ -110,11 +111,23 @@ class PriceBook:
         return legacy_price(product, pattern)
 
     def _rank_id_for(self, product):
+        """種類のないメニュー（Excelアップロードの週）は、メニューデータベース→判定ルールの順で種類を決める。
+        名前の★だけで決めると、チャーハンなどのお手頃が通常の値段になるため（2026-10-13 しょうへい指摘）。"""
         if product.rank_id:
             return product.rank_id
+        from sales.menu_registry import classify, normalize_name   # menu_registry は pricing を読むので遅延import
+        from sales.models import ClassifyRule, MenuProfile
         if self._role_ids is None:
             self._role_ids = dict(PriceRank.objects.exclude(role="").values_list("role", "id"))
-        return self._role_ids.get(legacy_role(product))
+            self._profile_ranks = dict(MenuProfile.objects.values_list("name", "rank_id"))
+            self._rules = list(ClassifyRule.objects.select_related("rank"))
+            self._ranks_by_name = {r.name: r for r in PriceRank.objects.all()}
+        name = normalize_name(product.name)
+        if self._profile_ranks.get(name):
+            return self._profile_ranks[name]
+        if legacy_role(product) == "large":
+            return self._role_ids.get("large")
+        return classify(name, self._rules, self._ranks_by_name).rank.id
 
     def customer_price(self, product):
         """その顧客の値段。独自価格の顧客で値段が未設定なら None（注文を保存させない）。"""

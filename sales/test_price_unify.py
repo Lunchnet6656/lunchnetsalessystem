@@ -70,11 +70,22 @@ class CustomerPriceBookTest(TestCase):
         self.assertEqual(PriceBook(datetime.date(2026, 10, 31), self.customer).customer_price(product), 700)
         self.assertEqual(PriceBook(datetime.date(2026, 11, 1), self.customer).customer_price(product), 750)
 
-    def test_menu_without_rank_uses_role(self):
+    def test_menu_without_rank_uses_rules(self):
         book = PriceBook(datetime.date(2026, 10, 7), self.customer)
         self.assertEqual(book.customer_price(Product(name="★カキフライ")), 800)
         self.assertEqual(book.customer_price(Product(name="唐揚げ")), 700)
         self.assertEqual(book.customer_price(Product(name="大盛りごはん")), 50)
+
+    def test_menu_without_rank_otegoro_by_rule_and_database(self):
+        """Excelアップロードの週（種類なし）でも、チャーハンはお手頃の値段（判定ルール）。
+        メニューデータベースにある名前はその種類を優先する。"""
+        customer_table(self.customer, datetime.date(2026, 10, 13), {"特選": 800, "通常": 700, "お手頃": 550, "大盛り": 50})
+        book = PriceBook(datetime.date(2026, 10, 14), self.customer)
+        self.assertEqual(book.customer_price(Product(name="明太子チャーハン")), 550)
+        MenuProfile.objects.create(name="ハンバーグロコモコ", rank=rank("お手頃"), container="一体型",
+                                   first_seen=datetime.date(2026, 10, 14), last_seen=datetime.date(2026, 10, 14))
+        self.assertEqual(PriceBook(datetime.date(2026, 10, 14), self.customer)
+                         .customer_price(Product(name="ハンバーグロコモコ")), 550)
 
     def test_rename_rank_keeps_legacy_menu_price(self):
         """種類の名前を変えても、種類のない古いメニューの値段は変わらない（役割で引く）。"""
@@ -82,6 +93,7 @@ class CustomerPriceBookTest(TestCase):
         r.name = "★特選"
         r.save()
         self.assertEqual(PriceBook(datetime.date(2026, 10, 7), self.customer).customer_price(Product(name="★エビ")), 800)
+        self.assertEqual(PriceBook(datetime.date(2026, 10, 7), self.customer).customer_price(Product(name="生姜焼き")), 700)
 
     def test_missing_is_none(self):
         new_rank = PriceRank.objects.create(name="プレミアム", sort_order=9)
