@@ -1201,6 +1201,7 @@ def customer_create(request):
         form = CustomerForm(request.POST)
         if form.is_valid():
             customer = form.save()
+            form.save_initial_prices(request.user)
             messages.success(request, f'顧客「{customer}」を登録しました。')
             return redirect('orders:customer_list')
     else:
@@ -1229,6 +1230,7 @@ def customer_edit(request, pk):
         form = CustomerForm(request.POST, instance=customer)
         if form.is_valid():
             form.save()
+            form.save_initial_prices(request.user)
             messages.success(request, f'顧客「{customer}」を更新しました。')
             return redirect('orders:customer_detail', pk=customer.pk)
     else:

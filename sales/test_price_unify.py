@@ -290,3 +290,50 @@ class OrderServerPriceTest(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, "値段が未設定のため登録できません（生姜焼き）")
         self.assertFalse(Order.objects.exists())
+
+
+class CustomerFormInitialPriceTest(TestCase):
+    """顧客の登録画面で、独自価格の最初の値段をその場で入れられる（2026-10-13 しょうへい指摘）。"""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        self.client.force_login(get_user_model().objects.create_user(username="clerk2", password="pass"))
+
+    def form_data(self, **extra):
+        data = {"customer_type": "B2B", "company_name": "新規商事", "price_type": "CUSTOM",
+                "invoice_delivery": "MAIL", "bento_type": "REGULAR", "regular_type": "WEEKDAY"}
+        data.update(extra)
+        return data
+
+    def prices(self, **override):
+        values = {"特選": 820, "通常": 720, "お手頃": 680, "大盛り": 60, **override}
+        return {f"initial_price_{rank(n).id}": str(v) for n, v in values.items() if v is not None}
+
+    def test_create_custom_customer_with_prices(self):
+        res = self.client.post("/orders/customers/create/", self.form_data(**self.prices()))
+        self.assertEqual(res.status_code, 302, res.context and res.context["form"].errors)
+        customer = Customer.objects.get(company_name="新規商事")
+        table = PriceTable.objects.get(customer=customer)
+        self.assertEqual({c.rank.name: c.price for c in table.cells.select_related("rank")},
+                         {"特選": 820, "通常": 720, "お手頃": 680, "大盛り": 60})
+        self.assertEqual(PriceBook(datetime.date(2026, 10, 8), customer)
+                         .customer_price(Product(rank=rank("お手頃"), name="チャーハン")), 680)
+        self.assertTrue(PriceChangeLog.objects.filter(kind="customer_price", summary__contains="最初の値段").exists())
+
+    def test_prices_required_for_custom(self):
+        res = self.client.post("/orders/customers/create/", self.form_data(**self.prices(お手頃=None)))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "独自価格の場合、値段を入力してください。")
+        self.assertFalse(Customer.objects.filter(company_name="新規商事").exists())
+
+    def test_pattern_customer_needs_no_prices(self):
+        res = self.client.post("/orders/customers/create/", self.form_data(price_type="A"))
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(PriceTable.objects.filter(customer__company_name="新規商事").exists())
+
+    def test_edit_existing_shows_current_prices_without_inputs(self):
+        customer = custom_customer()
+        customer_table(customer, datetime.date(2020, 1, 1), {"特選": 800, "通常": 700, "お手頃": 700, "大盛り": 50})
+        res = self.client.get(f"/orders/customers/{customer.pk}/edit/")
+        self.assertContains(res, "本日時点の値段です。")
+        self.assertNotContains(res, "initial_price_")

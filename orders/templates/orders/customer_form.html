@@ -104,10 +104,33 @@
             </select>
         </div>
 
-        <!-- 独自価格（値段は価格表画面の［顧客別］タブで管理する） -->
+        <!-- 独自価格：最初の値段はこの画面で入力。開始日つきの変更は価格表画面の［顧客別］タブ -->
         <div id="custom-price-section" class="{% if form.price_type.value != 'CUSTOM' %}hidden{% endif %} bg-yellow-50 border border-yellow-300 rounded-lg p-4 space-y-3">
-            <p class="text-sm font-semibold text-yellow-800">独自価格の値段は、価格表画面の［顧客別］タブで、値段の種類ごとに開始日を指定して登録します。</p>
-            <p class="text-xs text-gray-600">保存後に［価格表 &gt; 顧客別］を開いてください（権限「価格・メニュー設定」が必要です）。<a href="{% url 'customer_price_list' %}" class="text-blue-600 underline">価格表 &gt; 顧客別</a></p>
+            <p class="text-sm font-semibold text-yellow-800">独自価格の値段</p>
+            {% if form.needs_initial_prices %}
+            <p class="text-xs text-gray-600">値段の種類ごとに入力してください（※必須）。保存すると、この顧客の価格表が作成されます。値上げなどの変更は、保存後に［価格表 &gt; 顧客別］から開始日を指定して登録します。</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {% for field in form.initial_price_fields %}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1" for="{{ field.id_for_label }}">{{ field.label }}（円）</label>
+                    <input type="number" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                           value="{{ field.value|default_if_none:'' }}" min="1" step="1" inputmode="numeric"
+                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
+                    {% if field.errors %}<p class="text-red-600 text-xs mt-1">{{ field.errors.0 }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {% for rank, price in form.current_prices %}
+                <div>
+                    <p class="block text-xs font-semibold text-gray-600 mb-1">{{ rank.name }}{% if not rank.is_bento %}（追加料金）{% endif %}</p>
+                    <p class="text-sm">{% if price is None %}<span class="text-red-600">未設定</span>{% else %}{% if not rank.is_bento %}＋{% endif %}{{ price }}円{% endif %}</p>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="text-xs text-gray-600">本日時点の値段です。変更する場合は［価格表 &gt; 顧客別］から開始日を指定して登録します（権限「価格・メニュー設定」が必要です）。<a href="{% url 'customer_price_list' %}" class="text-blue-600 underline">価格表 &gt; 顧客別</a></p>
+            {% endif %}
         </div>
 
         <!-- 支払い方法 -->

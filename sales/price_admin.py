@@ -697,3 +697,23 @@ def customer_overview(today):
                      "nearest": nearest, "changed": changed, "more": len(pending) - 1 if pending else 0})
     rows.sort(key=lambda r: (r["nearest"] is None, r["nearest"].valid_from if r["nearest"] else today))
     return rank_list, rows
+
+
+# 顧客を登録するときに入れる最初の値段。過去の納品日の注文を後から入れても値段が出るよう、古い日付から始める
+INITIAL_CUSTOMER_PRICES_FROM = datetime.date(2020, 1, 1)
+
+
+@transaction.atomic
+def create_initial_customer_table(user, customer, prices):
+    """顧客の登録・編集画面で入れた最初の値段から、顧客別価格表を作る。prices = {rank_id: 値段}"""
+    table = PriceTable.objects.create(customer=customer, valid_from=INITIAL_CUSTOMER_PRICES_FROM,
+                                      note="顧客の登録画面で設定",
+                                      created_by=user if getattr(user, "is_authenticated", False) else None)
+    PriceTableCell.objects.bulk_create([
+        PriceTableCell(table=table, rank_id=rank_id, pattern=CUSTOMER_COLUMN, price=price)
+        for rank_id, price in prices.items()
+    ])
+    names = dict(PriceRank.objects.values_list("id", "name"))
+    detail = "・".join(f"{names[r]} {p:,}円" for r, p in prices.items())
+    log_change(user, "customer_price", f"{customer}の最初の値段を登録しました（{detail}）")
+    return table

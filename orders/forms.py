@@ -137,6 +137,32 @@ class CustomerForm(forms.ModelForm):
             choices.insert(0, (current, self.instance.price_type_label))
         self.fields['price_type'] = forms.ChoiceField(choices=choices, label='価格タイプ',
                                                       initial=current or (choices[0][0] if choices else 'A'))
+        self._setup_custom_prices()
+
+    def _setup_custom_prices(self):
+        """独自価格の値段。顧客別価格表がまだない顧客だけ、この画面で最初の値段を入れる。
+        2回目以降の変更（開始日つき）は価格表画面の［顧客別］タブで行う（予約・確認・履歴を1か所にまとめる）。"""
+        from django.utils import timezone
+        from sales.models import PriceRank, PriceTable
+        from sales.price_admin import cells_of, table_in_effect
+        from sales.pricing import CUSTOMER_COLUMN
+        self.price_ranks = list(PriceRank.objects.filter(active=True))
+        has_table = bool(self.instance and self.instance.pk
+                         and PriceTable.objects.filter(customer=self.instance).exists())
+        self.needs_initial_prices = not has_table
+        self.current_prices = []
+        if has_table:
+            cells = cells_of(table_in_effect(timezone.localdate(), customer=self.instance))
+            self.current_prices = [(r, cells.get((r.id, CUSTOMER_COLUMN))) for r in self.price_ranks]
+            return
+        for rank in self.price_ranks:
+            label = rank.name if rank.is_bento else f'{rank.name}の追加料金'
+            self.fields[f'initial_price_{rank.id}'] = forms.IntegerField(
+                required=False, min_value=1, label=label,
+                error_messages={'min_value': '1円以上の整数で入力してください。'})
+
+    def initial_price_fields(self):
+        return [self[f'initial_price_{r.id}'] for r in self.price_ranks] if self.needs_initial_prices else []
 
     def clean(self):
         cleaned = super().clean()
@@ -146,6 +172,12 @@ class CustomerForm(forms.ModelForm):
         if customer_type == 'INDIVIDUAL' and not cleaned.get('name'):
             self.add_error('name', '個人顧客の場合、顧客名は必須です。')
 
+        if cleaned.get('price_type') == Customer.CUSTOM_PRICE_TYPE and self.needs_initial_prices:
+            for rank in self.price_ranks:
+                name = f'initial_price_{rank.id}'
+                if cleaned.get(name) is None and name not in self.errors:
+                    self.add_error(name, '独自価格の場合、値段を入力してください。')
+
         # 請求書のときは発行タイミング必須。請求書以外なら発行タイミングは無効化。
         pm = cleaned.get('payment_method')
         if pm and pm.name == '請求書':
@@ -154,6 +186,16 @@ class CustomerForm(forms.ModelForm):
         else:
             cleaned['invoice_timing'] = ''
         return cleaned
+
+
+    def save_initial_prices(self, user):
+        """独自価格で、まだ顧客別価格表がなければ、入力された最初の値段で作る。"""
+        customer = self.instance
+        if customer.price_type != Customer.CUSTOM_PRICE_TYPE or not self.needs_initial_prices:
+            return None
+        from sales.price_admin import create_initial_customer_table
+        prices = {r.id: self.cleaned_data[f'initial_price_{r.id}'] for r in self.price_ranks}
+        return create_initial_customer_table(user, customer, prices)
 
 
 class OrderForm(forms.ModelForm):
