@@ -669,9 +669,20 @@ def move_pattern(pattern, step):
 
 
 def assignable_patterns(today):
-    """販売所・顧客に設定できる価格パターン＝今日の販売所用価格表に値段がある、使用中のパターン。"""
-    codes = {code for (_, code) in cells_of(table_in_effect(today))}
-    return [p for p in PricePattern.objects.filter(active=True) if p.code in codes]
+    """販売所・顧客に設定できる価格パターン＝今日の販売所用価格表に値段がある、使用中のパターン。
+    選択肢に値段を添えるため、各パターンに hint（例「750/700/650/＋50」）を付けて返す。"""
+    cells = cells_of(table_in_effect(today))
+    codes = {code for (_, code) in cells}
+    rank_list = ranks()
+    result = []
+    for p in PricePattern.objects.filter(active=True):
+        if p.code not in codes:
+            continue
+        prices = [cells.get((r.id, p.code)) for r in rank_list]
+        p.hint = "/".join(("" if r.is_bento else "＋") + str(v) for r, v in zip(rank_list, prices) if v is not None)
+        p.label = f"{p.name}（{p.hint}）" if p.hint else p.name
+        result.append(p)
+    return result
 
 
 # ===== 顧客別の価格（価格の一元化 §5.3） =====

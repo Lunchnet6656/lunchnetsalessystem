@@ -86,7 +86,7 @@
                         <td>
                             <select class="form-select form-select-sm location-input" name="location[{{ forloop.counter0 }}][price_type]">
                                 {% if location.price_type not in pattern_codes %}<option value="{{ location.price_type }}" selected>{{ location.price_type|default:"（未設定）" }}</option>{% endif %}
-                                {% for p in patterns %}<option value="{{ p.code }}" {% if p.code == location.price_type %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+                                {% for p in patterns %}<option value="{{ p.code }}" {% if p.code == location.price_type %}selected{% endif %}>{{ p.label }}</option>{% endfor %}
                             </select>
                         </td>
                         <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][service_name]" value="{{ location.service_name }}"></td>

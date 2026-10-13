@@ -1721,7 +1721,7 @@ def location_list_view(request):
         'locations': locations,
         'patterns': patterns,
         'pattern_codes': [p.code for p in patterns],
-        'pattern_options': [{'code': p.code, 'name': p.name} for p in patterns],
+        'pattern_options': [{'code': p.code, 'name': p.label} for p in patterns],
     })
 
 @login_required

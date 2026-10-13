@@ -130,7 +130,7 @@ class CustomerForm(forms.ModelForm):
         # 価格タイプ＝価格表に値段がある価格パターン＋独自価格。今の設定が選択肢にないときも消さずに残す
         from django.utils import timezone
         from sales.price_admin import assignable_patterns
-        choices = [(p.code, p.name) for p in assignable_patterns(timezone.localdate())]
+        choices = [(p.code, p.label) for p in assignable_patterns(timezone.localdate())]
         choices.append((Customer.CUSTOM_PRICE_TYPE, '独自価格'))
         current = self.instance.price_type if self.instance and self.instance.pk else None
         if current and current not in dict(choices):

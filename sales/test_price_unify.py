@@ -337,3 +337,11 @@ class CustomerFormInitialPriceTest(TestCase):
         res = self.client.get(f"/orders/customers/{customer.pk}/edit/")
         self.assertContains(res, "本日時点の値段です。")
         self.assertNotContains(res, "initial_price_")
+
+
+class PatternChoiceLabelTest(TestCase):
+    def test_choices_show_prices(self):
+        from sales.price_admin import assignable_patterns
+        labels = {p.code: p.label for p in assignable_patterns(TODAY)}
+        self.assertEqual(labels["A"], "価格A（750/700/650/＋50）")
+        self.assertEqual(labels["C"], "価格C（700/600/600/＋50）")
