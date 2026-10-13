@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}顧客別の価格{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3 mb-2">価格表</h1>
+    {% include "prices/_tabs.html" %}
+    <p class="text-muted small mb-3">価格タイプが「独自価格」の顧客の値段です（本日時点）。値段を変更する場合は、［新規作成］から開始日を指定して登録します。</p>
+
+    {% if missing_count %}
+    <div class="alert alert-danger">値段が未設定の顧客があります（{{ missing_count }}社）。未設定のままでは注文を登録できません。</div>
+    {% endif %}
+
+    {% if not rows %}
+    <p class="text-muted">価格タイプが「独自価格」の顧客はありません。顧客の編集画面で価格タイプを「独自価格」にすると、ここに表示されます。</p>
+    {% else %}
+    {# PC：表。スマホ：1顧客＝1ブロック #}
+    <div class="table-responsive d-none d-md-block">
+    <table class="table table-sm align-middle pm-table">
+        <thead><tr><th>顧客</th>{% for rank in ranks %}<th class="text-end">{{ rank.name }}</th>{% endfor %}<th>次の変更</th><th></th></tr></thead>
+        <tbody>
+        {% for row in rows %}
+        <tr class="{% if row.missing %}pm-row-attention{% endif %}">
+            <td class="text-wrap">{{ row.customer }}</td>
+            {% for p in row.prices %}
+            <td class="text-end">{% if p.price is None %}<span class="text-danger">未設定</span>{% else %}{% if not p.rank.is_bento %}＋{% endif %}{{ p.price }}{% endif %}</td>
+            {% endfor %}
+            <td>{% if row.nearest %}<span class="pm-diff-cell px-1">{{ row.nearest.valid_from|date:"n/j" }}から（{{ row.changed }}マス）</span>{% if row.more %} ほか{{ row.more }}件{% endif %}
+                <a href="{% url 'customer_price_edit' row.nearest.pk %}" class="btn btn-sm btn-outline-secondary ms-1">編集</a>
+                <a href="{% url 'customer_price_cancel' row.nearest.pk %}" class="btn btn-sm btn-outline-danger">取消</a>
+                {% else %}—{% endif %}</td>
+            <td><a href="{% url 'customer_price_new' row.customer.pk %}" class="btn btn-sm btn-primary text-nowrap">新規作成</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <div class="d-md-none">
+        {% for row in rows %}
+        <div class="border-bottom py-2 {% if row.missing %}pm-row-attention ps-2{% endif %}">
+            <div class="fw-bold">{{ row.customer }}</div>
+            <div class="small">{% for p in row.prices %}<span class="me-2 text-nowrap">{{ p.rank.name }}：{% if p.price is None %}<span class="text-danger">未設定</span>{% else %}{% if not p.rank.is_bento %}＋{% endif %}{{ p.price }}{% endif %}</span>{% endfor %}</div>
+            <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                {% if row.nearest %}<span class="small pm-diff-cell px-1">{{ row.nearest.valid_from|date:"n/j" }}から（{{ row.changed }}マス）</span>
+                <a href="{% url 'customer_price_edit' row.nearest.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>
+                <a href="{% url 'customer_price_cancel' row.nearest.pk %}" class="btn btn-sm btn-outline-danger">取消</a>{% endif %}
+                <a href="{% url 'customer_price_new' row.customer.pk %}" class="btn btn-sm btn-primary ms-auto">新規作成</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% include "prices/_master_history.html" %}
+</div>
+{% endblock %}

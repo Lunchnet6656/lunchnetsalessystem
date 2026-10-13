@@ -10,7 +10,8 @@ from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, Produ
 import pandas as pd
 from sales.item_quantity_import import next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
-from sales.pricing import PriceBook, is_bento, pattern_of
+from sales.pricing import PriceBook, is_bento, known_codes, pattern_of
+from sales.price_admin import assignable_patterns
 from sales import daily_report_calc as drc
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -855,11 +856,12 @@ def daily_report_view(request):
         item_data = []
         unique_prices = set()  # ユニークな価格を格納するセット
         price_book = PriceBook(selected_date)
+        codes = known_codes()
         for item in item_quantities:
             product = product_data.get(item.product.no)
             if product:
                 # 販売所の価格パターン×日付で値段を決める（パターン不明の販売所は0円）
-                price = price_book.price(product, pattern_of(item.sales_location))
+                price = price_book.price(product, pattern_of(item.sales_location, codes=codes))
 
                 unique_prices.add(price)  # ユニークな価格を追加
 
@@ -1662,6 +1664,8 @@ def location_list_view(request):
         })
 
         skipped_rows = 0
+        allowed_patterns = {p.code for p in assignable_patterns(timezone.localdate())}
+        kept_patterns = []
         for i in row_indexes:
             # 既存行は隠しフィールドの id をキーに更新する（並べ替え・NO変更でも
             # 同一レコードを保つ。ItemQuantity が SalesLocation を id でFK参照しているため、
@@ -1690,6 +1694,11 @@ def location_list_view(request):
                 'accepts_digital_payment': location_data.get(f'location[{i}][accepts_digital_payment]') == '1',
                 'expects_cash': location_data.get(f'location[{i}][expects_cash]') == '1',
             }
+            # 価格表に値段がない価格パターンにはできない（日計表の値段が0円になるため）。今の設定は変えない
+            existing = SalesLocation.objects.filter(id=row_id).first() if row_id else None
+            if fields['price_type'] not in allowed_patterns and (existing is None or fields['price_type'] != existing.price_type):
+                fields['price_type'] = existing.price_type if existing else ''
+                kept_patterns.append(name or no)
             # データを保存（1行のエラーで全体を止めず、その行だけスキップして続行）
             try:
                 if not (row_id and SalesLocation.objects.filter(id=row_id).update(**fields)):
@@ -1700,12 +1709,20 @@ def location_list_view(request):
 
         if skipped_rows:
             messages.warning(request, f'NOが未入力の{skipped_rows}行は保存しませんでした。')
+        if kept_patterns:
+            messages.warning(request, f'価格表に値段がない価格タイプは設定できないため、{"・".join(kept_patterns)}の価格タイプは変更しませんでした。')
         messages.success(request, '販売場所データを更新しました。')
         return HttpResponseRedirect(reverse('location_list'))
 
     # データを取得して表示
     locations = SalesLocation.objects.all().order_by('no')
-    return render(request, 'location_list.html', {'locations': locations})
+    patterns = assignable_patterns(timezone.localdate())
+    return render(request, 'location_list.html', {
+        'locations': locations,
+        'patterns': patterns,
+        'pattern_codes': [p.code for p in patterns],
+        'pattern_options': [{'code': p.code, 'name': p.name} for p in patterns],
+    })
 
 @login_required
 def others_list_view(request):
@@ -1729,6 +1746,8 @@ def others_list_view(request):
         })
 
         skipped_rows = 0
+        allowed_patterns = {p.code for p in assignable_patterns(timezone.localdate())}
+        kept_patterns = []
         for i in row_indexes:
             # 既存行は隠しフィールドの id をキーに更新する。
             # NOをキーにすると、並べ替え（NO振り直し）やNO手動変更のときに

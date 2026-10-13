@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 from sales import menu_registry
 from sales import menu_week as mw
 from sales import price_admin as pa
-from sales.models import CONTAINER_CHOICES, ClassifyRule, DiscountItem, MenuProfile, PriceTable
+from sales.models import CONTAINER_CHOICES, ClassifyRule, DiscountItem, MenuProfile, PricePattern, PriceRank, PriceTable
 
 NO_PERMISSION_MESSAGE = "このページを開く権限がありません。本部の担当者に相談してください。"
 
@@ -44,42 +44,57 @@ def price_master_required(view):
 @price_master_required
 def price_table_list(request):
     today = timezone.localdate()
-    rank_list = pa.ranks()
     current = pa.table_in_effect(today)
     pending = pa.pending_tables(today)
     nearest = pending[0] if pending else None
+    current_cells = pa.cells_of(current)
+    nearest_cells = pa.cells_of(nearest)
+    nearest_base = pa.cells_of(pa.table_before(nearest.valid_from)) if nearest else {}
+    rank_list = pa.ranks(current_cells, nearest_cells)
+    cols = pa.columns(current_cells, nearest_cells)
     show_all_history = request.GET.get("history") == "all"
+    past = pa.past_tables(today)
     return render(request, "prices/price_table_list.html", {
+        "tab": "shared",
         "current": current,
-        "current_rows": pa.matrix(rank_list, pa.cells_of(current)),
+        "current_rows": pa.matrix(rank_list, current_cells, cols=cols),
         "nearest": nearest,
-        "nearest_rows": pa.matrix(rank_list, pa.cells_of(nearest), pa.cells_of(pa.table_before(nearest.valid_from)))
-                        if nearest else [],
+        "nearest_rows": pa.matrix(rank_list, nearest_cells, nearest_base, cols=cols) if nearest else [],
         "nearest_days": (nearest.valid_from - today).days if nearest else None,
         "other_pending": pending[1:],
-        "past": pa.past_tables(today)[1:],
-        "rank_list": rank_list,
-        "locations": pa.locations_by_pattern(),
+        "past": past["rows"][1:],
+        "past_ranks": past["ranks"],
+        "heads": pa.column_heads(cols),
         "history": pa.recent_changes("price_table", limit=None if show_all_history else 20),
         "show_all_history": show_all_history,
     })
 
 
 def _price_form_page(request, form_cells, base_cells, editing=None, valid_from="", note="", errors=None,
-                     cell_errors=None):
+                     cell_errors=None, customer=None):
+    # 入力画面は使用中の種類・列だけ（終了した種類・パターンは新しい価格表に入れない）
     rank_list = pa.ranks()
-    rows = pa.matrix(rank_list, form_cells, base_cells)
+    cols = pa.columns_for(customer)
+    rows = pa.matrix(rank_list, form_cells, base_cells, cols=cols)
     for row in rows:
         for cell in row["cells"]:
             cell["invalid"] = cell["name"] in (cell_errors or set())
     return render(request, "prices/price_table_form.html", {
+        "tab": "customers" if customer is not None else "shared",
+        "customer": customer,
         "editing": editing,
         "rows": rows,
         "valid_from": valid_from,
         "note": note,
         "errors": errors or [],
-        "locations": pa.locations_by_pattern(),
+        "heads": pa.column_heads(cols, customer),
     })
+
+
+def _active_cells(cells):
+    """前の価格表の値段のうち、使用中の種類・列のマスだけ（新しい価格表の初期値にする）。"""
+    rank_ids = {r.id for r in pa.ranks()}
+    return {k: v for k, v in cells.items() if k[0] in rank_ids}
 
 
 @price_master_required
@@ -87,12 +102,12 @@ def price_table_new(request):
     today = timezone.localdate()
     pending = pa.pending_tables(today)
     base = pending[-1] if pending else pa.table_in_effect(today)
-    return _price_form_page(request, pa.cells_of(base), pa.cells_of(base))
+    return _price_form_page(request, _active_cells(pa.cells_of(base)), pa.cells_of(base))
 
 
 @price_master_required
 def price_table_edit(request, pk):
-    table = get_object_or_404(PriceTable, pk=pk)
+    table = get_object_or_404(PriceTable, pk=pk, customer__isnull=True)
     if table.valid_from <= timezone.localdate():
         messages.error(request, "開始済みの価格表は編集できません。値段を変更する場合は、［新規作成］から新しい価格表を登録してください。",
                        extra_tags="alert alert-danger")
@@ -102,77 +117,226 @@ def price_table_edit(request, pk):
                             valid_from=table.valid_from.isoformat(), note=table.note)
 
 
-def _editing_from(request):
+def _editing_from(request, customer=None):
     pk = request.POST.get("editing")
     if not pk:
         return None
-    table = get_object_or_404(PriceTable, pk=pk)
+    table = get_object_or_404(PriceTable, pk=pk, customer=customer) if customer is not None \
+        else get_object_or_404(PriceTable, pk=pk, customer__isnull=True)
     return table if table.valid_from > timezone.localdate() else None
+
+
+def _confirm_page(request, customer=None):
+    """作成・編集画面から来る。ここではまだ保存しない（作りかけの価格表をDBに残さない）。"""
+    today = timezone.localdate()
+    editing = _editing_from(request, customer)
+    rank_list = pa.ranks()
+    cols = pa.columns_for(customer)
+    form = pa.read_price_form(request.POST, rank_list, cols)
+    base = pa.validate_price_form(form, today, editing, customer)
+    if form.errors:
+        return _price_form_page(request, form.cells, pa.cells_of(base), editing=editing,
+                                valid_from=request.POST.get("valid_from", ""), note=form.note,
+                                errors=form.errors, cell_errors=form.cell_errors, customer=customer)
+    base_cells = pa.cells_of(base)
+    return render(request, "prices/price_table_confirm.html", {
+        "tab": "customers" if customer is not None else "shared",
+        "customer": customer,
+        "editing": editing,
+        "c": pa.confirmation(form, base, today, rank_list, cols, customer),
+        "form": form,
+        "hidden": [(f"cell_{r}_{p}", v) for (r, p), v in form.cells.items()],
+        "new_rows": pa.matrix(rank_list, form.cells, base_cells, cols=cols),
+        "base_rows": pa.matrix(rank_list, base_cells, cols=cols),
+        "heads": pa.column_heads(cols, customer),
+    })
+
+
+def _register(request, customer=None):
+    today = timezone.localdate()
+    back = "customer_price_list" if customer is not None else "price_table_list"
+    editing = _editing_from(request, customer)
+    rank_list = pa.ranks()
+    cols = pa.columns_for(customer)
+    form = pa.read_price_form(request.POST, rank_list, cols)
+    base = pa.validate_price_form(form, today, editing, customer)
+    if form.errors:
+        messages.error(request, "　".join(form.errors), extra_tags="alert alert-danger")
+        return redirect(back)
+    c = pa.confirmation(form, base, today, rank_list, cols, customer)
+    if (c["warnings"] or c["is_today"]) and not request.POST.get("checked"):
+        messages.error(request, "「内容を確認しました」にチェックを入れてから［登録］してください。",
+                       extra_tags="alert alert-danger")
+        return redirect(back)
+    pa.register_table(request.user, form, editing, customer)
+    action = "更新" if editing else "登録"
+    pa.log_change(request.user, "customer_price" if customer is not None else "price_table",
+                  f"{c['summary']}を{action}しました")
+    who = f"{customer}の" if customer is not None else ""
+    messages.success(request, f"{c['start']}からの{who}価格表を{action}しました。", extra_tags="alert alert-success")
+    outside = "請求書の文面など" if customer is not None else "店頭POP・振分表・請求書の文面"
+    messages.info(request, f"アプリ外の価格表示（{outside}）も更新してください。", extra_tags="alert alert-info")
+    return redirect(back)
 
 
 @price_master_required
 @require_POST
 def price_table_confirm(request):
-    """作る・直す画面から来る。ここではまだ保存しない（作りかけの価格表をDBに残さない）。"""
-    today = timezone.localdate()
-    editing = _editing_from(request)
-    rank_list = pa.ranks()
-    form = pa.read_price_form(request.POST, rank_list)
-    base = pa.validate_price_form(form, today, editing)
-    if form.errors:
-        return _price_form_page(request, form.cells, pa.cells_of(base), editing=editing,
-                                valid_from=request.POST.get("valid_from", ""), note=form.note,
-                                errors=form.errors, cell_errors=form.cell_errors)
-    return render(request, "prices/price_table_confirm.html", {
-        "editing": editing,
-        "c": pa.confirmation(form, base, today, rank_list),
-        "form": form,
-        "hidden": [(f"cell_{r}_{p}", v) for (r, p), v in form.cells.items()],
-        "new_rows": pa.matrix(rank_list, form.cells, pa.cells_of(base)),
-        "base_rows": pa.matrix(rank_list, pa.cells_of(base)),
-        "locations": pa.locations_by_pattern(),
-    })
+    return _confirm_page(request)
 
 
 @price_master_required
 @require_POST
 def price_table_register(request):
-    today = timezone.localdate()
-    editing = _editing_from(request)
-    rank_list = pa.ranks()
-    form = pa.read_price_form(request.POST, rank_list)
-    base = pa.validate_price_form(form, today, editing)
-    if form.errors:
-        messages.error(request, "　".join(form.errors), extra_tags="alert alert-danger")
-        return redirect("price_table_list")
-    c = pa.confirmation(form, base, today, rank_list)
-    if (c["warnings"] or c["is_today"]) and not request.POST.get("checked"):
-        messages.error(request, "「内容を確認しました」にチェックを入れてから［登録］してください。",
-                       extra_tags="alert alert-danger")
-        return redirect("price_table_list")
-    pa.register_table(request.user, form, editing)
-    action = "更新" if editing else "登録"
-    pa.log_change(request.user, "price_table", f"{c['summary']}を{action}しました")
-    messages.success(request, f"{c['start']}からの価格表を{action}しました。", extra_tags="alert alert-success")
-    messages.info(request, "アプリ外の価格表示（店頭POP・振分表・請求書の文面）も更新してください。",
-                  extra_tags="alert alert-info")
-    return redirect("price_table_list")
+    return _register(request)
+
+
+def _cancel_page(request, table):
+    back = "customer_price_list" if table.customer_id else "price_table_list"
+    if table.valid_from <= timezone.localdate():
+        messages.error(request, "開始済みの価格表は取り消せません。", extra_tags="alert alert-danger")
+        return redirect(back)
+    customer = table.customer if table.customer_id else None
+    base = pa.table_before(table.valid_from, exclude=table, customer=customer)
+    if request.method == "POST":
+        summary = pa.cancel_table(request.user, table)
+        messages.success(request, f"{summary}。", extra_tags="alert alert-success")
+        return redirect(back)
+    return render(request, "prices/price_table_cancel.html", {
+        "tab": "customers" if customer is not None else "shared",
+        "table": table, "customer": customer, "start": pa.md(table.valid_from), "back": back,
+        "base_label": f"{pa.md(base.valid_from)}からの価格表" if base else "現在の価格表",
+    })
 
 
 @price_master_required
 def price_table_cancel(request, pk):
-    table = get_object_or_404(PriceTable, pk=pk)
+    return _cancel_page(request, get_object_or_404(PriceTable, pk=pk, customer__isnull=True))
+
+
+# ===== 顧客別の価格 =====
+
+def _custom_customer(pk):
+    from orders.models import Customer
+    from sales.pricing import CUSTOM
+    return get_object_or_404(Customer, pk=pk, price_type=CUSTOM)
+
+
+@price_master_required
+def customer_price_list(request):
+    today = timezone.localdate()
+    rank_list, rows = pa.customer_overview(today)
+    return render(request, "prices/customer_price_list.html", {
+        "tab": "customers", "ranks": rank_list, "rows": rows,
+        "missing_count": sum(1 for r in rows if r["missing"]),
+        "history": pa.recent_changes("customer_price"),
+    })
+
+
+@price_master_required
+def customer_price_new(request, customer_pk):
+    customer = _custom_customer(customer_pk)
+    today = timezone.localdate()
+    pending = pa.pending_tables(today, customer)
+    base = pending[-1] if pending else pa.table_in_effect(today, customer=customer)
+    return _price_form_page(request, _active_cells(pa.cells_of(base)), pa.cells_of(base), customer=customer)
+
+
+@price_master_required
+def customer_price_edit(request, pk):
+    table = get_object_or_404(PriceTable, pk=pk, customer__isnull=False)
     if table.valid_from <= timezone.localdate():
-        messages.error(request, "開始済みの価格表は取り消せません。", extra_tags="alert alert-danger")
-        return redirect("price_table_list")
-    base = pa.table_before(table.valid_from, exclude=table)
+        messages.error(request, "開始済みの価格表は編集できません。値段を変更する場合は、［新規作成］から新しい価格表を登録してください。",
+                       extra_tags="alert alert-danger")
+        return redirect("customer_price_list")
+    base = pa.table_before(table.valid_from, exclude=table, customer=table.customer)
+    return _price_form_page(request, pa.cells_of(table), pa.cells_of(base), editing=table,
+                            valid_from=table.valid_from.isoformat(), note=table.note, customer=table.customer)
+
+
+@price_master_required
+@require_POST
+def customer_price_confirm(request, customer_pk):
+    return _confirm_page(request, _custom_customer(customer_pk))
+
+
+@price_master_required
+@require_POST
+def customer_price_register(request, customer_pk):
+    return _register(request, _custom_customer(customer_pk))
+
+
+@price_master_required
+def customer_price_cancel(request, pk):
+    return _cancel_page(request, get_object_or_404(PriceTable, pk=pk, customer__isnull=False))
+
+
+# ===== 値段の種類・価格パターン =====
+
+def _master_post(request, model, what, add, end_blockers, move, back):
+    """種類・パターンの画面の POST（追加・名前変更・終了・並び替え）を1か所で受ける。"""
+    action = request.POST.get("action")
+    obj = None
+    if action != "add":
+        obj = get_object_or_404(model, pk=request.POST.get("id"))
+    name = (request.POST.get("name") or "").strip()[:30]
+    if action == "add":
+        error = pa._name_error(name, model)
+        if error:
+            messages.error(request, error, extra_tags="alert alert-danger")
+        else:
+            add(name)
+            messages.success(request, f"{what}『{name}』を追加しました。［販売所］タブの［新規作成］から、開始日と値段を登録してください。"
+                             + ("値段が登録されるまで、販売所・顧客には設定できません。" if model is PricePattern else ""),
+                             extra_tags="alert alert-success")
+    elif action == "rename":
+        error = pa._name_error(name, model, exclude=obj)
+        if error:
+            messages.error(request, error, extra_tags="alert alert-danger")
+        elif name != obj.name:
+            old = obj.name
+            pa.rename(request.user, obj, name, what)
+            messages.success(request, f"{what}『{old}』の名前を『{name}』に変更しました。", extra_tags="alert alert-success")
+    elif action == "end":
+        blockers = end_blockers(obj)
+        if blockers:
+            messages.error(request, f"『{obj.name}』は終了できません。" + "　".join(blockers), extra_tags="alert alert-danger")
+        else:
+            pa.end(request.user, obj, what)
+            messages.success(request, f"{what}『{obj.name}』を終了しました。次に登録する価格表から表示されません。",
+                             extra_tags="alert alert-success")
+    elif action in ("up", "down"):
+        move(obj, -1 if action == "up" else 1)
+    return redirect(back)
+
+
+@price_master_required
+def price_rank_list(request):
+    today = timezone.localdate()
     if request.method == "POST":
-        summary = pa.cancel_table(request.user, table)
-        messages.success(request, f"{summary}。", extra_tags="alert alert-success")
-        return redirect("price_table_list")
-    return render(request, "prices/price_table_cancel.html", {
-        "table": table, "start": pa.md(table.valid_from),
-        "base_label": f"{pa.md(base.valid_from)}からの価格表" if base else "現在の価格表",
+        return _master_post(
+            request, PriceRank, "値段の種類",
+            add=lambda name: pa.add_rank(request.user, name, request.POST.get("is_bento") != "0"),
+            end_blockers=lambda rank: pa.rank_end_blockers(rank, today),
+            move=pa.move_rank, back="price_rank_list")
+    active, ended = pa.rank_rows(today)
+    return render(request, "prices/price_rank_list.html", {
+        "tab": "ranks", "rows": active, "ended": ended,
+        "edit_id": request.GET.get("edit"), "history": pa.recent_changes("price_master"),
+    })
+
+
+@price_master_required
+def price_pattern_list(request):
+    if request.method == "POST":
+        return _master_post(
+            request, PricePattern, "価格パターン",
+            add=lambda name: pa.add_pattern(request.user, name),
+            end_blockers=pa.pattern_end_blockers, move=pa.move_pattern, back="price_pattern_list")
+    active, ended = pa.pattern_rows()
+    return render(request, "prices/price_pattern_list.html", {
+        "tab": "patterns", "rows": active, "ended": ended,
+        "edit_id": request.GET.get("edit"), "history": pa.recent_changes("price_master"),
     })
 
 

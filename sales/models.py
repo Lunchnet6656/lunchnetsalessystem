@@ -473,16 +473,34 @@ class ReportMessage(models.Model):
 # 仕様: .company/engineering/harness/specs/lunchnetsale-価格と割引のマスタ化-要件定義.md
 # 値上げのたびにコードやExcelを直さずに済むよう、値段と割引の金額は日付つきでDBに持つ。
 
-# 販売所の価格パターン。D価格を足すときはここと SalesLocation の運用だけを直せば済むよう1か所に置く。
-PRICE_PATTERNS = ("A", "B", "C")
+class PricePattern(models.Model):
+    """価格パターン（価格表の列）。本部が画面で追加・終了できるようにDBで持つ（2026-10-13 価格の一元化）。
+    販売所・顧客・価格表のマスは code で持つので、code は作ったあと変えない。"""
+    code = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=30, unique=True, verbose_name="名前")
+    sort_order = models.IntegerField(default=0, verbose_name="並び順")
+    active = models.BooleanField(default=True, verbose_name="使用中")
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "価格パターン"
+        verbose_name_plural = "価格パターン"
+
+    def __str__(self):
+        return self.name
 
 
 class PriceRank(models.Model):
     """値段の種類（★特選・通常・お手頃・大盛り）。値段そのものは PriceTableCell が持つ。"""
+    ROLE_CHOICES = [("star", "特選"), ("normal", "通常"), ("large", "大盛り")]
+
     name = models.CharField(max_length=50, unique=True, verbose_name="値段の種類")
     # 大盛りは弁当ではない。クーポン・サービスの欄を作るときに除くため。
     is_bento = models.BooleanField(default=True, verbose_name="弁当")
     sort_order = models.IntegerField(default=0, verbose_name="並び順")
+    active = models.BooleanField(default=True, verbose_name="使用中")
+    # 名前を変えても、種類のない古いメニューの判定（★→特選など）と新メニューの初期値が壊れないよう役割で引く。
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, blank=True, default="")
 
     class Meta:
         ordering = ["sort_order", "id"]
@@ -496,7 +514,12 @@ class PriceRank(models.Model):
 class PriceTable(models.Model):
     """価格表の版。ある日の値段は「その日に始まっている一番新しい版」で決まる。
     版は丸ごと1枚で持つ（本部の人が「10/1からの価格表」を1枚で見られるように）。"""
-    valid_from = models.DateField(unique=True, verbose_name="開始日")
+    valid_from = models.DateField(verbose_name="開始日")
+    # 空＝販売所用（列＝価格パターン）。顧客あり＝その顧客だけの価格表（列は1つ、マスの pattern は ""）。
+    customer = models.ForeignKey(
+        "orders.Customer", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="price_tables", verbose_name="顧客",
+    )
     note = models.CharField(max_length=100, blank=True, verbose_name="メモ")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
@@ -508,15 +531,22 @@ class PriceTable(models.Model):
         ordering = ["-valid_from"]
         verbose_name = "価格表"
         verbose_name_plural = "価格表"
+        constraints = [
+            models.UniqueConstraint(fields=["valid_from"], condition=models.Q(customer__isnull=True),
+                                    name="uniq_pricetable_shared_valid_from"),
+            models.UniqueConstraint(fields=["customer", "valid_from"], condition=models.Q(customer__isnull=False),
+                                    name="uniq_pricetable_customer_valid_from"),
+        ]
 
     def __str__(self):
-        return f"{self.valid_from:%Y-%m-%d}〜 {self.note}"
+        who = f"{self.customer} " if self.customer_id else ""
+        return f"{who}{self.valid_from:%Y-%m-%d}〜 {self.note}"
 
 
 class PriceTableCell(models.Model):
     table = models.ForeignKey(PriceTable, on_delete=models.CASCADE, related_name="cells")
     rank = models.ForeignKey(PriceRank, on_delete=models.PROTECT, related_name="cells")
-    pattern = models.CharField(max_length=10, choices=[(p, f"価格{p}") for p in PRICE_PATTERNS])
+    pattern = models.CharField(max_length=10, blank=True)   # PricePattern.code。顧客別価格表は ""
     price = models.PositiveIntegerField()
 
     class Meta:
@@ -591,7 +621,8 @@ class DailyReportDiscountLine(models.Model):
 
 class PriceChangeLog(models.Model):
     """価格表・割引設定の変更履歴。お金の設定なので、だれが・いつ・何を変えたかを画面で追えるようにする。"""
-    KIND_CHOICES = [("price_table", "価格表"), ("discount", "割引設定")]
+    KIND_CHOICES = [("price_table", "価格表"), ("discount", "割引設定"),
+                    ("customer_price", "顧客別の価格"), ("price_master", "値段の種類・価格パターン")]
 
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)
     summary = models.TextField(verbose_name="内容")  # 確認画面の文章を要約したもの

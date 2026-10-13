@@ -62,7 +62,7 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-600 hidden sm:table-cell">{{ customer.phone }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{{ customer.get_price_type_display }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">{{ customer.price_type_label }}</td>
                     <td class="px-4 py-3 text-right">
                         <div class="flex justify-end gap-2">
                             <a href="{% url 'orders:order_create_for_customer' customer.pk %}"

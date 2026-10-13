@@ -7,11 +7,11 @@
     <hr class="mb-3">
 
     {% if c.is_today %}
-    <div class="alert alert-danger">開始日が本日です。本日送信済みの日計表は現在の値段のままです。これから送信する日計表から新しい値段が適用されます。</div>
+    <div class="alert alert-danger">{% if customer %}開始日が本日です。本日すでに登録された注文の値段は変更されません。これから登録する注文から新しい値段が適用されます。{% else %}開始日が本日です。本日送信済みの日計表は現在の値段のままです。これから送信する日計表から新しい値段が適用されます。{% endif %}</div>
     {% endif %}
 
     <div class="pm-sentence mb-3">
-        <p class="mb-1">{{ c.start }}から、次の値段に変更されます。</p>
+        <p class="mb-1">{{ c.start }}から、{% if customer %}{{ customer }}の値段が{% endif %}次の値段に変更されます。</p>
         {% if c.until %}<p>{{ c.until }}までは現在の値段が適用されます。</p>{% endif %}
         <ul>
             {% for line in c.lines %}<li>{{ line }}</li>{% endfor %}
@@ -20,6 +20,10 @@
         {% if c.coupons %}
         <p class="mb-1">クーポン・サービスの欄も、{{ c.start }}から変更されます。</p>
         <ul>{% for line in c.coupons %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if c.customers_missing %}
+        <p class="mb-1 pm-warning">新しく追加した種類の値段が、顧客別の価格表で未設定の顧客があります（{{ c.customers_missing|length }}社）。［顧客別］タブから登録してください。</p>
+        <ul class="small">{% for cust, names in c.customers_missing %}<li>{{ cust }}：{{ names|join:"・" }}</li>{% endfor %}</ul>
         {% endif %}
         {% if c.mid_week %}
         <p class="mb-0">{{ c.start }}は週の途中です。{{ c.week_start }}からの週のメニューは、{% if c.until %}{{ c.until }}まで現在の値段、{% endif %}{{ c.start }}から新しい値段で販売します。</p>
@@ -31,12 +35,12 @@
     <details class="my-3">
         <summary>表で比較（現在の価格表と並べて表示）</summary>
         <div class="row g-3 mt-1">
-            <div class="col-md-6"><div class="small fw-bold mb-1">現在</div>{% include "prices/_price_matrix.html" with rows=base_rows locations=locations %}</div>
+            <div class="col-md-6"><div class="small fw-bold mb-1">現在</div>{% include "prices/_price_matrix.html" with rows=base_rows %}</div>
             <div class="col-md-6"><div class="small fw-bold mb-1">{{ c.start }}から</div>{% include "prices/_price_matrix.html" with rows=new_rows %}</div>
         </div>
     </details>
 
-    <form method="POST" action="{% url 'price_table_register' %}" id="register-form">
+    <form method="POST" action="{% if customer %}{% url 'customer_price_register' customer.pk %}{% else %}{% url 'price_table_register' %}{% endif %}" id="register-form">
         {% csrf_token %}
         {% if editing %}<input type="hidden" name="editing" value="{{ editing.pk }}">{% endif %}
         <input type="hidden" name="valid_from" value="{{ form.valid_from|date:'Y-m-d' }}">

@@ -1,0 +1,7 @@
+{# 価格表画面のタブ（価格の一元化 §5.1）。tab = shared / customers / ranks / patterns #}
+<ul class="nav nav-tabs mb-3 pm-tabs">
+    <li class="nav-item"><a class="nav-link {% if tab == 'shared' %}active{% endif %}" href="{% url 'price_table_list' %}">販売所</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'customers' %}active{% endif %}" href="{% url 'customer_price_list' %}">顧客別</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'ranks' %}active{% endif %}" href="{% url 'price_rank_list' %}">値段の種類</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'patterns' %}active{% endif %}" href="{% url 'price_pattern_list' %}">価格パターン</a></li>
+</ul>

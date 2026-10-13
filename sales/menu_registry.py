@@ -13,14 +13,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from sales.models import (
-    PRICE_PATTERNS, ClassifyRule, MenuProfile, MenuWeekCheck, PriceRank, Product,
+    ClassifyRule, MenuProfile, MenuWeekCheck, PriceRank, Product,
 )
-from sales.pricing import PriceBook
+from sales.pricing import LEGACY_PRICE_FIELDS, PriceBook
 
 MENU_SLOTS = 10            # 元のメニュー表の①〜⑩（⑪⑫は今は使わない）
 LARGE_RICE_NO = 11
 LARGE_RICE_NAME = "大盛りごはん"
-DEFAULT_RANK = "通常"
+DEFAULT_RANK_ROLE = "normal"   # 判定ルールに当たらないメニューの種類（名前を変えても壊れないよう役割で引く）
 DEFAULT_CONTAINER = "黒容器"
 WEEK_START_WEEKDAY = 2     # メニューの週は水曜はじまり
 
@@ -60,7 +60,7 @@ def classify(name, rules=None, ranks=None):
     rank_rule = next((r for r in rules if r.rank_id and r.keyword in name), None)
     container_rule = next((r for r in rules if r.container and r.keyword in name), None)
     return Classification(
-        rank=rank_rule.rank if rank_rule else ranks[DEFAULT_RANK],
+        rank=rank_rule.rank if rank_rule else next(r for r in ranks.values() if r.role == DEFAULT_RANK_ROLE),
         container=container_rule.container if container_rule else DEFAULT_CONTAINER,
         rank_rule=rank_rule, container_rule=container_rule,
     )
@@ -91,7 +91,7 @@ def prices_for_rank(rank, week):
     """Product.price_A/B/C にも、週の初日の価格表の値段を入れておく（古い画面の表示と予備のため）。"""
     book = PriceBook(week)
     probe = Product(rank=rank)
-    return {f"price_{p}": book.price(probe, p) for p in PRICE_PATTERNS}
+    return {field: book.price(probe, p) for p, field in LEGACY_PRICE_FIELDS.items()}
 
 
 @dataclass

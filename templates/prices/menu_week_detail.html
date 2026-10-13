@@ -46,15 +46,15 @@
         <div class="table-responsive">
         <table class="table table-sm align-middle pm-table pm-week-table">
             <thead>
-                <tr><th>No</th><th>メニュー名</th><th>値段の種類</th><th>容器</th><th>価格A</th><th>価格B</th><th>価格C</th></tr>
+                <tr><th>No</th><th>メニュー名</th><th>値段の種類</th><th>容器</th>{% for col in cols %}<th>{{ col.name }}</th>{% endfor %}</tr>
             </thead>
             <tbody>
             {% if needs_check_count %}
-                <tr class="pm-w-heading"><td colspan="7" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（新しいメニューです。値段の種類と容器を選択してください）</td></tr>
+                <tr class="pm-w-heading"><td colspan="{{ cols|length|add:4 }}" class="small fw-bold text-danger">要確認 {{ needs_check_count }}品（新しいメニューです。値段の種類と容器を選択してください）</td></tr>
             {% endif %}
             {% for row in rows %}
                 {% if needs_check_count and not row.needs_check %}{% ifchanged row.needs_check %}
-                <tr class="pm-w-heading"><td colspan="7" class="small text-muted">ここから下はメニューデータベースで決まったメニュー</td></tr>
+                <tr class="pm-w-heading"><td colspan="{{ cols|length|add:4 }}" class="small text-muted">ここから下はメニューデータベースで決まったメニュー</td></tr>
                 {% endifchanged %}{% endif %}
                 <tr class="{% if row.needs_check %}pm-row-attention{% endif %}" data-no="{{ row.product.no }}">
                     <td class="pm-w-no">{{ row.product.no }}</td>
@@ -76,7 +76,7 @@
                     </td>
                     {% endif %}
                     {% for cell in row.price_cells %}
-                    <td class="text-nowrap pm-price-cell pm-w-third" data-pattern="{{ cell.pattern }}" data-label="価格{{ cell.pattern }}">
+                    <td class="text-nowrap pm-price-cell pm-w-third" data-pattern="{{ cell.pattern }}" data-label="{{ cell.name }}">
                         {% for label, value in cell.lines %}
                         <div>{% if label %}<span class="small text-muted">{{ label }}</span> {% endif %}{% if value is None %}<span class="text-danger">値段なし</span>{% else %}{% if row.product.no == 11 %}＋{% endif %}{{ value }}円{% endif %}</div>
                         {% endfor %}

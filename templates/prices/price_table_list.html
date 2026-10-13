@@ -6,8 +6,8 @@
     <div class="d-flex justify-content-between align-items-center mb-2">
         <h1 class="h3 mb-0">価格表</h1>
     </div>
-    <p class="text-muted small mb-3">現在の弁当の値段です。値上げする場合は、［新規作成］から開始日を指定して登録します。</p>
-    <hr class="mb-3">
+    {% include "prices/_tabs.html" %}
+    <p class="text-muted small mb-3">販売所で使う現在の弁当の値段です。値上げする場合は、［新規作成］から開始日を指定して登録します。</p>
     {% include "includes/menu_week_alerts.html" %}
 
     <a href="{% url 'price_table_new' %}" class="btn btn-primary w-100 mb-3 d-md-none">＋ 新規作成</a>
@@ -59,12 +59,13 @@
         {% if past %}
         <div class="table-responsive mt-2">
             <table class="table table-sm align-middle small">
-                <thead><tr><th>開始日</th><th>終了日</th>{% for rank in rank_list %}<th>{{ rank.name }} A/B/C</th>{% endfor %}<th>メモ</th></tr></thead>
+                <thead><tr><th>開始日</th><th>終了日</th><th>列</th>{% for rank in past_ranks %}<th>{{ rank.name }}</th>{% endfor %}<th>メモ</th></tr></thead>
                 <tbody>
                 {% for row in past %}
                 <tr>
                     <td>{{ row.table.valid_from|date:"Y/m/d" }}</td>
                     <td>{{ row.valid_to|date:"Y/m/d" }}</td>
+                    <td>{{ row.cols_label }}</td>
                     {% for prices in row.by_rank %}<td>{{ prices }}</td>{% endfor %}
                     <td>{{ row.table.note }}</td>
                 </tr>

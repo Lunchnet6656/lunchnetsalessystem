@@ -23,7 +23,7 @@ from sales.discounts import (
     total_discount,
 )
 from sales.models import DailyReport, DailyReportEntry, ItemQuantity, SalesLocation
-from sales.pricing import PriceBook, pattern_of
+from sales.pricing import PriceBook, known_codes, pattern_of
 
 
 def _date(text):
@@ -48,7 +48,8 @@ class Command(BaseCommand):
         if opts["until"]:
             reports = reports.filter(date__lte=opts["until"])
 
-        patterns = {loc.name: pattern_of(loc) for loc in SalesLocation.objects.all()}
+        codes = known_codes()
+        patterns = {loc.name: pattern_of(loc, codes=codes) for loc in SalesLocation.objects.all()}
         books, items_cache = {}, {}
         rows, by_month = [], Counter()
         stats = Counter()

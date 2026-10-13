@@ -112,7 +112,7 @@ class CustomerForm(forms.ModelForm):
         fields = [
             'customer_type', 'company_name', 'department', 'contact_person', 'name',
             'postal_code', 'address', 'phone', 'fax', 'email',
-            'price_type', 'custom_price_normal', 'custom_price_star', 'custom_price_large',
+            'price_type',
             'payment_method', 'invoice_timing', 'bank_account', 'invoice_delivery', 'delivery_bin', 'bento_type', 'is_regular',
             'regular_type',
             'schedule_mon', 'schedule_tue', 'schedule_wed', 'schedule_thu',
@@ -127,6 +127,16 @@ class CustomerForm(forms.ModelForm):
         self.fields['delivery_bin'].queryset = DeliveryBin.objects.filter(is_active=True)
         self.fields['bank_account'].queryset = BankAccount.objects.filter(is_active=True)
         self.fields['name'].required = False
+        # 価格タイプ＝価格表に値段がある価格パターン＋独自価格。今の設定が選択肢にないときも消さずに残す
+        from django.utils import timezone
+        from sales.price_admin import assignable_patterns
+        choices = [(p.code, p.name) for p in assignable_patterns(timezone.localdate())]
+        choices.append((Customer.CUSTOM_PRICE_TYPE, '独自価格'))
+        current = self.instance.price_type if self.instance and self.instance.pk else None
+        if current and current not in dict(choices):
+            choices.insert(0, (current, self.instance.price_type_label))
+        self.fields['price_type'] = forms.ChoiceField(choices=choices, label='価格タイプ',
+                                                      initial=current or (choices[0][0] if choices else 'A'))
 
     def clean(self):
         cleaned = super().clean()

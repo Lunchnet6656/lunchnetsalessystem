@@ -1,0 +1,25 @@
+{# 値段の種類・価格パターンの1行の操作（並び替え・名前変更・終了）。obj, first, last, edit_id, end_id, can_end #}
+<div class="d-flex flex-wrap gap-2 align-items-center">
+    <form method="POST" class="d-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ obj.pk }}">
+        <button name="action" value="up" class="btn btn-sm btn-outline-secondary" title="上へ" {% if first %}disabled{% endif %}>↑</button></form>
+    <form method="POST" class="d-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ obj.pk }}">
+        <button name="action" value="down" class="btn btn-sm btn-outline-secondary" title="下へ" {% if last %}disabled{% endif %}>↓</button></form>
+    <a href="?edit={{ obj.pk }}" class="btn btn-sm btn-outline-secondary">名前変更</a>
+    {% if can_end %}<a href="?end={{ obj.pk }}" class="btn btn-sm btn-outline-danger">終了</a>{% endif %}
+</div>
+{% if edit_id == obj.pk|stringformat:"s" %}
+<form method="POST" class="d-flex flex-wrap gap-2 mt-2">{% csrf_token %}
+    <input type="hidden" name="id" value="{{ obj.pk }}">
+    <input type="text" name="name" value="{{ obj.name }}" maxlength="30" class="form-control form-control-sm" style="max-width:220px;font-size:16px;" aria-label="新しい名前" required>
+    <button name="action" value="rename" class="btn btn-sm btn-primary">更新</button>
+    <a href="?" class="btn btn-sm btn-outline-secondary">戻る</a>
+</form>
+{% endif %}
+{% if end_id == obj.pk|stringformat:"s" and can_end %}
+<form method="POST" class="pm-sentence mt-2 small">{% csrf_token %}
+    <input type="hidden" name="id" value="{{ obj.pk }}">
+    <p class="mb-2">『{{ obj.name }}』を終了します。次に登録する価格表から表示されません。これまでの価格表・日計表・注文の値段は変更されません。</p>
+    <button name="action" value="end" class="btn btn-sm btn-danger">終了</button>
+    <a href="?" class="btn btn-sm btn-outline-secondary">戻る</a>
+</form>
+{% endif %}

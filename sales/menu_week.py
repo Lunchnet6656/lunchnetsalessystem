@@ -11,9 +11,10 @@ from django.utils import timezone
 
 from sales.menu_registry import LARGE_RICE_NO, prices_for_rank, week_end, week_state
 from sales.models import (
-    CONTAINER_CHOICES, PRICE_PATTERNS, DailyReport, MenuProfile, MenuWeekCheck, PriceRank, PriceTable, Product,
+    CONTAINER_CHOICES, DailyReport, MenuProfile, MenuWeekCheck, PriceRank, PriceTable, Product,
 )
-from sales.price_admin import cells_of, md
+from sales.price_admin import cells_of, columns, md
+from sales.pricing import legacy_price
 
 
 def week_products(week):
@@ -25,8 +26,9 @@ def week_products(week):
 def price_segments(week):
     """その週（水〜火）に使う価格表の段。週の途中で切り替わるときだけ2段以上になる。"""
     start, end = week, week_end(week)
-    first = PriceTable.objects.filter(valid_from__lte=start).order_by("-valid_from").prefetch_related("cells").first()
-    later = list(PriceTable.objects.filter(valid_from__gt=start, valid_from__lte=end)
+    shared = PriceTable.objects.filter(customer__isnull=True)
+    first = shared.filter(valid_from__lte=start).order_by("-valid_from").prefetch_related("cells").first()
+    later = list(shared.filter(valid_from__gt=start, valid_from__lte=end)
                  .order_by("valid_from").prefetch_related("cells"))
     tables = ([first] if first else []) + later
     segments = []
@@ -44,10 +46,16 @@ def price_segments(week):
     return segments
 
 
+def week_columns(segments):
+    """その週の価格表に出てくる価格パターン（使用中のもの＋その週の価格表にマスがあるもの）。"""
+    return columns(*[seg["cells"] for seg in segments])
+
+
 def prices_json(segments, ranks):
     """種類を変えたら価格がその場で変わるように、画面へ埋め込む値段の一覧。"""
+    codes = [c.code for c in week_columns(segments)]
     return [{"label": seg["label"],
-             "cells": {str(r.id): {p: seg["cells"].get((r.id, p)) for p in PRICE_PATTERNS} for r in ranks}}
+             "cells": {str(r.id): {p: seg["cells"].get((r.id, p)) for p in codes} for r in ranks}}
             for seg in segments]
 
 
@@ -56,29 +64,33 @@ class WeekRow:
     product: Product
     needs_check: bool
     fixed: bool            # 大盛りごはん（アプリが足す行）・古い登録方法の行はプルダウンにしない
-    prices: list = field(default_factory=list)   # [{"label", "A", "B", "C"}]
+    prices: list = field(default_factory=list)   # [{"label", "A": 値段, "B": …}]
+    cols: list = field(default_factory=list)
 
     @property
     def price_cells(self):
-        """テンプレート用：価格A/B/Cごとに [(段の見出し, 値段), ...]。"""
-        return [{"pattern": pt, "lines": [(pr["label"], pr[pt]) for pr in self.prices]} for pt in PRICE_PATTERNS]
+        """テンプレート用：価格パターンごとに [(段の見出し, 値段), ...]。"""
+        return [{"pattern": c.code, "name": c.name, "lines": [(pr["label"], pr.get(c.code)) for pr in self.prices]}
+                for c in self.cols]
 
 
 def week_view(week, today=None):
     today = today or timezone.localdate()
     products = week_products(week)
     segments = price_segments(week)
+    cols = week_columns(segments)
+    codes = [c.code for c in cols]
     unconfirmed = set(MenuProfile.objects.filter(name__in=[p.name for p in products], confirmed=False)
                       .values_list("name", flat=True))
     rows = []
     for p in products:
         if p.rank_id:
-            prices = [{"label": s["label"], **{pt: s["cells"].get((p.rank_id, pt)) for pt in PRICE_PATTERNS}}
-                      for s in segments] or [{"label": "", **{pt: None for pt in PRICE_PATTERNS}}]
+            prices = [{"label": s["label"], **{pt: s["cells"].get((p.rank_id, pt)) for pt in codes}}
+                      for s in segments] or [{"label": "", **{pt: None for pt in codes}}]
         else:
-            prices = [{"label": "", **{pt: int(getattr(p, f"price_{pt}") or 0) for pt in PRICE_PATTERNS}}]
+            prices = [{"label": "", **{pt: legacy_price(p, pt) for pt in codes}}]
         rows.append(WeekRow(p, p.name in unconfirmed and p.no != LARGE_RICE_NO,
-                            fixed=p.no == LARGE_RICE_NO or not p.rank_id, prices=prices))
+                            fixed=p.no == LARGE_RICE_NO or not p.rank_id, prices=prices, cols=cols))
     rows.sort(key=lambda r: (not r.needs_check, r.product.no))   # 要確認の行を上に寄せる
     legacy = bool(products) and not any(p.rank_id for p in products)
     return {
@@ -89,9 +101,10 @@ def week_view(week, today=None):
         "rows": rows,
         "needs_check_count": sum(r.needs_check for r in rows),
         "segments": segments,
+        "cols": cols,
         "multi_segment": len(segments) > 1,
         "missing_price": any(v is None for r in rows if not r.fixed for pr in r.prices
-                             for k, v in pr.items() if k in PRICE_PATTERNS),
+                             for k, v in pr.items() if k in codes),
         "legacy": legacy,
         "prev_week": week - datetime.timedelta(days=7),
         "next_week": week + datetime.timedelta(days=7),

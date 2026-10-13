@@ -1,0 +1,10 @@
+<details class="mb-5 mt-4">
+    <summary>変更履歴</summary>
+    {% if history %}
+    <table class="table table-sm small mt-2"><tbody>
+    {% for log in history %}
+    <tr><td class="text-nowrap">{{ log.created_at|date:"n/j H:i" }}</td><td class="text-nowrap">{{ log.user_label }}</td><td>{{ log.summary }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}<p class="text-muted small mt-2">変更履歴はありません。</p>{% endif %}
+</details>

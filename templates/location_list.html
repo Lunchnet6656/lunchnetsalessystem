@@ -83,7 +83,12 @@
                         <td class="col-no"><input type="number" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][no]" value="{{ location.no }}" min="0"></td>
                         <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][name]" value="{{ location.name }}"></td>
                         <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][type]" value="{{ location.type }}"></td>
-                        <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][price_type]" value="{{ location.price_type }}"></td>
+                        <td>
+                            <select class="form-select form-select-sm location-input" name="location[{{ forloop.counter0 }}][price_type]">
+                                {% if location.price_type not in pattern_codes %}<option value="{{ location.price_type }}" selected>{{ location.price_type|default:"（未設定）" }}</option>{% endif %}
+                                {% for p in patterns %}<option value="{{ p.code }}" {% if p.code == location.price_type %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+                            </select>
+                        </td>
                         <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][service_name]" value="{{ location.service_name }}"></td>
                         <td><input type="number" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][service_price]" value="{{ location.service_price }}" step="1"></td>
                         <td>
@@ -116,6 +121,7 @@
     </form>
 </div>
 
+{{ pattern_options|json_script:"pattern-options" }}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <script>
@@ -147,6 +153,9 @@
         });
 
         // 新規行の追加
+        // 価格タイプの選択肢＝価格表に値段がある価格パターン（価格表画面の［価格パターン］タブで管理）
+        const patternOptions = JSON.parse(document.getElementById('pattern-options').textContent)
+            .map(function (p) { return '<option value="' + p.code + '">' + p.name + '</option>'; }).join('');
         document.getElementById('addRowButton').addEventListener('click', function() {
             const emptyRow = document.getElementById('emptyRow');
             if (emptyRow) emptyRow.remove();
@@ -161,7 +170,7 @@
                 <td class="col-no"><input type="number" class="form-control form-control-sm location-input" name="location[${rowCount}][no]" value="" min="0"></td>
                 <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][name]" value=""></td>
                 <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][type]" value=""></td>
-                <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][price_type]" value=""></td>
+                <td><select class="form-select form-select-sm location-input" name="location[${rowCount}][price_type]">${patternOptions}</select></td>
                 <td><input type="text" class="form-control form-control-sm location-input" name="location[${rowCount}][service_name]" value=""></td>
                 <td><input type="number" class="form-control form-control-sm location-input" name="location[${rowCount}][service_price]" value="0" step="1"></td>
                 <td>

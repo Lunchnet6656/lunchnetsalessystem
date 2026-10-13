@@ -17,8 +17,9 @@ from .models import Customer, Order, OrderItem, OrderSettings, PaymentMethod, Ex
 from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm, BankAccountForm, MenuWeekAssignmentForm
 from . import services
-from sales.models import Product
-from sales.pricing import PriceBook
+from sales.menu_registry import LARGE_RICE_NO
+from sales.models import PriceRank, Product
+from sales.pricing import PriceBook, is_custom
 from datetime import datetime, timedelta, date
 import calendar
 
@@ -44,6 +45,16 @@ def _resolve_menu_week(target):
         .first()
     )
     return assignment.week if assignment else None
+
+
+def _products_for_date(target):
+    override_week = _resolve_menu_week(target)
+    if override_week:
+        products = Product.objects.filter(week=override_week).order_by('no')
+    else:
+        candidates = [(target - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
+        products = Product.objects.filter(week__in=candidates).order_by('no')
+    return list(products.select_related('rank'))
 
 
 def _get_products_data_for_date(target):
@@ -75,27 +86,15 @@ def _get_products_data_for_date(target):
     ]
 
 
-def _price_key(product):
-    """顧客別価格表の列（★あり＝star／★なし＝normal／大盛り＝large）。お手頃は列がないので None。"""
-    if product['rank']:
-        return {'特選': 'star', '通常': 'normal', '大盛り': 'large'}.get(product['rank'])
-    if '大盛りごはん' in product['name']:
-        return 'large'
-    return 'star' if '★' in product['name'] else 'normal'
-
-
-def customer_price_table(target):
-    """納品日 target の週のメニューから、価格タイプ別の ★あり／★なし／大盛り の単価を作る。
-    注文画面と同じ週の決め方（_get_products_data_for_date）と同じ値段を使う。"""
-    table = {pt: {'star': None, 'normal': None, 'large': None} for pt in ('A', 'B', 'C')}
-    for prod in _get_products_data_for_date(target):
-        key = _price_key(prod)
-        if key is None:
-            continue
-        for pt in ('A', 'B', 'C'):
-            if table[pt][key] is None:
-                table[pt][key] = prod[f'price_{pt}'] or None
-    return table
+def customer_rank_prices(customer, target, rank_list):
+    """顧客一覧のExcel用：値段の種類ごとの、その日の値段（未設定は ''）。
+    独自価格の顧客は顧客別価格表、それ以外は販売所用価格表のその価格タイプの列。"""
+    book = PriceBook(target, customer)
+    row = []
+    for rank in rank_list:
+        price = book.customer_price(Product(rank=rank, name=rank.name))
+        row.append(price if price else '')
+    return row
 
 
 @login_required
@@ -114,6 +113,48 @@ def _billing_display(customer):
     pm = customer.payment_method
     is_invoice = bool(pm and pm.name == '請求書')
     return (not is_invoice), (pm.name if pm else '')
+
+
+def _missing_prices(form, formset):
+    """値段が未設定のメニュー名（独自価格の顧客で顧客別価格表に値段がないもの）。"""
+    customer = form.cleaned_data.get('customer')
+    delivery_date = form.cleaned_data.get('delivery_date')
+    if customer is None or delivery_date is None or customer.bento_type == 'CATERING':
+        return []
+    products = [f.cleaned_data.get('product') for f in formset.forms
+                if f.cleaned_data and not f.cleaned_data.get('DELETE') and f.cleaned_data.get('product')
+                and (f.cleaned_data.get('quantity_large', 0) + f.cleaned_data.get('quantity_regular', 0)
+                     + f.cleaned_data.get('quantity_small', 0)) > 0]
+    if not products:
+        return []
+    prices, large_extra = customer_prices(customer, delivery_date, products)
+    missing = [p.name for p in products if prices.get(p.id) is None]
+    if large_extra is None and any(
+            f.cleaned_data.get('quantity_large') for f in formset.forms
+            if f.cleaned_data and f.cleaned_data.get('product')):
+        missing.append('大盛りの追加料金')
+    return missing
+
+
+def _apply_server_prices(order, items):
+    """メニューの明細は、画面から来た単価を使わず、納品日と顧客で値段を引き直す（仕出しの手入力行はそのまま）。"""
+    customer = order.customer
+    if customer.bento_type == 'CATERING':
+        return
+    priced = [i for i in items if i.product_id]
+    if not priced:
+        return
+    prices, large_extra = customer_prices(customer, order.delivery_date, [i.product for i in priced])
+    for item in priced:
+        base = prices.get(item.product_id) or 0
+        large_total = base if item.product.container_type == '一体型' else base + (large_extra or 0)
+        item.unit_price = base
+        item.subtotal = item.quantity_large * large_total + (item.quantity_regular + item.quantity_small) * base
+
+
+def _missing_price_message(missing):
+    return (f'値段が未設定のため登録できません（{"・".join(missing)}）。'
+            '価格表画面の［顧客別］タブで、この顧客の値段を登録してください。')
 
 
 @login_required
@@ -139,19 +180,24 @@ def order_create(request, customer_id=None):
         form = OrderForm(request.POST)
         formset = OrderItemFormSet(request.POST, prefix='items')
         extra_formset = OrderExtraItemFormSet(request.POST, prefix='extra_items')
-        if form.is_valid() and formset.is_valid() and extra_formset.is_valid():
+        missing = _missing_prices(form, formset) if form.is_valid() and formset.is_valid() else []
+        if missing:
+            form.add_error(None, _missing_price_message(missing))
+        if not missing and form.is_valid() and formset.is_valid() and extra_formset.is_valid():
             order = form.save(commit=False)
             order.created_by = request.user
             order.save()
             formset.instance = order
             items = formset.save(commit=False)
             for item in items:
-                total_qty = item.quantity_large + item.quantity_regular + item.quantity_small
+                item.quantity = item.quantity_large + item.quantity_regular + item.quantity_small
+            _apply_server_prices(order, items)
+            for item in items:
+                total_qty = item.quantity
                 if total_qty == 0:
                     continue
                 if item.product and not item.product_name:
                     item.product_name = item.product.name
-                item.quantity = total_qty
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -237,18 +283,23 @@ def order_edit(request, pk):
         form = OrderForm(request.POST, instance=order)
         formset = OrderItemFormSet(request.POST, instance=order, prefix='items')
         extra_formset = OrderExtraItemFormSet(request.POST, instance=order, prefix='extra_items')
-        if form.is_valid() and formset.is_valid() and extra_formset.is_valid():
-            form.save()
+        missing = _missing_prices(form, formset) if form.is_valid() and formset.is_valid() else []
+        if missing:
+            form.add_error(None, _missing_price_message(missing))
+        if not missing and form.is_valid() and formset.is_valid() and extra_formset.is_valid():
+            order = form.save()
             items = formset.save(commit=False)
             for item in items:
-                total_qty = item.quantity_large + item.quantity_regular + item.quantity_small
+                item.quantity = item.quantity_large + item.quantity_regular + item.quantity_small
+            _apply_server_prices(order, items)
+            for item in items:
+                total_qty = item.quantity
                 if total_qty == 0:
                     if item.pk:
                         item.delete()
                     continue
                 if item.product and not item.product_name:
                     item.product_name = item.product.name
-                item.quantity = total_qty
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -1217,6 +1268,21 @@ def api_customer_info(request, pk):
     })
 
 
+def customer_prices(customer, target, products=None):
+    """その顧客・その納品日の値段。{product_id: 値段（未設定は None）}, 大盛りの追加料金（未設定は None）。
+    注文画面の表示と保存時の計算で同じものを使う（画面から来た単価は信用しない）。"""
+    products = products if products is not None else _products_for_date(target)
+    book = PriceBook(target, customer)
+    prices = {p.id: book.customer_price(p) for p in products}
+    large = next((p for p in products if p.no == LARGE_RICE_NO), None)
+    if is_custom(customer):
+        large_rank = PriceRank.objects.filter(role='large').first()
+        large_extra = book.customer_price(Product(rank=large_rank, name='大盛り')) if large_rank else None
+    else:
+        large_extra = prices.get(large.id) if large else 0
+    return prices, large_extra
+
+
 @login_required
 def api_products(request, date):
     try:
@@ -1227,7 +1293,16 @@ def api_products(request, date):
     except ValueError:
         return JsonResponse({'products': []})
 
-    return JsonResponse({'products': _get_products_data_for_date(target)})
+    data = {'products': _get_products_data_for_date(target)}
+    customer_id = request.GET.get('customer')
+    if customer_id and customer_id.isdigit():
+        customer = Customer.objects.filter(pk=customer_id).first()
+        if customer is not None:
+            prices, large_extra = customer_prices(customer, target)
+            for product in data['products']:
+                product['price'] = prices.get(product['id'])
+            data['large_extra'] = large_extra
+    return JsonResponse(data)
 
 
 @login_required
@@ -1886,15 +1961,13 @@ def order_csv_export(request):
     # ---- シート2: 顧客別価格表 ----
     ws2 = wb.create_sheet(title='顧客別価格表')
 
-    # 期間の最終日の時点の値段（注文画面と同じ週・同じ価格表）
-    # product_prices[価格タイプ]['star'|'normal'|'large'] = 単価（円）
-    product_prices = customer_price_table(date_to)
+    # 期間の最終日の時点の値段（値段の種類ごと・注文画面と同じ価格表）
+    rank_list = list(PriceRank.objects.filter(active=True))
     week_label = f"（{date_to:%Y/%m/%d}時点）"
 
     header_fill2 = PatternFill(fill_type='solid', fgColor='1565C0')
-    headers2 = [
-        '顧客名', '顧客種別', '配達便', 'お弁当種別', '価格タイプ',
-        f'★あり単価{week_label}', f'★なし単価{week_label}', '大盛り割増',
+    headers2 = ['顧客名', '顧客種別', '配達便', 'お弁当種別', '価格タイプ'] + [
+        f'{r.name}単価{week_label}' if r.is_bento else f'{r.name}（追加料金）' for r in rank_list
     ]
     ws2.append(headers2)
     for cell in ws2[1]:
@@ -1914,19 +1987,8 @@ def order_csv_export(request):
     for c in customers:
         customer_name = c.company_name if c.customer_type == 'B2B' else c.name
         delivery_bin  = c.delivery_bin.name if c.delivery_bin else ''
-        price_type_label = dict(Customer.PRICE_TYPE_CHOICES).get(c.price_type, c.price_type)
         customer_type_label = dict(Customer.CUSTOMER_TYPE_CHOICES).get(c.customer_type, c.customer_type)
         bento_type_label = dict(Customer.BENTO_TYPE_CHOICES).get(c.bento_type, c.bento_type)
-
-        if c.price_type == 'CUSTOM':
-            price_star   = int(c.custom_price_star)   if c.custom_price_star   is not None else ''
-            price_normal = int(c.custom_price_normal) if c.custom_price_normal is not None else ''
-            price_large  = int(c.custom_price_large)  if c.custom_price_large  is not None else ''
-        else:
-            pt = c.price_type  # 'A', 'B', or 'C'
-            price_star   = product_prices[pt]['star']   if pt in product_prices else ''
-            price_normal = product_prices[pt]['normal'] if pt in product_prices else ''
-            price_large  = product_prices[pt]['large']  if pt in product_prices else ''
 
         row = ws2.max_row + 1
         ws2.append([
@@ -1934,11 +1996,8 @@ def order_csv_export(request):
             customer_type_label,
             delivery_bin,
             bento_type_label,
-            price_type_label,
-            price_star if price_star is not None else '',
-            price_normal if price_normal is not None else '',
-            price_large,
-        ])
+            c.price_type_label,
+        ] + customer_rank_prices(c, date_to, rank_list))
         if c.price_type == 'CUSTOM':
             for cell in ws2[row]:
                 cell.fill = custom_fill

@@ -3,9 +3,9 @@
 {% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <h1 class="h3">{% if editing %}価格表の編集（{{ editing.valid_from|date:"n/j" }}から）{% else %}価格表の新規作成{% endif %}</h1>
+    <h1 class="h3">{% if customer %}{{ customer }}：{% endif %}{% if editing %}価格表の編集（{{ editing.valid_from|date:"n/j" }}から）{% else %}価格表の新規作成{% endif %}</h1>
     <p class="text-muted small mb-3">
-        {% if editing %}開始前の価格表です。変更するマスを編集してください。{% else %}現在の価格表をコピーしました。変更するマスを編集し、開始日を入力してください。{% endif %}
+        {% if editing %}開始前の価格表です。変更するマスを編集してください。{% elif customer and not rows.0.cells.0.base %}値段の種類ごとに値段を入力し、開始日を入力してください。{% else %}現在の価格表をコピーしました。変更するマスを編集し、開始日を入力してください。新しく追加した種類・価格パターンのマスは空欄です。{% endif %}
     </p>
     <hr class="mb-3">
 
@@ -15,7 +15,7 @@
     </div>
     {% endif %}
 
-    <form method="POST" action="{% url 'price_table_confirm' %}" id="price-form">
+    <form method="POST" action="{% if customer %}{% url 'customer_price_confirm' customer.pk %}{% else %}{% url 'price_table_confirm' %}{% endif %}" id="price-form">
         {% csrf_token %}
         {% if editing %}<input type="hidden" name="editing" value="{{ editing.pk }}">{% endif %}
         <div class="row mb-3 g-2 align-items-center">
@@ -23,7 +23,7 @@
             <div class="col-12 col-md-auto">
                 <input type="date" id="valid_from" name="valid_from" class="form-control" value="{{ valid_from }}" required style="font-size:16px;">
             </div>
-            <div class="col-12 col-md text-muted small">この日の日計表から新しい値段が適用されます</div>
+            <div class="col-12 col-md text-muted small">{% if customer %}この日の納品分の注文から新しい値段が適用されます{% else %}この日の日計表から新しい値段が適用されます{% endif %}</div>
         </div>
         <div class="row mb-3 g-2 align-items-center">
             <div class="col-12 col-md-auto"><label for="note" class="form-label mb-0 fw-bold">メモ</label></div>
@@ -37,8 +37,8 @@
             <thead>
                 <tr>
                     <th></th>
-                    {% for pattern, names in locations.items %}
-                    <th><span class="d-none d-md-inline">価格</span>{{ pattern }}<div class="small text-muted">{{ names|length }}か所</div></th>
+                    {% for head in heads %}
+                    <th>{{ head.name }}{% if head.names is not None %}<div class="small text-muted">{{ head.names|length }}か所</div>{% endif %}</th>
                     {% endfor %}
                 </tr>
             </thead>
@@ -58,7 +58,7 @@
                                    class="form-control pm-price-input {% if cell.changed %}pm-diff-cell{% endif %} {% if cell.invalid %}is-invalid{% endif %}">
                             <span>円</span>
                         </div>
-                        {% if cell.base is not None %}<div class="pm-was">現在 {{ cell.base }}</div>{% endif %}
+                        <div class="pm-was">現在 {% if cell.base is not None %}{{ cell.base }}{% else %}—{% endif %}</div>
                     </td>
                     {% endfor %}
                 </tr>
@@ -68,7 +68,7 @@
         </div>
 
         <div class="d-flex justify-content-end gap-2 my-4">
-            <a href="{% url 'price_table_list' %}" class="btn btn-outline-secondary">戻る</a>
+            <a href="{% if customer %}{% url 'customer_price_list' %}{% else %}{% url 'price_table_list' %}{% endif %}" class="btn btn-outline-secondary">戻る</a>
             <button type="submit" class="btn btn-primary">確認</button>
         </div>
     </form>

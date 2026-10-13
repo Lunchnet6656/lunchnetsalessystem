@@ -33,9 +33,7 @@
                         {% for c in customers %}
                         <option value="{{ c.pk }}" data-price-type="{{ c.price_type }}"
                                 data-bento-type="{{ c.bento_type }}"
-                                data-custom-price-normal="{{ c.custom_price_normal|default:0 }}"
-                                data-custom-price-star="{{ c.custom_price_star|default:0 }}"
-                                data-custom-price-large="{{ c.custom_price_large|default:0 }}"
+                                data-price-type-label="{{ c.price_type_label }}"
                                 {% if form.customer.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>
                             {{ c }}
                         </option>
@@ -276,7 +274,7 @@
                                     {% if c.price_type == 'A' %}bg-green-100 text-green-700
                                     {% elif c.price_type == 'B' %}bg-yellow-100 text-yellow-700
                                     {% else %}bg-purple-100 text-purple-700{% endif %}">
-                                    {{ c.get_price_type_display }}
+                                    {{ c.price_type_label }}
                                 </span>
                             </div>
                             {% if c.customer_type == 'B2B' and c.contact_person %}

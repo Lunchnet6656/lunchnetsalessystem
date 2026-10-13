@@ -57,12 +57,9 @@ class Customer(models.Model):
         ('B2B', '法人'),
         ('INDIVIDUAL', '個人'),
     ]
-    PRICE_TYPE_CHOICES = [
-        ('A', '価格A'),
-        ('B', '価格B'),
-        ('C', '価格C'),
-        ('CUSTOM', '独自価格'),
-    ]
+    # 価格タイプは価格表画面の価格パターン（sales.PricePattern の code）＋「独自価格」。
+    # パターンは本部が画面で増減するので、ここに選択肢を固定しない（2026-10-13 価格の一元化）。
+    CUSTOM_PRICE_TYPE = 'CUSTOM'
     BENTO_TYPE_CHOICES = [
         ('REGULAR', '通常弁当'),
         ('CATERING', '仕出し弁当'),
@@ -90,12 +87,12 @@ class Customer(models.Model):
     fax = models.CharField(max_length=20, blank=True, verbose_name="FAX番号")
     email = models.EmailField(blank=True, verbose_name="メールアドレス")
     price_type = models.CharField(
-        max_length=6, choices=PRICE_TYPE_CHOICES, default='A',
+        max_length=10, default='A',
         verbose_name="価格タイプ"
     )
     custom_price_normal = models.DecimalField(
         max_digits=10, decimal_places=0, null=True, blank=True,
-        verbose_name="独自価格（★なし）"
+        verbose_name="独自価格（★なし）（旧・価格表の顧客別へ移行済み）"
     )
     custom_price_star = models.DecimalField(
         max_digits=10, decimal_places=0, null=True, blank=True,
@@ -165,6 +162,15 @@ class Customer(models.Model):
                 parts = f"{parts}（{self.contact_person}）"
             return parts
         return self.name or ''
+
+    @property
+    def price_type_label(self):
+        """画面に出す価格タイプ名（価格パターンの名前・独自価格）。"""
+        if self.price_type == self.CUSTOM_PRICE_TYPE:
+            return '独自価格'
+        from sales.models import PricePattern
+        pattern = PricePattern.objects.filter(code=self.price_type).first()
+        return pattern.name if pattern else self.price_type
 
     def display_name(self):
         if self.customer_type == 'B2B' and self.company_name:

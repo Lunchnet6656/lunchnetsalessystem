@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}価格パターン{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3 mb-2">価格表</h1>
+    {% include "prices/_tabs.html" %}
+    <p class="text-muted small mb-3">価格表の列です。販売所と顧客は、ここにある価格パターンから選択します（値段が登録されている価格パターンのみ）。</p>
+
+    <div class="list-group mb-3">
+        {% for row in rows %}
+        <div class="list-group-item">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <span class="fw-bold">{{ row.pattern.name }}</span>
+                    <span class="small text-muted ms-2">販売所 {{ row.locations }}か所</span>
+                    <span class="small text-muted ms-2">顧客 {{ row.customers }}件</span>
+                </div>
+                {% include "prices/_master_row_actions.html" with obj=row.pattern first=forloop.first last=forloop.last can_end=True end_id=request.GET.end %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <form method="POST" class="card card-body mb-3">{% csrf_token %}
+        <div class="fw-bold mb-2">価格パターン追加</div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4"><label class="form-label small" for="name">名前</label>
+                <input type="text" id="name" name="name" maxlength="30" class="form-control" style="font-size:16px;" placeholder="例：価格D" required></div>
+            <div class="col-12 col-md-auto"><button name="action" value="add" class="btn btn-primary w-100">価格パターン追加</button></div>
+        </div>
+    </form>
+
+    <details class="mb-3">
+        <summary>終了した価格パターン（{{ ended|length }}件）</summary>
+        {% for row in ended %}<div class="small mt-1 pm-ended px-2">{{ row.pattern.name }}</div>
+        {% empty %}<p class="text-muted small mt-2">終了した価格パターンはありません。</p>{% endfor %}
+    </details>
+    {% include "prices/_master_history.html" %}
+</div>
+{% endblock %}

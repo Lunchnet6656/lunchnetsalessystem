@@ -104,32 +104,10 @@
             </select>
         </div>
 
-        <!-- 独自価格設定（価格タイプ=CUSTOMのときのみ表示） -->
+        <!-- 独自価格（値段は価格表画面の［顧客別］タブで管理する） -->
         <div id="custom-price-section" class="{% if form.price_type.value != 'CUSTOM' %}hidden{% endif %} bg-yellow-50 border border-yellow-300 rounded-lg p-4 space-y-3">
-            <p class="text-sm font-semibold text-yellow-800">独自価格設定</p>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">★なし商品の価格（円）<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
-                    <input type="number" name="custom_price_normal" id="id_custom_price_normal"
-                           value="{{ form.custom_price_normal.value|default:'' }}" min="0" step="1"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
-                    {% if form.custom_price_normal.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_normal.errors.0 }}</p>{% endif %}
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">★あり商品の価格（円）<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
-                    <input type="number" name="custom_price_star" id="id_custom_price_star"
-                           value="{{ form.custom_price_star.value|default:'' }}" min="0" step="1"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
-                    {% if form.custom_price_star.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_star.errors.0 }}</p>{% endif %}
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">大盛り割増（円）<span class="text-gray-500 text-xs font-normal ml-1">任意</span></label>
-                    <input type="number" name="custom_price_large" id="id_custom_price_large"
-                           value="{{ form.custom_price_large.value|default:'' }}" min="0" step="1"
-                           class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 outline-none">
-                    {% if form.custom_price_large.errors %}<p class="text-red-600 text-xs mt-1">{{ form.custom_price_large.errors.0 }}</p>{% endif %}
-                </div>
-            </div>
+            <p class="text-sm font-semibold text-yellow-800">独自価格の値段は、価格表画面の［顧客別］タブで、値段の種類ごとに開始日を指定して登録します。</p>
+            <p class="text-xs text-gray-600">保存後に［価格表 &gt; 顧客別］を開いてください（権限「価格・メニュー設定」が必要です）。<a href="{% url 'customer_price_list' %}" class="text-blue-600 underline">価格表 &gt; 顧客別</a></p>
         </div>
 
         <!-- 支払い方法 -->

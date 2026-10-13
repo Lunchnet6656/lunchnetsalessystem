@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}値段の種類{% endblock %}
+{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3 mb-2">価格表</h1>
+    {% include "prices/_tabs.html" %}
+    <p class="text-muted small mb-3">価格表の行です。終了した種類は、次に登録する価格表から表示されません。値段は［販売所］［顧客別］タブで登録します。</p>
+
+    <div class="list-group mb-3">
+        {% for row in rows %}
+        <div class="list-group-item">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <span class="fw-bold">{{ row.rank.name }}</span>
+                    <span class="small text-muted ms-2">{% if row.rank.is_bento %}弁当{% else %}追加料金（ご飯大盛りなど）{% endif %}</span>
+                    <span class="small text-muted ms-2">メニュー {{ row.menus }}件</span>
+                </div>
+                {% include "prices/_master_row_actions.html" with obj=row.rank first=forloop.first last=forloop.last can_end=row.can_end end_id=request.GET.end %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <form method="POST" class="card card-body mb-3">{% csrf_token %}
+        <div class="fw-bold mb-2">種類追加</div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4"><label class="form-label small" for="name">種類名</label>
+                <input type="text" id="name" name="name" maxlength="30" class="form-control" style="font-size:16px;" placeholder="例：プレミアム" required></div>
+            <div class="col-12 col-md-4"><div class="form-label small">区分</div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="is_bento" id="kind_bento" value="1" checked><label class="form-check-label" for="kind_bento">弁当</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="is_bento" id="kind_extra" value="0"><label class="form-check-label" for="kind_extra">追加料金</label></div></div>
+            <div class="col-12 col-md-auto"><button name="action" value="add" class="btn btn-primary w-100">種類追加</button></div>
+        </div>
+    </form>
+
+    <details class="mb-3">
+        <summary>終了した種類（{{ ended|length }}件）</summary>
+        {% for row in ended %}<div class="small mt-1 pm-ended px-2">{{ row.rank.name }}</div>
+        {% empty %}<p class="text-muted small mt-2">終了した種類はありません。</p>{% endfor %}
+    </details>
+    {% include "prices/_master_history.html" %}
+</div>
+{% endblock %}
