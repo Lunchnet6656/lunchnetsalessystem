@@ -210,7 +210,8 @@ def customers_missing(rank_list, on_date):
     from orders.models import Customer
     from sales.pricing import CUSTOM
     result = []
-    for customer in Customer.objects.filter(is_active=True, price_type=CUSTOM).order_by("company_name", "name"):
+    for customer in (Customer.objects.filter(is_active=True, price_type=CUSTOM).exclude(bento_type="CATERING")
+                     .order_by("company_name", "name")):
         cells = cells_of(table_in_effect(on_date, customer=customer))
         missing = [r.name for r in rank_list if (r.id, CUSTOMER_COLUMN) not in cells]
         if missing:
@@ -703,8 +704,10 @@ def customer_overview(today):
             before = cells_of(table_before(nearest.valid_from, customer=customer))
             changed = sum(1 for k, v in cells_of(nearest).items() if before.get(k) != v)
         prices = [{"rank": r, "price": cells.get((r.id, CUSTOMER_COLUMN))} for r in rank_list]
-        rows.append({"customer": customer, "current": current, "prices": prices,
-                     "missing": any(p["price"] is None for p in prices),
+        # 仕出しは注文ごとに値段を入れるので、未設定でも注文は止まらない（警告の対象外）
+        catering = customer.bento_type == "CATERING"
+        rows.append({"customer": customer, "current": current, "prices": prices, "catering": catering,
+                     "missing": not catering and any(p["price"] is None for p in prices),
                      "nearest": nearest, "changed": changed, "more": len(pending) - 1 if pending else 0})
     rows.sort(key=lambda r: (r["nearest"] is None, r["nearest"].valid_from if r["nearest"] else today))
     return rank_list, rows

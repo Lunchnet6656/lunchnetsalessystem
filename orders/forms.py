@@ -173,9 +173,12 @@ class CustomerForm(forms.ModelForm):
             self.add_error('name', '個人顧客の場合、顧客名は必須です。')
 
         if cleaned.get('price_type') == Customer.CUSTOM_PRICE_TYPE and self.needs_initial_prices:
+            entered = [cleaned.get(f'initial_price_{r.id}') for r in self.price_ranks]
+            # 仕出しは注文ごとに値段を入れるので任意（入れるなら全部）
+            optional = cleaned.get('bento_type') == 'CATERING' and all(v is None for v in entered)
             for rank in self.price_ranks:
                 name = f'initial_price_{rank.id}'
-                if cleaned.get(name) is None and name not in self.errors:
+                if not optional and cleaned.get(name) is None and name not in self.errors:
                     self.add_error(name, '独自価格の場合、値段を入力してください。')
 
         # 請求書のときは発行タイミング必須。請求書以外なら発行タイミングは無効化。
@@ -195,6 +198,8 @@ class CustomerForm(forms.ModelForm):
             return None
         from sales.price_admin import create_initial_customer_table
         prices = {r.id: self.cleaned_data[f'initial_price_{r.id}'] for r in self.price_ranks}
+        if any(v is None for v in prices.values()):   # 仕出しで値段を入れなかった
+            return None
         return create_initial_customer_table(user, customer, prices)
 
 

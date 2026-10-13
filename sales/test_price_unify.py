@@ -345,3 +345,35 @@ class PatternChoiceLabelTest(TestCase):
         labels = {p.code: p.label for p in assignable_patterns(TODAY)}
         self.assertEqual(labels["A"], "価格A（750/700/650/＋50）")
         self.assertEqual(labels["C"], "価格C（700/600/600/＋50）")
+
+
+class CateringCustomerTest(TestCase):
+    """仕出しの顧客は注文ごとに値段を入れるので、独自価格の値段が未設定でも止めない。"""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        self.client.force_login(get_user_model().objects.create_user(username="clerk3", password="pass"))
+
+    def test_migration_skips_customers_without_any_price(self):
+        catering = Customer.objects.create(customer_type="B2B", company_name="仕出し客", price_type="CUSTOM",
+                                           bento_type="CATERING")
+        partial = custom_customer("警察", custom_price_normal=700)
+        importlib.import_module("sales.migrations.0091_price_patterns_initial").forward(apps, None)
+        self.assertFalse(PriceTable.objects.filter(customer=catering).exists())
+        cells = {c.rank.name: c.price for c in PriceTable.objects.get(customer=partial).cells.select_related("rank")}
+        self.assertEqual(cells, {"通常": 700, "お手頃": 700})   # ★・大盛りは未設定のまま（0円にしない）
+
+    def test_catering_customer_form_prices_optional(self):
+        res = self.client.post("/orders/customers/create/", {
+            "customer_type": "B2B", "company_name": "仕出し新規", "price_type": "CUSTOM",
+            "invoice_delivery": "MAIL", "bento_type": "CATERING", "regular_type": "WEEKDAY"})
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(PriceTable.objects.filter(customer__company_name="仕出し新規").exists())
+
+    @mock.patch("django.utils.timezone.localdate", return_value=TODAY)
+    def test_catering_not_counted_as_missing(self, _):
+        Customer.objects.create(customer_type="B2B", company_name="仕出し客", price_type="CUSTOM", bento_type="CATERING")
+        self.client.force_login(make_user("honbu9", price_master=True))
+        res = self.client.get("/prices/customers/")
+        self.assertContains(res, "仕出し客")
+        self.assertNotContains(res, "値段が未設定の顧客があります")

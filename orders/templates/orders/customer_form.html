@@ -108,7 +108,7 @@
         <div id="custom-price-section" class="{% if form.price_type.value != 'CUSTOM' %}hidden{% endif %} bg-yellow-50 border border-yellow-300 rounded-lg p-4 space-y-3">
             <p class="text-sm font-semibold text-yellow-800">独自価格の値段</p>
             {% if form.needs_initial_prices %}
-            <p class="text-xs text-gray-600">値段の種類ごとに入力してください（※必須）。保存すると、この顧客の価格表が作成されます。値上げなどの変更は、保存後に［価格表 &gt; 顧客別］から開始日を指定して登録します。</p>
+            <p class="text-xs text-gray-600">値段の種類ごとに入力してください（※必須。仕出しの顧客は注文ごとに値段を入力するため任意）。保存すると、この顧客の価格表が作成されます。値上げなどの変更は、保存後に［価格表 &gt; 顧客別］から開始日を指定して登録します。</p>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {% for field in form.initial_price_fields %}
                 <div>

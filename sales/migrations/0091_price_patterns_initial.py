@@ -3,7 +3,7 @@
 - 値段の種類に役割を付ける（名前を変えても古いメニューの判定が壊れないように）
 - 独自価格の顧客の3つの金額（★なし・★あり・大盛り）を、顧客別の価格表に移す。
   お手頃は★なしと同じ金額にする（請求額が勝手に変わらないように・2026-10-13 決定 D3）
-顧客の旧3欄は消さない（1か月様子を見てから削除を判断する）。
+顧客の旧3欄は消さない（1か月様子を見てから削除を判断する）。3欄とも空の顧客は価格表を作らない。
 """
 import datetime
 
@@ -36,6 +36,9 @@ def forward(apps, schema_editor):
             continue
         values = {"star": customer.custom_price_star, "normal": customer.custom_price_normal,
                   "large": customer.custom_price_large}
+        # 3欄とも空（主に仕出しの顧客＝注文ごとに値段を入れる）は作らない。顧客の画面で最初の値段を入れられるようにするため
+        if all(v is None for v in values.values()):
+            continue
         table = PriceTable.objects.create(customer=customer, valid_from=MIGRATED_FROM,
                                           note="移行（顧客画面の独自価格）")
         cells = []
