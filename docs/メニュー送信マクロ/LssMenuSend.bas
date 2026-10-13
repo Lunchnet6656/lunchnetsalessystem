@@ -7,7 +7,11 @@ Option Explicit
 Private Const API_URL As String = "https://www.lunchnetsalessystem.com/api/menu/"
 Private Const LSS_FOLDER As String = "\\192.168.111.250\Data\共有\◇LSS関係\"
 Private Const TOKEN_FILE As String = "lss_token.txt"
-Private Const MENU_BOOK As String = "\\192.168.111.250\Data\共有\○メニュー表\★メニュー表\2024～メニュー表.xlsx"
+Private Const MENU_FOLDER As String = "\\192.168.111.250\Data\共有\○メニュー表\★メニュー表\"
+Private Const DEFAULT_MENU_FILE As String = "2024～メニュー表.xlsx"
+'元のメニュー表のファイル名は、このブックの1枚目のシートのB2に書く（年が替わってファイル名が変わっても、セルを書き換えるだけで済むように）。
+'B2が空ならDEFAULT_MENU_FILE。ファイル名だけならMENU_FOLDERの中、\で始まる場所ならその場所を開く。
+Private Const MENU_BOOK_CELL As String = "B2"
 Private Const MSG_TITLE As String = "メニューの送信"
 Private Const MENU_SLOTS As Long = 10
 Private Const FIRST_MENU_ROW As Long = 4   '①はB4、②はB6…⑩はB22（奇数行はトッピングのメモ）。⑪はB24、⑫はB26
@@ -34,7 +38,7 @@ Public Sub メニュー送信()
     stepName = "元のメニュー表を開く"
     Set book = メニュー表を開く(openedHere)
     If book Is Nothing Then
-        MsgBox "送信を中止しました。" & vbCrLf & "元のメニュー表を開けませんでした：" & vbCrLf & MENU_BOOK & vbCrLf & _
+        MsgBox "送信を中止しました。" & vbCrLf & "元のメニュー表を開けませんでした：" & vbCrLf & メニュー表の場所() & vbCrLf & _
                "ファイルの保存場所を確認してください。", vbExclamation, MSG_TITLE
         Exit Sub
     End If
@@ -110,11 +114,25 @@ Private Function 次の水曜(ByVal d As Date) As Date
 End Function
 
 'すでに開いていればそれを使う（閉じない）。開いていなければ読み取り専用で開く
+'B2に書いたファイル名（なければ既定）から、元のメニュー表の場所を作る
+Private Function メニュー表の場所() As String
+    Dim menuFile As String
+    menuFile = Trim(CStr(ThisWorkbook.Worksheets(1).Range(MENU_BOOK_CELL).Value))
+    If menuFile = "" Then menuFile = DEFAULT_MENU_FILE
+    If Left(menuFile, 2) = "\\" Or Mid(menuFile, 2, 1) = ":" Then
+        メニュー表の場所 = menuFile
+    Else
+        メニュー表の場所 = MENU_FOLDER & menuFile
+    End If
+End Function
+
 Private Function メニュー表を開く(ByRef openedHere As Boolean) As Workbook
     Dim wb As Workbook
     Dim fileName As String
+    Dim bookPath As String
 
-    fileName = Mid(MENU_BOOK, InStrRev(MENU_BOOK, "\") + 1)
+    bookPath = メニュー表の場所()
+    fileName = Mid(bookPath, InStrRev(bookPath, "\") + 1)
     For Each wb In Application.Workbooks
         If wb.Name = fileName Then
             Set メニュー表を開く = wb
@@ -122,9 +140,9 @@ Private Function メニュー表を開く(ByRef openedHere As Boolean) As Workbook
             Exit Function
         End If
     Next wb
-    If Dir(MENU_BOOK) = "" Then Exit Function
+    If Dir(bookPath) = "" Then Exit Function
     Application.ScreenUpdating = False
-    Set メニュー表を開く = Workbooks.Open(Filename:=MENU_BOOK, ReadOnly:=True, UpdateLinks:=0)
+    Set メニュー表を開く = Workbooks.Open(Filename:=bookPath, ReadOnly:=True, UpdateLinks:=0)
     ThisWorkbook.Activate
     Application.ScreenUpdating = True
     openedHere = True
