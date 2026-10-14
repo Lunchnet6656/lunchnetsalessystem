@@ -1273,15 +1273,18 @@ def api_customer_info(request, pk):
 def customer_prices(customer, target, products=None):
     """その顧客・その納品日の値段。{product_id: 値段（未設定は None）}, 大盛りの追加料金（未設定は None）。
     注文画面の表示と保存時の計算で同じものを使う（画面から来た単価は信用しない）。"""
-    products = products if products is not None else _products_for_date(target)
+    week_products = _products_for_date(target)
+    products = products if products is not None else week_products
     book = PriceBook(target, customer)
     prices = {p.id: book.customer_price(p) for p in products}
-    large = next((p for p in products if p.no == LARGE_RICE_NO), None)
     if is_custom(customer):
         large_rank = PriceRank.objects.filter(role='large').first()
         large_extra = book.customer_price(Product(rank=large_rank, name='大盛り')) if large_rank else None
     else:
-        large_extra = prices.get(large.id) if large else 0
+        # 大盛りの追加料金はその週の「大盛り」メニューから引く。注文の明細だけを渡されたとき
+        # （保存時の再計算）は大盛りメニューが含まれないので、渡された products からは探さない。
+        large = next((p for p in week_products if p.no == LARGE_RICE_NO), None)
+        large_extra = book.customer_price(large) if large else 0
     return prices, large_extra
 
 

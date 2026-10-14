@@ -296,6 +296,18 @@ class OrderServerPriceTest(TestCase):
         self.assertEqual(item.unit_price, 700)
         self.assertEqual(item.subtotal, 750 + 700 * 2)
 
+    def test_pattern_customer_large_extra_is_saved(self):
+        """価格A の顧客：保存時も大盛りの追加料金が乗る（2026-10-14 不具合：画面1450円・保存1400円）。"""
+        self.customer.price_type = "A"
+        self.customer.save()
+        data = self.client.get("/orders/api/products/2026-10-08/", {"customer": self.customer.pk}).json()
+        self.assertEqual(data["large_extra"], 50)
+        res = self.post(large="1", regular="1")
+        self.assertEqual(res.status_code, 302, getattr(res, "context", None) and res.context["form"].errors)
+        order = Order.objects.get()
+        self.assertEqual(order.items.get().subtotal, 750 + 700)
+        self.assertEqual(order.total, 1450)
+
     def test_missing_price_blocks_save(self):
         PriceTableCell.objects.filter(table__customer=self.customer, rank=rank("通常")).delete()
         res = self.post()
