@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}出勤追加{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width: 640px;">
+    <a href="{% url 'direct_return_staff' staff.pk %}{% if back_period %}?period={{ back_period }}{% endif %}" class="small">‹ {{ staff_name }} の明細へ戻る</a>
+    <h1 class="h3 mt-2">出勤追加（{{ staff_name }}）</h1>
+    <p class="text-muted small mb-2">研修などで日計表を送っていない日の出勤を足します。日計表がある日は足せません。</p>
+    <hr class="mb-3">
+
+    {% if errors %}
+    <div class="alert alert-danger">入力に誤りがあります。赤い欄を直してください。</div>
+    {% endif %}
+
+    <form method="post" class="dr-save-form">
+        {% csrf_token %}
+        <input type="hidden" name="period" value="{{ back_period }}">
+        <div class="mb-3">
+            <label class="form-label" for="dr-date">日付</label>
+            <input type="date" id="dr-date" name="date" value="{{ form.date }}" class="form-control {% if errors.date %}is-invalid{% endif %}" style="max-width: 12rem;">
+            {% if errors.date %}<div class="invalid-feedback">{{ errors.date }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dr-location">売り場</label>
+            <select id="dr-location" name="location" class="form-select {% if errors.location %}is-invalid{% endif %}">
+                <option value="">選んでください</option>
+                <optgroup label="直行直帰の売り場">
+                    {% for o in main_locations %}
+                    <option value="{{ o.location.pk }}" data-hours="{{ o.hours }}" data-range="{{ o.range }}" {% if form.location == o.location.pk|stringformat:"s" %}selected{% endif %}>{{ o.location.name }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% if other_locations %}
+                <optgroup label="その他の売り場">
+                    {% for o in other_locations %}
+                    <option value="{{ o.location.pk }}" data-hours="{{ o.hours }}" data-range="{{ o.range }}" {% if form.location == o.location.pk|stringformat:"s" %}selected{% endif %}>{{ o.location.name }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endif %}
+            </select>
+            {% if errors.location %}<div class="invalid-feedback">{{ errors.location }}</div>{% endif %}
+            <div id="dr-location-hours" class="small mt-1"></div>
+        </div>
+        <div class="mb-3">
+            <span class="form-label d-block">区分</span>
+            {% for value, label in reasons %}
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="reason" id="dr-reason-{{ value }}" value="{{ value }}" {% if form.reason == value %}checked{% endif %}>
+                <label class="form-check-label" for="dr-reason-{{ value }}">{{ label }}</label>
+            </div>
+            {% endfor %}
+            {% if errors.reason %}<div class="text-danger small">{{ errors.reason }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dr-note">備考</label>
+            <input type="text" id="dr-note" name="note" maxlength="255" value="{{ form.note }}" class="form-control">
+            <div class="text-muted small">本人にも見えます</div>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between">
+            <a href="{% url 'direct_return_staff' staff.pk %}{% if back_period %}?period={{ back_period }}{% endif %}" class="btn btn-outline-secondary">戻る</a>
+            <button type="submit" class="btn btn-primary dr-submit" data-busy="登録しています…">登録</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    (function () {
+        var select = document.getElementById('dr-location');
+        var out = document.getElementById('dr-location-hours');
+        function show() {
+            var opt = select.options[select.selectedIndex];
+            if (!opt || !opt.value) { out.textContent = ''; out.className = 'small mt-1'; return; }
+            if (opt.dataset.hours) {
+                out.textContent = '定時 ' + opt.dataset.hours + 'h（' + opt.dataset.range + '）';
+                out.className = 'small mt-1 text-muted';
+            } else {
+                out.textContent = 'この売り場は就業時間が未設定です。登録はできますが、勤務時間には入りません。';
+                out.className = 'small mt-1 text-danger';
+            }
+        }
+        select.addEventListener('change', show);
+        show();
+        document.querySelector('form.dr-save-form').addEventListener('submit', function () {
+            var btn = this.querySelector('.dr-submit');
+            btn.disabled = true; btn.textContent = btn.dataset.busy;
+        });
+    })();
+</script>
+{% endblock %}

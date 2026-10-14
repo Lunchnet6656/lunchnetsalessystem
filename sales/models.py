@@ -398,6 +398,98 @@ class UserMenuPermission(models.Model):
         return f"MenuPermission({self.user})"
 
 
+# ===== 直行直帰の勤務時間 =====
+# 仕様: .company/engineering/harness/specs/lunchnetsale-直行直帰-勤務時間計算-要件定義.md §4
+
+class DirectReturnWorkTime(models.Model):
+    """売り場ごとの就業時間（開始日つき）。勤務日に効くのは、開始日がその日以前で一番新しい行。"""
+    location = models.ForeignKey(
+        SalesLocation, on_delete=models.CASCADE, related_name='direct_return_work_times', verbose_name="売り場"
+    )
+    start_time = models.TimeField(verbose_name="始業")
+    end_time = models.TimeField(verbose_name="終業")
+    effective_from = models.DateField(verbose_name="開始日")
+    note = models.CharField(max_length=255, blank=True, default="", verbose_name="備考")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "直行直帰 就業時間"
+        verbose_name_plural = "直行直帰 就業時間"
+        ordering = ['location', '-effective_from']
+        constraints = [
+            models.UniqueConstraint(fields=['location', 'effective_from'], name='uniq_dr_work_time_per_day'),
+        ]
+
+    def __str__(self):
+        return f"{self.location.name} {self.effective_from}から {self.start_time:%H:%M}〜{self.end_time:%H:%M}"
+
+
+class DirectReturnExtraAttendance(models.Model):
+    """日計表を送っていない出勤日（研修など）を管理者が足したもの。1人1日1件。"""
+    REASON_TRAINING = 'training'
+    REASON_NOT_SENT = 'not_sent'
+    REASON_OTHER = 'other'
+    REASON_CHOICES = [
+        (REASON_TRAINING, '研修'),
+        (REASON_NOT_SENT, '送信忘れ'),
+        (REASON_OTHER, 'その他'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='direct_return_extras', verbose_name="スタッフ"
+    )
+    date = models.DateField(verbose_name="日付")
+    location = models.ForeignKey(
+        SalesLocation, on_delete=models.PROTECT, related_name='direct_return_extras', verbose_name="売り場"
+    )
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, default=REASON_TRAINING, verbose_name="区分")
+    note = models.CharField(max_length=255, blank=True, default="", verbose_name="備考")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name="入力した管理者"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "直行直帰 出勤追加"
+        verbose_name_plural = "直行直帰 出勤追加"
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'date'], name='uniq_dr_extra_per_user_day'),
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.date} {self.location.name}（{self.get_reason_display()}）"
+
+
+class DirectReturnDayAdjustment(models.Model):
+    """日別の早出・遅刻・早退・残業（時間・0.25刻み）と備考。1人1日1件。"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='direct_return_adjustments', verbose_name="スタッフ"
+    )
+    date = models.DateField(verbose_name="日付")
+    early_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0, verbose_name="早出（時間）")
+    late_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0, verbose_name="遅刻（時間）")
+    leave_early_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0, verbose_name="早退（時間）")
+    overtime_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0, verbose_name="残業（時間）")
+    note = models.CharField(max_length=255, blank=True, default="", verbose_name="備考")
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name="入力した管理者"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "直行直帰 日別の調整"
+        verbose_name_plural = "直行直帰 日別の調整"
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'date'], name='uniq_dr_adjustment_per_user_day'),
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.date}"
+
+
 class CustomStamp(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='custom_stamps'

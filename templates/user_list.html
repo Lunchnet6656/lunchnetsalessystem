@@ -111,7 +111,10 @@
                     body: `checked=${checked}`
                 })
                 .then(r => r.json())
-                .then(data => showAlert(data.message, data.success ? 'success' : 'danger'))
+                .then(data => {
+                    if (!data.success) this.checked = !checked; // 権限なし等はUIを元に戻す
+                    showAlert(data.message, data.success ? 'success' : 'danger');
+                })
                 .catch(() => {
                     this.checked = !checked; // 失敗時はUIを元に戻す
                     showAlert('通信に失敗しました。もう一度お試しください。', 'danger');

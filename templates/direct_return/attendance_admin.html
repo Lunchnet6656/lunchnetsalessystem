@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load direct_return_tags %}
+{% block title %}直行直帰出勤記録{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-start">
+        <h1 class="h3">直行直帰 出勤記録</h1>
+        <a href="{% url 'direct_return_work_times' %}" class="btn btn-outline-secondary btn-sm no-print"><i class="fas fa-clock"></i> 就業時間設定</a>
+    </div>
+    <p class="text-muted small mb-2">日計表の担当者名と出勤追加から、月分ごとの出勤日数と勤務時間を出します。</p>
+    <hr class="mb-3">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start">
+        {% include "direct_return/_period.html" %}
+        <button type="button" class="btn btn-primary no-print mb-3" onclick="window.print()">&#128424; 印刷</button>
+    </div>
+    <p class="text-muted d-none d-print-block">対象期間：{{ period_label }}</p>
+
+    {% if not summaries %}
+    <div class="alert alert-warning">直行直帰に設定されているユーザーがいません。ユーザー管理から設定してください。</div>
+    {% endif %}
+
+    {% if unset_warning %}
+    <div class="alert alert-warning no-print">
+        就業時間が未設定の売り場で {{ unset_warning.count }}日 の出勤があります（{{ unset_warning.locations|join:"・" }}）。
+        この日は勤務時間に入っていません。
+        <a href="{% url 'direct_return_work_times' %}" class="alert-link">就業時間設定へ</a>
+    </div>
+    {% endif %}
+
+    <h2 class="h5">担当者別 勤務時間</h2>
+    <div class="table-responsive">
+    <table class="table table-bordered table-sm mb-4 align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>担当者</th>
+                <th class="text-end">出勤日数<br><span class="small">（日）</span></th>
+                <th class="text-end">定時<br><span class="small">（h）</span></th>
+                <th class="text-end">早出<br><span class="small">（h）</span></th>
+                <th class="text-end">遅刻<br><span class="small">（h）</span></th>
+                <th class="text-end">早退<br><span class="small">（h）</span></th>
+                <th class="text-end">残業<br><span class="small">（h）</span></th>
+                <th class="text-end">勤務時間<br><span class="small">（h）</span></th>
+                <th class="no-print"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in summaries %}
+            <tr>
+                <td>
+                    <a href="{% url 'direct_return_staff' s.user.pk %}?period={{ period }}">{{ s.name }}</a>
+                    {% if s.extra_count or s.unset_days %}
+                    <div class="dr-sub">
+                        {% if s.extra_count %}出勤追加{{ s.extra_count }}日{% endif %}{% if s.extra_count and s.unset_days %}・{% endif %}{% if s.unset_days %}<span class="text-danger">未設定{{ s.unset_days|length }}日</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td class="text-end">{{ s.day_count }}</td>
+                <td class="text-end">{{ s.base_total|hours }}</td>
+                <td class="text-end">{{ s.early_total|plus_hours }}</td>
+                <td class="text-end">{{ s.late_total|minus_hours }}</td>
+                <td class="text-end">{{ s.leave_early_total|minus_hours }}</td>
+                <td class="text-end">{{ s.overtime_total|plus_hours }}</td>
+                <td class="text-end dr-total">{{ s.hours_total|hours }}</td>
+                <td class="no-print text-center"><a href="{% url 'direct_return_staff' s.user.pk %}?period={{ period }}" class="btn btn-outline-primary btn-sm">明細</a></td>
+            </tr>
+            {% endfor %}
+            {% if summaries and not has_days %}
+            <tr><td colspan="9" class="text-center text-muted">この月分の出勤記録はありません</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+    </div>
+
+    <h2 class="h5">日付×売り場（印刷用）</h2>
+    <div class="table-responsive">
+    <table class="table table-bordered table-sm table-hover">
+        <thead class="table-secondary">
+            <tr>
+                <th>日付</th>
+                {% for loc in pivot_locations %}<th>{{ loc }}</th>{% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in pivot_rows %}
+            <tr>
+                <td>{{ row.date_str }}</td>
+                {% for cell in row.cells %}<td>{{ cell }}</td>{% endfor %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="{{ pivot_locations|length|add:1 }}" class="text-center text-muted">この月分の出勤記録はありません</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}{{ location.name }} の就業時間{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width: 640px;">
+    <a href="{% url 'direct_return_work_times' %}" class="small">‹ 就業時間設定へ戻る</a>
+    <h1 class="h3 mt-2">{{ location.name }} の就業時間</h1>
+    <p class="text-muted small mb-2">開始日からの始業・終業を登録します。開始日より前の勤務時間は変わりません。</p>
+    <hr class="mb-3">
+
+    {% if errors %}
+    <div class="alert alert-danger">入力に誤りがあります。赤い欄を直してください。</div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm">
+        <div class="mb-3">
+            <label class="form-label" for="dr-from">開始日</label>
+            <input type="date" id="dr-from" name="effective_from" value="{{ form.effective_from }}" class="form-control {% if errors.effective_from %}is-invalid{% endif %}" style="max-width: 12rem;">
+            {% if errors.effective_from %}<div class="invalid-feedback">{{ errors.effective_from }}</div>{% endif %}
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6">
+                <label class="form-label" for="dr-start">始業</label>
+                <input type="time" step="900" id="dr-start" name="start_time" value="{{ form.start_time }}" class="form-control {% if errors.start_time %}is-invalid{% endif %}">
+                {% if errors.start_time %}<div class="invalid-feedback">{{ errors.start_time }}</div>{% endif %}
+            </div>
+            <div class="col-6">
+                <label class="form-label" for="dr-end">終業</label>
+                <input type="time" step="900" id="dr-end" name="end_time" value="{{ form.end_time }}" class="form-control {% if errors.end_time %}is-invalid{% endif %}">
+                {% if errors.end_time %}<div class="invalid-feedback">{{ errors.end_time }}</div>{% endif %}
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dr-wt-note">備考</label>
+            <input type="text" id="dr-wt-note" name="note" maxlength="255" value="{{ form.note }}" class="form-control">
+        </div>
+        <div class="d-flex justify-content-between">
+            <a href="{% url 'direct_return_work_times' %}" class="btn btn-outline-secondary">戻る</a>
+            <button type="submit" class="btn btn-primary">確認</button>
+        </div>
+    </form>
+
+    <h2 class="h6 mt-4">これまでの就業時間</h2>
+    {% if not history %}
+    <p class="text-muted small">まだ登録がありません。</p>
+    {% else %}
+    <table class="table table-sm small align-middle">
+        <tbody>
+            {% for h in history %}
+            <tr class="{% if h.pending %}dr-pending{% endif %}">
+                <td>{{ h.label }}から</td>
+                <td>{{ h.text }}</td>
+                <td class="text-nowrap">
+                    {% if h.pending %}
+                    開始待ち
+                    <form method="post" action="{% url 'direct_return_work_time_delete' h.wt.pk %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm ms-1">取消</button>
+                    </form>
+                    {% elif h.current %}<span class="badge bg-success">今</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endblock %}

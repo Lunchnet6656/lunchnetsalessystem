@@ -1,0 +1,10 @@
+<form method="get" action="{{ request.path }}" class="d-flex flex-wrap align-items-center gap-2 mb-3 no-print">
+    <select name="period" class="form-select" style="width:auto;" aria-label="月分" onchange="this.form.submit()">
+        {% for c in period_choices %}
+        <option value="{{ c.value }}" {% if c.value == period %}selected{% endif %}>{{ c.label }}</option>
+        {% endfor %}
+    </select>
+    <noscript><button type="submit" class="btn btn-outline-secondary btn-sm">表示</button></noscript>
+    <a href="{{ request.path }}?period={{ prev_period }}" class="btn btn-outline-secondary btn-sm">‹ 前の月</a>
+    <a href="{{ request.path }}?period={{ next_period }}" class="btn btn-outline-secondary btn-sm">次の月 ›</a>
+</form>

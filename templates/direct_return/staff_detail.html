@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load direct_return_tags %}
+{% block title %}{{ staff_name }} の明細{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <a href="{% url 'direct_return_attendance' %}?period={{ period }}" class="small">‹ 出勤記録へ戻る</a>
+    <div class="d-flex justify-content-between align-items-start mt-2">
+        <h1 class="h3">{{ staff_name }} の明細</h1>
+        <a href="{% url 'direct_return_extra_new' staff.pk %}?period={{ period }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-plus"></i> 出勤追加</a>
+    </div>
+    <p class="text-muted small mb-2">早出・遅刻・早退・残業は0.25h単位で入れてください（15分＝0.25h）。備考は本人にも見えます。</p>
+    <hr class="mb-3">
+    {% include "direct_return/_period.html" %}
+
+    {% if error_dates %}
+    <div class="alert alert-danger">入力に誤りがある日があります（{{ error_dates|join:"・" }}）。直してからもう一度保存してください。まだ保存されていません。</div>
+    {% endif %}
+
+    {% if not rows %}
+    <p class="text-muted">この月分の出勤記録はありません。研修などで日計表が無い日は［出勤追加］から入れてください。</p>
+    {% else %}
+    <form method="post" action="{% url 'direct_return_staff' staff.pk %}?period={{ period }}" class="dr-save-form">
+        {% csrf_token %}
+        <div class="table-responsive">
+        <table class="table table-bordered table-sm align-middle">
+            <thead class="table-secondary">
+                <tr>
+                    <th class="dr-sticky-col">日付</th>
+                    <th>売り場</th>
+                    <th>区分</th>
+                    <th class="text-end text-nowrap">定時<br><span class="small">（h）</span></th>
+                    <th>早出</th><th>遅刻</th><th>早退</th><th>残業</th>
+                    <th class="text-end text-nowrap">勤務時間<br><span class="small">（h）</span></th>
+                    <th>備考</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}{% with d=row.day %}
+                <tr class="{% if d.is_extra %}dr-extra-row{% endif %}">
+                    <td class="dr-sticky-col text-nowrap">{{ d.date_str }}</td>
+                    <td class="text-nowrap">
+                        {% if d.unset %}<span class="badge bg-danger">未設定</span>{% endif %}
+                        {% if d.unset and d.location %}<a href="{% url 'direct_return_work_time' d.location.pk %}">{{ d.location_name }}</a>{% else %}{{ d.location_name }}{% endif %}
+                    </td>
+                    <td class="text-nowrap">
+                        {% if d.is_extra %}
+                        <span class="badge bg-secondary">{{ d.extra.get_reason_display }}</span>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1 dr-cancel-open" data-target="cancel-{{ d.extra.pk }}">取消</button>
+                        <div id="cancel-{{ d.extra.pk }}" class="alert alert-warning p-2 mt-1 mb-0 small d-none">
+                            この出勤追加を取り消しますか？
+                            <button type="submit" form="cancel-form-{{ d.extra.pk }}" class="btn btn-danger btn-sm">取り消す</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm dr-cancel-close" data-target="cancel-{{ d.extra.pk }}">やめる</button>
+                        </div>
+                        {% else %}日計表{% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">{% if d.unset %}<span class="dr-zero">未設定</span>{% else %}{{ d.base|hours }}{% endif %}</td>
+                    {% for c in row.cells %}
+                    <td>
+                        <input type="number" step="0.25" min="0" inputmode="decimal" name="{{ c.name }}" value="{{ c.value }}"
+                               class="form-control form-control-sm dr-hours-input {% if c.error %}is-invalid{% endif %}">
+                        {% if c.error %}<div class="invalid-feedback">{{ c.error }}</div>{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="text-end dr-total">{% if d.unset %}—{% else %}{{ d.hours|hours }}{% endif %}</td>
+                    <td><input type="text" maxlength="255" name="{{ row.note_name }}" value="{{ row.note_value }}" class="form-control form-control-sm dr-note-input"></td>
+                </tr>
+                {% endwith %}{% endfor %}
+                <tr class="dr-sum-row">
+                    <th class="dr-sticky-col" colspan="3">合計 {{ summary.day_count }}日</th>
+                    <td class="text-end">{{ summary.base_total|hours }}</td>
+                    <td>{{ summary.early_total|plus_hours }}</td>
+                    <td>{{ summary.late_total|minus_hours }}</td>
+                    <td>{{ summary.leave_early_total|minus_hours }}</td>
+                    <td>{{ summary.overtime_total|plus_hours }}</td>
+                    <td class="text-end dr-total">{{ summary.hours_total|hours }}</td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary dr-submit" data-busy="保存しています…">保存</button>
+        </div>
+    </form>
+
+    {% for row in rows %}{% if row.day.is_extra %}
+    <form id="cancel-form-{{ row.day.extra.pk }}" method="post" action="{% url 'direct_return_extra_delete' row.day.extra.pk %}" class="d-none">{% csrf_token %}</form>
+    {% endif %}{% endfor %}
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    document.querySelectorAll('.dr-cancel-open').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById(btn.dataset.target).classList.remove('d-none');
+            btn.classList.add('d-none');
+        });
+    });
+    document.querySelectorAll('.dr-cancel-close').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById(btn.dataset.target).classList.add('d-none');
+            document.querySelector('.dr-cancel-open[data-target="' + btn.dataset.target + '"]').classList.remove('d-none');
+        });
+    });
+    document.querySelectorAll('form.dr-save-form').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var btn = form.querySelector('.dr-submit');
+            if (btn) { btn.disabled = true; btn.textContent = btn.dataset.busy; }
+        });
+    });
+</script>
+{% endblock %}

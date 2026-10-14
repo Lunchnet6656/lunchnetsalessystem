@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load direct_return_tags %}
+{% block title %}直行直帰出勤記録{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3">直行直帰 出勤記録</h1>
+    <hr class="mb-3">
+    {% include "direct_return/_period.html" %}
+
+    {% if not is_direct %}
+    <div class="alert alert-info">直行直帰の設定がされていません。必要なときは本部に相談してください。</div>
+    {% else %}
+    <div class="dr-total-card mb-3">
+        <div class="d-flex justify-content-between align-items-baseline">
+            <span>勤務時間</span>
+            <span class="dr-big">{{ summary.hours_total|hours }}h</span>
+        </div>
+        <div class="d-flex justify-content-between">
+            <span>出勤日数</span><span>{{ summary.day_count }}日</span>
+        </div>
+        <div class="dr-sub mt-1">
+            定時 {{ summary.base_total|hours }}／早出 {{ summary.early_total|plus_hours }}／遅刻 {{ summary.late_total|minus_hours }}／早退 {{ summary.leave_early_total|minus_hours }}／残業 {{ summary.overtime_total|plus_hours }}
+        </div>
+    </div>
+
+    {% if summary.unset_days %}
+    <div class="alert alert-warning">就業時間が未設定の日があります。合計に入っていないので、本部に確認してください。</div>
+    {% endif %}
+
+    <h2 class="h5">日別</h2>
+    {% if not days_desc %}
+    <p class="text-muted">この月分の出勤記録はありません</p>
+    {% else %}
+    {# スマホ：1日＝1枚 #}
+    <div class="d-md-none">
+        {% for d in days_desc %}
+        <div class="dr-day-card {% if d.is_extra %}dr-extra-row{% endif %}">
+            <div class="d-flex justify-content-between align-items-baseline">
+                <span>
+                    <strong>{{ d.date_str }}</strong> {{ d.location_name }}
+                    {% if d.is_extra %}<span class="badge bg-secondary">{{ d.extra.get_reason_display }}</span>{% endif %}
+                    {% if d.unset %}<span class="badge bg-danger">就業時間未設定</span>{% endif %}
+                </span>
+                <span class="dr-total">{% if d.unset %}—{% else %}{{ d.hours|hours }}h{% endif %}</span>
+            </div>
+            {% if not d.unset %}
+            <div class="dr-sub">
+                定時{{ d.base|hours }}
+                {% if d.early %}　早出{{ d.early|plus_hours }}{% endif %}
+                {% if d.late %}　遅刻{{ d.late|minus_hours }}{% endif %}
+                {% if d.leave_early %}　早退{{ d.leave_early|minus_hours }}{% endif %}
+                {% if d.overtime %}　残業{{ d.overtime|plus_hours }}{% endif %}
+            </div>
+            {% endif %}
+            {% if d.note %}<div class="dr-sub">備考：{{ d.note }}</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {# PC：テーブル #}
+    <div class="d-none d-md-block">
+        <table class="table table-bordered table-sm align-middle">
+            <thead class="table-secondary">
+                <tr>
+                    <th>日付</th><th>売り場</th>
+                    <th class="text-end">定時</th><th class="text-end">早出</th><th class="text-end">遅刻</th>
+                    <th class="text-end">早退</th><th class="text-end">残業</th><th class="text-end">勤務時間</th><th>備考</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in days_desc %}
+                <tr class="{% if d.is_extra %}dr-extra-row{% endif %}">
+                    <td>{{ d.date_str }}</td>
+                    <td>{{ d.location_name }}
+                        {% if d.is_extra %}<span class="badge bg-secondary">{{ d.extra.get_reason_display }}</span>{% endif %}
+                        {% if d.unset %}<span class="badge bg-danger">就業時間未設定</span>{% endif %}
+                    </td>
+                    <td class="text-end">{% if d.unset %}—{% else %}{{ d.base|hours }}{% endif %}</td>
+                    <td class="text-end">{{ d.early|plus_hours }}</td>
+                    <td class="text-end">{{ d.late|minus_hours }}</td>
+                    <td class="text-end">{{ d.leave_early|minus_hours }}</td>
+                    <td class="text-end">{{ d.overtime|plus_hours }}</td>
+                    <td class="text-end dr-total">{% if d.unset %}—{% else %}{{ d.hours|hours }}{% endif %}</td>
+                    <td>{{ d.note }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

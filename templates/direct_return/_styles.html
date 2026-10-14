@@ -1,0 +1,37 @@
+<style>
+    .dr-zero { color: var(--ln-color-text-muted); }
+    .dr-minus { color: var(--ln-color-danger); }
+    .dr-total { font-weight: bold; }
+    .dr-sum-row td, .dr-sum-row th { background-color: var(--ln-color-surface-muted); }
+    .dr-extra-row td:first-child { box-shadow: inset 4px 0 0 var(--ln-color-border-strong); }
+    div.dr-extra-row { box-shadow: inset 4px 0 0 var(--ln-color-border-strong); }
+    .dr-sub { font-size: 0.8rem; color: var(--ln-color-text-muted); }
+    .dr-hours-input { width: 5rem; font-size: 16px; }
+    .dr-note-input { min-width: 10rem; font-size: 16px; }
+    .dr-sticky-col { position: sticky; left: 0; background-color: var(--ln-color-white); box-shadow: var(--ln-shadow-col); z-index: 1; }
+    .dr-total-card { background-color: var(--ln-color-surface-muted); border: 1px solid var(--ln-color-border); border-radius: 6px; padding: 1rem; }
+    .dr-total-card .dr-big { font-size: 1.75rem; font-weight: bold; color: var(--ln-color-text-strong); }
+    .dr-day-card { border: 1px solid var(--ln-color-border); border-radius: 6px; padding: 0.75rem; margin-bottom: 0.5rem; background-color: var(--ln-color-white); }
+    .dr-pending-text { color: var(--ln-cal-blue); font-weight: bold; }
+    .dr-pending td { background-color: var(--ln-cal-blue-light); color: var(--ln-cal-blue); font-weight: bold; }
+    .pm-sentence { border: 1px solid var(--ln-color-border); border-radius: 6px; padding: 1rem 1.25rem; background-color: var(--ln-color-white); line-height: 1.9; }
+    .pm-warning { color: var(--ln-color-danger); font-weight: bold; }
+
+    @media print {
+        .navbar, .sidebar, .main-wrapper > .row > .col-md-2,
+        form, .no-print, hr, .alert-messages { display: none !important; }
+        .main-wrapper, .main-wrapper > .row,
+        .main-wrapper > .row > .col-md-10,
+        .container-fluid, .container { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+        @page { size: A4 portrait; margin: 10mm; }
+        body { font-size: 10pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        h1 { font-size: 14pt; margin-bottom: 4px; }
+        h2 { font-size: 11pt; margin-bottom: 4px; margin-top: 8px; }
+        .table { font-size: 9pt; margin-bottom: 8px; }
+        .table td, .table th { padding: 1px 4px !important; }
+        .text-muted { font-size: 9pt; margin-bottom: 4px !important; }
+        table { page-break-inside: avoid; }
+        .table-dark th { background-color: #333 !important; color: #fff !important; }
+        .table-secondary th { background-color: #ddd !important; }
+    }
+</style>

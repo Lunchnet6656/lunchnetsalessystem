@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}直行直帰 就業時間設定{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <a href="{% url 'direct_return_attendance' %}" class="small">‹ 出勤記録へ戻る</a>
+    <h1 class="h3 mt-2">直行直帰 就業時間設定</h1>
+    <p class="text-muted small mb-2">売り場ごとの始業・終業です。変更は開始日を決めて登録するので、それより前の勤務時間は変わりません。</p>
+    <hr class="mb-3">
+
+    {% if not rows %}
+    <p class="text-muted">直行直帰の売り場がありません。販売場所データで直行直帰を1にするか、下の「売り場を追加」から選んでください。</p>
+    {% else %}
+    <div class="table-responsive">
+    <table class="table table-bordered table-sm align-middle">
+        <thead class="table-secondary">
+            <tr><th>売り場</th><th>今の就業時間</th><th>開始待ち</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td>{{ r.location.name }}</td>
+                <td>
+                    {% if r.unset %}<span class="badge bg-danger">就業時間未設定</span>
+                    {% else %}{{ r.current_text }}{% endif %}
+                </td>
+                <td>{% if r.pending_text %}<span class="dr-pending-text">{{ r.pending_text }}</span>{% endif %}</td>
+                <td class="text-center">
+                    <a href="{% url 'direct_return_work_time' r.location.pk %}" class="btn {% if r.unset and not r.pending_text %}btn-primary{% else %}btn-outline-primary{% endif %} btn-sm">{% if r.unset and not r.pending_text %}登録{% else %}変更{% endif %}</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {% if other_locations %}
+    <form method="get" class="d-flex flex-wrap align-items-center gap-2 mt-3" onsubmit="if(!this.loc.value){return false;} window.location=this.loc.value; return false;">
+        <label for="dr-add-loc" class="form-label mb-0">売り場を追加</label>
+        <select id="dr-add-loc" name="loc" class="form-select" style="width:auto;">
+            <option value="">その他の売り場</option>
+            {% for loc in other_locations %}
+            <option value="{% url 'direct_return_work_time' loc.pk %}">{{ loc.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-secondary">追加</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

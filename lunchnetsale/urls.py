@@ -22,6 +22,7 @@ from .views import locked_out_view,my_page,submit_shift,edit_shift
 from sales import qr_views as sales_qr_views
 from sales import api_views as sales_api_views
 from sales import price_admin_views
+from sales import direct_return_views
 from stamps import views as stamp_views
 
 urlpatterns = [
@@ -85,7 +86,13 @@ urlpatterns = [
     path('user/toggle_direct_return/<int:user_id>/', views.toggle_direct_return_view, name='toggle_direct_return'),
 
     path('others_item_list/', views.others_list_view, name='others_item_list'),
-    path('direct_return_attendance/', views.direct_return_attendance_view, name='direct_return_attendance'),
+    path('direct_return_attendance/', direct_return_views.attendance, name='direct_return_attendance'),
+    path('direct_return_attendance/staff/<int:user_id>/', direct_return_views.staff_detail, name='direct_return_staff'),
+    path('direct_return_attendance/staff/<int:user_id>/extra/new/', direct_return_views.extra_new, name='direct_return_extra_new'),
+    path('direct_return_attendance/extra/<int:pk>/delete/', direct_return_views.extra_delete, name='direct_return_extra_delete'),
+    path('direct_return_attendance/work_times/', direct_return_views.work_time_list, name='direct_return_work_times'),
+    path('direct_return_attendance/work_times/<int:location_id>/', direct_return_views.work_time_form, name='direct_return_work_time'),
+    path('direct_return_attendance/work_times/delete/<int:pk>/', direct_return_views.work_time_delete, name='direct_return_work_time_delete'),
 
     path('daily_report/', views.daily_report_view, name='daily_report'), #日計表のURL
     path('submission_complete/', views.submission_complete_view, name='submission_complete'),  # 完了ページのURL

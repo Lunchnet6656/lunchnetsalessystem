@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}確認：{{ location.name }} の就業時間{% endblock %}
+{% block extra_css %}{% include "direct_return/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width: 640px;">
+    <h1 class="h3">確認：この内容で登録しますか？</h1>
+    <hr class="mb-3">
+
+    <div class="pm-sentence mb-3">
+        {% if same_day_text %}
+        <p class="mb-1">{{ start_label }}からの{{ location.name }}の就業時間を</p>
+        <p class="mb-1">　{{ same_day_text }} → <strong>{{ new_text }}</strong> に直します。</p>
+        {% elif before_text %}
+        <p class="mb-1">{{ start_label }}から {{ location.name }}の就業時間を</p>
+        <p class="mb-1">　{{ before_text }} → <strong>{{ new_text }}</strong> に変えます。</p>
+        <p class="mb-0">{{ until_label }}までの勤務は今のまま（{{ before_text }}）で計算します。</p>
+        {% else %}
+        <p class="mb-1">{{ start_label }}から {{ location.name }}の就業時間を <strong>{{ new_text }}</strong> にします。</p>
+        <p class="mb-0">{{ until_label }}までの勤務は、就業時間が未設定のまま（勤務時間に入りません）です。</p>
+        {% endif %}
+    </div>
+
+    {% if is_past %}
+    <div class="alert alert-warning">開始日が過去なので、{{ past_from }}〜今日のこの売り場の勤務時間も変わります。</div>
+    {% endif %}
+
+    <form method="post" action="{% url 'direct_return_work_time' location.pk %}" class="d-flex justify-content-between" id="dr-confirm-form">
+        {% csrf_token %}
+        <input type="hidden" name="effective_from" value="{{ form.effective_from }}">
+        <input type="hidden" name="start_time" value="{{ form.start_time }}">
+        <input type="hidden" name="end_time" value="{{ form.end_time }}">
+        <input type="hidden" name="note" value="{{ form.note }}">
+        <button type="submit" name="action" value="back" class="btn btn-outline-secondary">戻る</button>
+        <button type="submit" name="action" value="register" class="btn btn-primary dr-submit" data-busy="登録しています…">登録</button>
+    </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    document.getElementById('dr-confirm-form').addEventListener('submit', function (e) {
+        if (e.submitter && e.submitter.value === 'register') {
+            var btn = e.submitter;
+            // disabled にすると name/value が送られないので、hidden で送る
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden'; hidden.name = 'action'; hidden.value = 'register';
+            this.appendChild(hidden);
+            btn.disabled = true; btn.textContent = btn.dataset.busy;
+        }
+    });
+</script>
+{% endblock %}
