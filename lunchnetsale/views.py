@@ -3439,6 +3439,28 @@ def _latest_comments(names, today):
     return latest
 
 
+DRAFT_FLAG_PCT = 0.15   # 下書きと予測がこれ以上違えば「要確認」
+DRAFT_FLAG_MIN = 5      # かつ、これ以上の食数の差
+
+
+def _draft_comparison(draft, rows, pred):
+    """D-2の下書きと予測を比べる。しょうへいの数はいつも需要より少し多い（意図した余裕分）ので、
+    店ごとの「いつもの余裕分」（直近20回の、完売しなかった日の残数の中央値）を引いてから比べる。"""
+    if draft is None:
+        return None
+    recent = [r["rem"] for r in rows if not r["sold_out"]][-20:]
+    buffer = sorted(recent)[len(recent) // 2] if recent else 0
+    compare = draft - buffer
+    diff = compare - pred
+    flag = None
+    if pred > 0 and abs(diff) >= DRAFT_FLAG_MIN and abs(diff) / pred >= DRAFT_FLAG_PCT:
+        flag = "多い" if diff > 0 else "少ない"
+    return {
+        "draft": draft, "buffer": buffer, "diff": int(round(diff)),
+        "flag": flag, "mid": int((pred + compare) / 2 + buffer + 0.5),
+    }
+
+
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
     from sales.meal_forecast import THIRD_LABELS, backtest, load_history, month_third, predict, third_effect
@@ -3459,6 +3481,9 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     loc_info = {name.strip(): (t, area) for name, t, area in
                 SalesLocation.objects.values_list("name", "type", "weather_area")}
     comments = _latest_comments(list(active), today)
+    from sales.models import QuantityDraft
+    drafts = {(d, name.strip()): q for d, name, q in
+              QuantityDraft.objects.filter(target_date__in=target_dates).values_list("target_date", "location", "quantity")}
 
     weather_table = [
         {"area": area, "label": label,
@@ -3482,6 +3507,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             same = [r for r in rows if r["wd"] == wd]
             recent10 = rows[-10:]
             eff = third_effect(rows, third)
+            draft_info = _draft_comparison(drafts.get((td, name)), rows, p["pred"] * factor)
             comment = comments.get(name) if n_day == 0 else None
             # 「10個程増やして」のような増減の数を、合計の数と取り違えて強調しない
             # （「明日は45で」のように大きく減らす合計は強調したいので、増減の言葉があるときだけ）
@@ -3503,13 +3529,18 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "avg_rem": round(sum(r["rem"] for r in same[-4:]) / len(same[-4:]), 1) if same else 0,
                 "sold_out_pct": int(round(sum(r["sold_out"] for r in recent10) / len(recent10) * 100)),
                 "comment": None if not comment else {"date": comment[0], "text": comment[1], "num": num},
+                "draft": draft_info,
             })
         locs.sort(key=lambda x: -x["pred"])
         rainy = any(l["rain_pct"] for l in locs)
+        with_draft = [l for l in locs if l["draft"]]
         forecast_days.append({
             "date": td, "weekday": FORECAST_WEEKDAY_JA[wd], "locs": locs,
             "total": sum(l["pred"] for l in locs), "base_total": sum(l["base"] for l in locs),
             "rainy": rainy, "third_label": THIRD_LABELS[third], "show_comments": n_day == 0,
+            "has_draft": bool(with_draft),
+            "draft_total": sum(l["draft"]["draft"] for l in with_draft),
+            "draft_flags": sum(1 for l in with_draft if l["draft"]["flag"]),
         })
     return {"days": forecast_days, "backtest": backtest(active, today),
             "weather_table": weather_table, "weather_dates": target_dates,

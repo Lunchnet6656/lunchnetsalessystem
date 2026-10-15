@@ -224,6 +224,23 @@ class WeatherForecastSnapshot(models.Model):
         return f"{self.target_date} 昼{self.lunch_precip}mm（{self.fetched_at:%m/%d %H:%M}取得）"
 
 
+class QuantityDraft(models.Model):
+    """D-2の夜に入れた振分表36行目（店ごとの数）の下書き。予測と並べて比べるためだけに使い、
+    持参数（ItemQuantity）や19:30の未受信通知には使わない。同じ日付・店は最新で上書き。"""
+    target_date = models.DateField(db_index=True)
+    location = models.CharField(max_length=100)   # 店名（販売場所No.は振り直されるため名前で持つ）
+    quantity = models.IntegerField()
+    recorded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["target_date", "location"], name="uniq_quantity_draft_date_location"),
+        ]
+
+    def __str__(self):
+        return f"{self.target_date} {self.location} {self.quantity}（下書き）"
+
+
 class OthersItem(models.Model):
     no = models.IntegerField(default=0)
     name =  models.CharField(max_length=255)

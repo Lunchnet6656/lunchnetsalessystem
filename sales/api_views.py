@@ -23,7 +23,7 @@ from django.urls import reverse
 from sales.item_quantity_import import parse_item_quantity_workbook, save_item_quantities
 from sales.menu_registry import MENU_SLOTS, WEEK_START_WEEKDAY, register_week, week_end
 from sales.menu_history import COLUMNS, build_menu_history
-from sales.models import ItemQuantityUpload
+from sales.models import ItemQuantityUpload, QuantityDraft, SalesLocation
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,47 @@ def api_menu_history(request):
         cache.set(cache_key, body, 3600)
     # BOM 付きにしないと Excel が文字化けする
     return HttpResponse("\ufeff" + body, content_type="text/csv; charset=utf-8")
+
+
+@csrf_exempt
+@require_POST
+def api_draft_quantity(request):
+    """振分表の[下書き記録]ボタンから、D-2に入れた36行目（店ごとの数）を受け取る。
+    比較用に残すだけで、持参数・出店状況・19:30の未受信通知には使わない。
+    本文（UTF-8）：1行目＝対象日 yyyymmdd、2行目から「店名<TAB>数」。"""
+    def reply(ok, message, status=200, **extra):
+        return JsonResponse({"ok": ok, "message": message, **extra}, status=status,
+                            json_dumps_params={"ensure_ascii": False})
+
+    if not _authorized(request):
+        return reply(False, "認証に失敗しました（合言葉ファイルを確認してください）", status=401)
+    lines = [l.strip() for l in request.body.decode("utf-8-sig", errors="replace").splitlines() if l.strip()]
+    try:
+        target = datetime.datetime.strptime(lines[0], "%Y%m%d").date()
+    except (IndexError, ValueError):
+        return reply(False, "1行目の日付（yyyymmdd）が読めませんでした", status=422)
+    if target < timezone.localdate():
+        return reply(False, f"{target:%Y/%m/%d} は過去の日付のため記録しません", status=422)
+
+    known = set(SalesLocation.objects.values_list("name", flat=True))
+    saved, skipped, total = 0, [], 0
+    for line in lines[1:]:
+        name, _, qty = line.partition("\t")
+        name = name.strip()
+        try:
+            quantity = int(float(qty or 0))
+        except ValueError:
+            continue
+        if name not in known:
+            skipped.append(name)
+            continue
+        QuantityDraft.objects.update_or_create(target_date=target, location=name, defaults={"quantity": quantity})
+        saved += 1
+        total += quantity
+    message = f"{target.month}/{target.day} 分の下書きを {saved}店（合計{total:,}食）記録しました"
+    if skipped:
+        message += "\nアプリに無い店は読み飛ばし：" + "、".join(skipped)
+    return reply(True, message, saved_count=saved, total=total)
 
 
 def _iso(d):

@@ -69,6 +69,7 @@ urlpatterns = [
     path('api/item-quantity/', sales_api_views.api_item_quantity, name='api_item_quantity'),
     path('api/menu/', sales_api_views.api_menu, name='api_menu'),
     path('api/menu-history.csv', sales_api_views.api_menu_history, name='api_menu_history'),
+    path('api/draft-quantity/', sales_api_views.api_draft_quantity, name='api_draft_quantity'),
     path('register/', views.register_user, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
 

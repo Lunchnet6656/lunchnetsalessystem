@@ -76,6 +76,7 @@
             <span class="text-muted">
                 この日の合計予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong> 食
                 {% if day.rainy %}<span class="small ms-2">（雨がなければ {{ day.base_total|intcomma }} 食）</span>{% endif %}
+                {% if day.has_draft %}<span class="small ms-2">／下書き {{ day.draft_total|intcomma }} 食{% if day.draft_flags %}・<span class="text-danger fw-bold">要確認 {{ day.draft_flags }}店</span>{% endif %}</span>{% endif %}
             </span>
         </div>
         <div class="card-body p-0">
@@ -87,6 +88,11 @@
                             <th>店舗</th>
                             <th>販売形式</th>
                             <th class="text-end">予測食数</th>
+                            {% if day.has_draft %}
+                            <th class="text-end">下書き</th>
+                            <th class="text-end">差</th>
+                            <th class="text-end">半々の目安</th>
+                            {% endif %}
                             <th class="text-end">直近5日</th>
                             <th class="text-end">曜日の癖</th>
                             <th class="text-center">月内のクセ</th>
@@ -106,6 +112,19 @@
                                 <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
                                 {% if l.rain_pct %}<div class="small text-danger">雨{{ l.rain_pct }}%（なし{{ l.base }}）</div>{% endif %}
                             </td>
+                            {% if day.has_draft %}
+                            {% if l.draft %}
+                            <td class="text-end fw-bold">{{ l.draft.draft }}</td>
+                            <td class="text-end small">
+                                {% if l.draft.flag %}<span class="badge bg-danger">要確認：{{ l.draft.flag }}</span>
+                                {% else %}<span class="text-muted">{% if l.draft.diff > 0 %}+{% endif %}{{ l.draft.diff }}</span>{% endif %}
+                                <div class="text-muted" style="font-size:.75rem">余裕分{{ l.draft.buffer }}を引いて比較{% if l.draft.flag %}（{% if l.draft.diff > 0 %}+{% endif %}{{ l.draft.diff }}）{% endif %}</div>
+                            </td>
+                            <td class="text-end">{{ l.draft.mid }}</td>
+                            {% else %}
+                            <td class="text-end text-muted">—</td><td></td><td></td>
+                            {% endif %}
+                            {% endif %}
                             <td class="text-end text-muted">{{ l.recent }}</td>
                             <td class="text-end small {% if l.weekday_pct > 0 %}text-success{% elif l.weekday_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.weekday_pct > 0 %}+{% endif %}{{ l.weekday_pct }}%</td>
                             <td class="text-center small">{% if l.third_pct is not None %}<span class="badge {% if l.third_pct > 0 %}bg-success{% else %}bg-secondary{% endif %}">{{ l.third_label }}{% if l.third_pct > 0 %}+{% endif %}{{ l.third_pct }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
@@ -140,6 +159,8 @@
         ⚠️ 予測は「売れそうな数（需要）」です。<span class="text-primary fw-bold">完売率が高い店（60%以上）</span>は需要がさらに上のことも（＝もう少し積める余地）、
         残りがちな店は予測どおりかやや下で。「直近の流れ」と「月内のクセ」は参考表示です（予測には入れていません。入れても当たりが良くならなかったため）。
         「店」・配達・お試しは対象外。給料日・月初は実績上ほぼ影響なし。最後は現場判断で。
+        <br>「下書き」は振分表の[下書き記録]で送った36行目の数です。いつもの余裕分（完売しなかった日の残数の中央値）を引いてから予測と比べ、
+        15%以上かつ5食以上違う店に「要確認」を出します。「半々の目安」は、予測と下書きを半々で合わせた数（過去の検証で、どちらか単独より当たった）。
     </div>
 </div>
 {% endblock %}

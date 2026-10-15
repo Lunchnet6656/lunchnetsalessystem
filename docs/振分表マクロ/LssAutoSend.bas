@@ -5,6 +5,8 @@ Attribute VB_Name = "LssAutoSend"
 Option Explicit
 
 Private Const API_URL As String = "https://www.lunchnetsalessystem.com/api/item-quantity/"
+Private Const DRAFT_URL As String = "https://www.lunchnetsalessystem.com/api/draft-quantity/"
+Private Const SETTING_ROW As Long = 36
 Private Const LSS_FOLDER As String = "\\192.168.111.250\Data\共有\◇LSS関係\"
 Private Const TOKEN_FILE As String = "lss_token.txt"
 Private Const OMORI_ROW As Long = 41
@@ -82,6 +84,89 @@ ErrHandler:
            "止まった所: " & stepName & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）" & vbCrLf & vbCrLf & _
            "急ぐときはLSSの画面からアップロードしてください。", vbExclamation, MSG_TITLE
 End Sub
+
+'[下書き記録]ボタンから呼ぶ。D-2に入れた36行目（店ごとの数）を、予測と比べるための下書きとして送る。
+'アプリの持参数・出店状況・19:30の通知には使われない（確定はこれまでどおり[確定送信]）。
+Public Sub 下書き記録()
+    Dim wsSource As Worksheet
+    Dim conv As Object
+    Dim cols As Collection
+    Dim c As Variant
+    Dim targetDate As Date
+    Dim lines As String
+    Dim qty As Variant
+    Dim token As String
+    Dim message As String
+
+    On Error GoTo ErrHandler
+    Set wsSource = ThisWorkbook.Sheets("振分表")
+    If Not IsDate(wsSource.Range("AP1").Value) Then
+        MsgBox "振分表のAP1に日付が入っていません。", vbExclamation, "下書き記録"
+        Exit Sub
+    End If
+    targetDate = wsSource.Range("AP1").Value
+
+    token = 合言葉を読む()
+    If token = "" Then
+        MsgBox "合言葉ファイルが見つかりません：" & vbCrLf & LSS_FOLDER & TOKEN_FILE, vbExclamation, "下書き記録"
+        Exit Sub
+    End If
+
+    Set conv = 店舗名変換を読む()
+    Set cols = 送信列(wsSource, conv)
+    lines = Format(targetDate, "yyyymmdd") & vbLf
+    For Each c In cols
+        qty = wsSource.Cells(SETTING_ROW, c).Value
+        If Not IsNumeric(qty) Or Trim(CStr(qty)) = "" Then qty = 0
+        lines = lines & conv(CStr(wsSource.Cells(7, c).Value)) & vbTab & CLng(qty) & vbLf
+    Next c
+
+    If 文字を送る(DRAFT_URL, lines, token, message) Then
+        MsgBox message, vbInformation, "下書き記録"
+    Else
+        MsgBox message, vbExclamation, "下書き記録"
+    End If
+    Exit Sub
+
+ErrHandler:
+    MsgBox "下書きを記録できませんでした。" & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）", vbExclamation, "下書き記録"
+End Sub
+
+Private Function 文字を送る(ByVal url As String, ByVal bodyText As String, ByVal token As String, ByRef message As String) As Boolean
+    Dim stm As Object
+    Dim body As Variant
+    Dim http As Object
+
+    'UTF-8のバイト列にする（先頭のBOM 3バイトは送らない）
+    Set stm = CreateObject("ADODB.Stream")
+    stm.Type = 2
+    stm.Charset = "utf-8"
+    stm.Open
+    stm.WriteText bodyText
+    stm.Position = 0
+    stm.Type = 1
+    stm.Position = 3
+    body = stm.Read
+    stm.Close
+
+    Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    On Error GoTo NetError
+    http.setTimeouts 5000, 5000, 15000, 30000
+    http.Open "POST", url, False
+    http.setRequestHeader "Authorization", "Bearer " & token
+    http.setRequestHeader "Content-Type", "bodyText/plain; charset=utf-8"
+    http.send body
+    On Error GoTo 0
+
+    message = 返事の文(http)
+    If message = "" Then message = "アプリから想定外の返事がありました（" & http.Status & "）"
+    文字を送る = (http.Status = 200)
+    Exit Function
+
+NetError:
+    message = "アプリに送れませんでした（インターネットの接続か、合言葉ファイルの中身を確認してください）。" & vbCrLf & "内容: " & Err.Description & "（" & Err.Number & "）"
+    文字を送る = False
+End Function
 
 '送信対象の店（店舗名変換にある店）の列で、メニュー行・大盛り行に空白がないか
 Private Function 空白チェック(ws As Worksheet) As String
