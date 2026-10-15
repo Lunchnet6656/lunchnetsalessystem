@@ -58,6 +58,7 @@ import urllib.parse
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from .utils import is_report_owner
+from sales.permissions import can_manage_account, menu_permission_required
 
 # モジュール共通ロガー（C8: print()を廃しログ出力に一元化）
 logger = logging.getLogger(__name__)
@@ -446,7 +447,7 @@ def _build_day_dashboard(target_date):
         'route_order_quantity': route_order_quantity,
     }
 
-@login_required
+@menu_permission_required('can_view_user_list', staff=True)
 def user_list_view(request):
     users = User.objects.all().select_related('menu_permission').order_by('date_joined')  # ユーザー情報を古い順に取得
     return render(request, 'user_list.html', {'users': users})
@@ -490,14 +491,28 @@ class CustomUserChangeForm(UserChangeForm):
 
         return cleaned_data
     
-@login_required
+def _lock_own_permissions(form, menu_form):
+    # disabled のフィールドは POST の値を無視して初期値を使う（画面を書き換えて送られても変わらない）
+    form.fields['is_staff'].disabled = True
+    for field in menu_form.fields.values():
+        field.disabled = True
+
+
+@menu_permission_required('can_view_user_list', staff=True)
 def user_edit_view(request, user_id):
     user = get_object_or_404(User, id=user_id)
+    if not can_manage_account(request.user, user):
+        messages.error(request, 'このアカウントは本人だけが変更できます。', extra_tags='alert alert-danger')
+        return redirect('user_list')
     menu_perm, _ = UserMenuPermission.objects.get_or_create(user=user)
+    # 自分で自分を管理者にしたり権限を広げたりできないように
+    is_self = user.pk == request.user.pk
 
     if request.method == 'POST':
         form = CustomUserChangeForm(request.POST, instance=user)
         menu_form = UserMenuPermissionForm(request.POST, instance=menu_perm)
+        if is_self:
+            _lock_own_permissions(form, menu_form)
         current_password = request.POST.get('current_password', '').strip()
         new_password = request.POST.get('new_password', '').strip()
         confirm_password = request.POST.get('confirm_password', '').strip()
@@ -539,12 +554,20 @@ def user_edit_view(request, user_id):
     else:
         form = CustomUserChangeForm(instance=user)
         menu_form = UserMenuPermissionForm(instance=menu_perm)
+        if is_self:
+            _lock_own_permissions(form, menu_form)
 
     return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
 
-@login_required
+@menu_permission_required('can_view_user_list', staff=True)
 def user_delete_view(request, user_id):
     user = get_object_or_404(User, id=user_id)
+    if user.pk == request.user.pk or not can_manage_account(request.user, user):
+        message = 'このアカウントは削除できません。'
+        if request.method == 'POST':
+            return JsonResponse({'success': False, 'message': message}, status=403)
+        messages.error(request, message, extra_tags='alert alert-danger')
+        return redirect('user_list')
     if request.method == 'POST':
         user.delete()
         messages.success(request, f'ユーザー {user.username} を削除しました。')
@@ -552,11 +575,8 @@ def user_delete_view(request, user_id):
     return render(request, 'user_confirm_delete.html', {'user': user})
 
 
-@login_required
+@menu_permission_required('can_view_user_list', staff=True, json=True)
 def toggle_direct_return_view(request, user_id):
-    # 勤務時間の集計対象が変わるので管理者だけ（URL直打ち対策）
-    if not (request.user.is_staff or request.user.is_superuser):
-        return JsonResponse({'success': False, 'message': 'この操作の権限がありません。'}, status=403)
     if request.method == 'POST':
         user = get_object_or_404(User, id=user_id)
         perm, _ = UserMenuPermission.objects.get_or_create(user=user)
@@ -661,7 +681,7 @@ def upload_view(request):
         'next_day_last_attempt': next_day_uploads.first(),
     })
 
-@login_required
+@menu_permission_required('can_view_register', staff=True)
 def register_user(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -1594,6 +1614,7 @@ def daily_report_delete(request, pk):
         return redirect('daily_report_detail', date=report.date)
     return redirect('daily_report_detail', date=report.date)  # GETリクエスト時は詳細ページにリダイレクト
 
+@menu_permission_required('can_view_daily_report_list', json=True)
 @require_POST
 def update_confirmation(request, report_id):
     try:
@@ -1638,9 +1659,10 @@ def product_detail_view(request, week):
         'forms': forms,
     }
     return render(request, 'product_detail.html', context)
-@login_required
+@menu_permission_required('can_view_product_list')
+@require_POST
 def delete_product_view(request, week):
-    # 指定されたweekに対応するすべてのProductオブジェクトを削除
+    # GET で消せると、リンクの先読みや履歴からの再表示で1週分が消えてしまう
     Product.objects.filter(week=week).delete()
     return redirect('product_list')
 

@@ -20,7 +20,10 @@
             <td>{{ week.week }}</td>
             <td>
                 <a href="{% url 'product_detail' week.week %}" class="btn btn-primary">編集</a>
-                <a href="{% url 'delete_product' week.week %}" class="btn btn-danger" onclick="return confirm('本当に削除しますか？');">削除</a>
+                <form method="post" action="{% url 'delete_product' week.week %}" class="d-inline" onsubmit="return confirm('本当に削除しますか？');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">削除</button>
+                </form>
             </td>
         </tr>
         {% endfor %}

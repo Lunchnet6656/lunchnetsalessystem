@@ -11,6 +11,9 @@
             </a>
         </div>
         <hr class="my-4">
+        {% if form.is_staff.field.disabled %}
+            <div class="alert alert-secondary">自分の管理者権限・サイドバー表示設定は変更できません。ほかの管理者に依頼してください。</div>
+        {% endif %}
         <form method="post">
             {% csrf_token %}
             <h5 class="mb-3">基本情報</h5>
