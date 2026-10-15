@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.core.management import call_command
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
-from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm, UserMenuPermissionForm
+from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm
 import pandas as pd
 from sales.item_quantity_import import next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
@@ -40,11 +40,9 @@ from datetime import datetime
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.forms import UserChangeForm
 from django.views.decorators.http import require_POST
 import json
 from django import forms
-from django.contrib.auth import update_session_auth_hash
 from django.db.models import OuterRef, Subquery
 import calendar as django_calendar  # Pythonの標準ライブラリからインポート
 import qrcode
@@ -58,7 +56,7 @@ import urllib.parse
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from .utils import is_report_owner
-from sales.permissions import can_manage_account, menu_permission_required
+from sales.permissions import menu_permission_required
 
 # モジュール共通ロガー（C8: print()を廃しログ出力に一元化）
 logger = logging.getLogger(__name__)
@@ -349,11 +347,18 @@ def login_view(request):
                                                             require_https=request.is_secure()):
                 return redirect(next_url)
             return redirect(_post_login_destination(user))
+        elif not user_obj_active(username):
+            messages.error(request, 'このアカウントは無効になっています。本部に連絡してください。')
         else:
             logger.error(f'Authentication failed for user: {username}')
             messages.error(request, 'ユーザー名またはパスワードが正しくありません')
 
     return render(request, 'login.html')
+
+def user_obj_active(username):
+    # 無効化されたスタッフに「パスワードが違う」と出すと何度も試して回線ごとロックされるので、理由を伝える
+    return get_user_model().objects.filter(username=username, is_active=True).exists()
+
 
 def locked_out_view(request):
     return render(request, 'axes/locked_out.html')
@@ -447,147 +452,6 @@ def _build_day_dashboard(target_date):
         'route_order_quantity': route_order_quantity,
     }
 
-@menu_permission_required('can_view_user_list', staff=True)
-def user_list_view(request):
-    users = User.objects.all().select_related('menu_permission').order_by('date_joined')  # ユーザー情報を古い順に取得
-    return render(request, 'user_list.html', {'users': users})
-
-
-# カスタムフォームを作成
-class CustomUserChangeForm(UserChangeForm):
-    current_password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={'placeholder': '現在のパスワード', 'class': 'form-control'}),
-        label='現在のパスワード'
-    )
-    new_password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={'placeholder': '新しいパスワード', 'class': 'form-control'}),
-        label='新しいパスワード'
-    )
-    confirm_password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={'placeholder': '新しいパスワード（確認）', 'class': 'form-control'}),
-        label='新しいパスワード（確認）'
-    )
-
-    class Meta:
-        model = User
-        fields = ['username', 'first_name', 'last_name', 'is_staff']
-        widgets = {
-            'username': forms.TextInput(attrs={'class': 'form-control'}),
-            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'is_staff': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        }
-
-    def clean(self):
-        cleaned_data = super().clean()
-        new_password = cleaned_data.get('new_password')
-        confirm_password = cleaned_data.get('confirm_password')
-
-        if new_password and new_password != confirm_password:
-            raise forms.ValidationError('新しいパスワードと確認用パスワードが一致しません。')
-
-        return cleaned_data
-    
-def _lock_own_permissions(form, menu_form):
-    # disabled のフィールドは POST の値を無視して初期値を使う（画面を書き換えて送られても変わらない）
-    form.fields['is_staff'].disabled = True
-    for field in menu_form.fields.values():
-        field.disabled = True
-
-
-@menu_permission_required('can_view_user_list', staff=True)
-def user_edit_view(request, user_id):
-    user = get_object_or_404(User, id=user_id)
-    if not can_manage_account(request.user, user):
-        messages.error(request, 'このアカウントは本人だけが変更できます。', extra_tags='alert alert-danger')
-        return redirect('user_list')
-    menu_perm, _ = UserMenuPermission.objects.get_or_create(user=user)
-    # 自分で自分を管理者にしたり権限を広げたりできないように
-    is_self = user.pk == request.user.pk
-
-    if request.method == 'POST':
-        form = CustomUserChangeForm(request.POST, instance=user)
-        menu_form = UserMenuPermissionForm(request.POST, instance=menu_perm)
-        if is_self:
-            _lock_own_permissions(form, menu_form)
-        current_password = request.POST.get('current_password', '').strip()
-        new_password = request.POST.get('new_password', '').strip()
-        confirm_password = request.POST.get('confirm_password', '').strip()
-
-        if form.is_valid() and menu_form.is_valid():
-            # パスワード変更処理が必要か確認
-            if current_password or new_password or confirm_password:
-                # 現在のパスワードが入力されている場合のみチェック
-                if not current_password:
-                    form.add_error('current_password', '現在のパスワードを入力してください。')
-                elif not user.check_password(current_password):
-                    form.add_error('current_password', '現在のパスワードが正しくありません。')
-                elif new_password or confirm_password:  # 新しいパスワードのチェック
-                    if new_password != confirm_password:
-                        form.add_error('new_password', '新しいパスワードが一致しません。')
-                    elif new_password:
-                        user.set_password(new_password)
-
-            # フォームがエラーを含む場合、保存処理を中断
-            if form.errors:
-                return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
-
-            # 他のフィールドを保存
-            user.save()
-            menu_form.save()
-
-            # shin_yokohamaはフォームexcludeのため手動保存
-            menu_perm.shin_yokohama = 'shin_yokohama' in request.POST
-            menu_perm.save()
-
-            # パスワードが変更された場合、セッションを更新
-            if new_password:
-                update_session_auth_hash(request, user)
-
-            messages.success(request, f'ユーザー {user.username} を更新しました。')
-            return redirect('user_list')
-        else:
-            return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
-    else:
-        form = CustomUserChangeForm(instance=user)
-        menu_form = UserMenuPermissionForm(instance=menu_perm)
-        if is_self:
-            _lock_own_permissions(form, menu_form)
-
-    return render(request, 'user_edit.html', {'form': form, 'menu_form': menu_form})
-
-@menu_permission_required('can_view_user_list', staff=True)
-def user_delete_view(request, user_id):
-    user = get_object_or_404(User, id=user_id)
-    if user.pk == request.user.pk or not can_manage_account(request.user, user):
-        message = 'このアカウントは削除できません。'
-        if request.method == 'POST':
-            return JsonResponse({'success': False, 'message': message}, status=403)
-        messages.error(request, message, extra_tags='alert alert-danger')
-        return redirect('user_list')
-    if request.method == 'POST':
-        user.delete()
-        messages.success(request, f'ユーザー {user.username} を削除しました。')
-        return JsonResponse({'message': 'ユーザーを削除しました。'})
-    return render(request, 'user_confirm_delete.html', {'user': user})
-
-
-@menu_permission_required('can_view_user_list', staff=True, json=True)
-def toggle_direct_return_view(request, user_id):
-    if request.method == 'POST':
-        user = get_object_or_404(User, id=user_id)
-        perm, _ = UserMenuPermission.objects.get_or_create(user=user)
-        checked = request.POST.get('checked') == 'true'
-        perm.direct_return = checked
-        perm.save()
-        status = "オン" if checked else "オフ"
-        return JsonResponse({'message': f'{user.username} の直行直帰を{status}にしました。', 'success': True})
-    return JsonResponse({'success': False}, status=400)
-
-
 @login_required
 def upload_view(request):
     if request.method == 'POST':
@@ -680,37 +544,6 @@ def upload_view(request):
         'next_day_last_ok': next_day_uploads.filter(ok=True).first(),
         'next_day_last_attempt': next_day_uploads.first(),
     })
-
-@menu_permission_required('can_view_register', staff=True)
-def register_user(request):
-    if request.method == 'POST':
-        username = request.POST['username']
-        password1 = request.POST['password1']
-        password2 = request.POST['password2']
-        user_role = request.POST['user_role']
-        first_name = request.POST['first_name']
-        last_name = request.POST['last_name']
-
-        if password1 != password2:
-            return render(request, 'register.html', {'error': 'パスワードが一致しません'})
-
-        try:
-            user = User.objects.create_user(username=username, password=password1, first_name=first_name, last_name=last_name)
-            # 権限の設定
-            if user_role == 'admin':
-                user.is_staff = True
-            else:
-                user.is_staff = False
-            user.save()
-
-            success_message = 'ユーザーの登録が完了しました。'
-            return render(request, 'register.html', {'success_message': success_message})
-
-        except Exception as e:
-            return render(request, 'register.html', {'error': str(e)})
-
-    return render(request, 'register.html')
-
 
 # ヘルパー関数の定義
 def safe_int(value, default=0, min_val=None, max_val=None):
@@ -2981,7 +2814,7 @@ def performance_by_location_calender_view(request, location_id, search_year, sea
 @login_required
 def get_shin_yokohama_users(request):
     """新横浜担当者一覧をJSON形式で返すAPIエンドポイント"""
-    users = UserMenuPermission.objects.filter(shin_yokohama=True).select_related('user')
+    users = UserMenuPermission.objects.filter(shin_yokohama=True, user__is_active=True).select_related('user')
     data = [
         {'id': perm.user.id, 'name': f"{perm.user.last_name} {perm.user.first_name}"}
         for perm in users

@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block title %}ユーザー編集{% endblock %}
+{% block extra_css %}{% include "users/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4 um-page">
+    <a href="{% url 'user_list' %}" class="small">‹ ユーザー管理へ戻る</a>
+    <h1 class="h3 mt-2 mb-1">
+        {{ name }}
+        {% if target.is_staff %}<span class="badge bg-primary fs-6 align-middle">管理者</span>{% else %}<span class="badge bg-secondary fs-6 align-middle">一般</span>{% endif %}
+        {% if target.menu_permission.direct_return %}<span class="badge bg-info text-dark fs-6 align-middle">直行直帰</span>{% endif %}
+        {% if not target.is_active %}<span class="badge bg-secondary fs-6 align-middle">無効</span>{% endif %}
+        {% if locked %}<span class="badge bg-danger fs-6 align-middle">ロック中</span>{% endif %}
+    </h1>
+    <p class="um-sub mb-2">{{ target.username }} ・ 最終ログイン {{ last_login }} ・ 登録 {{ target.date_joined|date:"Y-m-d" }}</p>
+    <hr class="mb-3">
+
+    {% if created %}
+    <div class="um-notice">
+        <div class="fw-bold mb-2">本人に伝えること</div>
+        <dl class="mb-1">
+            <dt>ユーザー名</dt><dd>{{ target.username }}</dd>
+            <dt>ログインページ</dt><dd>{{ login_url }}</dd>
+        </dl>
+        <div class="um-sub">パスワードは、登録した人から本人に直接伝えてください（この画面には出しません）。</div>
+    </div>
+    {% endif %}
+
+    {% if locked %}
+    <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>ログインに{{ failure_limit }}回失敗してロック中です。時間がたつか、ロックを解除するとログインできます。</span>
+        <form method="post" action="{% url 'user_unlock' target.pk %}" class="um-submit-once">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm" data-busy="解除しています…">ロック解除</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if is_self %}
+    <div class="alert alert-secondary">自分の区分・権限・有効は変更できません。ほかの管理者に依頼してください。</div>
+    {% endif %}
+
+    {% if form.errors %}<div class="alert alert-danger">入力内容を確認してください。</div>{% endif %}
+
+    <form method="post" novalidate class="um-submit-once">
+        {% csrf_token %}
+        <section class="um-card">
+            <h2>基本情報</h2>
+            <div class="row g-2">
+                <div class="col-md-4">{% include "users/_field.html" with field=form.last_name %}</div>
+                <div class="col-md-4">{% include "users/_field.html" with field=form.first_name %}</div>
+                <div class="col-md-4">{% include "users/_field.html" with field=form.username %}</div>
+            </div>
+            <fieldset>
+                <legend class="form-label fs-6">区分</legend>
+                {% for radio in form.role %}
+                <div class="form-check form-check-inline">
+                    {{ radio.tag }}
+                    <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+                {% endfor %}
+                <div class="form-text">管理者は、シフト管理・勤怠管理・スタンプ管理などを使えます。本部の人だけにしてください。</div>
+            </fieldset>
+        </section>
+
+        <section class="um-card">
+            <h2>権限（サイドバーに表示するメニュー）</h2>
+            <p class="um-sub">サイドバーと同じ並びです。チェックがない画面は、URLを直接開いても使えません。</p>
+            {% for group_name, perms in form.permission_groups %}
+            <div class="um-perm-group">
+                <h3>{{ group_name }}</h3>
+                {% for perm, field in perms %}
+                <div class="um-perm">
+                    <div class="form-check mb-0">
+                        {{ field }}
+                        <label class="form-check-label" for="{{ field.id_for_label }}">
+                            {{ perm.label }}{% if perm.honbu %} <span class="badge bg-warning text-dark">本部</span>{% endif %}
+                        </label>
+                    </div>
+                    <span class="um-perm-help">{{ perm.help }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            {% if target.menu_permission.can_view_orders and user.menu_permission.can_view_orders %}
+            <p class="um-sub mt-2 mb-0">受注の細かい権限は <a href="{% url 'orders:order_settings' %}">受注アプリの設定</a> で決めます。</p>
+            {% endif %}
+        </section>
+
+        <section class="um-card">
+            <h2>担当</h2>
+            <div class="form-check form-check-inline">
+                {{ form.direct_return }}
+                <label class="form-check-label" for="{{ form.direct_return.id_for_label }}">直行直帰</label>
+            </div>
+            <div class="form-check form-check-inline">
+                {{ form.shin_yokohama }}
+                <label class="form-check-label" for="{{ form.shin_yokohama.id_for_label }}">新横浜担当</label>
+            </div>
+        </section>
+
+        <div class="um-savebar d-flex justify-content-md-end gap-2">
+            <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">キャンセル</a>
+            <button type="submit" class="btn btn-primary" data-busy="保存しています…">保存</button>
+        </div>
+    </form>
+
+    <section class="um-card mt-3" id="password">
+        <h2>パスワード設定</h2>
+        <p class="um-sub">今のパスワードは要りません。設定したら本人に伝えてください。条件：{{ password_rules|join:"・" }}</p>
+        <form method="post" action="{% url 'user_password' target.pk %}#password" novalidate class="um-submit-once">
+            {% csrf_token %}
+            <div class="row g-2 align-items-start">
+                <div class="col-md-5">{% include "users/_field.html" with field=password_form.new_password %}</div>
+                <div class="col-md-4">{% include "users/_field.html" with field=password_form.confirm_password %}</div>
+                <div class="col-md-3 pt-md-4 mt-md-2">
+                    <button type="submit" class="btn btn-outline-primary w-100" data-busy="設定しています…">パスワード設定</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="um-card">
+        <h2>アカウントの状態</h2>
+        {% if target.is_active %}
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <div class="fw-bold">有効（ログインできます）</div>
+                <div class="um-sub">無効にするとログインできなくなります。シフトなどの記録は残り、いつでも有効に戻せます。</div>
+            </div>
+            {% if not is_self %}
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#um-deactivate">無効化</button>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <div class="fw-bold">無効（ログインできません）</div>
+                <div class="um-sub">シフト・日計表の担当者の候補には出ません。</div>
+            </div>
+            <form method="post" action="{% url 'user_activate' target.pk %}" class="um-submit-once">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary" data-busy="戻しています…">有効に戻す</button>
+            </form>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="um-card mb-5">
+        <h2>変更履歴（直近20件）</h2>
+        {% if logs %}
+        <div class="table-responsive">
+            <table class="table table-sm um-log mb-0">
+                <tbody>
+                    {% for entry in logs %}
+                    <tr>
+                        <td class="text-nowrap">{{ entry.changed_at|date:"m/d H:i" }}</td>
+                        <td class="text-nowrap">{% if entry.changed_by %}{{ entry.changed_by.last_name }} {{ entry.changed_by.first_name }}{% else %}システム{% endif %}</td>
+                        <td>{{ entry.detail|default:entry.get_action_display }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="um-sub mb-0">まだ記録はありません（この画面を作り直した日以降の変更から記録します）。</p>
+        {% endif %}
+    </section>
+</div>
+
+{% if target.is_active and not is_self %}
+<div class="modal fade" id="um-deactivate" tabindex="-1" aria-labelledby="um-deactivate-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="um-deactivate-title">無効化の確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2"><strong>{{ name }}</strong> さんを無効にします。</p>
+                <p class="mb-0">ログインできなくなります。シフトや日計表などの記録は残り、いつでも有効に戻せます。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <form method="post" action="{% url 'user_deactivate' target.pk %}" class="um-submit-once">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger" data-busy="無効にしています…">無効化</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}{% include "users/_submit_once.html" %}{% endblock %}

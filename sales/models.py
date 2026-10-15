@@ -415,6 +415,35 @@ class UserMenuPermission(models.Model):
         return f"MenuPermission({self.user})"
 
 
+class UserChangeLog(models.Model):
+    """ユーザー管理での変更の記録。誰かが勝手に管理者になったり権限を広げたりしても気づけるように。"""
+    ACTION_CHOICES = [
+        ("create", "新規作成"),
+        ("profile", "基本情報"),
+        ("role", "区分"),
+        ("permission", "権限"),
+        ("assignment", "担当"),
+        ("deactivate", "無効化"),
+        ("activate", "有効に戻す"),
+        ("password", "パスワード設定"),
+        ("unlock", "ロック解除"),
+    ]
+    target = models.ForeignKey(User, on_delete=models.CASCADE, related_name="change_logs", verbose_name="対象")
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+                                   verbose_name="変更した人")
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, verbose_name="操作")
+    detail = models.CharField(max_length=255, blank=True, default="", verbose_name="内容")
+    changed_at = models.DateTimeField(auto_now_add=True, verbose_name="日時")
+
+    class Meta:
+        ordering = ["-changed_at", "-id"]
+        verbose_name = "ユーザー変更履歴"
+        verbose_name_plural = "ユーザー変更履歴"
+
+    def __str__(self):
+        return f"{self.target} {self.get_action_display()} {self.detail}"
+
+
 # ===== 直行直帰の勤務時間 =====
 # 仕様: .company/engineering/harness/specs/lunchnetsale-直行直帰-勤務時間計算-要件定義.md §4
 

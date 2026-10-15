@@ -1,0 +1,33 @@
+<style>
+    .um-page { max-width: 960px; }
+    .um-form-page { max-width: 720px; }
+    .um-sub { font-size: 0.8rem; color: var(--ln-color-text-muted); }
+    .um-warn { color: var(--ln-color-danger); }
+    .um-card { border: 1px solid var(--ln-color-border); border-radius: 6px; background-color: var(--ln-color-white); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .um-card h2 { font-size: 1.05rem; font-weight: bold; margin-bottom: 0.75rem; }
+    .um-chips { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
+    .um-chips .btn { white-space: nowrap; }
+    .um-inactive td, .um-inactive.um-user-card { background-color: var(--ln-color-surface-disabled); color: var(--ln-color-text-muted); }
+    .um-user-card { border: 1px solid var(--ln-color-border); border-radius: 6px; padding: 0.75rem; margin-bottom: 0.5rem; background-color: var(--ln-color-white); }
+    .um-user-card .btn { min-height: 44px; min-width: 64px; }
+    .um-perm-group { border-top: 1px solid var(--ln-color-border); padding-top: 0.5rem; margin-top: 0.5rem; }
+    .um-perm-group:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+    .um-perm-group h3 { font-size: 0.9rem; font-weight: bold; color: var(--ln-color-text-muted); margin-bottom: 0.25rem; }
+    .um-perm { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.35rem 0; }
+    .um-perm label { cursor: pointer; }
+    .um-perm .form-check-input { flex-shrink: 0; }
+    .um-perm-help { font-size: 0.8rem; color: var(--ln-color-text-muted); }
+    .um-notice { border: 1px solid var(--ln-color-success); background-color: var(--ln-color-success-bg); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
+    .um-notice dt { font-weight: normal; color: var(--ln-color-text-muted); font-size: 0.85rem; }
+    .um-notice dd { font-weight: bold; margin-bottom: 0.25rem; word-break: break-all; }
+    .um-log { font-size: 0.85rem; }
+    .um-log td { padding: 0.3rem 0.5rem; }
+    input.form-control, select.form-select { font-size: 16px; }  /* iPhone で入力時に拡大されないように */
+
+    @media (max-width: 767.98px) {
+        .um-perm { flex-direction: column; gap: 0; }
+        .um-perm-help { padding-left: 1.75rem; }
+        .um-savebar { position: sticky; bottom: 0; background-color: var(--ln-color-white); box-shadow: var(--ln-shadow-nav); padding: 0.75rem; margin: 0 -0.75rem 1rem; z-index: 5; }
+        .um-savebar .btn { flex: 1; min-height: 44px; }
+    }
+</style>

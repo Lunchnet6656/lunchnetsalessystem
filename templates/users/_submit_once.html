@@ -1,0 +1,11 @@
+<script>
+// 二重送信防止：押したボタンを「〜しています…」にして押せなくする
+document.addEventListener('submit', function (e) {
+    const form = e.target;
+    if (!form.classList.contains('um-submit-once') || e.defaultPrevented) return;
+    const btn = e.submitter || form.querySelector('button[type="submit"]');
+    if (!btn) return;
+    if (btn.dataset.busy) btn.textContent = btn.dataset.busy;
+    setTimeout(() => { btn.disabled = true; }, 0);  // すぐ disabled にすると送信値から消えるため
+});
+</script>

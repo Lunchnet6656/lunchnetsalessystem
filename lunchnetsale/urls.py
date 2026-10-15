@@ -23,6 +23,7 @@ from sales import qr_views as sales_qr_views
 from sales import api_views as sales_api_views
 from sales import price_admin_views
 from sales import direct_return_views
+from sales import user_admin_views
 from stamps import views as stamp_views
 
 urlpatterns = [
@@ -70,7 +71,7 @@ urlpatterns = [
     path('api/menu/', sales_api_views.api_menu, name='api_menu'),
     path('api/menu-history.csv', sales_api_views.api_menu_history, name='api_menu_history'),
     path('api/draft-quantity/', sales_api_views.api_draft_quantity, name='api_draft_quantity'),
-    path('register/', views.register_user, name='register'),
+    path('register/', user_admin_views.register, name='register'),
     path('locked_out/', views.locked_out_view, name='locked_out'),
 
     path('mypage/', my_page, name='mypage'),
@@ -81,10 +82,13 @@ urlpatterns = [
     path('shift_request_list/<int:pk>/', views.shift_request_detail, name='shift_request_detail'),
     path('export_shift_request', views.export_shift_request, name='export_shift_request'),
 
-    path('users/', views.user_list_view, name='user_list'),
-    path('user/edit/<int:user_id>/', views.user_edit_view, name='user_edit'),
-    path('user/delete/<int:user_id>/', views.user_delete_view, name='user_delete'),
-    path('user/toggle_direct_return/<int:user_id>/', views.toggle_direct_return_view, name='toggle_direct_return'),
+    path('users/', user_admin_views.user_list, name='user_list'),
+    path('user/edit/<int:user_id>/', user_admin_views.user_edit, name='user_edit'),
+    path('user/<int:user_id>/password/', user_admin_views.user_password, name='user_password'),
+    path('user/<int:user_id>/deactivate/', user_admin_views.user_deactivate, name='user_deactivate'),
+    path('user/<int:user_id>/activate/', user_admin_views.user_activate, name='user_activate'),
+    path('user/<int:user_id>/unlock/', user_admin_views.user_unlock, name='user_unlock'),
+    path('user/toggle_direct_return/<int:user_id>/', user_admin_views.toggle_direct_return, name='toggle_direct_return'),
 
     path('others_item_list/', views.others_list_view, name='others_item_list'),
     path('direct_return_attendance/', direct_return_views.attendance, name='direct_return_attendance'),

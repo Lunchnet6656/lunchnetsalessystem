@@ -1,0 +1,3 @@
+{% if r.user.is_staff %}<span class="badge bg-primary">管理者</span>{% else %}<span class="badge bg-secondary">一般</span>{% endif %}
+{% if r.direct_return %}<span class="badge bg-info text-dark">直行直帰</span>{% endif %}
+{% if r.locked %}<span class="badge bg-danger">ロック中</span>{% endif %}

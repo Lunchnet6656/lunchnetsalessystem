@@ -22,7 +22,7 @@ def make_user(username, staff=False, superuser=False, **perms):
 
 def edit_post(user, **extra):
     """編集画面の POST。全部の権限を ON にして管理者にもする（乗っ取りの形）。"""
-    data = {"username": user.username, "first_name": "太郎", "last_name": "山田", "is_staff": "on"}
+    data = {"username": user.username, "first_name": "太郎", "last_name": "山田", "role": "admin"}
     data.update({field: "on" for field in PERM_FIELDS})
     data.update(extra)
     return data
@@ -40,7 +40,7 @@ class UserManagementPermissionTest(TestCase):
     def test_general_staff_cannot_open_user_screens(self):
         for user in (self.general, self.flag_only, self.staff_no_flag):
             self.client.force_login(user)
-            for url in ("/users/", f"/user/edit/{user.pk}/", f"/user/delete/{self.general.pk}/", "/register/"):
+            for url in ("/users/", f"/user/edit/{user.pk}/", "/register/"):
                 res = self.client.get(url)
                 self.assertRedirects(res, "/dashboard/", fetch_redirect_response=False, msg_prefix=f"{user} {url}")
 
@@ -53,14 +53,17 @@ class UserManagementPermissionTest(TestCase):
 
     def test_general_staff_cannot_register_admin(self):
         self.client.force_login(self.flag_only)
-        self.client.post("/register/", {"username": "evil", "password1": "Xy7-long-pass", "password2": "Xy7-long-pass",
-                                        "user_role": "admin", "first_name": "a", "last_name": "b"})
+        self.client.post("/register/", {"username": "evil", "new_password": "Xy7-long-pass", "confirm_password": "Xy7-long-pass",
+                                        "role": "admin", "first_name": "a", "last_name": "b"})
         self.assertFalse(User.objects.filter(username="evil").exists())
 
-    def test_general_staff_cannot_delete_or_toggle(self):
+    def test_general_staff_cannot_deactivate_or_toggle(self):
         self.client.force_login(self.general)
-        self.client.post(f"/user/delete/{self.honbu.pk}/")
-        self.assertTrue(User.objects.filter(pk=self.honbu.pk).exists())
+        for action in ("deactivate", "password", "unlock"):
+            self.client.post(f"/user/{self.honbu.pk}/{action}/", {"new_password": "Zz9-new-pass", "confirm_password": "Zz9-new-pass"})
+        self.honbu.refresh_from_db()
+        self.assertTrue(self.honbu.is_active)
+        self.assertTrue(self.honbu.check_password("pass-1234-abcd"))
         res = self.client.post(f"/user/toggle_direct_return/{self.honbu.pk}/", {"checked": "true"})
         self.assertEqual(res.status_code, 403)
         self.assertFalse(UserMenuPermission.objects.get(user=self.honbu).direct_return)
@@ -70,7 +73,7 @@ class UserManagementPermissionTest(TestCase):
         self.assertEqual(self.client.get("/users/").status_code, 200)
         self.assertEqual(self.client.get("/register/").status_code, 200)
         res = self.client.post(f"/user/edit/{self.general.pk}/", edit_post(self.general))
-        self.assertRedirects(res, "/users/", fetch_redirect_response=False)
+        self.assertRedirects(res, f"/user/edit/{self.general.pk}/", fetch_redirect_response=False)
         self.general.refresh_from_db()
         self.assertTrue(self.general.is_staff)  # D4：本部は他の人を管理者にできる
         self.assertTrue(self.general.menu_permission.can_view_orders)
@@ -78,9 +81,8 @@ class UserManagementPermissionTest(TestCase):
     def test_honbu_cannot_change_own_permissions(self):
         self.client.force_login(self.honbu)
         res = self.client.get(f"/user/edit/{self.honbu.pk}/")
-        self.assertContains(res, "自分の管理者権限・サイドバー表示設定は変更できません")
-        data = edit_post(self.honbu, last_name="本部")
-        data.pop("is_staff")  # 管理者を外そうとしても変わらない
+        self.assertContains(res, "自分の区分・権限・有効は変更できません")
+        data = edit_post(self.honbu, last_name="本部", role="general")  # 管理者を外そうとしても変わらない
         data.pop("can_view_user_list")
         self.client.post(f"/user/edit/{self.honbu.pk}/", data)
         self.honbu.refresh_from_db()
@@ -94,18 +96,25 @@ class UserManagementPermissionTest(TestCase):
         self.client.force_login(self.honbu)
         self.assertRedirects(self.client.get(f"/user/edit/{self.owner.pk}/"), "/users/", fetch_redirect_response=False)
         self.client.post(f"/user/edit/{self.owner.pk}/", edit_post(self.owner, last_name="変更"))
-        res = self.client.post(f"/user/delete/{self.owner.pk}/")
-        self.assertEqual(res.status_code, 403)
+        self.client.post(f"/user/{self.owner.pk}/deactivate/")
+        self.client.post(f"/user/{self.owner.pk}/password/", {"new_password": "Zz9-new-pass", "confirm_password": "Zz9-new-pass"})
         self.owner.refresh_from_db()
         self.assertNotEqual(self.owner.last_name, "変更")
+        self.assertTrue(self.owner.is_active)
+        self.assertTrue(self.owner.check_password("pass-1234-abcd"))
         self.client.force_login(self.owner)
         self.assertEqual(self.client.get(f"/user/edit/{self.owner.pk}/").status_code, 200)
 
-    def test_cannot_delete_self(self):
+    def test_cannot_deactivate_self(self):
         self.client.force_login(self.honbu)
-        res = self.client.post(f"/user/delete/{self.honbu.pk}/")
-        self.assertEqual(res.status_code, 403)
-        self.assertTrue(User.objects.filter(pk=self.honbu.pk).exists())
+        self.client.post(f"/user/{self.honbu.pk}/deactivate/")
+        self.honbu.refresh_from_db()
+        self.assertTrue(self.honbu.is_active)
+
+    def test_delete_url_is_gone(self):
+        self.client.force_login(self.honbu)
+        self.assertEqual(self.client.post(f"/user/delete/{self.general.pk}/").status_code, 404)
+        self.assertTrue(User.objects.filter(pk=self.general.pk).exists())
 
     def test_login_required(self):
         res = self.client.get("/users/")

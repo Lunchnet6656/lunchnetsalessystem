@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}新規ユーザー登録{% endblock %}
+{% block extra_css %}{% include "users/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4 um-form-page">
+    {% if user.menu_permission.can_view_user_list %}<a href="{% url 'user_list' %}" class="small">‹ ユーザー管理へ戻る</a>{% endif %}
+    <h1 class="h3 mt-2">新規作成</h1>
+    <p class="um-sub mb-2">スタッフのアカウントを作ります。作成すると、すぐにログインできます。</p>
+    <hr class="mb-3">
+
+    {% if form.errors %}
+    <div class="alert alert-danger">入力内容を確認してください。</div>
+    {% endif %}
+
+    <form method="post" novalidate class="um-submit-once">
+        {% csrf_token %}
+        <section class="um-card">
+            <h2>1. 本人の情報</h2>
+            <div class="row g-2">
+                <div class="col-md-6">{% include "users/_field.html" with field=form.last_name %}</div>
+                <div class="col-md-6">{% include "users/_field.html" with field=form.first_name %}</div>
+            </div>
+            {% include "users/_field.html" with field=form.username %}
+            <div class="row g-2">
+                <div class="col-md-6">{% include "users/_field.html" with field=form.new_password %}</div>
+                <div class="col-md-6">{% include "users/_field.html" with field=form.confirm_password %}</div>
+            </div>
+            <div class="form-text mt-n2">パスワードの条件：{{ password_rules|join:"・" }}</div>
+        </section>
+
+        <section class="um-card">
+            <h2>2. 権限</h2>
+            <fieldset class="mb-3">
+                <legend class="form-label fs-6">区分</legend>
+                {% for radio in form.role %}
+                <div class="form-check form-check-inline">
+                    {{ radio.tag }}
+                    <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+                {% endfor %}
+                {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </fieldset>
+            <div class="alert alert-warning py-2" id="um-admin-note">
+                管理者は、シフト管理・勤怠管理・スタンプ管理などを使えるようになります。本部の人だけにしてください。
+            </div>
+            {% include "users/_field.html" with field=form.copy_from %}
+            <div class="form-text mt-n2">今いる人と同じメニューが見えるようになります。細かい調整は作成後の編集画面でできます。</div>
+        </section>
+
+        <section class="um-card">
+            <h2>3. 担当</h2>
+            <div class="form-check form-check-inline">
+                {{ form.direct_return }}
+                <label class="form-check-label" for="{{ form.direct_return.id_for_label }}">直行直帰</label>
+            </div>
+            <div class="form-check form-check-inline">
+                {{ form.shin_yokohama }}
+                <label class="form-check-label" for="{{ form.shin_yokohama.id_for_label }}">新横浜担当</label>
+            </div>
+        </section>
+
+        <div class="d-flex flex-column-reverse flex-md-row justify-content-md-end gap-2 mb-4">
+            <a href="{% if user.menu_permission.can_view_user_list %}{% url 'user_list' %}{% else %}{% url 'dashboard' %}{% endif %}" class="btn btn-outline-secondary">キャンセル</a>
+            <button type="submit" class="btn btn-primary" data-busy="作成しています…">作成</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% include "users/_submit_once.html" %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 管理者を選んだときだけ注意を出す（JS が動かないときは常に出ている）
+    const note = document.getElementById('um-admin-note');
+    const radios = document.querySelectorAll('input[name="role"]');
+    function sync() {
+        const admin = document.querySelector('input[name="role"]:checked')?.value === 'admin';
+        note.classList.toggle('d-none', !admin);
+    }
+    radios.forEach(r => r.addEventListener('change', sync));
+    sync();
+});
+</script>
+{% endblock %}
