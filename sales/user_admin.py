@@ -295,7 +295,7 @@ def create_user(form, by):
 
 def last_login_label(user, today=None):
     if not user.last_login:
-        return "未ログイン"
+        return "利用なし"
     today = today or timezone.localdate()
     days = (today - timezone.localtime(user.last_login).date()).days
     if days <= 0:
@@ -308,7 +308,7 @@ def last_login_label(user, today=None):
 
 
 def idle_days(user, today=None):
-    """最終ログインからの日数。一度もログインしていなければ登録日から数える。"""
+    """最終利用からの日数。一度も使っていなければ登録日から数える。"""
     today = today or timezone.localdate()
     since = user.last_login or user.date_joined
     return (today - timezone.localtime(since).date()).days

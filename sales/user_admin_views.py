@@ -20,7 +20,7 @@ FILTERS = [
     ("admin", "管理者"),
     ("direct", "直行直帰"),
     ("locked", "ロック中"),
-    ("idle", "30日以上ログインなし"),
+    ("idle", "30日以上利用なし"),
 ]
 IDLE_DAYS = 30
 LONG_IDLE_DAYS = 90

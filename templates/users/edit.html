@@ -11,7 +11,7 @@
         {% if not target.is_active %}<span class="badge bg-secondary fs-6 align-middle">無効</span>{% endif %}
         {% if locked %}<span class="badge bg-danger fs-6 align-middle">ロック中</span>{% endif %}
     </h1>
-    <p class="um-sub mb-2">{{ target.username }} ・ 最終ログイン {{ last_login }} ・ 登録 {{ target.date_joined|date:"Y-m-d" }}</p>
+    <p class="um-sub mb-2">{{ target.username }} ・ 最終利用 {{ last_login }} ・ 登録 {{ target.date_joined|date:"Y-m-d" }}</p>
     <hr class="mb-3">
 
     {% if created %}

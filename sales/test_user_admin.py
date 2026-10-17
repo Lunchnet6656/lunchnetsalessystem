@@ -224,3 +224,27 @@ class EditTest(Base):
         self.staff("suzuki", last="鈴木")
         res = self.client.post(f"/user/edit/{self.target.pk}/", self.form_data(username="SUZUKI"))
         self.assertContains(res, "このユーザー名はすでに使われています")
+
+
+class LastSeenTest(TestCase):
+    """ログインしたまま使い続ける人も「最終利用」が更新される（6月にログインして以来ずっと使っている人が長期未利用に出ていた）。"""
+
+    def setUp(self):
+        self.staff = make_user("daily", can_view_daily_report_form=True)
+        User.objects.filter(pk=self.staff.pk).update(last_login=timezone.now() - timedelta(days=120))
+        self.client.force_login(self.staff)
+        User.objects.filter(pk=self.staff.pk).update(last_login=timezone.now() - timedelta(days=120))  # force_login も更新するので戻す
+
+    def test_request_updates_last_seen_once_a_day(self):
+        self.client.get("/dashboard/")
+        self.staff.refresh_from_db()
+        first = self.staff.last_login
+        self.assertEqual(timezone.localtime(first).date(), timezone.localdate())
+        self.client.get("/dashboard/")
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.last_login, first)  # 同じ日は書き直さない
+        self.assertEqual(ua.idle_days(self.staff), 0)
+
+    def test_anonymous_is_ignored(self):
+        self.client.logout()
+        self.assertEqual(self.client.get("/login/").status_code, 200)

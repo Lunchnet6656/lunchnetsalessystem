@@ -44,7 +44,7 @@
                 <tr>
                     <th>名前</th>
                     <th>区分</th>
-                    <th>最終ログイン</th>
+                    <th>最終利用</th>
                     <th class="text-center">直行直帰</th>
                     <th class="text-center">操作</th>
                 </tr>
@@ -57,7 +57,7 @@
                         <div class="um-sub">{{ r.user.username }}</div>
                     </td>
                     <td>{% include "users/_badges.html" with r=r %}</td>
-                    <td>{{ r.last_login }}{% if r.long_idle %}<div class="um-sub um-warn">長期未ログイン</div>{% endif %}</td>
+                    <td>{{ r.last_login }}{% if r.long_idle %}<div class="um-sub um-warn">長期未利用</div>{% endif %}</td>
                     <td class="text-center">
                         <div class="form-check form-switch d-inline-block">
                             <input type="checkbox" role="switch" class="form-check-input um-direct-return" data-user-id="{{ r.user.pk }}"
@@ -78,7 +78,7 @@
                 <div>
                     <div class="fw-bold">{{ r.name }}{% if r.is_me %} <span class="badge bg-light text-dark border">あなた</span>{% endif %}</div>
                     <div>{% include "users/_badges.html" with r=r %}</div>
-                    <div class="um-sub">{{ r.user.username }} ・ 最終ログイン {{ r.last_login }}{% if r.long_idle %} <span class="um-warn text-nowrap">長期未ログイン</span>{% endif %}</div>
+                    <div class="um-sub">{{ r.user.username }} ・ 最終利用 {{ r.last_login }}{% if r.long_idle %} <span class="um-warn text-nowrap">長期未利用</span>{% endif %}</div>
                 </div>
                 <a href="{% url 'user_edit' r.user.pk %}" class="btn btn-outline-primary">編集</a>
             </div>
@@ -99,7 +99,7 @@
         <div class="um-user-card um-inactive d-flex justify-content-between align-items-center gap-2">
             <div>
                 <div class="fw-bold">{{ r.name }} <span class="badge bg-secondary">無効</span></div>
-                <div class="um-sub">{{ r.user.username }} ・ 最終ログイン {{ r.last_login }}</div>
+                <div class="um-sub">{{ r.user.username }} ・ 最終利用 {{ r.last_login }}</div>
             </div>
             <div class="d-flex gap-2">
                 <a href="{% url 'user_edit' r.user.pk %}" class="btn btn-outline-secondary">編集</a>
