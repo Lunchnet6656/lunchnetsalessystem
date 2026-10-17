@@ -67,16 +67,20 @@ def resolve_member(request):
 
 
 def member_readonly(request):
-    """参照用に会員を特定（新規作成しない）。トークン→セッションの順。無ければ None。"""
+    """参照用に会員を特定（新規作成しない）。トークンがあればトークンの本人だけ、無ければセッション。
+
+    トークン付きの送信は合言葉（CSRF）の代わりにトークンで守っている（stamps/csrf.py）。
+    トークンの本人が会員でないときにセッションの会員へ切り替えると、合言葉なしでセッションの
+    会員として操作できてしまうので、トークンがある限りセッションには戻らない。
+    """
     token = (request.POST.get("line_access_token") or "").strip()
     if token:
         try:
             profile = line_api.get_profile(token)
         except line_api.LineAuthError:
-            profile = None
-        if profile:
-            member = LineMember.objects.filter(line_user_id=profile["user_id"]).first()
-            if member is not None:
-                _remember(request, member)
-                return member
+            return None
+        member = LineMember.objects.filter(line_user_id=profile["user_id"]).first()
+        if member is not None:
+            _remember(request, member)
+        return member
     return _session_member(request)

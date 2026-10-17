@@ -23,6 +23,7 @@ from django.views.decorators.http import require_http_methods
 from sales.models import SalesLocation
 from reservations import line_api
 from stamps import identity, services
+from stamps.csrf import line_token_or_csrf
 from stamps.models import Reward, StampLog
 from stamps.services import card_view_state
 
@@ -105,6 +106,20 @@ def stamp_page(request, token):
     return render_stamp(request, location=location, token=token, loaded=False)
 
 
+def _card_line_error(request, message):
+    return render_stamp(request, loaded=True, error=message, status=400)
+
+
+def _scan_line_error(request, message, token):
+    return render_stamp(request, location=_location_by_token(token), token=token,
+                        loaded=True, error=message, status=400)
+
+
+def _reward_line_error(request, message, reward_id):
+    return render(request, "stamps/unavailable.html", {"reason": "denied"}, status=403)
+
+
+@line_token_or_csrf(_card_line_error)
 @require_http_methods(["GET", "POST"])
 def my_card(request):
     """LINE内から自分のスタンプカードを開く（来店せず進捗・クーポンを確認）。リッチメニュー遷移先。"""
@@ -138,6 +153,7 @@ def my_card(request):
     return render_stamp(request, **ctx)
 
 
+@line_token_or_csrf(_scan_line_error)
 @require_http_methods(["POST"])
 def stamp_scan(request, token):
     """POST：本人特定 → スタンプ付与判定 → カード表示。"""
@@ -203,6 +219,7 @@ def coupon_detail(request, reward_id):
     return render(request, "stamps/coupon.html", coupon_ctx(reward, member))
 
 
+@line_token_or_csrf(_reward_line_error)
 @require_http_methods(["POST"])
 def reward_use(request, reward_id):
     """クーポンを使う（B案）。本人のみ。使用済みにしてクーポン画面（使用済み）を表示。"""

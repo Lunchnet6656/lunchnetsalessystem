@@ -44,6 +44,23 @@ def get_profile(access_token: str) -> dict:
     return {"user_id": user_id, "display_name": data.get("displayName", "")}
 
 
+def verify_channel(access_token: str, channel_ids) -> None:
+    """アクセストークンが自分たちのLINEチャネルで発行されたものか確かめる。
+
+    /v2/profile は他のLINEアプリで発行されたトークンでも通るため、発行元までは保証しない。
+    合言葉（CSRF）の代わりにトークンで本人確認する画面では、ここで発行元も確かめる。
+    """
+    try:
+        r = requests.get(f"{_API}/oauth2/v2.1/verify", params={"access_token": access_token}, timeout=_TIMEOUT)
+    except requests.RequestException:
+        raise LineAuthError("LINEとの通信に失敗しました。電波の良い場所で開き直してください。")
+    if r.status_code != 200:
+        raise LineAuthError("LINEログインの有効期限が切れています。ページを開き直してください。")
+    data = r.json()
+    if str(data.get("client_id", "")) not in {str(c) for c in channel_ids} or int(data.get("expires_in", 0)) <= 0:
+        raise LineAuthError("このLINEログインでは利用できません。LINEのトーク画面から開き直してください。")
+
+
 def is_friend(access_token: str) -> bool:
     """このアクセストークンの本人が、リンク済み公式アカウントを友だち追加しているか。"""
     try:
