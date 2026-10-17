@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>セッション期限切れ</title>
+    <title>{{ title }}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <meta http-equiv="refresh" content="3;url=/">
+    {% if refresh_url %}<meta http-equiv="refresh" content="3;url={{ refresh_url }}">{% endif %}
 </head>
 <body class="bg-light d-flex justify-content-center align-items-center vh-100">
     <div class="container">
@@ -13,12 +13,14 @@
             <div class="col-md-6">
                 <div class="card shadow-lg border-0">
                     <div class="card-body text-center py-5">
-                        <h2 class="text-dark mb-3">セッションが期限切れです</h2>
-                        <p class="text-muted mb-4">
-                            長時間操作がなかったため、セキュリティのためセッションが切れました。<br>
-                            3秒後に自動でページを再読み込みします。
-                        </p>
-                        <a href="javascript:location.reload();" class="btn btn-primary btn-lg">今すぐ再読み込み</a>
+                        <h2 class="h4 text-dark mb-3">{{ title }}</h2>
+                        <p class="text-muted mb-4">{{ message|linebreaksbr }}</p>
+                        {% if back %}
+                        <a href="javascript:history.back();" class="btn btn-primary btn-lg mb-2">前の画面に戻る</a><br>
+                        {% endif %}
+                        {% if link_url %}
+                        <a href="{{ link_url }}" class="btn {% if back %}btn-link{% else %}btn-primary btn-lg{% endif %}">{{ link_label }}</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

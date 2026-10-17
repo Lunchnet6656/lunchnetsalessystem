@@ -295,7 +295,45 @@ def export_shift_request(request):
 
 
 def csrf_failure_view(request, reason=""):
-    return render(request, 'csrf_failure.html', status=403)
+    """送信フォームの合言葉（CSRF）が合わなかったとき。
+
+    原因の多くは「放置」ではなく、ログインの二度押し（1回目で合言葉が新しくなる）や、
+    LINE内ブラウザで古い画面が復元されたこと。状況ごとに次にやることを出し分ける。
+    """
+    path = request.path
+    if path == reverse('login'):
+        if request.user.is_authenticated:
+            # 二度押しの2回目。1回目でログインできているので、エラーを出さずにそのまま中へ
+            next_url = request.POST.get('next') or request.GET.get('next')
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()},
+                                                            require_https=request.is_secure()):
+                return redirect(next_url)
+            return redirect(_post_login_destination(request.user))
+        context = {
+            'title': 'もう一度ログインしてください',
+            'message': 'ログイン画面の有効期限が切れていました。\n3秒後にログイン画面を開き直します。',
+            'refresh_url': reverse('login'), 'link_url': reverse('login'), 'link_label': 'ログイン画面を開く',
+        }
+    elif path.startswith('/stamp/'):
+        # お客様向け。サイトのトップ（/）はLIFFの入口でページが無いので、そこへは飛ばさない
+        context = {
+            'title': '画面を開き直してください',
+            'message': 'お手数ですが、LINEのトーク画面のメニューから\nもう一度スタンプカードを開いてください。',
+        }
+    elif request.user.is_authenticated:
+        # 自動で移動すると入力した内容が消えるので、戻るボタンで入力を残したまま再送信してもらう
+        context = {
+            'title': '送信できませんでした',
+            'message': '画面の有効期限が切れていたため、内容は保存されていません。\n前の画面に戻って、もう一度送信してください。',
+            'back': True, 'link_url': reverse('dashboard'), 'link_label': 'トップへ',
+        }
+    else:
+        context = {
+            'title': 'ログインが切れました',
+            'message': 'もう一度ログインしてから、操作をやり直してください。',
+            'link_url': f"{reverse('login')}?next={urllib.parse.quote(path)}", 'link_label': 'ログイン画面を開く',
+        }
+    return render(request, 'csrf_failure.html', context, status=403)
 
 
 def _post_login_destination(user):

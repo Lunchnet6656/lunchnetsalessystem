@@ -21,7 +21,7 @@
                         </div>
                         <h2 class="text-center text-dark">ランチネット</h2>
                         <h2 class="text-center text-dark mb-4">販売実績管理システム(LSS)</h2>
-                        <form method="POST" action="{% url 'login' %}">
+                        <form method="POST" action="{% url 'login' %}" id="login-form">
                             {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
                             {% csrf_token %}
                             <div class="form-group">
@@ -32,7 +32,7 @@
                                 <label for="password" class="text-dark">パスワード</label>
                                 <input type="password" name="password" id="password" class="form-control" required>
                             </div>
-                            <button type="submit" class="btn btn-primary btn-block">ログイン</button>
+                            <button type="submit" class="btn btn-primary btn-block" id="login-button">ログイン</button>
                         </form>
                         {% if messages %}
                             <div class="mt-3">
@@ -52,5 +52,24 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+    // 二度押し防止：1回目のログインで合言葉（CSRF）が新しくなるため、2回目の送信は必ず
+    // 「期限切れ」で弾かれ、ログインできているのにエラー画面が出ていた（2026-10-16 新人の事例）。
+    (function () {
+        var form = document.getElementById('login-form');
+        var button = document.getElementById('login-button');
+        var sent = false;
+        form.addEventListener('submit', function (e) {
+            if (sent) { e.preventDefault(); return; }
+            sent = true;
+            button.textContent = 'ログインしています…';
+            setTimeout(function () { button.disabled = true; }, 0);
+        });
+        // 戻るボタンでこの画面に戻ったときは、もう一度押せるように戻す
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) { sent = false; button.disabled = false; button.textContent = 'ログイン'; }
+        });
+    })();
+    </script>
 </body>
 </html>
