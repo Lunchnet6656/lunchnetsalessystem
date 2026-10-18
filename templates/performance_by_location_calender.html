@@ -76,7 +76,7 @@
                         {% endfor %}
                     </div>
                 {% endfor %}
-                {% if user.is_staff %}
+                {% if user.menu_permission.can_view_performance_by_location %}
                     <a href="{% url 'performance_by_location' %}" class="btn btn-link back-button">戻る</a>
                 {% else %}
                     <a href="{% url 'performance_by_location_rol' %}" class="btn btn-link back-button">戻る</a>

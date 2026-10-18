@@ -10,6 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from sales.models import ItemQuantity, Product, SalesLocation
+from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)  # 金曜（営業日）
 
@@ -32,6 +33,7 @@ def _item_quantity_xlsx(target_date, target_week, product_no, location_name, qua
 class UploadAutoPublishTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user("uploader", password="pw-uploader-123456")
+        grant(user, "can_view_upload")
         self.client.force_login(user)
         self.week = TODAY - timedelta(days=TODAY.weekday())
         Product.objects.create(no=1, week=self.week, name="唐揚げ弁当")

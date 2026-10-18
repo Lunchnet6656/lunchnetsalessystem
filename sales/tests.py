@@ -8,6 +8,7 @@ from sales.models import DailyReport, DailyReportEntry, OthersItem, SalesLocatio
 from lunchnetsale.forms import DailyReportForm
 from lunchnetsale.utils import is_report_owner
 from lunchnetsale.views import daily_report_edit_rol, others_list_view, location_list_view
+from sales.permissions_testing import grant
 
 
 def make_employee(username):
@@ -124,6 +125,7 @@ class OthersItemSaveTest(TestCase):
 
     def setUp(self):
         self.user = make_employee('others_admin')
+        grant(self.user, 'can_view_others_item')
 
     def _post(self, data):
         request = RequestFactory().post('/others_item_list/', data)
@@ -205,6 +207,7 @@ class SalesLocationSaveTest(TestCase):
 
     def setUp(self):
         self.user = make_employee('loc_admin')
+        grant(self.user, 'can_view_location_list')
 
     def _row(self, i, no, name):
         return {
@@ -380,6 +383,7 @@ class DashboardOrdersIntegrationTest(TestCase):
         from orders.models import Customer, Order, OrderItem, OrderExtraItem
         self.OrderItem = OrderItem
         self.user = make_employee('dash')
+        grant(self.user, 'can_view_performance_data', 'can_view_dashboard')
         self.client.force_login(self.user)
         self.today = timezone.localdate()
         self.customer = Customer.objects.create(

@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from sales.item_quantity_import import next_business_day
 from sales.models import Holiday, ItemQuantity, ItemQuantityUpload, Product, SalesLocation
+from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)  # 金曜
 MONDAY = date(2026, 10, 5)
@@ -140,6 +141,7 @@ class ItemQuantityApiTests(TestCase):
 class ScreenUploadValidationTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user("uploader", password="pw-uploader-123456")
+        grant(user, "can_view_upload")
         self.client.force_login(user)
         Product.objects.create(no=1, week=WEEK, name="豚角煮")
         Product.objects.create(no=2, week=WEEK, name="メンチ")

@@ -7,11 +7,13 @@ from django.test import TestCase
 from django.urls import reverse
 
 from sales.models import DailyReport
+from sales.permissions_testing import grant
 
 
 class DashboardLocationChartTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user("viewer", password="pw-viewer-123456")
+        grant(user, "can_view_dashboard")
         self.client.force_login(user)
         # 10/2 まではNo.21、10/5 の振り直し後はNo.22（同じ「虎ノ門」）
         DailyReport.objects.create(date=date(2026, 10, 2), location="虎ノ門", location_no=21, total_revenue=30000)

@@ -8,6 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from sales.models import DailyReport, ItemQuantity, ItemQuantityUpload, QuantityDraft, SalesLocation
+from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)   # 金曜。次の営業日は 10/5（月）
 TOKEN = "draft-token"
@@ -59,6 +60,7 @@ class DraftComparisonPageTests(TestCase):
     def setUp(self):
         cache.clear()
         user = get_user_model().objects.create_user("viewer", password="pw-viewer-123456")
+        grant(user, "can_view_performance_by_location")
         self.client.force_login(user)
         SalesLocation.objects.create(no=1, name="A店", type="室内", price_type="A", service_name="")
         SalesLocation.objects.create(no=2, name="B店", type="室内", price_type="A", service_name="")

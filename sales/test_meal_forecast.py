@@ -9,6 +9,7 @@ from django.urls import reverse
 
 from sales.meal_forecast import estimated_demand, load_history, predict
 from sales.models import DailyReport, SalesLocation
+from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)  # 金曜
 
@@ -89,6 +90,7 @@ class RenumberingTests(TestCase):
 
     def test_page_shows_each_store_with_its_own_numbers(self):
         user = get_user_model().objects.create_user("viewer", password="pw-viewer-123456")
+        grant(user, "can_view_performance_by_location")
         self.client.force_login(user)
         with patch("lunchnetsale.views.timezone.localdate", return_value=TODAY), \
              patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):

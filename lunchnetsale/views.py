@@ -490,7 +490,7 @@ def _build_day_dashboard(target_date):
         'route_order_quantity': route_order_quantity,
     }
 
-@login_required
+@menu_permission_required('can_view_upload')
 def upload_view(request):
     if request.method == 'POST':
         location_form = UploadFileForm(request.POST, request.FILES)
@@ -1030,7 +1030,7 @@ def submission_complete_view(request):
 
 
 # DailyReportリストを表示するビュー
-@login_required
+@menu_permission_required('can_view_daily_report_list')
 def daily_report_list(request):
     search_date_start = request.GET.get('search_date_start', '')
     search_date_end = request.GET.get('search_date_end', '')
@@ -1101,7 +1101,7 @@ def daily_report_list(request):
     return render(request, 'daily_report_list.html', context)
 
 # Location別の詳細ビュー
-@login_required
+@menu_permission_required('can_view_daily_report_list')
 def daily_report_detail(request, date):
     # 文字列の日付をdatetimeオブジェクトに変換
     date = datetime.strptime(date, '%Y-%m-%d').date()  # 例: '2024-10-05'の形式
@@ -1499,7 +1499,7 @@ def update_confirmation(request, report_id):
 
 
 # メニューデータ(Product)の一覧表示、編集、削除
-@login_required
+@menu_permission_required('can_view_product_list')
 def product_list_view(request):
     # weekごとに集約して表示
     weeks = Product.objects.order_by('-week').values('week').distinct()
@@ -1508,7 +1508,7 @@ def product_list_view(request):
     }
     return render(request, 'product_list.html', context)
 
-@login_required
+@menu_permission_required('can_view_product_list')
 def product_detail_view(request, week):
     # 指定されたweekに対応するすべてのProductオブジェクトを取得
     products = Product.objects.filter(week=week)
@@ -1537,7 +1537,7 @@ def delete_product_view(request, week):
     Product.objects.filter(week=week).delete()
     return redirect('product_list')
 
-@login_required
+@menu_permission_required('can_view_location_list')
 def location_list_view(request):
     if request.method == 'POST':
         # 削除リクエストの場合
@@ -1620,7 +1620,7 @@ def location_list_view(request):
         'pattern_options': [{'code': p.code, 'name': p.label} for p in patterns],
     })
 
-@login_required
+@menu_permission_required('can_view_others_item')
 def others_list_view(request):
     if request.method == 'POST':
     # 削除リクエストの場合
@@ -1677,7 +1677,7 @@ def others_list_view(request):
 
 
 # 持参数データ(ItemQuantity)の一覧表示、編集、削除
-@login_required
+@menu_permission_required('can_view_item_quantity')
 def item_quantity_list_view(request):
 
     item_dates = ItemQuantity.objects.order_by('-target_date').values('target_date','target_week').distinct()  # target_date のみを取得
@@ -1692,7 +1692,7 @@ def item_quantity_list_view(request):
     }
     return render(request, 'item_quantity_list.html', context)
 
-@login_required
+@menu_permission_required('can_view_item_quantity')
 def item_quantity_detail_view(request, date):
     # date_strをそのまま使用（str型）
     # 日付の形式を確認する（オプション）
@@ -1755,7 +1755,7 @@ def item_quantity_detail_view(request, date):
     return render(request, 'item_quantity_detail.html', context)
 
 
-@login_required
+@menu_permission_required('can_view_item_quantity')
 def item_quantity_update_view(request, pk):
     item_quantity = get_object_or_404(ItemQuantity, pk=pk)
     if request.method == 'POST':
@@ -1849,7 +1849,7 @@ def _aggregate_daily_performance(current_date, daily_reports, daily_orders):
 
 
 # 実績データ確認ビュー
-@login_required
+@menu_permission_required('can_view_performance_data')
 def performance_data_view(request):
     # 現在の日付
     today = datetime.today()
@@ -1958,7 +1958,7 @@ def performance_data_view(request):
 
     return render(request, 'performance_data_template.html', context)
 
-@login_required
+@menu_permission_required('can_view_performance_data')
 def menu_sales_performance_view(request, year, month, day):
     selected_date = date(year, month, day)
 
@@ -1996,7 +1996,7 @@ def menu_sales_performance_view(request, year, month, day):
 
 
 # 販売場所別実績データビュー
-@login_required
+@menu_permission_required('can_view_performance_by_location')
 def performance_by_location_view(request):
     # 現在の年と月を初期値として取得する
     current_year = date.today().year
@@ -2191,7 +2191,7 @@ def performance_by_location_view_rol(request):
     return render(request, 'performance_by_location_template_rol.html', context)
 
 # CSVダウンロード機能
-@login_required
+@menu_permission_required('can_view_performance_data')
 def download_csv(request):
     # GETリクエストから日付範囲を取得
     search_date_start = request.GET.get('search_date_start')
@@ -2298,7 +2298,7 @@ CSV_ENTRY_COLS = 9    # 1商品あたりの列数
 
 
 # CSVダウンロード機能(allreport)
-@login_required
+@menu_permission_required('can_view_daily_report_list')
 def download_csv_allreport(request):
     # HTTPレスポンスにCSVのヘッダーを設定（文字コードをUTF-8に変更）
     response = HttpResponse(content_type='text/csv; charset=utf-8')
@@ -2502,7 +2502,7 @@ def location_performance_view(request, location_id, search_year, search_month):
 
     return render(request, 'location_performance_template.html', context)
 
-@login_required
+@menu_permission_required('can_view_menu_history')
 def menu_history_view(request):
     # 絞り込み条件（GETで受け取り、URL共有・戻る操作に対応）
     menu_name = request.GET.get('menu_name', '').strip()
@@ -2597,7 +2597,7 @@ def menu_history_view(request):
     return render(request, 'menu_history_template.html', context)
 
 
-@login_required
+@menu_permission_required('can_view_menu_history')
 def menu_ranking_view(request):
     """全メニュー横断で売れ行きをランキング表示（売れ残り・不振メニューの炙り出し用）"""
     # 絞り込み条件
@@ -2682,7 +2682,7 @@ def menu_ranking_view(request):
     return render(request, 'menu_ranking_template.html', context)
 
 
-@login_required
+@menu_permission_required('can_view_performance_by_location')
 def location_ranking_view(request):
     """販売場所を横断で売れ行きランキング表示（好調／不振の販売場所を炙り出す）"""
     # 絞り込み条件
@@ -2791,7 +2791,7 @@ def location_ranking_view(request):
     }
     return render(request, 'location_ranking_template.html', context)
 
-@login_required
+@menu_permission_required(('can_view_performance_by_location', 'can_view_performance_by_location_rol'))
 def performance_by_location_calender_view(request, location_id, search_year, search_month):
     # 対象の販売場所を取得
     location = get_object_or_404(SalesLocation, id=location_id)
@@ -2860,7 +2860,7 @@ def get_shin_yokohama_users(request):
     return JsonResponse(data, safe=False)
 
 
-@login_required
+@menu_permission_required('can_view_dashboard')
 def sales_dashboard_view(request):
     """売上実績ダッシュボード - sales + orders 統合"""
     import json
@@ -3440,7 +3440,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             "rain_factors": RAIN_FACTORS}
 
 
-@login_required
+@menu_permission_required('can_view_performance_by_location')
 def meal_forecast_view(request):
     """食数予測：直近の営業日ぶんの需要を店舗別に予測（仕込み量の目安・廃棄削減）。"""
     today = timezone.localdate()

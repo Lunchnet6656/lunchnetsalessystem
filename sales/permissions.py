@@ -18,8 +18,12 @@ def is_admin(user):
 
 
 def has_menu_permission(user, field):
+    """field は1つの権限名、または (権限名, …) のどれか1つでもあればよい。"""
     perm = getattr(user, "menu_permission", None)
-    return bool(user.is_authenticated and perm and getattr(perm, field))
+    if not (user.is_authenticated and perm):
+        return False
+    fields = (field,) if isinstance(field, str) else field
+    return any(getattr(perm, f) for f in fields)
 
 
 def menu_permission_required(field, staff=False, json=False):
