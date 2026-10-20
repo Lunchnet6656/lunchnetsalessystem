@@ -3,6 +3,7 @@
 食数を決めたときに見えていた予報を残しておかないと、あとで「予報で決めたらどうだったか」を
 検証するときに実績の天気を使うしかなく、良く見えすぎてしまう。
 """
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from sales.models import WeatherForecastSnapshot
@@ -31,3 +32,9 @@ class Command(BaseCommand):
         if failed and not snapshots:
             raise CommandError("天気予報を取得できませんでした: " + " / ".join(failed))
         self.stdout.write(f"{len(snapshots)}件の予報を保存しました" + (f"（取得できなかった地点: {', '.join(failed)}）" if failed else ""))
+        # 予測の数字も同じタイミング（D-2の夜・D-1の決定前）で残す。Scheduler の登録を増やさないためここで呼ぶ。
+        # 予報の保存とは独立させ、予測側の失敗で予報の記録を巻き添えにしない
+        try:
+            call_command("save_meal_forecast", stdout=self.stdout)
+        except Exception as e:
+            self.stderr.write(f"予測の記録に失敗しました: {e}")

@@ -241,6 +241,31 @@ class QuantityDraft(models.Model):
         return f"{self.target_date} {self.location} {self.quantity}（下書き）"
 
 
+class ForecastSnapshot(models.Model):
+    """食数予測の画面に出ていた数字の記録。画面は開くたびに計算し直すので、
+    「決めた時点の予測」を残しておかないと後から本当の答え合わせができない。
+    D-2の夜（20時）とD-1（15時）に、次の3営業日ぶんを店ごとに残す。"""
+    made_at = models.DateTimeField(auto_now_add=True)
+    target_date = models.DateField(db_index=True)
+    location = models.CharField(max_length=100)    # 店名（販売場所No.は振り直されるため名前で持つ）
+    pred = models.IntegerField()                   # 予測食数（雨の補正込み・画面の大きい数字）
+    base = models.IntegerField()                   # 雨がない場合
+    recent = models.IntegerField()                 # 直近5営業日の需要
+    weekday_pct = models.IntegerField(default=0)
+    trend_pct = models.IntegerField(null=True, blank=True)
+    rain_level = models.CharField(max_length=10, blank=True)
+    rain_pct = models.IntegerField(default=0)
+    draft = models.IntegerField(null=True, blank=True)        # その時点の下書き
+    comment_num = models.IntegerField(null=True, blank=True)  # その時点の現場コメントの数字
+
+    class Meta:
+        ordering = ["-made_at"]
+        indexes = [models.Index(fields=["target_date", "location"])]
+
+    def __str__(self):
+        return f"{self.target_date} {self.location} 予測{self.pred}（{self.made_at:%m/%d %H:%M}）"
+
+
 class OthersItem(models.Model):
     no = models.IntegerField(default=0)
     name =  models.CharField(max_length=255)
