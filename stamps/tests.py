@@ -1378,3 +1378,10 @@ class StampCardReadabilityTests(TestCase):
             self.assertContains(resp, '<span class="cnt">1枚</span>')
             self.assertContains(resp, '<details class="mycp">')   # 最初は畳んだ状態（open属性なし）
             self.assertNotContains(resp, "前のカードで獲得したクーポン")
+
+    def test_cap_tier_label_has_no_uchidome_for_customers(self):
+        tier20 = RewardTier.objects.get(threshold_pt=20)
+        self.assertEqual(tier20.label, "お弁当1個無料（2個目）")
+        with self.settings(STAMP_REQUIRE_LINE=False):
+            resp = self.client.post("/stamp/me/")
+        self.assertNotContains(resp, "打ち止め")

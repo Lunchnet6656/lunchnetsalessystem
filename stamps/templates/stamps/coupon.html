@@ -75,6 +75,8 @@
   /* 白文字ボタン：ブランド赤(#ff0000)だと白文字が4.0:1で基準未達のため、既存の濃赤に */
   .usebtn,.sheet .ok{background:var(--ln-color-brand-dark);}
   .usebtn:active{background:#a30000;}
+  /* 切り取り線の丸が左右に10pxはみ出して横スクロールできてしまうのを防ぐ（上下ははみ出させたまま） */
+  .notch{overflow-x:clip;}
   /* 使った瞬間だけの演出（.just-used は使用直後の1回だけ付く。再表示では止まった表示のまま） */
   .hero{transition:filter .35s ease .45s;}
   .cp.just-used .usedseal{animation:sealpress .55s cubic-bezier(.2,.8,.2,1) both;}

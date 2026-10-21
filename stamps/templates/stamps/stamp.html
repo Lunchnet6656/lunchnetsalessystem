@@ -193,6 +193,15 @@
   .mc-sub b{color:var(--ln-color-brand-dark);}
   .mc-tag{display:inline-block;font-size:10px;font-weight:800;color:var(--ln-color-text-muted);
     border:1px solid var(--ln-color-border);border-radius:5px;padding:0 4px;margin-left:4px;vertical-align:1px;}
+  /* 特典名は折り返さない（入らない長さの名前は、管理画面で特典名を短くする） */
+  .rw .rwname{white-space:nowrap;}
+  /* 360px級のAndroidでは「お弁当1個無料（2個目）」が入らないため、余白だけ詰める（文字は縮めない） */
+  @media (max-width:374px){
+    .rw{gap:8px;padding:12px 10px;}
+    .rw .rwico{font-size:20px;}
+    .rwcta{padding:8px 10px;}
+  }
+  @media (max-width:359px){ .rw .rwname{font-size:14px;} }
   .mc-arrow{flex:none;font-size:24px;line-height:1;color:var(--ln-color-brand-dark);font-weight:700;}
   .mc-row.wait .mc-arrow{color:var(--gold);}
   @media (prefers-reduced-motion: reduce){ .mycp-h .chev{transition:none;} }
@@ -330,7 +339,7 @@
             <span class="rwico">{{ row.icon }}</span>
             <div class="rwmain">
               <div class="rwname">{{ row.tier.label }}</div>
-              <div class="rwsub">スタンプ{{ row.tier.threshold_pt }}個で獲得{% if row.tier.is_cap %}・ここで打ち止め{% endif %}</div>
+              <div class="rwsub">スタンプ{{ row.tier.threshold_pt }}個で獲得</div>
             </div>
             {% if row.state == 'used' %}<span class="pill used">使用済み</span>
             {% else %}<span class="pill locked">あと{{ row.remaining }}個</span>{% endif %}

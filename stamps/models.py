@@ -90,7 +90,7 @@ class RewardTier(models.Model):
                  discount_yen=50, benefit_cost=50, is_cap=False),
             dict(threshold_pt=10, kind=cls.KIND_FREE, label="お弁当1個無料",
                  discount_yen=0, benefit_cost=293, is_cap=False),
-            dict(threshold_pt=20, kind=cls.KIND_FREE, label="お弁当1個無料（2個目・打ち止め）",
+            dict(threshold_pt=20, kind=cls.KIND_FREE, label="お弁当1個無料（2個目）",
                  discount_yen=0, benefit_cost=293, is_cap=True),
         ]
         for d in defaults:
