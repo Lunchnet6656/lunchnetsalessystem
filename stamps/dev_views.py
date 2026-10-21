@@ -97,11 +97,12 @@ def stamp_demo(request):
     # デモ：n が特典段階ちょうどなら獲得演出（中央の獲得モーダル）も再現する。
     demo_new_reward = card.rewards.filter(threshold_pt=n).first() if card else None
 
+    coupons = services.owned_coupons(member, current_card=card)
     return render_stamp(
         request, location=location, loaded=True, liff_id="", require_line=False,
         member=member, card=card, state=card_view_state(card),
         result_tone=tone, result_message=message, new_reward=demo_new_reward,
-        popped=n > 0, other_coupons=services.usable_rewards(member, exclude_card=card),
+        popped=n > 0, my_coupons=coupons, my_coupons_due=services.nearest_expiry(coupons),
     )
 
 
@@ -129,4 +130,8 @@ def demo_coupon(request):
     if request.GET.get("used") == "1":
         services.use_reward(reward)
         reward.refresh_from_db()
-    return render(request, "stamps/coupon.html", coupon_ctx(reward, member))
+    ctx = coupon_ctx(reward, member)
+    # ?used=1&just=1 で「使った瞬間」の演出を確認できる
+    ctx["just_used"] = request.GET.get("just") == "1" and reward.status == reward.STATUS_USED
+    ctx["now"] = timezone.localtime()
+    return render(request, "stamps/coupon.html", ctx)

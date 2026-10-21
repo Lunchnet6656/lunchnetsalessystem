@@ -134,8 +134,9 @@ def my_card(request):
     ctx = dict(
         loaded=True, member=member, card=card, popped=False,
         state=card_view_state(card),
-        other_coupons=services.usable_rewards(member, exclude_card=card),
     )
+    ctx["my_coupons"] = services.owned_coupons(member, current_card=card)
+    ctx["my_coupons_due"] = services.nearest_expiry(ctx["my_coupons"])
     # 直前の押印（stamp_scan）から 303 で来た場合、退避した結果で演出を1回だけ再現する。
     # ts で 60 秒の寿命を持たせ、時間が経ってから開いた時に古い演出が誤表示されるのを防ぐ。
     flash = request.session.pop("stamp_flash", None)
@@ -232,6 +233,11 @@ def reward_use(request, reward_id):
     if member is None or member.id != reward.card.member_id:
         return render(request, "stamps/unavailable.html", {"reason": "denied"}, status=403)
 
-    services.use_reward(reward)
+    # 使った瞬間だけ演出する。再読み込み（同じPOSTの再送）では use_reward が False を返すので、
+    # 「いま使った」表示を出し直さない。
+    just_used = services.use_reward(reward)
     reward.refresh_from_db()
-    return render(request, "stamps/coupon.html", coupon_ctx(reward, member))
+    ctx = coupon_ctx(reward, member)
+    ctx["just_used"] = just_used
+    ctx["now"] = timezone.localtime()
+    return render(request, "stamps/coupon.html", ctx)

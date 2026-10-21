@@ -239,11 +239,15 @@ def _reward_icon(tier):
 
 
 def _chip_label(tier):
-    """スタンプ枠の下に出す煽りラベル（絵文字なし・1行）。例：50円引きGET! ／ お弁当1個無料!"""
+    """スタンプ枠の下に出す特典ラベル（絵文字なし・1行）。例：50円引き ／ 1個無料
+
+    枠の下は幅が約50pxしかなく、文字を折り返さず11pxで読ませるため短くしている。
+    正式な特典名は特典リスト側に出る。
+    """
     if tier.kind == RewardTier.KIND_FREE:
-        return "お弁当1個無料!"
+        return "1個無料"
     if tier.discount_yen:
-        return f"{tier.discount_yen}円引きGET!"
+        return f"{tier.discount_yen}円引き"
     return tier.label
 
 
@@ -264,6 +268,42 @@ def usable_rewards(member, exclude_card=None, now=None):
     if exclude_card is not None:
         qs = qs.exclude(card_id=exclude_card.id)
     return list(qs.order_by("expires_on", "threshold_pt"))
+
+
+def owned_coupons(member, current_card=None, now=None):
+    """カード上部「獲得済みクーポン」用。使えるもの＋次回から使えるものをカード横断で集める。
+
+    「クーポンがどこにあるか分からない」という声への対応で、前のカードの分もここにまとめる。
+    並びは、今使えるもの（期限が近い順）→ 次回から使えるもの（使える日が近い順）。
+    """
+    if member is None:
+        return []
+    now = now or timezone.now()
+    today = timezone.localtime(now).date()
+    qs = (Reward.objects
+          .filter(card__member=member, status=Reward.STATUS_ISSUED, expires_on__gte=today)
+          .select_related("tier", "card"))
+    items = []
+    for r in qs:
+        pending = today < r.valid_from
+        items.append({
+            "reward": r,
+            "label": reward_short_label(r.tier),
+            "icon": _reward_icon(r.tier),
+            "pending": pending,
+            "other_card": current_card is None or r.card_id != current_card.id,
+        })
+    items.sort(key=lambda c: (c["pending"],
+                              c["reward"].valid_from if c["pending"] else c["reward"].expires_on,
+                              c["reward"].threshold_pt))
+    return items
+
+
+def nearest_expiry(coupons):
+    """バーに出す「いちばん近い期限」。今使えるものを優先し、無ければ次回からの分で見る。"""
+    usable = [c["reward"].expires_on for c in coupons if not c["pending"]]
+    dates = usable or [c["reward"].expires_on for c in coupons]
+    return min(dates) if dates else None
 
 
 def card_view_state(card, just_stamped_pt=1):

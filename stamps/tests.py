@@ -1298,3 +1298,83 @@ class FollowupMessagingTests(TestCase):
         self.assertTrue(s.enabled)
         self.assertEqual(s.offset_days, 1)
         self.assertEqual(s.holdout_pct, 30)
+
+
+class StampCardReadabilityTests(TestCase):
+    """2026-10-21 読みやすさ改善：特典チップ・獲得済みクーポン・使った瞬間の表示。"""
+    def setUp(self):
+        RewardTier.ensure_defaults()
+        RewardTier.objects.get_or_create(
+            threshold_pt=15, defaults=dict(kind=RewardTier.KIND_DISCOUNT, label="100円引き",
+                                           discount_yen=100, benefit_cost=100, active=True))
+        self.loc = SalesLocation.objects.create(no=1, name="店", type="A", price_type="A",
+                                                stamp_enabled=True)
+        self.member = LineMember.objects.create(line_user_id="U_read", name="読者")
+
+    def _stamp(self, member, n, start):
+        for i in range(n):
+            services.award_stamp(member, self.loc, now=start + timedelta(days=i))
+
+    def test_chip_labels_are_short_one_liners(self):
+        labels = {t.threshold_pt: services._chip_label(t) for t in RewardTier.objects.all()}
+        self.assertEqual(labels[5], "50円引き")
+        self.assertEqual(labels[10], "1個無料")
+        self.assertEqual(labels[15], "100円引き")
+        self.assertTrue(all("GET" not in v and "!" not in v for v in labels.values()))
+
+    def test_owned_coupons_orders_usable_then_pending(self):
+        today = timezone.localdate()
+        self._stamp(self.member, 10, _dt(today.year, today.month, today.day, 12, 0) - timedelta(days=12))
+        # 並び順だけを見たいので、10個目を「次回から（明日から使える）」に固定する
+        Reward.objects.filter(card__member=self.member, threshold_pt=10).update(
+            valid_from=today + timedelta(days=1))
+        card = services._current_card(self.member)
+        coupons = services.owned_coupons(self.member, current_card=card)
+        self.assertEqual([c["reward"].threshold_pt for c in coupons], [5, 10])
+        self.assertFalse(coupons[0]["pending"])          # 5個目：もう使える
+        self.assertTrue(coupons[1]["pending"])           # 10個目：今日獲得＝次回から
+        self.assertFalse(coupons[0]["other_card"])
+        self.assertEqual(services.nearest_expiry(coupons), coupons[0]["reward"].expires_on)
+
+    def test_owned_coupons_excludes_used_and_marks_other_card(self):
+        today = timezone.localdate()
+        self._stamp(self.member, 5, _dt(today.year, today.month, today.day, 12, 0) - timedelta(days=6))
+        r5 = Reward.objects.get(card__member=self.member, threshold_pt=5)
+        coupons = services.owned_coupons(self.member, current_card=None)
+        self.assertTrue(coupons[0]["other_card"])       # 現在のカード以外＝前のカード扱い
+        services.use_reward(r5)
+        self.assertEqual(services.owned_coupons(self.member), [])
+
+    def _login_session(self):
+        from stamps import identity
+        s = self.client.session
+        s[identity._SESSION_KEY] = self.member.id
+        s.save()
+
+    def test_reward_use_shows_done_panel_only_once(self):
+        today = timezone.localdate()
+        self._stamp(self.member, 5, _dt(today.year, today.month, today.day, 12, 0) - timedelta(days=6))
+        r5 = Reward.objects.get(card__member=self.member, threshold_pt=5)
+        self._login_session()
+        first = self.client.post(f"/stamp/reward/{r5.id}/use/")
+        self.assertContains(first, "使用しました")
+        self.assertContains(first, "just-used")
+        again = self.client.post(f"/stamp/reward/{r5.id}/use/")   # 再読み込み＝同じPOSTの再送
+        self.assertNotContains(again, "使用しました")
+        self.assertNotContains(again, 'class="cp just-used"')
+        self.assertContains(again, "に使用済みです")
+
+    def test_my_card_shows_collapsed_coupon_bar(self):
+        with self.settings(STAMP_REQUIRE_LINE=False):
+            self.client.post("/stamp/me/")                  # 開発確認用の仮会員を作る
+            from stamps import identity
+            member = LineMember.objects.get(id=self.client.session[identity._SESSION_KEY])
+            empty = self.client.post("/stamp/me/")
+            self.assertNotContains(empty, '<details class="mycp">')  # 持っていなければバーごと出さない
+            today = timezone.localdate()
+            self._stamp(member, 5, _dt(today.year, today.month, today.day, 12, 0) - timedelta(days=6))
+            resp = self.client.post("/stamp/me/")
+            self.assertContains(resp, '<span class="t">🎫 獲得済みクーポン</span>')
+            self.assertContains(resp, '<span class="cnt">1枚</span>')
+            self.assertContains(resp, '<details class="mycp">')   # 最初は畳んだ状態（open属性なし）
+            self.assertNotContains(resp, "前のカードで獲得したクーポン")

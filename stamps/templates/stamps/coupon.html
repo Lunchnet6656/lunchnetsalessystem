@@ -70,10 +70,45 @@
   .sheet .cancel{display:block;width:100%;padding:14px;border:none;background:none;
     color:#888;font-size:15px;font-weight:700;margin-top:4px;cursor:pointer;}
   .show{display:block !important;}
+
+  /* --- 読みやすさ改善（2026-10-21） --- */
+  /* 白文字ボタン：ブランド赤(#ff0000)だと白文字が4.0:1で基準未達のため、既存の濃赤に */
+  .usebtn,.sheet .ok{background:var(--ln-color-brand-dark);}
+  .usebtn:active{background:#a30000;}
+  /* 使った瞬間だけの演出（.just-used は使用直後の1回だけ付く。再表示では止まった表示のまま） */
+  .hero{transition:filter .35s ease .45s;}
+  .cp.just-used .usedseal{animation:sealpress .55s cubic-bezier(.2,.8,.2,1) both;}
+  .cp.just-used .usedseal::after{content:"";position:absolute;inset:-12px;border-radius:50%;
+    border:4px solid rgba(255,255,255,.9);opacity:0;animation:sealring .6s ease-out .3s both;}
+  @keyframes sealpress{
+    0%{transform:translate(-50%,-50%) rotate(-14deg) scale(1.9);opacity:0}
+    45%{transform:translate(-50%,-50%) rotate(-14deg) scale(.88);opacity:1}
+    70%{transform:translate(-50%,-50%) rotate(-14deg) scale(1.06)}
+    100%{transform:translate(-50%,-50%) rotate(-14deg) scale(1)}}
+  @keyframes sealring{0%{transform:scale(.8);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+  .cp.just-used .hero{animation:heroshake .28s ease-out .22s both;}
+  @keyframes heroshake{0%,100%{transform:none}30%{transform:translateY(3px)}60%{transform:translateY(-1px)}}
+  /* 使用完了パネル：日付と時刻を秒まで。秒が進み続けるので「いま使った画面」だと販売員が分かる */
+  .donepanel{background:var(--ln-color-success-bg);border:2px solid var(--ln-color-success);
+    border-radius:12px;padding:12px 14px;}
+  .cp.just-used .donepanel{animation:panelin .3s ease-out .5s both;}
+  @keyframes panelin{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
+  .donepanel .t1{display:block;font-size:17px;font-weight:900;color:#11592f;white-space:nowrap;}
+  .donepanel .chk{width:24px;height:24px;border-radius:50%;background:var(--ln-color-success);color:#fff;
+    display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;
+    margin-right:8px;vertical-align:2px;}
+  .donepanel .clock{display:block;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;
+    font-size:21px;font-weight:700;color:#11592f;white-space:nowrap;margin-top:2px;letter-spacing:-.01em;}
+  @media (prefers-reduced-motion: reduce){
+    .hero{transition:none;}
+    .cp.just-used .usedseal,.cp.just-used .hero,.cp.just-used .donepanel{animation:fadeonly .15s ease both;}
+    .cp.just-used .usedseal::after{display:none;}
+    @keyframes fadeonly{from{opacity:0}to{opacity:1}}
+  }
 </style>
 </head>
 <body>
-<div class="cp">
+<div class="cp{% if just_used %} just-used{% endif %}">
   <div class="topbar">
     <a class="back" href="#" onclick="history.back();return false;">‹</a>
     <span class="ttl">クーポン</span>
@@ -109,7 +144,12 @@
   </div>
 
   <div class="action">
-    {% if is_used %}
+    {% if is_used and just_used %}
+      <div class="donepanel" role="status">
+        <span class="t1"><span class="chk" aria-hidden="true">✓</span>使用しました</span>
+        <span class="clock" id="usedClock">{{ now|date:'Y/m/d H:i:s' }}</span>
+      </div>
+    {% elif is_used %}
       <p class="usednote">このクーポンは {{ reward.used_at|date:'Y/m/d H:i' }} に使用済みです。</p>
     {% elif reward.is_pending %}
       <p class="usednote">このクーポンは <b>{{ reward.valid_from|date:'Y/n/j' }}（次回のご来店）</b> からご利用いただけます。<br>本日のお会計には使えません。</p>
@@ -154,6 +194,18 @@
     if(open){ open.addEventListener('click', function(){ toggle(true); }); }
     if(close){ close.addEventListener('click', function(){ toggle(false); }); }
     if(bg){ bg.addEventListener('click', function(){ toggle(false); }); }
+    // 使用直後：時刻を秒まで進め続ける（止まったスクリーンショットと見分けるため）。押した瞬間に短く振動（対応端末のみ）。
+    var clock = document.getElementById('usedClock');
+    if(clock){
+      var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+      var tick = function(){
+        var d = new Date();
+        clock.textContent = d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' '
+          + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      };
+      tick(); setInterval(tick, 1000);
+      try{ if(navigator.vibrate){ setTimeout(function(){ navigator.vibrate(40); }, 220); } }catch(e){}
+    }
   })();
 </script>
 </body>
