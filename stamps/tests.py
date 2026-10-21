@@ -1385,3 +1385,12 @@ class StampCardReadabilityTests(TestCase):
         with self.settings(STAMP_REQUIRE_LINE=False):
             resp = self.client.post("/stamp/me/")
         self.assertNotContains(resp, "打ち止め")
+
+    def test_card_expiry_shows_weekday_and_days_left(self):
+        today = timezone.localdate()
+        self._stamp(self.member, 1, _dt(today.year, today.month, today.day, 12, 0))
+        card = services._current_card(self.member)
+        state = services.card_view_state(card)
+        self.assertEqual(state["days_left"], (card.expires_on - today).days)
+        self.assertIn("（", state["expires_md"])
+        self.assertTrue(state["expires_md"].startswith(f"{card.expires_on.month}/{card.expires_on.day}"))

@@ -30,8 +30,17 @@
   .tk-head .toNext{font-size:13px;opacity:.95;margin-left:auto;text-align:right;line-height:1.4;}
   .bar{height:8px;background:rgba(255,255,255,.3);border-radius:99px;margin-top:12px;overflow:hidden;}
   .bar>i{display:block;height:100%;background:#fff;border-radius:99px;}
-  .tk-head .exp{margin-top:10px;font-size:12px;font-weight:700;color:#fff;
-    background:rgba(0,0,0,.16);display:inline-block;padding:4px 10px;border-radius:99px;}
+  /* カードの有効期限：気づかない人が多いため、日付を大きく出し「あと○日」を添える */
+  /* 真っ白の帯は赤いヘッダーの上でチカチカし、暗い赤は沈むため、黄みのクリーム地に茶色の文字にする。
+     残り7日以内は「あと○日」のバッジだけ茶色で塗る */
+  .tk-head .expbar{margin-top:12px;display:flex;align-items:center;gap:10px;background:#fff6e5;
+    color:#7a2a00;border-radius:12px;padding:9px 10px 9px 12px;}
+  .tk-head .ex-l{display:flex;flex-direction:column;min-width:0;}
+  .tk-head .ex-cap{font-size:12px;font-weight:800;white-space:nowrap;color:#9a5a2a;}
+  .tk-head .ex-d{font-size:20px;font-weight:900;line-height:1.25;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .tk-head .ex-r{margin-left:auto;font-size:16px;font-weight:900;white-space:nowrap;color:#7a2a00;
+    background:transparent;border:2px solid #7a2a00;border-radius:99px;padding:2px 10px;}
+  .tk-head .expbar.soon .ex-r{background:#7a2a00;color:#fff6e5;}
 
   /* --- スタンプ枠 --- */
   .tk-body{padding:18px 16px 8px;}
@@ -265,7 +274,7 @@
       <summary class="mycp-h">
         <span class="hd">
           <span class="t">🎫 獲得済みクーポン</span>
-          {% if my_coupons_due %}<span class="due">いちばん近い期限 {{ my_coupons_due|date:'Y/n/j' }}</span>{% endif %}
+          {% if my_coupons_due %}<span class="due">いちばん近い期限 {{ my_coupons_due_md }}</span>{% endif %}
         </span>
         <span class="cnt">{{ my_coupons|length }}枚</span>
         <span class="chev" aria-hidden="true">▼</span>
@@ -275,7 +284,7 @@
         <span class="mc-ico">{{ c.icon }}</span>
         <span class="mc-main">
           <span class="mc-name">{{ c.label }}{% if c.other_card %}<span class="mc-tag">前のカード</span>{% endif %}</span>
-          <span class="mc-sub">{% if c.pending %}次回のご来店から使えます{% else %}期限 <b>{{ c.reward.expires_on|date:'Y/n/j' }}</b> まで{% endif %}</span>
+          <span class="mc-sub">{% if c.pending %}次回のご来店から使えます{% else %}期限 <b>{{ c.expires_md }}</b> まで{% endif %}</span>
         </span>
         <span class="mc-arrow" aria-hidden="true">›</span>
       </a>
@@ -297,9 +306,12 @@
         </div>
         <div class="bar"><i style="width:{{ state.pct }}%;"></i></div>
         {% if state.expires_on %}
-          <div class="exp">⏳ 有効期限 {{ state.expires_on|date:'Y/n/j' }} まで</div>
+          <div class="expbar{% if state.days_left <= 7 %} soon{% endif %}">
+            <span class="ex-l"><span class="ex-cap">⏳ カードの有効期限</span><span class="ex-d">{{ state.expires_md }}</span></span>
+            <span class="ex-r">{% if state.days_left < 0 %}期限切れ{% elif state.days_left == 0 %}今日まで{% else %}あと{{ state.days_left }}日{% endif %}</span>
+          </div>
         {% else %}
-          <div class="exp">⏳ 初回スタンプから{{ state.validity_days }}日間 有効</div>
+          <div class="expbar"><span class="ex-l"><span class="ex-cap">⏳ カードの有効期限</span><span class="ex-d">初回スタンプから{{ state.validity_days }}日間</span></span></div>
         {% endif %}
       </div>
 

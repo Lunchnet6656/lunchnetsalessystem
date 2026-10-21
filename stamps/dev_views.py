@@ -103,6 +103,7 @@ def stamp_demo(request):
         member=member, card=card, state=card_view_state(card),
         result_tone=tone, result_message=message, new_reward=demo_new_reward,
         popped=n > 0, my_coupons=coupons, my_coupons_due=services.nearest_expiry(coupons),
+        my_coupons_due_md=services._md_with_weekday(services.nearest_expiry(coupons)),
     )
 
 

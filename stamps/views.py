@@ -137,6 +137,7 @@ def my_card(request):
     )
     ctx["my_coupons"] = services.owned_coupons(member, current_card=card)
     ctx["my_coupons_due"] = services.nearest_expiry(ctx["my_coupons"])
+    ctx["my_coupons_due_md"] = services._md_with_weekday(ctx["my_coupons_due"])
     # 直前の押印（stamp_scan）から 303 で来た場合、退避した結果で演出を1回だけ再現する。
     # ts で 60 秒の寿命を持たせ、時間が経ってから開いた時に古い演出が誤表示されるのを防ぐ。
     flash = request.session.pop("stamp_flash", None)

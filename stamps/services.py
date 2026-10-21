@@ -270,6 +270,16 @@ def usable_rewards(member, exclude_card=None, now=None):
     return list(qs.order_by("expires_on", "threshold_pt"))
 
 
+_WEEKDAYS_JA = "月火水木金土日"  # カード・クーポンは1か月ほどの期限なので西暦は出さない
+
+
+def _md_with_weekday(day):
+    """11/14（土） の形。LANGUAGE_CODE が en-us なので曜日はここで日本語にする。"""
+    if day is None:
+        return ""
+    return f"{day.month}/{day.day}（{_WEEKDAYS_JA[day.weekday()]}）"
+
+
 def owned_coupons(member, current_card=None, now=None):
     """カード上部「獲得済みクーポン」用。使えるもの＋次回から使えるものをカード横断で集める。
 
@@ -292,6 +302,7 @@ def owned_coupons(member, current_card=None, now=None):
             "icon": _reward_icon(r.tier),
             "pending": pending,
             "other_card": current_card is None or r.card_id != current_card.id,
+            "expires_md": _md_with_weekday(r.expires_on),
         })
     items.sort(key=lambda c: (c["pending"],
                               c["reward"].valid_from if c["pending"] else c["reward"].expires_on,
@@ -372,5 +383,9 @@ def card_view_state(card, just_stamped_pt=1):
         "pct": round(count / cap * 100) if cap else 0,
         "started_on": card.started_on if card else None,
         "expires_on": card.expires_on if card else None,
+        # カードの期限に気づかない人が多いため、日付に曜日と「あと何日」を添えて出す
+        "expires_md": _md_with_weekday(card.expires_on) if card else "",
+        "days_left": ((card.expires_on - timezone.localdate()).days
+                      if card and card.expires_on else None),
         "validity_days": StampConfig.get_solo().card_validity_days,
     }
