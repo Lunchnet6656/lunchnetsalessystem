@@ -203,7 +203,7 @@ class DiscountScreenTest(TestCase):
     def test_add_item_appears_from_start_and_in_csv(self, _):
         post = {"group": "rice", "label": "半額", "direction": "minus", "amount": "300", "valid_from": "2026-10-08"}
         res = self.client.post("/discounts/add/", post)
-        self.assertContains(res, "日計表送信データ（CSV）の末尾に『半額』の列が追加されます。")
+        self.assertContains(res, "日計表送信データ（CSV）の内訳列の後ろに『半額』の列が追加されます。")
         self.client.post("/discounts/apply/", {**post, "action": "add"})
         self.assertNotIn(("半額", -300), self.labels_on(datetime.date(2026, 10, 7)))
         self.assertIn(("半額", -300), self.labels_on(datetime.date(2026, 10, 8)))
@@ -216,8 +216,10 @@ class DiscountScreenTest(TestCase):
         item = DiscountItem.objects.get(label="半額")
         save_lines(report, [LineSpec("rice", item, "半額", 300, -300, 2)])
         rows = list(csvmod.reader(io.StringIO(self.client.get("/download_csv_allreport/").content.decode("utf-8-sig"))))
-        self.assertEqual(rows[0][-1], "半額")
-        self.assertEqual(rows[1][-1], "2")
+        from lunchnetsale.views import SITUATION_CSV_HEADER
+        n = len(SITUATION_CSV_HEADER)   # 売場の様子の列はさらに後ろ
+        self.assertEqual(rows[0][-1 - n], "半額")
+        self.assertEqual(rows[1][-1 - n], "2")
 
     def test_end_item(self, _):
         self.client.post("/discounts/apply/", {"valid_to": "2026-10-31", "action": "end", "item": self.no_rice.pk})

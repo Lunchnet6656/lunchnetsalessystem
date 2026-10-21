@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from . import views
+from . import daily_questions_views
 from django.contrib.auth import views as auth_views
 from .views import locked_out_view,my_page,submit_shift,edit_shift
 from sales import qr_views as sales_qr_views
@@ -133,6 +134,7 @@ urlpatterns = [
     path('menu-ranking/', views.menu_ranking_view, name='menu_ranking'),
     path('location-ranking/', views.location_ranking_view, name='location_ranking'),
     path('meal-forecast/', views.meal_forecast_view, name='meal_forecast'),
+    path('daily-report-questions/', daily_questions_views.daily_report_questions_view, name='daily_report_questions'),
     path('sales_dashboard/', views.sales_dashboard_view, name='sales_dashboard'),
 
     path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),

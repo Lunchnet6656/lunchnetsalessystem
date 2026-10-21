@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}日計表の質問の設定{% endblock %}
+
+{% block content %}
+<link href="{% static 'css/daily_report_shared.css' %}" rel="stylesheet">
+<div class="container mt-4 dq-page">
+    <h1 class="mb-1">日計表の質問の設定</h1>
+    <p class="text-muted">日計表で「いつもと違う日」だけ販売員に聞く質問の、出す条件と選択肢を決めます。<br>ふだんどおりの日は、何も聞きません。</p>
+
+    {% if errors %}
+    <div class="alert alert-danger" role="alert">
+        <p class="fw-bold mb-1">直してほしいところが{{ errors|length }}つあります</p>
+        <ul class="mb-0">
+            {% for e in errors %}<li><a href="#{{ e.id }}" class="alert-link">{{ e.label }}</a>：{{ e.msg }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="POST" id="dq-form" novalidate>
+        {% csrf_token %}
+        <div class="card mb-3">
+            <div class="card-header fw-bold">1. 質問を出す条件</div>
+            <div class="card-body">
+                <fieldset class="mb-3">
+                    <legend class="fs-6 fw-bold mb-1">いつもより売れなかった日</legend>
+                    <p class="dr-hint">その店のふだんのブレに合わせて、店ごとに自動で決めます。</p>
+                    {% for o in one_in_options %}
+                    <div class="form-check dq-radio">
+                        <input class="form-check-input" type="radio" name="low_one_in" id="one-in-{{ o.n }}" value="{{ o.n }}"{% if o.n == form_one_in %} checked{% endif %}>
+                        <label class="form-check-label d-flex flex-wrap gap-2" for="one-in-{{ o.n }}">
+                            <span>{{ o.n }}回に1回くらいの少なさで聞く</span>
+                            <span class="dr-hint mb-0">1店あたり月に約{% if o.est is not None %}{{ o.est }}{% else %}—{% endif %}回</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                    <p class="dr-hint mt-1">（回数は直近2か月の日計表で計算した目安）</p>
+                </fieldset>
+                <fieldset>
+                    <legend class="fs-6 fw-bold mb-1">早く売り切れた日</legend>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <input type="time" step="300" name="early_before" id="early_before" class="form-control dq-time" value="{{ form_early }}" aria-describedby="early-help">
+                        <span>より前に完売したら聞く</span>
+                        <span class="dr-hint mb-0">1店あたり月に約{% if early_est is not None %}{{ early_est }}{% else %}—{% endif %}回</span>
+                    </div>
+                    <p class="dr-hint mt-1" id="early-help">{% if early_span %}参考：多くの店のいつもの完売は {{ early_span.0 }}〜{{ early_span.1 }}{% else %}参考：完売時刻のデータがまだ足りません{% endif %}</p>
+                </fieldset>
+            </div>
+        </div>
+
+        {% for section in sections %}
+        <div class="card mb-3">
+            <div class="card-header fw-bold">{{ forloop.counter|add:1 }}. {{ section.title }}</div>
+            <div class="card-body">
+                <div class="row g-4">
+                    {% for g in section.groups %}
+                    <div class="col-12 col-lg-6">
+                        <h3 class="dr-subhead fw-bold">{{ g.label }}</h3>
+                        <p class="dr-hint dq-only-none{% if g.rows %} d-none{% endif %}">いまは「特になし」だけが出ます</p>
+                        <ol class="dq-list list-unstyled mb-2" id="list-{{ g.key }}" data-key="{{ g.key }}">
+                            {% for r in g.rows %}
+                            <li class="dq-row">
+                                <span class="dq-num"></span>
+                                <input type="text" class="form-control{% if r.error %} is-invalid{% endif %}" name="choice_{{ g.key }}" id="{{ r.id }}" value="{{ r.text }}" maxlength="40" aria-label="選択肢">
+                                <span class="dq-btns">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dq-up" aria-label="上へ">↑</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dq-down" aria-label="下へ">↓</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dq-del">消す</button>
+                                </span>
+                                <span class="dq-deleted dr-hint d-none">保存すると消えます <button type="button" class="btn btn-link btn-sm p-0 dq-undo">元に戻す</button></span>
+                                {% if r.error %}<p class="dr-warning dq-error">{{ r.error }}</p>{% endif %}
+                            </li>
+                            {% endfor %}
+                        </ol>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <button type="button" class="btn btn-outline-secondary dr-btn-44 dq-add" data-key="{{ g.key }}">＋ 選択肢を足す</button>
+                            <span class="dr-hint dq-max d-none">{{ max_choices }}個までです</span>
+                        </div>
+                        <p class="dr-hint mb-0">{{ no_question }} … いつも最後に出ます</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <p class="dr-hint">選択肢を言い換えたり消したりしても、過去の日計表の記録はそのときの言葉のまま残ります。</p>
+        <button type="submit" class="btn btn-primary dr-btn-44 px-4 mb-4 dq-save">保存する</button>
+        <p class="visually-hidden" aria-live="polite" id="dq-live"></p>
+    </form>
+</div>
+
+<template id="dq-row-template">
+    <li class="dq-row">
+        <span class="dq-num"></span>
+        <input type="text" class="form-control" maxlength="40" aria-label="選択肢">
+        <span class="dq-btns">
+            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dq-up" aria-label="上へ">↑</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dq-down" aria-label="下へ">↓</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dq-del">消す</button>
+        </span>
+        <span class="dq-deleted dr-hint d-none">保存すると消えます <button type="button" class="btn btn-link btn-sm p-0 dq-undo">元に戻す</button></span>
+    </li>
+</template>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var form = document.getElementById('dq-form');
+    var live = document.getElementById('dq-live');
+    var MAX = {{ max_choices }};
+    var dirty = false;
+
+    function rowsOf(list) { return Array.prototype.slice.call(list.querySelectorAll('.dq-row')); }
+
+    function refresh(list) {
+        var rows = rowsOf(list);
+        var alive = rows.filter(function(r) { return !r.classList.contains('is-deleted'); });
+        rows.forEach(function(r, i) {
+            r.querySelector('.dq-num').textContent = (i + 1) + '.';
+            r.querySelector('.dq-up').disabled = i === 0;
+            r.querySelector('.dq-down').disabled = i === rows.length - 1;
+        });
+        var col = list.parentNode;
+        var full = alive.length >= MAX;
+        col.querySelector('.dq-add').disabled = full;
+        col.querySelector('.dq-max').classList.toggle('d-none', !full);
+        col.querySelector('.dq-only-none').classList.toggle('d-none', alive.length > 0);
+    }
+
+    document.querySelectorAll('.dq-list').forEach(refresh);
+
+    form.addEventListener('input', function() { dirty = true; });
+    form.addEventListener('change', function() { dirty = true; });
+
+    form.addEventListener('click', function(e) {
+        var t = e.target;
+        var list = t.closest('.dq-list');
+        var row = t.closest('.dq-row');
+        if (t.classList.contains('dq-add')) {
+            var target = document.getElementById('list-' + t.getAttribute('data-key'));
+            var node = document.getElementById('dq-row-template').content.firstElementChild.cloneNode(true);
+            node.querySelector('input').name = 'choice_' + t.getAttribute('data-key');
+            target.appendChild(node);
+            refresh(target);
+            node.querySelector('input').focus();
+            dirty = true;
+            return;
+        }
+        if (!row) return;
+        if (t.classList.contains('dq-up') || t.classList.contains('dq-down')) {
+            var up = t.classList.contains('dq-up');
+            var sib = up ? row.previousElementSibling : row.nextElementSibling;
+            if (!sib) return;
+            if (up) list.insertBefore(row, sib); else list.insertBefore(sib, row);
+            refresh(list);
+            var same = row.querySelector(up ? '.dq-up' : '.dq-down');
+            (same.disabled ? row.querySelector(up ? '.dq-down' : '.dq-up') : same).focus();
+            live.textContent = (rowsOf(list).indexOf(row) + 1) + '番目に移動しました';
+            dirty = true;
+        } else if (t.classList.contains('dq-del')) {
+            // すぐには消さない（保存するまで「元に戻す」で取り消せる）。消す行は送らない
+            row.classList.add('is-deleted');
+            row.querySelector('input').disabled = true;
+            row.querySelector('.dq-btns').classList.add('d-none');
+            row.querySelector('.dq-deleted').classList.remove('d-none');
+            row.querySelector('.dq-undo').focus();
+            refresh(list);
+            dirty = true;
+        } else if (t.classList.contains('dq-undo')) {
+            row.classList.remove('is-deleted');
+            row.querySelector('input').disabled = false;
+            row.querySelector('.dq-btns').classList.remove('d-none');
+            row.querySelector('.dq-deleted').classList.add('d-none');
+            row.querySelector('input').focus();
+            refresh(list);
+        }
+    });
+
+    form.addEventListener('submit', function() {
+        dirty = false;
+        var btn = form.querySelector('.dq-save');
+        btn.disabled = true;
+        btn.textContent = '保存しています…';
+    });
+
+    window.addEventListener('beforeunload', function(e) {
+        if (!dirty) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+})();
+</script>
+{% endblock %}

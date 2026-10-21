@@ -32,10 +32,13 @@ def _minutes(t):
     return m or None
 
 
-def estimated_demand(sold, remaining, sold_out_time, opening_time, closing_time):
-    """完売した日は、完売時刻が早いほど需要を上乗せする（12:00完売・11-13時営業なら+20%）。"""
+def estimated_demand(sold, remaining, sold_out_time, opening_time, closing_time, lost=None):
+    """完売した日は、完売時刻が早いほど需要を上乗せする（12:00完売・11-13時営業なら+20%）。
+    現場が「買えなかったお客さん」の人数を書いた日は、推定より確かなので 販売数＋人数 を使う。"""
     if remaining > 0:
         return float(sold)
+    if lost is not None:
+        return float(sold + lost)
     o, c, t = _minutes(opening_time), _minutes(closing_time), _minutes(sold_out_time)
     left = 0.0
     if o and c and t and c > o:
@@ -50,22 +53,23 @@ def _excluded_names():
 
 
 def load_history(since, until):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out)。"""
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost)。"""
     excluded = _excluded_names()
     rows = (
         DailyReport.objects
         .filter(date__gte=since, date__lt=until, total_quantity__gt=0)
         .exclude(location__in=excluded)
         .values_list("date", "location", "total_sales_quantity", "total_remaining",
-                     "sold_out_time", "opening_time", "closing_time")
+                     "sold_out_time", "opening_time", "closing_time", "lost_customers")
         .order_by("date")
     )
     hist = {}
-    for d, name, sold, rem, so_t, op_t, cl_t in rows:
+    for d, name, sold, rem, so_t, op_t, cl_t, lost in rows:
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name.strip(), []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
-            "demand": estimated_demand(sold, rem, so_t, op_t, cl_t), "sold_out": rem <= 0,
+            "demand": estimated_demand(sold, rem, so_t, op_t, cl_t, lost), "sold_out": rem <= 0,
+            "lost": lost if rem <= 0 else None,
         })
     return hist
 

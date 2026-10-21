@@ -262,6 +262,7 @@ function onSoldOutCheckboxChange(checkboxElement) {
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
         if (checkbox.id === 'sold_out_total') return;  // 全完売チェックは別処理
+        if (checkbox.type !== 'checkbox') return;  // 完売時間（sold_out_time）も同じ id の頭なので除く
         checkbox.addEventListener('change', function() {
             onSoldOutCheckboxChange(this);
         });
@@ -332,6 +333,7 @@ function toggleSoldOutTotal() {
     var isTotalSoldOut = document.getElementById('sold_out_total').checked;
     document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
         if (checkbox.id === 'sold_out_total') return;  // 自分自身はスキップ
+        if (checkbox.type !== 'checkbox') return;  // 完売時間（sold_out_time）も同じ id の頭なので除く
         var menuNo = checkbox.id.split('_')[2];
         if (parseInt(menuNo, 10) === 11) return;  // 単品11(大盛りご飯)は対象外
         checkbox.checked = isTotalSoldOut;
@@ -399,6 +401,7 @@ function updateRevenue() {
 // 個別チェックボックスにイベントリスナーを追加
 document.querySelectorAll('[id^="sold_out_"]').forEach(function(checkbox) {
     if (checkbox.id === 'sold_out_total') return;  // 全完売チェックは別処理
+    if (checkbox.type !== 'checkbox') return;  // 完売時間（sold_out_time）も同じ id の頭なので除く
     checkbox.addEventListener('change', function() {
         onSoldOutCheckboxChange(this);
     });

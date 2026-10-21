@@ -1,0 +1,9 @@
+{% comment %}選択肢ボタン（入力画面・編集画面で共通）。
+  name / choices=(値, 表示)の並び / type=radio|checkbox / selected=選ばれている値の並び / no_question=区切り線の下に出す値{% endcomment %}
+{% for value, label in choices %}
+  {% if no_question and value == no_question %}<hr class="dr-choice-sep">{% endif %}
+  <input type="{{ type }}" class="btn-check" name="{{ name }}" id="{{ name }}-{{ forloop.counter }}"
+         value="{{ value }}" autocomplete="off"{% if value in selected %} checked{% endif %}>
+  <label class="btn btn-outline-primary dr-choice{% if type == 'checkbox' %} dr-choice-multi{% endif %}{% if no_question and value == no_question %} dr-choice-none{% endif %}"
+         for="{{ name }}-{{ forloop.counter }}">{{ label }}</label>
+{% endfor %}

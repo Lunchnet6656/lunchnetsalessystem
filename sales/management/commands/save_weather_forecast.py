@@ -38,3 +38,8 @@ class Command(BaseCommand):
             call_command("save_meal_forecast", stdout=self.stdout)
         except Exception as e:
             self.stderr.write(f"予測の記録に失敗しました: {e}")
+        # 日計表の昼の天気（実際の値）もこのタイミングで埋める（送信を遅くしないため）
+        try:
+            call_command("fill_report_weather", stdout=self.stdout)
+        except Exception as e:
+            self.stderr.write(f"日計表の天気の記録に失敗しました: {e}")

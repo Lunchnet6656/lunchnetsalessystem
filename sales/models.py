@@ -1,4 +1,5 @@
 # sales/models.py
+import datetime
 import secrets
 
 from django.db import models
@@ -266,6 +267,77 @@ class ForecastSnapshot(models.Model):
         return f"{self.target_date} {self.location} 予測{self.pred}（{self.made_at:%m/%d %H:%M}）"
 
 
+class StaffQuantityPlan(models.Model):
+    """現場が日計表に書いた「明日以降の食数」。同じ店・同じ日は一番新しい記録を使う（古いものも残す）。"""
+    target_date = models.DateField(db_index=True)
+    location = models.CharField(max_length=100)           # 店名（販売場所No.は振り直されるため名前で持つ）
+    qty_min = models.IntegerField(null=True, blank=True)
+    qty_max = models.IntegerField(null=True, blank=True)  # 幅のときだけ。1つの数なら空
+    kept = models.IntegerField(null=True, blank=True)     # 取置き
+    rain_min = models.IntegerField(null=True, blank=True)
+    rain_max = models.IntegerField(null=True, blank=True)
+    report = models.ForeignKey("DailyReport", null=True, blank=True, on_delete=models.SET_NULL, related_name="quantity_plans")
+    written_on = models.DateField()                       # 何日の日計表で書かれたか
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["target_date", "location"])]
+
+    def __str__(self):
+        return f"{self.target_date} {self.location} {self.qty_label}（{self.written_on}記入）"
+
+    @staticmethod
+    def _range(lo, hi):
+        if lo is None and hi is None:
+            return ""
+        if hi is None or hi == lo:
+            return f"{lo if lo is not None else hi}"
+        return f"{lo}〜{hi}"
+
+    @property
+    def qty_label(self):
+        return self._range(self.qty_min, self.qty_max)
+
+    @property
+    def rain_label(self):
+        return self._range(self.rain_min, self.rain_max)
+
+    @property
+    def qty_mid(self):
+        vals = [v for v in (self.qty_min, self.qty_max) if v is not None]
+        return sum(vals) / len(vals) if vals else None
+
+
+class StoreEvent(models.Model):
+    """現場が書いた「明日以降の予定」。その日の食数予測に目印を出す。"""
+    target_date = models.DateField(db_index=True)
+    location = models.CharField(max_length=100)
+    note = models.CharField(max_length=200)
+    report = models.ForeignKey("DailyReport", null=True, blank=True, on_delete=models.SET_NULL, related_name="store_events")
+    written_on = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["target_date", "created_at"]
+
+    def __str__(self):
+        return f"{self.target_date} {self.location} {self.note}"
+
+
+class DailyReportQuestionSetting(models.Model):
+    """日計表で「いつもと違った日」に聞く基準と選択肢（設定画面で変える・1行だけ）。"""
+    low_one_in = models.PositiveSmallIntegerField(default=10)   # その店で「N回に1回」しかない少なさで聞く
+    early_before = models.TimeField(default=datetime.time(12, 20))            # この時刻より前に完売したら聞く
+    choices = models.JSONField(default=dict, blank=True)        # {"indoor_low": [...], ...}。空なら既定の選択肢
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class OthersItem(models.Model):
     no = models.IntegerField(default=0)
     name =  models.CharField(max_length=255)
@@ -327,6 +399,25 @@ class DailyReport(models.Model):
     others = models.DecimalField(max_digits=10, decimal_places=0, default=0) # その他
     comments = models.TextField(blank=True)  # コメント
     food_count_setting = models.TextField(blank=True)  # 明日の食数設定
+    # --- 売場の様子（選択式・2026-10）。すべて空可：過去の日計表・締め・給与の処理に影響させない ---
+    WEATHER_CHOICES = [("sunny", "晴れ"), ("cloudy", "くもり"), ("light_rain", "小雨"),
+                       ("rain", "雨"), ("heavy_rain", "大雨"), ("snow", "雪")]
+    FEELS_CHOICES = [("very_cold", "とても寒い"), ("cold", "寒い"), ("cool", "涼しい"),
+                     ("comfortable", "ちょうどいい"), ("hot", "暑い"), ("very_hot", "とても暑い")]
+    UNUSUAL_CHOICES = [("", "ふだんどおり"), ("low", "いつもより売れなかった"), ("early", "早く売り切れた")]
+    weather_during_sales = models.CharField(max_length=20, choices=WEATHER_CHOICES, blank=True, default="")
+    feels = models.CharField(max_length=20, choices=FEELS_CHOICES, blank=True, default="")
+    lost_customers = models.IntegerField(null=True, blank=True)       # 完売後に買えなかったお客さん（だいたい）
+    unusual_kind = models.CharField(max_length=10, choices=UNUSUAL_CHOICES, blank=True, default="")
+    unusual_reasons = models.JSONField(default=list, blank=True)       # 選んだ「気づいたこと」（文字のまま残す）
+    unusual_note = models.CharField(max_length=200, blank=True, default="")
+    usual_sales = models.IntegerField(null=True, blank=True)           # 入力時点のその店のふだんの販売数
+    staff_is_regular = models.BooleanField(null=True, blank=True)       # いつもの担当か（シフトから判定）
+    auto_lunch_precip = models.FloatField(null=True, blank=True)       # 11〜13時の雨量(mm)・アプリが自動記録
+    auto_lunch_temp = models.FloatField(null=True, blank=True)
+    auto_lunch_feels = models.FloatField(null=True, blank=True)        # 体感温度（気温＋湿度＋風）
+    auto_lunch_wind = models.FloatField(null=True, blank=True)         # 風速(m/s)
+    auto_lunch_snow = models.FloatField(null=True, blank=True)         # 降雪量(cm)
     confirmed = models.BooleanField(default=False)  # 確認済みかどうか
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

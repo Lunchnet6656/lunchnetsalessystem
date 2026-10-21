@@ -13,7 +13,7 @@
        data-shin-yokohama-url="{% url 'shin_yokohama_users' %}"
        data-selected-person="{{ selected_person|escapejs }}">
   <h1 class="text-center">ランチネット日計表入力</h1>
-  <form method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission(event);"
+  <form id="daily-report-form" method="POST" action="{% url 'daily_report' %}" onsubmit="return confirmSubmission(event);"
         {% if item_data %}data-shown-date="{{ selected_date }}" data-shown-location="{{ selected_location }}"{% endif %}>
     {% csrf_token %}
     <div class="mb-3">
@@ -28,31 +28,6 @@
             <input type="date" id="date" name="date" class="form-select" required>-->
         </select>
         <p class="dr-warning d-none" id="stale-date-warning">日付か販売所を変えたら「データを表示」を押し直してください。</p>
-    </div>
-    <div class="row">
-    <!-- 天気セクション -->
-      <div class="col-6 col-md-6">
-        <label class="form-label">天気</label>
-        {% for weather_option in weather_options %}
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="weather" value="{{ weather_option }}" id="weather-{{ weather_option }}"
-                {% if weather_option in selected_weather %}checked{% endif %}>
-                <label class="form-check-label" for="weather-{{ weather_option }}">{{ weather_option }}</label>
-            </div>
-        {% endfor %}
-      </div>
-
-    <!-- 体感気温セクション -->
-      <div class="col-6 col-md-6">
-        <label class="form-label">体感気温</label>
-        {% for temp_option in temp_options %}
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="temp" value="{{ temp_option }}" id="temp-{{ temp_option }}"
-                {% if temp_option in selected_temp %}checked{% endif %}>
-                <label class="form-check-label" for="temp-{{ temp_option }}">{{ temp_option }}</label>
-            </div>
-        {% endfor %}
-      </div>
     </div>
     <div class="mb-3">
         <label for="location" class="form-label">販売所</label>
@@ -203,6 +178,10 @@
             </table>
             </div>
             {% include "includes/daily_report_price_summary.html" %}
+            <div class="dr-tempsave">
+                <button type="button" class="btn btn-outline-secondary dr-btn-44 js-temp-save">一時保存</button>
+                <span class="dr-hint mb-0 js-temp-save-msg" aria-live="polite">この端末に保存します</span>
+            </div>
             {% else %}
             {% endif %}
           </div>
@@ -378,7 +357,8 @@
                     <!-- 完売時間 -->
                     <div class="col-12 col-md-4 mb-2">
                         <label for="sold_out_time" class="form-label">完売時間</label>
-                        <input type="time" id="sold_out_time" name="sold_out_time" class="form-control" value="00:00">
+                        <input type="time" id="sold_out_time" name="sold_out_time" class="form-control" value="00:00" aria-describedby="sold-out-time-required">
+                        <p class="dr-warning d-none" id="sold-out-time-required">完売した日は完売時間を入れてください</p>
                     </div>
                     <!-- 閉店時間 -->
                     <div class="col-12 col-md-4 mb-2">
@@ -413,20 +393,7 @@
                     </div>
                 </div>
             </div>
-            <!-- 情報入力セクション -->
-            <div id="additional-section">
-                <h2 class="bg-dark text-white mt-4">情報入力</h2>
-                <!-- コメント入力欄 -->
-                <div class="mb-3">
-                    <label for="comment" class="form-label">コメント(来客状況やお客様からの要望など売場の情報)</label>
-                    <textarea id="comment" name="comment" class="form-control" rows="3" placeholder="コメントを入力してください"></textarea>
-                </div>
-                <!-- 食数設定入力欄 -->
-                <div class="mb-3">
-                    <label for="food_count_setting" class="form-label">明日の食数設定(具体的な数字を提示！)</label>
-                    <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="食数を設定してください"></textarea>
-                </div>
-            </div>
+            {% include "includes/daily_report_situation.html" %}
             <div id="check-section">
                 <h2 class="bg-dark text-white mt-4">チェック事項</h2>
                 <p class="check-text">① 販売場所は「<span id="selected-location" class="check-highlight">{{ selected_location }}</span>」で間違いありませんか？</p>
@@ -438,7 +405,14 @@
                     ② <span class="check-highlight">閉店時間</span>
                     <span id="closing-time-message"></span>
                 </label>
+                <p class="check-text d-none" id="check-unusual">
+                    ③ <span class="check-highlight">気づいたこと</span><span id="check-unusual-msg">を選んでください。</span>
+                </p>
             </div>
+                <div class="dr-tempsave">
+                    <button type="button" class="btn btn-outline-secondary dr-btn-44 js-temp-save">一時保存</button>
+                    <span class="dr-hint mb-0 js-temp-save-msg" aria-live="polite">この端末に保存します</span>
+                </div>
                 <!-- 送信ボタン -->
                 <div class="mb-3">
                     <button type="submit" name="action" value="send" class="btn btn-success w-100 py-3 btn-incomplete" id="submit-button">送信</button>
@@ -451,6 +425,7 @@
                 <a href="#sales-section" title="売上"><i class="fas fa-yen-sign"></i><span>売上</span></a>
                 <a href="#time-section" title="時間"><i class="fas fa-clock"></i><span>時間</span></a>
                 <a href="#expenses-section" title="経費"><i class="fas fa-gas-pump"></i><span>経費</span></a>
+                <a href="#additional-section" title="様子" id="nav-situation" aria-label="様子"><i class="fas fa-comment-dots"></i><span>様子</span><span class="dr-nav-dot d-none" aria-hidden="true"></span></a>
                 <a href="#check-section" title="確認"><i class="fas fa-check-circle"></i><span>確認</span></a>
             </nav>
             {% endif %}

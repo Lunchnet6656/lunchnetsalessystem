@@ -404,3 +404,12 @@ tr.sold-out-row input[type="number"] {
     }
 }
 
+
+.section-nav a {
+    position: relative; /* 「様子」の未回答の目印を重ねるため */
+}
+@media (prefers-reduced-motion: reduce) {
+    .field-flash {
+        animation: none;
+    }
+}

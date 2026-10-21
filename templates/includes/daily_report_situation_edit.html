@@ -1,0 +1,122 @@
+{% comment %}日計表の編集画面（管理・本人）の「売場の様子」。動きは static/js/daily_report_situation_edit.js{% endcomment %}
+<div id="situation-edit">
+    <h2 class="bg-dark text-white mt-4">売場の様子</h2>
+    <p class="dr-hint">記録したときの判定：{{ q_judgement }}</p>
+
+    <fieldset class="dr-choice-list dr-choice-list--2 mb-2">
+        <legend class="dr-legend">気づいたこと（いくつでも）</legend>
+        {% include "includes/dr_choice_group.html" with name="reasons_edit" choices=q_choices_edit type="checkbox" selected=q_selected_reasons no_question=q_no_question %}
+    </fieldset>
+    <div class="mb-3">
+        <label for="unusual_note">ひと言:</label>
+        <input type="text" id="unusual_note" name="unusual_note" class="form-control" maxlength="200" value="{{ report.unusual_note }}">
+    </div>
+    <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+        <label for="lost_customers" class="mb-0">完売後に買えなかったお客さん:</label>
+        <input type="number" id="lost_customers" name="lost_customers" class="form-control dr-num" min="0" max="99" inputmode="numeric" value="{{ report.lost_customers|default_if_none:'' }}">
+        <span>人くらい</span>
+    </div>
+
+    <div class="row g-2 mb-2">
+        <div class="col-6">
+            <fieldset>
+                <legend class="dr-legend">販売中の天気</legend>
+                <div class="dr-hint">11〜13時頃</div>
+                <div class="dr-choice-col">
+                    {% include "includes/dr_choice_group.html" with name="weather_during_sales" choices=weather_choices type="radio" selected=q_selected_weather %}
+                </div>
+                {% if q_legacy_weather %}<p class="dr-hint mt-1">以前の書き方：{{ q_legacy_weather }}</p>{% endif %}
+            </fieldset>
+        </div>
+        <div class="col-6">
+            <fieldset>
+                <legend class="dr-legend">体感気温</legend>
+                <div class="dr-hint">売場で感じた暑さ寒さ</div>
+                <div class="dr-choice-col">
+                    {% include "includes/dr_choice_group.html" with name="feels" choices=feels_choices type="radio" selected=q_selected_feels %}
+                </div>
+                {% if q_legacy_temp %}<p class="dr-hint mt-1">以前の書き方：{{ q_legacy_temp }}</p>{% endif %}
+            </fieldset>
+        </div>
+    </div>
+    <p class="dr-hint mb-3">アプリの記録（11〜13時）：{{ q_auto_weather }}</p>
+
+    <p class="mb-1">この日計表で書かれた、明日以降の食数</p>
+    <div id="plan-rows" data-plan-dates="{% for v, label in q_plan_dates %}{{ v }}|{{ label }}{% if not forloop.last %},{% endif %}{% endfor %}">
+        {% for p in q_plans %}
+        <div class="card dr-plan-row">
+            <div class="card-body">
+                <div class="dr-plan-head">
+                    <select name="plan_date" class="form-select dr-plan-date" aria-label="食数を書く日">
+                        {% for v, label in q_plan_dates %}<option value="{{ v }}"{% if v == p.target_date|date:'Y-m-d' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">食数</span>
+                    <input type="number" name="plan_qty_min" class="form-control dr-num" min="0" max="999" value="{{ p.qty_min|default_if_none:'' }}" aria-label="食数">
+                    〜
+                    <input type="number" name="plan_qty_max" class="form-control dr-num" min="0" max="999" value="{{ p.qty_max|default_if_none:'' }}" aria-label="食数（幅のときの多いほう）">
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">取置き</span>
+                    <input type="number" name="plan_kept" class="form-control dr-num" min="0" max="999" value="{{ p.kept|default_if_none:'' }}" aria-label="取置き">
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">雨なら</span>
+                    <input type="number" name="plan_rain_min" class="form-control dr-num" min="0" max="999" value="{{ p.rain_min|default_if_none:'' }}" aria-label="雨なら">
+                    〜
+                    <input type="number" name="plan_rain_max" class="form-control dr-num" min="0" max="999" value="{{ p.rain_max|default_if_none:'' }}" aria-label="雨なら（幅のときの多いほう）">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <button type="button" id="add-plan-row" class="btn btn-outline-secondary dr-btn-44 mb-3">＋ 日を足す</button>
+
+    <p class="mb-1">この日計表で書かれた予定</p>
+    <div id="event-rows" data-min="{{ q_event_min }}" data-max="{{ q_event_max }}">
+        {% for e in q_events %}
+        <div class="dr-event-row">
+            <input type="date" name="event_date" class="form-control" min="{{ q_event_min }}" max="{{ q_event_max }}" value="{{ e.target_date|date:'Y-m-d' }}" aria-label="予定の日">
+            <input type="text" name="event_note" class="form-control" maxlength="40" value="{{ e.note }}" aria-label="予定のひと言">
+            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
+        </div>
+        {% endfor %}
+    </div>
+    <button type="button" id="add-event-row" class="btn btn-outline-secondary dr-btn-44 mb-3">＋ 予定を書く</button>
+
+    <template id="plan-row-template">
+        <div class="card dr-plan-row">
+            <div class="card-body">
+                <div class="dr-plan-head">
+                    <select name="plan_date" class="form-select dr-plan-date" aria-label="食数を書く日"></select>
+                    <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">食数</span>
+                    <input type="number" name="plan_qty_min" class="form-control dr-num" min="0" max="999" aria-label="食数">
+                    〜
+                    <input type="number" name="plan_qty_max" class="form-control dr-num" min="0" max="999" aria-label="食数（幅のときの多いほう）">
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">取置き</span>
+                    <input type="number" name="plan_kept" class="form-control dr-num" min="0" max="999" aria-label="取置き">
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">雨なら</span>
+                    <input type="number" name="plan_rain_min" class="form-control dr-num" min="0" max="999" aria-label="雨なら">
+                    〜
+                    <input type="number" name="plan_rain_max" class="form-control dr-num" min="0" max="999" aria-label="雨なら（幅のときの多いほう）">
+                </div>
+            </div>
+        </div>
+    </template>
+    <template id="event-row-template">
+        <div class="dr-event-row">
+            <input type="date" name="event_date" class="form-control" aria-label="予定の日">
+            <input type="text" name="event_note" class="form-control" maxlength="40" aria-label="予定のひと言">
+            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
+        </div>
+    </template>
+</div>

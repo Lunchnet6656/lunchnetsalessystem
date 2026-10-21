@@ -8,7 +8,7 @@ from django.test import TestCase, RequestFactory
 from django.utils import timezone
 
 from lunchnetsale.forms import DailyReportForm
-from lunchnetsale.views import daily_report_edit_rol, download_csv_allreport
+from lunchnetsale.views import SITUATION_CSV_HEADER, daily_report_edit_rol, download_csv_allreport
 from sales.models import DailyReport, DailyReportEntry
 
 
@@ -59,6 +59,7 @@ class Coupon750Test(TestCase):
         header, row = rows[0], rows[1]
 
         self.assertEqual(len(header), len(row))
+        header, row = header[:-len(SITUATION_CSV_HEADER)], row[:-len(SITUATION_CSV_HEADER)]  # 売場の様子の列を除く
         self.assertEqual(header[-5:], ['クーポン750', 'サービス750', '単価別内訳', 'クーポン内訳', 'サービス内訳'])
         self.assertEqual(row[-5:-3], ['3', '4'])
         # 既存のクーポン列は同じ位置のまま（見出しだけ 600→650）
@@ -90,6 +91,7 @@ class CsvBreakdownTest(TestCase):
         rows = list(csv.reader(io.StringIO(download_csv_allreport(request).content.decode('utf-8-sig'))))
         header, row = rows[0], rows[1]
         self.assertEqual(len(header), len(row))
+        row = row[:-len(SITUATION_CSV_HEADER)]  # 売場の様子の列を除く
         self.assertEqual(row[-3], '750:5 / 700:69 / 650:3 / 50:14')  # 10/1以降に欠けていた大盛りも出る
         self.assertEqual(row[-2], '750:1 / 700:2')
         self.assertEqual(row[-1], '割引-100:3')

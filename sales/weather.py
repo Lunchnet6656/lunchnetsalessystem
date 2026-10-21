@@ -91,3 +91,35 @@ def fetch_all_areas():
         except Exception:
             continue
     return result
+
+
+RECENT_URL = (
+    "https://api.open-meteo.com/v1/forecast"
+    "?latitude={lat}&longitude={lon}"
+    "&hourly=precipitation,snowfall,temperature_2m,apparent_temperature,wind_speed_10m"
+    "&wind_speed_unit=ms&timezone=Asia%2FTokyo&past_days={past}&forecast_days=1"
+)
+
+
+def fetch_lunch_recent(area=DEFAULT_AREA, past_days=7):
+    """直近の日の昼（11〜13時）の天気の実際の値。日計表に自動で添えるため。
+    {日付: {precip, snow, temp, feels, wind}}。取れなければ例外。"""
+    _, lat, lon = WEATHER_AREAS[area]
+    with urllib.request.urlopen(RECENT_URL.format(lat=lat, lon=lon, past=past_days), timeout=5) as resp:
+        data = json.loads(resp.read().decode())
+    h = data.get("hourly", {})
+    days = {}
+    for t, p, s, temp, feels, wind in zip(h.get("time", []), h.get("precipitation", []), h.get("snowfall", []),
+                                          h.get("temperature_2m", []), h.get("apparent_temperature", []),
+                                          h.get("wind_speed_10m", [])):
+        if int(t[11:13]) not in LUNCH_HOURS:
+            continue
+        d = days.setdefault(t[:10], {"precip": 0.0, "snow": 0.0, "temp": [], "feels": [], "wind": []})
+        d["precip"] += p or 0
+        d["snow"] += s or 0
+        for key, v in (("temp", temp), ("feels", feels), ("wind", wind)):
+            if v is not None:
+                d[key].append(v)
+    avg = lambda xs: round(sum(xs) / len(xs), 1) if xs else None
+    return {day: {"precip": round(d["precip"], 1), "snow": round(d["snow"], 1), "temp": avg(d["temp"]),
+                  "feels": avg(d["feels"]), "wind": avg(d["wind"])} for day, d in days.items()}

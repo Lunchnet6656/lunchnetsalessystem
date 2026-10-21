@@ -1,0 +1,126 @@
+{% comment %}日計表の入力画面「売場の様子」。判定・行の追加は static/js/daily_report.js（売場の様子の部分）{% endcomment %}
+<div id="additional-section">
+    <h2 class="bg-dark text-white mt-4">売場の様子</h2>
+    {{ q_js|json_script:"dr-questions" }}
+    <h3 class="dr-subhead">今日の売場</h3>
+
+    {% if q_group %}
+    <div id="unusual-block" class="alert alert-warning d-none" role="group" aria-labelledby="unusual-heading">
+        <p class="fw-bold mb-1"><i class="fas fa-exclamation-circle me-1" aria-hidden="true"></i><span id="unusual-heading"></span></p>
+        <p class="mb-1" id="unusual-detail"></p>
+        <p class="small mb-2">理由を残すと、食数設定に役立ちます。分からなければ「特になし」でOKです。</p>
+        <p class="dr-warning d-none" id="unusual-required">1つ以上選んでください（分からなければ「特になし」）</p>
+        <fieldset class="dr-choice-list dr-choice-list--2 d-none" data-kind="low" aria-describedby="unusual-required" disabled>
+            <legend class="dr-legend fw-bold mb-1">当てはまるものを選んでください<span class="small fw-normal">［必須・いくつでも］</span></legend>
+            {% include "includes/dr_choice_group.html" with name="reasons_low" choices=q_choices_low type="checkbox" no_question=q_no_question %}
+        </fieldset>
+        <fieldset class="dr-choice-list dr-choice-list--2 d-none" data-kind="early" aria-describedby="unusual-required" disabled>
+            <legend class="dr-legend fw-bold mb-1">当てはまるものを選んでください<span class="small fw-normal">［必須・いくつでも］</span></legend>
+            {% include "includes/dr_choice_group.html" with name="reasons_early" choices=q_choices_early type="checkbox" no_question=q_no_question %}
+        </fieldset>
+        <label for="unusual_note" class="form-label mt-2 mb-1">ひと言（任意）</label>
+        <input type="text" id="unusual_note" name="unusual_note" class="form-control" maxlength="200" disabled>
+    </div>
+    {% endif %}
+
+    <div id="lost-customers-block" class="mb-3 d-none">
+        <label for="lost_customers" class="form-label">完売後に買えなかったお客さん（だいたい・任意）</label>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-secondary dr-btn-44" data-lost-step="-1" aria-label="人数を1減らす">−</button>
+            <input type="number" id="lost_customers" name="lost_customers" class="form-control dr-num" min="0" max="99" inputmode="numeric" disabled>
+            <span>人くらい</span>
+            <button type="button" class="btn btn-outline-secondary dr-btn-44" data-lost-step="1" aria-label="人数を1増やす">＋</button>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6">
+            <fieldset>
+                <legend class="dr-legend">販売中の天気（任意）</legend>
+                <div class="dr-hint">11〜13時頃</div>
+                <div class="dr-choice-col">
+                    {% include "includes/dr_choice_group.html" with name="weather_during_sales" choices=weather_choices type="radio" selected=q_selected_weather %}
+                </div>
+            </fieldset>
+        </div>
+        <div class="col-6">
+            <fieldset>
+                <legend class="dr-legend">体感気温（任意）</legend>
+                <div class="dr-hint">売場で感じた暑さ寒さ</div>
+                <div class="dr-choice-col">
+                    {% include "includes/dr_choice_group.html" with name="feels" choices=feels_choices type="radio" selected=q_selected_feels %}
+                </div>
+            </fieldset>
+        </div>
+    </div>
+    <p class="dr-hint">メニューの声は「お弁当一覧」の人気／不人気にチェック</p>
+    <div class="mb-3">
+        <label for="comment" class="form-label">コメント（来客状況やお客様からの要望など売場の情報）</label>
+        <textarea id="comment" name="comment" class="form-control" rows="3" placeholder="コメントを入力してください"></textarea>
+    </div>
+
+    <h3 class="dr-subhead">明日以降の連絡事項や食数</h3>
+    <p class="form-label mb-1">明日以降の食数（任意・幅でもOK）</p>
+    <div id="plan-rows"></div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <button type="button" id="add-plan-row" class="btn btn-outline-secondary dr-btn-44">＋ 日を足す</button>
+        <span id="plan-full-msg" class="dr-hint d-none">2週間先まで書けます</span>
+    </div>
+    <details class="mb-3">
+        <summary>書き方の例</summary>
+        <ul class="dr-hint mt-1 mb-0">
+            <li>40だけ書く → 食数の左に 40</li>
+            <li>だいたい40〜45 → 左に 40・右に 45</li>
+            <li>会社から10個頼まれている → 取置き 10</li>
+            <li>雨なら少なめ → 雨なら 38</li>
+            <li>数字が決められない → 下のメモだけでOK</li>
+            <li>前に書かれた数と違うときは、そのまま書き直せば新しい数が使われます</li>
+        </ul>
+    </details>
+    <div class="mb-3">
+        <label for="food_count_setting" class="form-label">明日の食数のメモ（理由など・任意）</label>
+        <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="例：水曜は新メニューなので多めに／サバ12個ほしい"></textarea>
+    </div>
+
+    <p class="form-label mb-1">明日以降の予定（分かれば・任意）</p>
+    {% for e in q_events %}
+        <p class="dr-hint mb-1">この店の予定：{{ e.target_date|date:"n/j" }} {{ e.note }}</p>
+    {% endfor %}
+    <div id="event-rows"></div>
+    <button type="button" id="add-event-row" class="btn btn-outline-secondary dr-btn-44 mb-3">＋ 予定を書く</button>
+
+    <template id="plan-row-template">
+        <div class="card dr-plan-row">
+            <div class="card-body">
+                <div class="dr-plan-head">
+                    <select name="plan_date" class="form-select dr-plan-date" aria-label="食数を書く日"></select>
+                    <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">食数</span>
+                    <input type="number" name="plan_qty_min" class="form-control dr-num" min="0" max="999" inputmode="numeric" aria-label="食数">
+                    〜
+                    <input type="number" name="plan_qty_max" class="form-control dr-num" min="0" max="999" inputmode="numeric" aria-label="食数（幅のときの多いほう）">
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">取置き</span>
+                    <input type="number" name="plan_kept" class="form-control dr-num" min="0" max="999" inputmode="numeric" aria-label="取置き">
+                </div>
+                <div class="dr-plan-field">
+                    <span class="dr-plan-label">雨なら</span>
+                    <input type="number" name="plan_rain_min" class="form-control dr-num" min="0" max="999" inputmode="numeric" aria-label="雨なら">
+                    〜
+                    <input type="number" name="plan_rain_max" class="form-control dr-num" min="0" max="999" inputmode="numeric" aria-label="雨なら（幅のときの多いほう）">
+                </div>
+                <p class="dr-hint dr-plan-written d-none"></p>
+            </div>
+        </div>
+    </template>
+    <template id="event-row-template">
+        <div class="dr-event-row">
+            <input type="date" name="event_date" class="form-control" aria-label="予定の日">
+            <input type="text" name="event_note" class="form-control" maxlength="40" placeholder="例：ビルの点検で人が少ないらしい" aria-label="予定のひと言">
+            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
+        </div>
+    </template>
+</div>

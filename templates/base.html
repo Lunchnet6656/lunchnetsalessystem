@@ -241,6 +241,9 @@
                         <a href="{% url 'meal_forecast' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-chart-line"></i> 食数予測（仕込みの目安）
                         </a>
+                        <a href="{% url 'daily_report_questions' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-sliders-h"></i> 日計表の質問の設定
+                        </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_menu_history %}
                         <a href="{% url 'menu_history' %}" class="list-group-item list-group-item-action">

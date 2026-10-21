@@ -13,6 +13,7 @@ from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, known_codes, pattern_of
 from sales.price_admin import assignable_patterns
 from sales import daily_report_calc as drc
+from sales import daily_questions_form as dqf
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
 from django.utils.http import url_has_allowed_host_and_scheme
 from sales.models import DiscountItem
@@ -907,6 +908,8 @@ def daily_report_view(request):
                         'comments': comment,
                         'food_count_setting': food_count_setting,
                         'submitted_by': request.user,
+                        **dqf.answer_fields(request.POST, service, report_date, total_sales_quantity,
+                                            total_remaining, sold_out_time, user=request.user),
                     }
                 )
                 # DailyReportEntryの作成または更新
@@ -932,6 +935,7 @@ def daily_report_view(request):
                 # 現在のitem_dataに存在しない古いエントリを削除
                 report.entries.exclude(product_no__in=processed_product_nos).delete()
                 save_lines(report, discount_lines)
+                dqf.save_plans_and_events(report, request.POST, selected_location, report_date)
         else:
             context = {
                 'dates': dates,
@@ -949,6 +953,7 @@ def daily_report_view(request):
                 'comment': comment,
                 'food_count_setting': food_count_setting,
                 'unique_prices': unique_prices,
+                **(dqf.input_context(service, report_date) if report_date else {}),
                 **_discount_context(service, discount_fields, bento_prices, [
                     drc.EntryRow(it['menu_no'], it['price'], it['quantity'], it['quantity'],
                                  is_large=not it['is_bento'])
@@ -1305,6 +1310,7 @@ def _attach_derived_prices(entries, product_prices):
 @staff_member_required
 def daily_report_edit(request, pk):
     report = get_object_or_404(DailyReport, pk=pk)
+    legacy_weather, legacy_temp = dqf.legacy_weather_temp(report)
     entries, product_prices = _prepare_report_pricing(report)
     entries = list(entries)
     unique_prices = _attach_derived_prices(entries, product_prices)
@@ -1320,9 +1326,11 @@ def daily_report_edit(request, pk):
             with transaction.atomic():
                 report = form.save(commit=False)
                 discount_lines = _apply_edit_totals(request, report, entries, discount_fields)
+                dqf.apply_edit_answers(report, request.POST, legacy_weather, legacy_temp)
                 report.save()
                 _save_report_entries(request, entries, product_prices)
                 save_lines(report, discount_lines)
+                dqf.save_plans_and_events(report, request.POST, report.location, report.date)
             messages.success(request, "更新されました")
             return redirect('daily_report_detail', date=report.date)
         else:
@@ -1367,6 +1375,7 @@ def daily_report_edit(request, pk):
         'entries': entries,
         'unique_prices': unique_prices,
         **discount_context,
+        **dqf.edit_context(report),
         'field_thread_pairs': field_thread_pairs,
         'emoji_choices': ['👍', '❤️', '😊', '👏', '🎉'],
     })
@@ -1378,6 +1387,7 @@ def daily_report_edit_rol(request, pk):
     # pk書き換えによる他人の日計表の編集を防ぐ。管理者は全件可、一般従業員は自分の提出分のみ
     if not (request.user.is_staff or is_report_owner(request.user, report)):
         raise PermissionDenied("この日計表を編集する権限がありません。")
+    legacy_weather, legacy_temp = dqf.legacy_weather_temp(report)
     entries, product_prices = _prepare_report_pricing(report)
 
     entries = list(entries)
@@ -1394,9 +1404,11 @@ def daily_report_edit_rol(request, pk):
                 with transaction.atomic():
                     report = form.save(commit=False)
                     discount_lines = _apply_edit_totals(request, report, entries, discount_fields)
+                    dqf.apply_edit_answers(report, request.POST, legacy_weather, legacy_temp)
                     report.save()
                     _save_report_entries(request, entries, product_prices)
                     save_lines(report, discount_lines)
+                    dqf.save_plans_and_events(report, request.POST, report.location, report.date)
                 messages.success(request, "更新されました")
                 return redirect('daily_report_detail_rol')
             except Exception as e:
@@ -1460,6 +1472,7 @@ def daily_report_edit_rol(request, pk):
         'entries': entries,
         'unique_prices': unique_prices,
         **discount_context,
+        **dqf.edit_context(report),
         'text_messages': text_messages,
         'field_thread_pairs': [
             ('comments', 'コメント', text_messages_comments),
@@ -2297,6 +2310,27 @@ CSV_ENTRY_SLOTS = 11  # 日計表CSVの商品枠数（ヘッダーの商品名1�
 CSV_ENTRY_COLS = 9    # 1商品あたりの列数
 
 
+# 売場の様子（2026-10 追加）。割引の追加列のさらに後ろに出す（既存列の位置を動かさない）
+SITUATION_CSV_HEADER = ['販売中の天気', '体感（選択）', '判定', 'ふだんの販売数', '気づいたこと', 'ひと言',
+                        '買えなかった人数', 'いつもの担当', '雨量(11-13時)', '気温(11-13時)', '体感温度(11-13時)',
+                        '風速(11-13時)', '降雪(11-13時)']
+
+
+def _csv_situation(report):
+    labels = dict(DailyReport.WEATHER_CHOICES)
+    feels = dict(DailyReport.FEELS_CHOICES)
+    kinds = dict(DailyReport.UNUSUAL_CHOICES)
+    regular = {True: 'はい', False: 'いいえ'}.get(report.staff_is_regular, '')
+    return [labels.get(report.weather_during_sales, ''), feels.get(report.feels, ''),
+            kinds.get(report.unusual_kind, '') if report.usual_sales is not None or report.unusual_kind else '',
+            report.usual_sales if report.usual_sales is not None else '',
+            '／'.join(report.unusual_reasons or []), report.unusual_note,
+            report.lost_customers if report.lost_customers is not None else '', regular,
+            *['' if v is None else v for v in (report.auto_lunch_precip, report.auto_lunch_temp,
+                                                report.auto_lunch_feels, report.auto_lunch_wind,
+                                                report.auto_lunch_snow)]]
+
+
 # CSVダウンロード機能(allreport)
 @menu_permission_required('can_view_daily_report_list')
 def download_csv_allreport(request):
@@ -2342,7 +2376,7 @@ def download_csv_allreport(request):
     # 割引設定で後から足した項目は、内訳列のさらに後ろに作った順で列を足す（一度出した列は消さない）
     extra_labels = list(dict.fromkeys(
         DiscountItem.objects.filter(legacy_field='').order_by('id').values_list('csv_label', flat=True)))
-    header = header + extra_labels
+    header = header + extra_labels + SITUATION_CSV_HEADER
 
     # ヘッダーを書き込む
     writer.writerow(header)
@@ -2434,7 +2468,8 @@ def download_csv_allreport(request):
 
         # 1行にまとめて書き込む（末尾の追加列はヘッダーの並びと合わせる）
         writer.writerow(row + entry_data + [report.coupon_type_750, report.service_type_750]
-                        + _csv_breakdowns(report) + _csv_extra_items(report, extra_labels))
+                        + _csv_breakdowns(report) + _csv_extra_items(report, extra_labels)
+                        + _csv_situation(report))
 
     return response
 
@@ -3332,6 +3367,15 @@ def _latest_comments(names, today):
     return latest
 
 
+def _plan_comment(plan):
+    """現場が日計表に書いた「明日以降の食数」を、現場のひと言の列の形にする。"""
+    if plan is None:
+        return None
+    memo = (plan.report.food_count_setting or "").strip() if plan.report_id else ""
+    return {"date": plan.written_on, "text": memo, "num": plan.qty_label or None,
+            "kept": plan.kept, "rain_num": plan.rain_label or None}
+
+
 DRAFT_FLAG_PCT = 0.15   # 下書きと予測がこれ以上違えば「要確認」
 DRAFT_FLAG_MIN = 5      # かつ、これ以上の食数の差
 
@@ -3374,7 +3418,12 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     loc_info = {name.strip(): (t, area) for name, t, area in
                 SalesLocation.objects.values_list("name", "type", "weather_area")}
     comments = _latest_comments(list(active), today)
-    from sales.models import QuantityDraft
+    from sales.daily_questions_form import latest_plans
+    from sales.models import QuantityDraft, StoreEvent
+    plans = {name: latest_plans(name, target_dates) for name in active}
+    events = {}
+    for e in StoreEvent.objects.filter(target_date__in=target_dates, location__in=list(active)):
+        events.setdefault((e.target_date, e.location.strip()), []).append(e.note)
     drafts = {(d, name.strip()): q for d, name, q in
               QuantityDraft.objects.filter(target_date__in=target_dates).values_list("target_date", "location", "quantity")}
 
@@ -3418,10 +3467,13 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "trend_pct": None if p["trend"] is None else int(round(p["trend"] * 100)),
                 "third_pct": None if eff is None else int(round(eff * 100)),
                 "third_label": THIRD_LABELS[third],
-                "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"]} for r in same[-3:]][::-1],
+                "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"], "lost": r.get("lost")}
+                          for r in same[-3:]][::-1],
                 "avg_rem": round(sum(r["rem"] for r in same[-4:]) / len(same[-4:]), 1) if same else 0,
                 "sold_out_pct": int(round(sum(r["sold_out"] for r in recent10) / len(recent10) * 100)),
-                "comment": None if not comment else {"date": comment[0], "text": comment[1], "num": num},
+                "comment": _plan_comment(plans.get(name, {}).get(td)) or (
+                    None if not comment else {"date": comment[0], "text": comment[1], "num": num}),
+                "events": events.get((td, name), []),
                 "draft": draft_info,
             })
         locs.sort(key=lambda x: -x["pred"])
@@ -3430,7 +3482,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
         forecast_days.append({
             "date": td, "weekday": FORECAST_WEEKDAY_JA[wd], "locs": locs,
             "total": sum(l["pred"] for l in locs), "base_total": sum(l["base"] for l in locs),
-            "rainy": rainy, "third_label": THIRD_LABELS[third], "show_comments": n_day == 0,
+            "rainy": rainy, "third_label": THIRD_LABELS[third], "show_comments": True,
             "has_draft": bool(with_draft),
             "draft_total": sum(l["draft"]["draft"] for l in with_draft),
             "draft_flags": sum(1 for l in with_draft if l["draft"]["flag"]),

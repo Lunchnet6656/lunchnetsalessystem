@@ -9,7 +9,7 @@
 <link href="{% static 'css/daily_report_shared.css' %}" rel="stylesheet">
 <div class="container mt-4">
 <h1>日計表明細・編集</h1>
-<form method="POST" class="mb-4">
+<form method="POST" class="mb-4" id="report-edit-form">
     {% csrf_token %}
     <h2 class="bg-dark text-white mt-4">販売場所情報</h2>
     <div class="row mb-3">
@@ -34,14 +34,6 @@
       <div class="col">
           <label for="person_in_charge">担当者:</label>
           <input type="text" id="person_in_charge" class="form-control" name="person_in_charge" value="{{ report.person_in_charge }}">
-      </div>
-      <div class="col">
-          <label for="weather">天気:</label>
-          <input type="text" id="weather" class="form-control" name="weather" value="{{ report.weather }}">
-      </div>
-      <div class="col">
-          <label for="temp">体感気温:</label>
-          <input type="text" id="temp" class="form-control" name="temp" value="{{ report.temp }}">
       </div>
     </div>
     <h2 class="bg-dark text-white mt-4">お弁当一覧</h2>
@@ -292,13 +284,15 @@
             </div>
         </div>
 
+        {% include "includes/daily_report_situation_edit.html" %}
+
         <h2 class="bg-dark text-white mt-4">コメント</h2>
         <div class="mb-3">
             <label for="comments">コメント:</label>
             <textarea id="comments" class="form-control" name="comments">{{ report.comments }}</textarea>
         </div>
         <div class="mb-3">
-            <label for="food_count_setting">明日の食数設定:</label>
+            <label for="food_count_setting">明日の食数のメモ（理由など）:</label>
             <textarea id="food_count_setting" class="form-control" name="food_count_setting">{{ report.food_count_setting }}</textarea>
         </div>
 
@@ -341,6 +335,7 @@
 {% block extra_js %}
 {% load static %}
 <script src="{% static 'js/script.js' %}"></script>
+<script src="{% static 'js/daily_report_situation_edit.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 既存データから初期計算を実行

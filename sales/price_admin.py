@@ -423,7 +423,7 @@ def plan_add(post, today):
     if errors:
         return errors, None
     sentence = (f"{md(start)}から、日計表の『{GROUP_TITLES[group]}』に『{label}（{yen(amount, direction)}）』の欄が追加されます。"
-                f"日計表送信データ（CSV）の末尾に『{label}』の列が追加されます。")
+                f"日計表送信データ（CSV）の内訳列の後ろに『{label}』の列が追加されます。")
     return [], {"action": "add", "group": group, "label": label, "direction": direction, "amount": amount,
                 "valid_from": start, "sentence": sentence,
                 "summary": f"項目「{label}（{yen(amount, direction)}）」を追加しました（{GROUP_TITLES[group]}・{md(start)}から）"}

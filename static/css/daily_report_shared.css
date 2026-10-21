@@ -42,3 +42,178 @@
     font-size: 0.9rem;
     margin: 0.25rem 0 0.5rem;
 }
+
+/* ===== 売場の様子（選択肢ボタン・明日以降の食数）入力フォーム・編集画面で共通 ===== */
+.dr-choice-col {
+    display: grid;
+    gap: 6px;
+}
+.dr-choice-col .dr-choice {
+    max-width: 240px;
+    width: 100%;
+}
+.dr-choice-list {
+    display: grid;
+    gap: 6px;
+}
+@media (min-width: 768px) {
+    .dr-choice-list--2 {
+        grid-template-columns: 1fr 1fr;
+    }
+    .dr-choice-list--2 .dr-choice-sep,
+    .dr-choice-list--2 .dr-choice-none {
+        grid-column: 1 / -1;
+    }
+}
+.dr-choice {
+    min-height: 44px;
+    white-space: normal;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.dr-choice-multi {
+    justify-content: flex-start;
+    text-align: left;
+}
+.btn-check:checked + .dr-choice {
+    font-weight: bold;
+}
+.btn-check:checked + .dr-choice-multi::before {
+    content: "✓";
+    margin-right: 0.4em;
+}
+.dr-choice-sep {
+    margin: 4px 0;
+    border-color: var(--ln-color-border);
+    opacity: 1;
+}
+.dr-hint {
+    color: var(--ln-color-text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+.dr-legend {
+    font-size: 1rem;
+    margin-bottom: 0;
+}
+.dr-num {
+    width: 72px;
+    min-height: 44px;
+    font-size: 16px;
+    text-align: center;
+}
+.dr-btn-44 {
+    min-height: 44px;
+    min-width: 44px;
+}
+.dr-plan-row {
+    margin-bottom: 8px;
+}
+.dr-plan-row .card-body {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+}
+.dr-plan-head {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+}
+.dr-plan-head select {
+    max-width: 180px;
+    min-height: 44px;
+    font-size: 16px;
+}
+.dr-plan-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.dr-plan-label {
+    width: 4em;
+    flex: none;
+}
+.dr-plan-written {
+    margin: 0;
+}
+@media (min-width: 992px) {
+    .dr-plan-row .card-body {
+        grid-template-columns: 180px auto auto auto 1fr;
+        align-items: center;
+    }
+    .dr-plan-head {
+        display: contents;
+    }
+    .dr-plan-head .dr-row-del {
+        grid-column: 5;
+        grid-row: 1;
+        justify-self: end;
+    }
+    .dr-plan-label {
+        width: auto;
+    }
+    .dr-plan-written {
+        grid-column: 1 / -1;
+    }
+}
+.dr-event-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.dr-event-row input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 170px;
+    min-height: 44px;
+    font-size: 16px;
+}
+.dr-event-row input[type="text"] {
+    flex: 1 1 200px;
+    min-height: 44px;
+    font-size: 16px;
+}
+.dr-nav-dot {
+    position: absolute;
+    top: 4px;
+    right: 18%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ln-color-danger);
+}
+.dr-choice-list > legend {
+    grid-column: 1 / -1;
+}
+
+/* ===== 日計表の質問の設定（/daily-report-questions/） ===== */
+.dq-time { width: 130px; min-height: 44px; font-size: 16px; }
+.dq-row { display: grid; grid-template-columns: 1.6em 1fr; gap: 6px; align-items: center; margin-bottom: 8px; }
+.dq-row .dq-btns, .dq-row .dq-deleted, .dq-row .dq-error { grid-column: 2; margin: 0; }
+.dq-row input { min-height: 44px; font-size: 16px; }
+.dq-num { color: var(--ln-color-text-muted); text-align: right; }
+.dq-row.is-deleted input { text-decoration: line-through; color: var(--ln-color-text-muted); }
+@media (min-width: 992px) {
+    .dq-row { grid-template-columns: 1.6em 1fr auto; }
+    .dq-row .dq-btns { grid-column: 3; grid-row: 1; }
+    .dq-row .dq-deleted { grid-column: 3; grid-row: 1; }
+}
+@media (max-width: 991.98px) {
+    .dq-save { width: 100%; }
+}
+
+/* 一時保存（日計表の入力・この端末に残す） */
+.dr-tempsave {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 12px;
+}
+.dr-tempsave .dr-hint {
+    white-space: nowrap;
+}

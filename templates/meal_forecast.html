@@ -97,7 +97,7 @@
                             <th class="text-end">曜日の癖</th>
                             <th class="text-center">月内のクセ</th>
                             <th class="text-end">直近の流れ</th>
-                            {% if day.show_comments %}<th>現場のひと言（前日の日計表）</th>{% endif %}
+                            {% if day.show_comments %}<th>現場のひと言（日計表）</th>{% endif %}
                             <th>同じ曜日の実績（新→古）</th>
                             <th class="text-end">完売率</th>
                             <th class="text-end">平均残</th>
@@ -106,7 +106,9 @@
                     <tbody>
                         {% for l in day.locs %}
                         <tr>
-                            <td><strong>{{ l.name }}</strong></td>
+                            <td><strong>{{ l.name }}</strong>
+                                {% for note in l.events %}<div class="small text-muted"><i class="fas fa-calendar-day me-1" aria-hidden="true"></i>予定：{{ note }}</div>{% endfor %}
+                            </td>
                             <td class="text-muted small">{{ l.type }}{% if l.area != '東京' %}<div>{{ l.area }}</div>{% endif %}</td>
                             <td class="text-end">
                                 <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
@@ -133,13 +135,18 @@
                             <td class="small" style="max-width:16rem">
                                 {% if l.comment %}
                                     {% if l.comment.num %}<span class="badge bg-primary fs-6 me-1">{{ l.comment.num }}</span>{% endif %}
-                                    <span class="text-muted">{{ l.comment.text|truncatechars:40 }}</span>
+                                    {% if l.comment.kept is not None %}<span class="small me-1">取置き{{ l.comment.kept }}</span>{% endif %}
+                                    {% if l.comment.rain_num %}
+                                        {% if l.rain_pct %}<div><span class="badge bg-warning text-dark"><i class="fas fa-umbrella me-1" aria-hidden="true"></i>雨なら{{ l.comment.rain_num }}</span></div>
+                                        {% else %}<div class="text-muted">雨なら{{ l.comment.rain_num }}</div>{% endif %}
+                                    {% endif %}
+                                    {% if l.comment.text %}<div class="text-muted">{{ l.comment.text|truncatechars:40 }}</div>{% endif %}
                                     <div class="text-muted" style="font-size:.75rem">{{ l.comment.date|date:'n/j' }}の日計表</div>
                                 {% else %}<span class="text-muted">—</span>{% endif %}
                             </td>
                             {% endif %}
                             <td class="text-muted small">
-                                {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% endif %}{% if not forloop.last %}　/　{% endif %}{% endfor %}
+                                {% for x in l.last3 %}{{ x.date|date:'n/j' }}:{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% if x.lost %}<span class="small ms-1">買えず{{ x.lost }}</span>{% endif %}{% endif %}{% if not forloop.last %}　/　{% endif %}{% endfor %}
                             </td>
                             <td class="text-end small {% if l.sold_out_pct >= 60 %}text-primary fw-bold{% else %}text-muted{% endif %}">{{ l.sold_out_pct }}%</td>
                             <td class="text-end {% if l.avg_rem >= 6 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ l.avg_rem }}食</td>
