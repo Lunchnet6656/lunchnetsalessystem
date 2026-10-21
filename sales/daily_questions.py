@@ -86,7 +86,7 @@ def _percentile(values, pct):
 
 
 def usual_for(location_name, before_date, one_in=10):
-    """{usual: ふだんの販売数, threshold: これ以下の比なら「売れなかった」}。データが足りなければ None。"""
+    """{usual: ふだんの販売数（中央値）, avg: 平均（画面の表示用）, threshold: これ以下の比なら「売れなかった」}。データが足りなければ None。"""
     rows = list(
         DailyReport.objects
         .filter(location=location_name, date__lt=before_date, date__gte=before_date - timedelta(days=200),
@@ -101,11 +101,13 @@ def usual_for(location_name, before_date, one_in=10):
     usual = sorted(recent)[len(recent) // 2]
     if usual <= 0:
         return None
+    # 判定は外れ値に強い中央値で行い、画面には分かりやすい平均を出す
+    avg = round(sum(recent) / len(recent))
     ratios = [s / usual for s in not_sold_out[:RATIO_SAMPLES]]
     threshold = _percentile(ratios, 1 / max(one_in, 2))
     lo, hi = THRESHOLD_CLIP
     threshold = min(max(threshold if threshold is not None else 0.8, lo), hi)
-    return {"usual": usual, "threshold": round(threshold, 3)}
+    return {"usual": usual, "avg": avg, "threshold": round(threshold, 3)}
 
 
 def judge(sold, remaining, sold_out_time, usual_info, early_before):

@@ -697,7 +697,7 @@ function updateUnusualBlock() {
         if (currentUnusual === 'low') {
             // 「売れなかった」と言い切らず聞く形にする（販売員を評価している感じを出さない）
             heading.textContent = 'いつもと違うことはありましたか？';
-            detail.textContent = '今日' + bentoTotals().sold + '食（いつもは約' + c.usual + '食）';
+            detail.textContent = '今日' + bentoTotals().sold + '食（平均' + (c.avg || c.usual) + '食）';
         } else if (currentUnusual === 'early') {
             // 基準の時刻は出さない（質問を避けようと完売時間をずらして入れないように）
             heading.textContent = 'いつもと違うことはありましたか？';

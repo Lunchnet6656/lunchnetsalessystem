@@ -93,6 +93,7 @@ def input_context(location, report_date, report=None):
                   .order_by("target_date", "created_at")[:3]) if location else []
     js = {
         "usual": usual["usual"] if usual else None,
+        "avg": usual["avg"] if usual else None,
         "threshold": usual["threshold"] if usual else None,
         "earlyBefore": setting.early_before.strftime("%H:%M"),
         "group": group,

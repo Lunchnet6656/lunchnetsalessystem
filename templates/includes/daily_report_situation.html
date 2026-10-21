@@ -54,11 +54,13 @@
         </div>
     </div>
     <p class="dr-hint">メニューの声は「お弁当一覧」の人気／不人気にチェック</p>
+    <hr class="dr-sep">
     <div class="mb-3">
         <label for="comment" class="form-label">コメント（来客状況やお客様からの要望など売場の情報）</label>
         <textarea id="comment" name="comment" class="form-control" rows="3" placeholder="コメントを入力してください"></textarea>
     </div>
 
+    <hr class="dr-sep">
     <h3 class="dr-subhead">明日以降の連絡事項や食数</h3>
     <p class="form-label mb-1">明日以降の食数（任意・幅でもOK）</p>
     <div id="plan-rows"></div>
@@ -77,11 +79,13 @@
             <li>前に書かれた数と違うときは、そのまま書き直せば新しい数が使われます</li>
         </ul>
     </details>
+    <hr class="dr-sep">
     <div class="mb-3">
         <label for="food_count_setting" class="form-label">明日の食数のメモ（理由など・任意）</label>
         <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="例：水曜は新メニューなので多めに／サバ12個ほしい"></textarea>
     </div>
 
+    <hr class="dr-sep">
     <p class="form-label mb-1">明日以降の予定（分かれば・任意）</p>
     {% for e in q_events %}
         <p class="dr-hint mb-1">この店の予定：{{ e.target_date|date:"n/j" }} {{ e.note }}</p>

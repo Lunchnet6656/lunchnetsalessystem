@@ -217,3 +217,11 @@
 .dr-tempsave .dr-hint {
     white-space: nowrap;
 }
+
+/* 売場の様子の中の区切り（コメント・食数・メモ・予定の間） */
+.dr-sep {
+    border: 0;
+    border-top: 1px solid var(--ln-color-border);
+    opacity: 1;
+    margin: 16px 0;
+}
