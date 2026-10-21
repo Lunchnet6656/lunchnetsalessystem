@@ -218,10 +218,17 @@
     white-space: nowrap;
 }
 
-/* 売場の様子の中の区切り（コメント・食数・メモ・予定の間） */
-.dr-sep {
-    border: 0;
-    border-top: 1px solid var(--ln-color-border);
-    opacity: 1;
-    margin: 16px 0;
+/* 売場の様子：項目ごとに1枚のカードにして区切る */
+.dr-block {
+    background: var(--ln-color-white);
+    border: 1px solid var(--ln-color-border);
+    box-shadow: var(--bs-box-shadow-sm);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+.dr-block-title {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
 }
