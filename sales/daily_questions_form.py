@@ -190,6 +190,9 @@ def save_plans_and_events(report, post, location_name, report_date):
             target_date=target, location=location_name, qty_min=qmin, qty_max=qmax, kept=kept,
             rain_min=rmin, rain_max=rmax, report=report, written_on=report_date)
 
+    # 予定の欄は画面から外した（食数メモに統合）。欄が送られてこないときは、既にある予定を消さない
+    if "event_date" not in post:
+        return
     report.store_events.all().delete()
     last = report_date + timedelta(days=dq.EVENT_DAYS_AHEAD)
     for d, note in zip(post.getlist("event_date"), post.getlist("event_note")):

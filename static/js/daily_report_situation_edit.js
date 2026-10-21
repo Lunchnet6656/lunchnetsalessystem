@@ -45,7 +45,8 @@
         row.querySelector('[name="plan_qty_min"]').focus();
     });
 
-    document.getElementById('add-event-row').addEventListener('click', function() {
+    var addEvent = document.getElementById('add-event-row');
+    if (addEvent) addEvent.addEventListener('click', function() {
         var box = document.getElementById('event-rows');
         var row = document.getElementById('event-row-template').content.firstElementChild.cloneNode(true);
         var date = row.querySelector('input[type="date"]');

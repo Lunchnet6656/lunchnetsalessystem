@@ -74,18 +74,6 @@
     </div>
     <button type="button" id="add-plan-row" class="btn btn-outline-secondary dr-btn-44 mb-3">＋ 日を足す</button>
 
-    <p class="mb-1">この日計表で書かれた予定</p>
-    <div id="event-rows" data-min="{{ q_event_min }}" data-max="{{ q_event_max }}">
-        {% for e in q_events %}
-        <div class="dr-event-row">
-            <input type="date" name="event_date" class="form-control" min="{{ q_event_min }}" max="{{ q_event_max }}" value="{{ e.target_date|date:'Y-m-d' }}" aria-label="予定の日">
-            <input type="text" name="event_note" class="form-control" maxlength="40" value="{{ e.note }}" aria-label="予定のひと言">
-            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
-        </div>
-        {% endfor %}
-    </div>
-    <button type="button" id="add-event-row" class="btn btn-outline-secondary dr-btn-44 mb-3">＋ 予定を書く</button>
-
     <template id="plan-row-template">
         <div class="card dr-plan-row">
             <div class="card-body">
@@ -110,13 +98,6 @@
                     <input type="number" name="plan_rain_max" class="form-control dr-num" min="0" max="999" aria-label="雨なら（幅のときの多いほう）">
                 </div>
             </div>
-        </div>
-    </template>
-    <template id="event-row-template">
-        <div class="dr-event-row">
-            <input type="date" name="event_date" class="form-control" aria-label="予定の日">
-            <input type="text" name="event_note" class="form-control" maxlength="40" aria-label="予定のひと言">
-            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
         </div>
     </template>
 </div>

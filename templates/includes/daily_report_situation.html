@@ -76,24 +76,27 @@
             <li>だいたい40〜45 → 左に 40・右に 45</li>
             <li>会社から10個頼まれている → 取置き 10</li>
             <li>雨なら少なめ → 雨なら 38</li>
-            <li>数字が決められない → 下のメモだけでOK</li>
+            <li>数字が決められない・予定だけ伝えたい → 下のメモだけでOK</li>
             <li>前に書かれた数と違うときは、そのまま書き直せば新しい数が使われます</li>
         </ul>
     </details>
     </div>
     <div class="dr-block">
-        <label for="food_count_setting" class="dr-block-title">明日の食数のメモ（理由など・任意）</label>
-        <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="例：水曜は新メニューなので多めに／サバ12個ほしい"></textarea>
+        <label for="food_count_setting" class="dr-block-title">明日以降の食数メモ（任意）</label>
+        <textarea id="food_count_setting" name="food_count_setting" class="form-control" rows="3" placeholder="例：10/28はビルの点検で人が少ないらしい"></textarea>
+        <details class="mt-1">
+            <summary>メモの例</summary>
+            <ul class="dr-hint mt-1 mb-0">
+                <li>水曜は新メニューなので多めに</li>
+                <li>サバを12個ほしい</li>
+                <li>10/28はビルの点検で人が少ないらしい</li>
+                <li>来週から近くのビルが改装で休みになる</li>
+                <li>11/5は近くでイベントがあるので多めでも売れそう</li>
+                <li>月末は会議が多く、お昼に出てこない人が増える</li>
+            </ul>
+        </details>
     </div>
 
-    <div class="dr-block">
-    <p class="dr-block-title">明日以降の予定（分かれば・任意）</p>
-    {% for e in q_events %}
-        <p class="dr-hint mb-1">この店の予定：{{ e.target_date|date:"n/j" }} {{ e.note }}</p>
-    {% endfor %}
-    <div id="event-rows"></div>
-    <button type="button" id="add-event-row" class="btn btn-outline-secondary dr-btn-44">＋ 予定を書く</button>
-    </div>
 
     <template id="plan-row-template">
         <div class="card dr-plan-row">
@@ -120,13 +123,6 @@
                 </div>
                 <p class="dr-hint dr-plan-written d-none"></p>
             </div>
-        </div>
-    </template>
-    <template id="event-row-template">
-        <div class="dr-event-row">
-            <input type="date" name="event_date" class="form-control" aria-label="予定の日">
-            <input type="text" name="event_note" class="form-control" maxlength="40" placeholder="例：ビルの点検で人が少ないらしい" aria-label="予定のひと言">
-            <button type="button" class="btn btn-outline-secondary btn-sm dr-btn-44 dr-row-del">✕ 消す</button>
         </div>
     </template>
 </div>
