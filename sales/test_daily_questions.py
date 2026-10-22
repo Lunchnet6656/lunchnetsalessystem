@@ -215,3 +215,15 @@ class SettingsViewTest(TestCase):
         s = DailyReportQuestionSetting.load()
         self.assertEqual((s.low_one_in, s.early_before), (20, datetime.time(12, 5)))
         self.assertEqual(dq.choices_for(s, "indoor", "low"), ["会議が多い日", dq.NO_QUESTION])
+
+
+class CsvTest(TestCase):
+    def test_plans_column(self):
+        from lunchnetsale.views import SITUATION_CSV_HEADER, _csv_plans
+        r = make_report("広尾", DAY, 40, 5)
+        StaffQuantityPlan.objects.create(target_date=datetime.date(2026, 10, 23), location="広尾", qty_min=50,
+                                         report=r, written_on=DAY)
+        StaffQuantityPlan.objects.create(target_date=datetime.date(2026, 10, 22), location="広尾", qty_min=40,
+                                         qty_max=45, kept=10, rain_min=38, report=r, written_on=DAY)
+        self.assertEqual(SITUATION_CSV_HEADER[-1], "明日以降の食数")
+        self.assertEqual(_csv_plans(r), "10/22:40〜45 取置き10 雨なら38 ／ 10/23:50")

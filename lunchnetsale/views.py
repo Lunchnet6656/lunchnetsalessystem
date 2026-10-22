@@ -2313,7 +2313,7 @@ CSV_ENTRY_COLS = 9    # 1商品あたりの列数
 # 売場の様子（2026-10 追加）。割引の追加列のさらに後ろに出す（既存列の位置を動かさない）
 SITUATION_CSV_HEADER = ['販売中の天気', '体感（選択）', '判定', 'ふだんの販売数', '気づいたこと', 'ひと言',
                         '買えなかった人数', 'いつもの担当', '雨量(11-13時)', '気温(11-13時)', '体感温度(11-13時)',
-                        '風速(11-13時)', '降雪(11-13時)']
+                        '風速(11-13時)', '降雪(11-13時)', '明日以降の食数']
 
 
 def _csv_situation(report):
@@ -2328,7 +2328,21 @@ def _csv_situation(report):
             report.lost_customers if report.lost_customers is not None else '', regular,
             *['' if v is None else v for v in (report.auto_lunch_precip, report.auto_lunch_temp,
                                                 report.auto_lunch_feels, report.auto_lunch_wind,
-                                                report.auto_lunch_snow)]]
+                                                report.auto_lunch_snow)],
+            _csv_plans(report)]
+
+
+def _csv_plans(report):
+    """1枚の日計表に何日分も書けるので1列にまとめる。例：10/22:40〜45 取置き10 雨なら38 ／ 10/23:50"""
+    parts = []
+    for p in sorted(report.quantity_plans.all(), key=lambda x: x.target_date):
+        text = f"{p.target_date.month}/{p.target_date.day}:{p.qty_label or '—'}"
+        if p.kept is not None:
+            text += f" 取置き{p.kept}"
+        if p.rain_label:
+            text += f" 雨なら{p.rain_label}"
+        parts.append(text)
+    return ' ／ '.join(parts)
 
 
 # CSVダウンロード機能(allreport)
@@ -2387,7 +2401,7 @@ def download_csv_allreport(request):
     search_location = request.GET.get('search_location')
     search_person = request.GET.get('search_person')
 
-    reports = DailyReport.objects.all().prefetch_related('entries', 'discount_lines__item')
+    reports = DailyReport.objects.all().prefetch_related('entries', 'discount_lines__item', 'quantity_plans')
 
     if search_date_start and search_date_end:
         start_date = datetime.strptime(search_date_start, '%Y-%m-%d')
