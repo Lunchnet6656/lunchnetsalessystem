@@ -389,3 +389,40 @@ def card_view_state(card, just_stamped_pt=1):
                       if card and card.expires_on else None),
         "validity_days": StampConfig.get_solo().card_validity_days,
     }
+
+
+def coupons_used_at(location, on_date):
+    """その売場・その日に使われたクーポン（日計表の割引の参考表示用）。
+    使った売場は記録されないので、同じ日のスタンプの売場を確定、無ければ前回スタンプの売場を推定とする。
+    どちらも無いもの（売場不明）は含めない。売場にスタンプ記録が無ければ None（未導入の売場）。"""
+    if not StampLog.objects.filter(location=location).exists():
+        return None
+    tz = timezone.get_current_timezone()
+    start = timezone.make_aware(datetime.combine(on_date, time.min), tz)
+    rewards = list(Reward.objects.filter(status=Reward.STATUS_USED, used_at__gte=start,
+                                         used_at__lt=start + timedelta(days=1))
+                   .select_related("tier").order_by("used_at"))
+    card_ids = {r.card_id for r in rewards}
+    where = {cid: (loc, False) for cid, loc in
+             StampLog.objects.filter(card_id__in=card_ids, stamped_on=on_date).values_list("card_id", "location_id")}
+    rest = card_ids - set(where)
+    for cid, loc in (StampLog.objects.filter(card_id__in=rest, stamped_on__lt=on_date)
+                     .order_by("card_id", "-stamped_at").values_list("card_id", "location_id")):
+        where.setdefault(cid, (loc, True))
+
+    items, rows = [], {}
+    for r in rewards:
+        loc, estimated = where.get(r.card_id, (None, False))
+        if loc != location.id:
+            continue
+        label = reward_short_label(r.tier)
+        items.append({"time": timezone.localtime(r.used_at, tz).strftime("%H:%M"), "label": label,
+                      "estimated": estimated})
+        row = rows.setdefault(label, {"label": label, "count": 0, "estimated": 0, "order": r.tier.threshold_pt})
+        row["count"] += 1
+        row["estimated"] += int(estimated)
+    return {
+        "rows": sorted(rows.values(), key=lambda x: x["order"]),
+        "items": items,
+        "has_estimated": any(i["estimated"] for i in items),
+    }

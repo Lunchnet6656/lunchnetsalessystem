@@ -193,6 +193,7 @@
 
 
         <h2 class="bg-dark text-white mt-4">割引情報</h2>
+        {% include "includes/daily_report_stamp_coupons.html" %}
         {% include "includes/daily_report_discounts.html" %}
         {# サービスは今までどおり service_name・service_price に残す（CSVの互換） #}
         <input type="hidden" name="service_name" value="{% if service_mode %}{{ report.service_price }}{% else %}{{ report.service_name }}{% endif %}">

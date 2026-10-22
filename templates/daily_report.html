@@ -263,6 +263,7 @@
           <!--割引セクション-->
           <div id="discount-section">
                     <h2 class="bg-dark text-white mt-4">割引入力</h2>
+                    {% include "includes/daily_report_stamp_coupons.html" %}
                     {% include "includes/daily_report_discounts.html" %}
                     {% if service_mode %}
                     {# 日計表には今までどおりサービス価格を service_name に残す（CSVの「サービス名」列の互換） #}

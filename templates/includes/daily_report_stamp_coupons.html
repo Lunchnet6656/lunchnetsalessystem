@@ -1,0 +1,35 @@
+{% comment %}スタンプカードのクーポン利用（割引の参考表示・見せるだけ）。入力画面と編集画面2つで共通。
+  使った売場は記録されないので、同じ日のスタンプの売場＝確定／無ければ前回スタンプの売場＝推定（stamps.services.coupons_used_at）{% endcomment %}
+{% if stamp_coupons %}
+<div class="dr-block dr-stamp-coupons" id="stamp-coupon-block">
+    <div class="dr-stamp-head">
+        <span class="dr-block-title mb-0">スタンプカードのクーポン</span>
+        <span class="dr-hint mb-0" id="stamp-coupon-date">{{ sc_date_label }}</span>
+    </div>
+    {% if stamp_coupons.error %}
+        <p class="dr-hint mb-0" id="stamp-coupon-error">クーポンの件数を表示できません</p>
+    {% elif not stamp_coupons.rows %}
+        <p class="dr-hint mb-0">なし</p>
+    {% else %}
+        {% for row in stamp_coupons.rows %}
+        <div class="dr-stamp-row stamp-coupon-row" data-kind="{{ row.label }}">
+            <span>{{ row.label }}</span>
+            <span>{% if row.estimated %}<span class="dr-hint me-2">うち推定{{ row.estimated }}</span>{% endif %}<span class="fw-bold">{{ row.count }}件</span></span>
+        </div>
+        {% endfor %}
+        <details id="stamp-coupon-details"{% if sc_open %} open{% endif %}>
+            <summary>内訳</summary>
+            <ul class="list-unstyled mb-0 mt-1">
+                {% for i in stamp_coupons.items %}
+                <li class="stamp-coupon-item" data-estimated="{{ i.estimated|yesno:'1,0' }}">
+                    <span class="dr-hint me-2">{{ i.time }}</span>{{ i.label }}{% if i.estimated %}<span class="badge dr-badge-estimated ms-2">推定</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% if stamp_coupons.has_estimated %}
+        <p class="dr-hint mb-0 mt-1" id="stamp-coupon-note">推定：前回スタンプを押した売場で表示</p>
+        {% endif %}
+    {% endif %}
+</div>
+{% endif %}

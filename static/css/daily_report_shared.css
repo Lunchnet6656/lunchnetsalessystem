@@ -232,3 +232,36 @@
     font-weight: bold;
     margin-bottom: 6px;
 }
+
+/* スタンプカードのクーポン（割引の参考表示） */
+.dr-stamp-head,
+.dr-stamp-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+}
+.dr-stamp-head {
+    margin-bottom: 6px;
+}
+.dr-stamp-row {
+    padding: 2px 0;
+}
+.dr-badge-estimated {
+    background: var(--ln-color-white);
+    color: var(--ln-color-text-muted);
+    border: 1px solid var(--ln-color-border);
+    font-weight: normal;
+}
+@media (max-width: 339.98px) {
+    .dr-stamp-head {
+        flex-direction: column;
+        gap: 0;
+    }
+}
+@media (min-width: 1200px) {
+    .dr-stamp-coupons {
+        max-width: 400px;
+    }
+}

@@ -954,6 +954,7 @@ def daily_report_view(request):
                 'food_count_setting': food_count_setting,
                 'unique_prices': unique_prices,
                 **(dqf.input_context(service, report_date) if report_date else {}),
+                **_stamp_coupon_context(service, report_date),
                 **_discount_context(service, discount_fields, bento_prices, [
                     drc.EntryRow(it['menu_no'], it['price'], it['quantity'], it['quantity'],
                                  is_large=not it['is_bento'])
@@ -984,6 +985,20 @@ def daily_report_view(request):
         'service': service,
         'selected_person': selected_person  # first_nameを渡す
     })
+
+def _stamp_coupon_context(location, report_date, open_details=False):
+    """日計表の割引に出す「スタンプカードのクーポン」（見せるだけ）。失敗しても日計表は止めない。"""
+    if location is None or report_date is None:
+        return {}
+    from stamps.services import coupons_used_at
+    base = {'sc_date_label': dqf.day_label(report_date), 'sc_open': open_details}
+    try:
+        data = coupons_used_at(location, report_date)
+    except Exception:
+        logger.exception("スタンプのクーポン集計に失敗: %s %s", location, report_date)
+        return {**base, 'stamp_coupons': {'error': True}}
+    return {**base, 'stamp_coupons': data} if data is not None else {}
+
 
 def _discount_context(location, fields, bento_prices, rows, note='', layout='input'):
     """日計表の割引欄・値段ごとの販売数のテンプレート用の値（入力フォーム・編集画面で共通）。
@@ -1376,6 +1391,7 @@ def daily_report_edit(request, pk):
         'unique_prices': unique_prices,
         **discount_context,
         **dqf.edit_context(report),
+        **_stamp_coupon_context(SalesLocation.objects.filter(name=report.location).first(), report.date, True),
         'field_thread_pairs': field_thread_pairs,
         'emoji_choices': ['👍', '❤️', '😊', '👏', '🎉'],
     })
@@ -1473,6 +1489,7 @@ def daily_report_edit_rol(request, pk):
         'unique_prices': unique_prices,
         **discount_context,
         **dqf.edit_context(report),
+        **_stamp_coupon_context(SalesLocation.objects.filter(name=report.location).first(), report.date, True),
         'text_messages': text_messages,
         'field_thread_pairs': [
             ('comments', 'コメント', text_messages_comments),
