@@ -3431,7 +3431,8 @@ def _draft_comparison(draft, rows, pred):
 
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
-    from sales.meal_forecast import THIRD_LABELS, backtest, load_history, month_third, predict, third_effect
+    from sales.meal_forecast import (THIRD_LABELS, backtest, load_history, month_third, predict, rain_multiplier,
+                                     third_effect)
     from sales.weather import DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, rain_factor
 
     hist = load_history(today - timedelta(days=FORECAST_HISTORY_DAYS), today)
@@ -3464,6 +3465,10 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
         for area, (label, _, _) in WEATHER_AREAS.items()
     ]
 
+    # 店ごとの雨の強さ・弱さ（形態の補正に掛ける倍率）。日にちによらないので先に1回だけ計算する
+    rain_mult = {name: rain_multiplier(rows, loc_info.get(name, ("", DEFAULT_AREA))[0])
+                 for name, rows in active.items()}
+
     forecast_days = []
     for n_day, td in enumerate(target_dates):
         wd = td.weekday()
@@ -3476,7 +3481,8 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             sales_type, area = loc_info.get(name, ("", DEFAULT_AREA))
             wx = weather.get(area, {}).get(td.isoformat())
             level = wx["level"] if wx else None
-            factor = rain_factor(level, sales_type)
+            mult = rain_mult[name][0]
+            factor = rain_factor(level, sales_type) * (mult if level else 1.0)
             same = [r for r in rows if r["wd"] == wd]
             recent10 = rows[-10:]
             eff = third_effect(rows, third)
@@ -3493,6 +3499,9 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "base": int(p["pred"] + 0.5),                 # 雨がない場合
                 "pred": int(p["pred"] * factor + 0.5),        # 雨の補正込み（これを見る）
                 "rain": level, "rain_pct": int(round((factor - 1) * 100)),
+                # 「雨」の日の補正（形態×店の倍率）。形態の値から3%以上ずれた店だけ、店名の欄に出す
+                "rain_store_pct": int(round((rain_factor("雨", sales_type) * mult - 1) * 100)),
+                "rain_store_note": abs(mult - 1) >= 0.03,
                 "recent": int(p["recent"] + 0.5),
                 "weekday_pct": int(round((p["weekday_idx"] - 1) * 100)),
                 "trend_pct": None if p["trend"] is None else int(round(p["trend"] * 100)),

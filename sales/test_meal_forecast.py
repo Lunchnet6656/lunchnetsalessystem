@@ -118,3 +118,33 @@ class MonthThirdTests(TestCase):
         rows = [{"date": d, "wd": d.weekday(), "sold": 100, "rem": 5, "demand": 100.0, "sold_out": False}
                 for d in weekdays_before(TODAY, 240)]
         self.assertIsNone(third_effect(rows, 2))
+
+
+class RainMultiplierTest(TestCase):
+    """店ごとの雨の倍率：雨の日の実績から、形態ごとの雨の補正をどれだけ強める・弱めるか。"""
+
+    def rows(self, rain_ratio, rainy_every=7, n=60):  # 7おき＝雨の曜日が毎回変わる（曜日の癖に吸われない）
+        out, d = [], date(2026, 6, 1)
+        while len(out) < n:
+            if d.weekday() < 5:
+                rainy = len(out) % rainy_every == 0 and len(out) >= 10
+                sold = 50 * (rain_ratio if rainy else 1)
+                out.append({"date": d, "wd": d.weekday(), "sold": sold, "rem": 5, "demand": sold,
+                            "sold_out": False, "level": "雨" if rainy else None})
+            d += timedelta(days=1)
+        return out
+
+    def test_indoor_store_that_sells_more_on_rain(self):
+        from sales.meal_forecast import rain_multiplier
+        mult, n = rain_multiplier(self.rows(1.2), "室内")
+        self.assertGreater(mult, 1.05)
+        self.assertGreater(n, 5)
+
+    def test_table_store_weaker_than_format(self):
+        from sales.meal_forecast import rain_multiplier
+        mult, _ = rain_multiplier(self.rows(0.6), "テーブル")   # 形態の値は0.8
+        self.assertLess(mult, 0.9)
+
+    def test_no_rain_days_keeps_format_value(self):
+        from sales.meal_forecast import rain_multiplier
+        self.assertEqual(rain_multiplier(self.rows(1.0, rainy_every=10**6), "車"), (1.0, 0))

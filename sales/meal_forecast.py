@@ -8,12 +8,14 @@
   直近の増減率をさらに掛けると反応しすぎて悪化したので、増減率は表示だけにする。
 - 月内のクセ（上旬・中旬・下旬）は一部の店にだけ本物があるが、予測に掛けても当たりは変わらなかった
   （2026-10検証）ので、はっきりしている店に目印を出すだけにする。
+- 雨の補正＝形態ごとの値 × その店の倍率（rain_multiplier）。1年分の答え合わせで雨の日の誤差が約6%減った（2026-10）。
 """
 from datetime import timedelta
 
 from django.conf import settings
 
 from sales.models import DailyReport, SalesLocation
+from sales.weather import rain_factor, rain_level
 
 RECENT_DAYS = 5          # 直近の水準を見る営業日数
 WEEKDAY_SAMPLES = 8      # 曜日の癖：同じ曜日の直近何回
@@ -23,6 +25,8 @@ WEEKDAY_CLIP = (0.7, 1.3)
 TREND_DAYS = 10          # 増減率：直近10営業日 vs その前の10営業日
 SOLD_OUT_UPLIFT = 0.2    # 完売日の上乗せ：閉店までに残っていた時間の割合 × 0.2（0.4は強すぎた・2026-10検証）
 MIN_HISTORY = 5
+RAIN_STORE_K = 8               # 店ごとの雨の倍率：雨の日の実績が少ない店ほど1.0（形態の値のまま）に寄せる強さ
+RAIN_STORE_CLIP = (0.6, 1.4)   # 2026-10検証：雨の日の誤差 6.71→6.31食（research/topics/2026-10-23-食数予測-雨補正の店別化…）
 
 
 def _minutes(t):
@@ -53,23 +57,26 @@ def _excluded_names():
 
 
 def load_history(since, until):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost)。"""
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level)。"""
     excluded = _excluded_names()
     rows = (
         DailyReport.objects
         .filter(date__gte=since, date__lt=until, total_quantity__gt=0)
         .exclude(location__in=excluded)
         .values_list("date", "location", "total_sales_quantity", "total_remaining",
-                     "sold_out_time", "opening_time", "closing_time", "lost_customers")
+                     "sold_out_time", "opening_time", "closing_time", "lost_customers",
+                     "auto_lunch_precip", "auto_lunch_snow")
         .order_by("date")
     )
     hist = {}
-    for d, name, sold, rem, so_t, op_t, cl_t, lost in rows:
+    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow in rows:
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name.strip(), []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
             "demand": estimated_demand(sold, rem, so_t, op_t, cl_t, lost), "sold_out": rem <= 0,
             "lost": lost if rem <= 0 else None,
+            # 実際の昼の雨の段階（日計表に自動で添えた天気。無い日は None）
+            "level": rain_level(precip, snow or 0) if precip is not None else None,
         })
     return hist
 
@@ -99,6 +106,27 @@ def predict(rows, weekday):
             trend = now / before - 1
 
     return {"pred": recent * idx, "recent": recent, "weekday_idx": idx, "trend": trend}
+
+
+def rain_multiplier(rows, sales_type):
+    """その店の雨の強さ・弱さ（形態ごとの雨の補正に掛ける倍率）と、使った雨の日の数。
+    雨の日（完売しなかった日）の「実績 ÷（雨なしの予測 × 形態の補正）」の中央値を、日数が少ないほど1.0に寄せる。
+    室内でも雨の日に売れる店（＞1）・落ちる店（＜1）がある。"""
+    obs = []
+    for i, r in enumerate(rows):
+        if not r.get("level") or r["sold_out"] or r["sold"] <= 0:
+            continue
+        p = predict(rows[:i], r["wd"])
+        if not p or p["pred"] <= 0:
+            continue
+        obs.append(r["demand"] / (p["pred"] * rain_factor(r["level"], sales_type)))
+    if not obs:
+        return 1.0, 0
+    obs.sort()
+    n = len(obs)
+    median = obs[n // 2] if n % 2 else (obs[n // 2 - 1] + obs[n // 2]) / 2
+    lo, hi = RAIN_STORE_CLIP
+    return min(max((n * median + RAIN_STORE_K) / (n + RAIN_STORE_K), lo), hi), n
 
 
 def backtest(hist, today, days=28):

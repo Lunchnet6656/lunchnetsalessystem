@@ -11,7 +11,7 @@
     <p class="text-muted mb-2">
         直近{{ fc.days|length }}営業日ぶんの<strong>需要（売れそうな数）を店舗別に予測</strong>します。
         計算は「<strong>直近5営業日の平均 × その店の曜日の癖 × 昼の雨の補正</strong>」。
-        雨の補正は、その店の地点の天気予報で<strong>外の売場（テーブル・行商・車）だけ</strong>減らします（室内・配達はそのまま）。
+        雨の補正は、その店の地点の天気予報を使い、<strong>売場の形態ごとの値にその店の雨の日の実績</strong>を掛けます（室内でも雨の日に売れる店は増やします）。
         完売した日は、完売時刻が早いほど少し上乗せして数えています。
     </p>
     {% if fc.backtest %}
@@ -109,10 +109,10 @@
                             <td><strong>{{ l.name }}</strong>
                                 {% for note in l.events %}<div class="small text-muted"><i class="fas fa-calendar-day me-1" aria-hidden="true"></i>予定：{{ note }}</div>{% endfor %}
                             </td>
-                            <td class="text-muted small">{{ l.type }}{% if l.area != '東京' %}<div>{{ l.area }}</div>{% endif %}</td>
+                            <td class="text-muted small">{{ l.type }}{% if l.area != '東京' %}<div>{{ l.area }}</div>{% endif %}{% if l.rain_store_note %}<div class="text-nowrap" title="この店の雨の日の補正（これまでの雨の日の実績から）">雨の日 {% if l.rain_store_pct > 0 %}+{% endif %}{{ l.rain_store_pct }}%</div>{% endif %}</td>
                             <td class="text-end">
                                 <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
-                                {% if l.rain_pct %}<div class="small text-danger">雨{{ l.rain_pct }}%（なし{{ l.base }}）</div>{% endif %}
+                                {% if l.rain_pct %}<div class="small {% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{% endif %}{{ l.rain_pct }}%（なし{{ l.base }}）</div>{% endif %}
                             </td>
                             {% if day.has_draft %}
                             {% if l.draft %}

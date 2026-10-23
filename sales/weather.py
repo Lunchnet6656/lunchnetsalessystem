@@ -101,13 +101,15 @@ RECENT_URL = (
 )
 
 
-def fetch_lunch_recent(area=DEFAULT_AREA, past_days=7):
-    """直近の日の昼（11〜13時）の天気の実際の値。日計表に自動で添えるため。
-    {日付: {precip, snow, temp, feels, wind}}。取れなければ例外。"""
-    _, lat, lon = WEATHER_AREAS[area]
-    with urllib.request.urlopen(RECENT_URL.format(lat=lat, lon=lon, past=past_days), timeout=5) as resp:
-        data = json.loads(resp.read().decode())
-    h = data.get("hourly", {})
+ARCHIVE_URL = (
+    "https://archive-api.open-meteo.com/v1/archive"
+    "?latitude={lat}&longitude={lon}&start_date={start}&end_date={end}"
+    "&hourly=precipitation,snowfall,temperature_2m,apparent_temperature,wind_speed_10m"
+    "&wind_speed_unit=ms&timezone=Asia%2FTokyo"
+)
+
+
+def _lunch_actuals(h):
     days = {}
     for t, p, s, temp, feels, wind in zip(h.get("time", []), h.get("precipitation", []), h.get("snowfall", []),
                                           h.get("temperature_2m", []), h.get("apparent_temperature", []),
@@ -123,3 +125,21 @@ def fetch_lunch_recent(area=DEFAULT_AREA, past_days=7):
     avg = lambda xs: round(sum(xs) / len(xs), 1) if xs else None
     return {day: {"precip": round(d["precip"], 1), "snow": round(d["snow"], 1), "temp": avg(d["temp"]),
                   "feels": avg(d["feels"]), "wind": avg(d["wind"])} for day, d in days.items()}
+
+
+def fetch_lunch_recent(area=DEFAULT_AREA, past_days=7):
+    """直近の日の昼（11〜13時）の天気の実際の値。日計表に自動で添えるため。
+    {日付: {precip, snow, temp, feels, wind}}。取れなければ例外。"""
+    _, lat, lon = WEATHER_AREAS[area]
+    with urllib.request.urlopen(RECENT_URL.format(lat=lat, lon=lon, past=past_days), timeout=5) as resp:
+        data = json.loads(resp.read().decode())
+    return _lunch_actuals(data.get("hourly", {}))
+
+
+def fetch_lunch_archive(area, start, end):
+    """過去の日の昼の天気の実際の値（数日前まで）。過去の日計表を埋めるときだけ使う。形は fetch_lunch_recent と同じ。"""
+    _, lat, lon = WEATHER_AREAS[area]
+    url = ARCHIVE_URL.format(lat=lat, lon=lon, start=start.isoformat(), end=end.isoformat())
+    with urllib.request.urlopen(url, timeout=60) as resp:
+        data = json.loads(resp.read().decode())
+    return _lunch_actuals(data.get("hourly", {}))

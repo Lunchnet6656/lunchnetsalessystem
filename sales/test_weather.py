@@ -181,3 +181,22 @@ class LocationWeatherAreaSettingTests(TestCase):
                          {f"priority_{loc.id}": "A", f"weather_area_{loc.id}": "osaka"})
         loc.refresh_from_db()
         self.assertEqual(loc.weather_area, "shinyokohama")
+
+
+class FillReportWeatherSinceTest(TestCase):
+    """--since で過去の日計表にも昼の天気を埋める（店ごとの雨の補正の計算に使う）。"""
+
+    def test_backfill_uses_archive_for_old_days(self):
+        import datetime as dt
+        from django.core.management import call_command
+        from sales.models import DailyReport
+        old = dt.date(2025, 6, 2)
+        DailyReport.objects.create(date=old, location="どこか", total_revenue=0)
+        w = {"precip": 4.0, "snow": 0.0, "temp": 20.0, "feels": 19.0, "wind": 2.0}
+        with patch("sales.management.commands.fill_report_weather.fetch_lunch_archive",
+                   return_value={old.isoformat(): w}) as arc, \
+             patch("sales.management.commands.fill_report_weather.fetch_lunch_recent", return_value={}):
+            call_command("fill_report_weather", since="2025-06-01", stdout=io.StringIO())
+        arc.assert_called()
+        r = DailyReport.objects.get(date=old)
+        self.assertEqual((r.auto_lunch_precip, r.auto_lunch_wind), (4.0, 2.0))
