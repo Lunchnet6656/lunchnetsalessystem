@@ -3407,6 +3407,45 @@ def _plan_comment(plan):
             "kept": plan.kept, "rain_num": plan.rain_label or None}
 
 
+PLAN_NAMES = {"up": "売上UP", "keep": "現状維持", "waste": "廃棄率重視"}
+
+
+def _draft_near(draft, plans):
+    """下書き（持参数）が3パターンのどこに近いか。持参数どうしなので余裕分は引かない。"""
+    vals = {k: v["qty"] for k, v in plans.items() if v}
+    if not vals:
+        return None
+    if draft > max(vals.values()):
+        return f"{PLAN_NAMES['up']}より多"
+    if draft < min(vals.values()):
+        return f"{PLAN_NAMES['waste']}より少"
+    # 同じ差なら現状維持を優先
+    order = sorted(vals, key=lambda k: (abs(vals[k] - draft), k != "keep"))
+    return f"≒{PLAN_NAMES[order[0]]}"
+
+
+def _plan_totals(locs):
+    """その日の全店の見込み（3パターン＋全店に下書きがあれば下書き）。"""
+    with_plans = [l for l in locs if l.get("plans")]
+    if not with_plans:
+        return None
+    out = {}
+    keys = ["up", "keep", "waste"]
+    if all(l.get("draft") and l["draft"].get("outlook") for l in with_plans):
+        keys.append("draft")
+    for k in keys:
+        items = [l["draft"]["outlook"] if k == "draft" else l["plans"][k] for l in with_plans]
+        skipped = sum(1 for x in items if not x)
+        items = [x for x in items if x]
+        qty = sum(x["qty"] for x in items)
+        sold = sum(x["sold"] for x in items)
+        profits = [x["profit"] for x in items if x["profit"] is not None]
+        out[k] = {"qty": qty, "sold": int(sold + 0.5), "waste_rate": round((qty - sold) / qty * 100, 1) if qty else 0,
+                  "profit": int(sum(profits) + 0.5), "profit_partial": len(profits) < len(items),
+                  "skipped": skipped}
+    return out
+
+
 DRAFT_FLAG_PCT = 0.15   # 下書きと予測がこれ以上違えば「要確認」
 DRAFT_FLAG_MIN = 5      # かつ、これ以上の食数の差
 
@@ -3431,8 +3470,9 @@ def _draft_comparison(draft, rows, pred):
 
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
-    from sales.meal_forecast import (THIRD_LABELS, backtest, load_history, month_third, predict, rain_multiplier,
-                                     third_effect)
+    from sales.meal_forecast import (PLAN_MIN_SAMPLES, PLAN_SAMPLE_DAYS, THIRD_LABELS, backtest, demand_ratios,
+                                     load_history, month_third, outlook, plan_quantities, predict, rain_multiplier,
+                                     store_plan_basis, third_effect)
     from sales.weather import DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, rain_factor
 
     hist = load_history(today - timedelta(days=FORECAST_HISTORY_DAYS), today)
@@ -3469,6 +3509,23 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     rain_mult = {name: rain_multiplier(rows, loc_info.get(name, ("", DEFAULT_AREA))[0])
                  for name, rows in active.items()}
 
+    # 3パターンの持参数の材料（店ごとの需要の散らばり・現状維持の倍率・単価）。失敗しても予測は出す
+    plan_basis, plan_error = {}, False
+    try:
+        since = today - timedelta(days=PLAN_SAMPLE_DAYS)
+        ratios = {name: demand_ratios(rows, loc_info.get(name, ("", DEFAULT_AREA))[0], rain_mult[name][0], since)
+                  for name, rows in active.items()}
+        pooled = [x for xs in ratios.values() for x in xs]
+        for name, rows in active.items():
+            own = ratios[name]
+            thin = len(own) < PLAN_MIN_SAMPLES
+            keep_ratio, price = store_plan_basis(rows)
+            plan_basis[name] = {"ratios": own + pooled if thin else own, "thin": thin,
+                                "keep": keep_ratio, "price": price}
+    except Exception:
+        logger.exception("3パターンの持参数の材料を作れませんでした")
+        plan_error = True
+
     forecast_days = []
     for n_day, td in enumerate(target_dates):
         wd = td.weekday()
@@ -3487,6 +3544,16 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             recent10 = rows[-10:]
             eff = third_effect(rows, third)
             draft_info = _draft_comparison(drafts.get((td, name)), rows, p["pred"] * factor)
+            plans, thin = None, False
+            if not plan_error and plan_basis.get(name, {}).get("ratios"):
+                b = plan_basis[name]
+                plans, thin = plan_quantities(p["pred"] * factor, b["ratios"], b["keep"], b["price"]), b["thin"]
+                for v in plans.values():
+                    if v:
+                        v["diff"] = v["qty"] - int(p["pred"] * factor + 0.5)
+                if draft_info:
+                    draft_info["near"] = _draft_near(draft_info["draft"], plans)
+                    draft_info["outlook"] = outlook(draft_info["draft"], [p["pred"] * factor * r for r in b["ratios"]], b["price"])
             comment = comments.get(name) if n_day == 0 else None
             # 「10個程増やして」のような増減の数を、合計の数と取り違えて強調しない
             # （「明日は45で」のように大きく減らす合計は強調したいので、増減の言葉があるときだけ）
@@ -3515,6 +3582,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                     None if not comment else {"date": comment[0], "text": comment[1], "num": num}),
                 "events": events.get((td, name), []),
                 "draft": draft_info,
+                "plans": plans, "thin": thin,
             })
         locs.sort(key=lambda x: -x["pred"])
         rainy = any(l["rain_pct"] for l in locs)
@@ -3526,6 +3594,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             "has_draft": bool(with_draft),
             "draft_total": sum(l["draft"]["draft"] for l in with_draft),
             "draft_flags": sum(1 for l in with_draft if l["draft"]["flag"]),
+            "plan_totals": _plan_totals(locs), "plan_error": plan_error,
         })
     return {"days": forecast_days, "backtest": backtest(active, today),
             "weather_table": weather_table, "weather_dates": target_dates,
@@ -3537,4 +3606,8 @@ def meal_forecast_view(request):
     """食数予測：直近の営業日ぶんの需要を店舗別に予測（仕込み量の目安・廃棄削減）。"""
     today = timezone.localdate()
     fc = _meal_forecast(today)
-    return render(request, "meal_forecast.html", {"today": today, "fc": fc})
+    return render(request, "meal_forecast.html", {
+        "today": today, "fc": fc,
+        "plan_keys": ["up", "keep", "waste", "draft"], "plan_keys_store": ["up", "keep", "waste"],
+        "plan_metrics": [("qty", "持参数"), ("sold", "売れる数"), ("waste_rate", "廃棄率"), ("profit", "粗利")],
+    })

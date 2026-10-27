@@ -57,7 +57,7 @@ def _excluded_names():
 
 
 def load_history(since, until):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level)。"""
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, qty, rev)。"""
     excluded = _excluded_names()
     rows = (
         DailyReport.objects
@@ -65,11 +65,11 @@ def load_history(since, until):
         .exclude(location__in=excluded)
         .values_list("date", "location", "total_sales_quantity", "total_remaining",
                      "sold_out_time", "opening_time", "closing_time", "lost_customers",
-                     "auto_lunch_precip", "auto_lunch_snow")
+                     "auto_lunch_precip", "auto_lunch_snow", "total_quantity", "total_revenue")
         .order_by("date")
     )
     hist = {}
-    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow in rows:
+    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, qty, rev in rows:
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name.strip(), []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
@@ -77,6 +77,7 @@ def load_history(since, until):
             "lost": lost if rem <= 0 else None,
             # 実際の昼の雨の段階（日計表に自動で添えた天気。無い日は None）
             "level": rain_level(precip, snow or 0) if precip is not None else None,
+            "qty": int(qty or 0), "rev": float(rev or 0),
         })
     return hist
 
@@ -173,3 +174,77 @@ def third_effect(rows, third):
     n = len(same)
     effect = (_mean(same) / overall - 1) * n / (n + THIRD_SHRINK)
     return effect if abs(effect) >= THIRD_MIN_EFFECT else None
+
+
+# ---- 3パターンの持参数（売上UP／現状維持／廃棄率重視）
+# 予測（需要）に、その店の「実際の需要 ÷ 予測」の散らばりを掛けて、方針ごとに持たせる数を出す。
+PLAN_SAMPLE_DAYS = 120      # 散らばりを見る期間
+PLAN_MIN_SAMPLES = 30       # これより少ない店は全店の散らばりを足して使う（「実績少」）
+PLAN_UP_QUANTILE = 0.8      # 売上UP：10回中8回は売り切れない数（オーナー決定 2026-10-27）
+PLAN_WASTE_TARGET = 0.03    # 廃棄率重視：見込み廃棄率3%以下の最大の数（オーナー決定）
+PLAN_KEEP_SAMPLES = 20      # 現状維持：直近20回の「持参数÷需要」の中央値
+COST_RATE = 0.5             # 粗利の計算の原価率
+
+
+def _median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    if not n:
+        return None
+    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def _quantile(xs, q):
+    xs = sorted(xs)
+    k = (len(xs) - 1) * q
+    lo = int(k)
+    hi = min(lo + 1, len(xs) - 1)
+    return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
+
+
+def demand_ratios(rows, sales_type, mult, since):
+    """直近の「実際の需要 ÷ 予測（雨の補正込み）」。完売した日は需要の推定を使う。"""
+    out = []
+    for i, r in enumerate(rows):
+        if r["date"] < since or r["sold"] <= 0:
+            continue
+        p = predict(rows[:i], r["wd"])
+        if not p or p["pred"] <= 0:
+            continue
+        f = rain_factor(r.get("level"), sales_type) * (mult if r.get("level") else 1.0)
+        out.append(r["demand"] / (p["pred"] * f))
+    return out
+
+
+def store_plan_basis(rows):
+    """現状維持の倍率（持参数÷需要）と1食の値段（直近の平均）。出せなければ None。"""
+    recent = [r for r in rows if r["qty"] > 0 and r["demand"] > 0][-PLAN_KEEP_SAMPLES:]
+    keep = _median([r["qty"] / r["demand"] for r in recent]) if len(recent) >= 5 else None
+    sold = sum(r["sold"] for r in recent)
+    price = sum(r["rev"] for r in recent) / sold if sold else None
+    return keep, (price if price and price > 0 else None)
+
+
+def outlook(qty, demands, price):
+    """持参数 qty のときの見込み（売れる数・廃棄率・粗利）。demands は需要の散らばり（食数）。"""
+    sold = sum(min(qty, d) for d in demands) / len(demands)
+    return {
+        "qty": qty, "sold": sold,
+        "waste_rate": (qty - sold) / qty if qty else 0.0,
+        "profit": sold * price - qty * price * COST_RATE if price else None,
+    }
+
+
+def plan_quantities(pred, ratios, keep_ratio, price):
+    """{up, keep, waste}：3パターンの持参数と見込み。keep は出せなければ None。"""
+    demands = [pred * r for r in ratios]
+    up = max(1, int(_quantile(demands, PLAN_UP_QUANTILE) + 0.5))
+    waste = 1
+    for q in range(1, int(max(demands) + 2)):
+        if outlook(q, demands, price)["waste_rate"] > PLAN_WASTE_TARGET:
+            break
+        waste = q
+    plans = {"up": outlook(up, demands, price), "waste": outlook(waste, demands, price), "keep": None}
+    if keep_ratio:
+        plans["keep"] = outlook(max(1, int(pred * keep_ratio + 0.5)), demands, price)
+    return plans

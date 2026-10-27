@@ -1,0 +1,9 @@
+/* 食数予測：3パターンの持参数と参考列（新しい色トークンは使わない） */
+.mf-ref-col { display: none; }
+.mf-show-ref .mf-ref-col { display: table-cell; }
+.mf-table .mf-plan-first { border-left: 2px solid var(--ln-color-divider); }
+.mf-table .mf-plan-last { border-right: 2px solid var(--ln-color-divider); }
+.mf-plan-qty { color: var(--ln-color-text-strong); }
+.mf-plan-summary { max-width: 560px; }
+.mf-tiny { font-size: .75rem; }
+.mf-comment-col { max-width: 16rem; }

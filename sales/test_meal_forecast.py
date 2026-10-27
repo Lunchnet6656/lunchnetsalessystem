@@ -148,3 +148,28 @@ class RainMultiplierTest(TestCase):
     def test_no_rain_days_keeps_format_value(self):
         from sales.meal_forecast import rain_multiplier
         self.assertEqual(rain_multiplier(self.rows(1.0, rainy_every=10**6), "車"), (1.0, 0))
+
+
+class PlanQuantitiesTest(TestCase):
+    """3パターンの持参数：売上UP＝80%点／廃棄率重視＝見込み廃棄率3%以下の最大／現状維持＝いつもの倍率。"""
+
+    def test_three_plans(self):
+        from sales.meal_forecast import plan_quantities
+        ratios = [0.8, 0.9, 0.95, 1.0, 1.0, 1.05, 1.1, 1.2, 0.85, 1.15]
+        plans = plan_quantities(50, ratios, 1.12, 700)
+        self.assertEqual(plans["up"]["qty"], 56)   # 需要の80%点＝50×1.11
+        self.assertLessEqual(plans["waste"]["waste_rate"], 0.03)
+        self.assertLess(plans["waste"]["qty"], plans["up"]["qty"])
+        self.assertEqual(plans["keep"]["qty"], 56)
+        self.assertAlmostEqual(plans["keep"]["profit"], plans["keep"]["sold"] * 700 - 56 * 350)
+
+    def test_keep_missing(self):
+        from sales.meal_forecast import plan_quantities
+        self.assertIsNone(plan_quantities(40, [1.0] * 10, None, None)["keep"])
+
+    def test_draft_near(self):
+        from lunchnetsale.views import _draft_near
+        plans = {"up": {"qty": 60}, "keep": {"qty": 55}, "waste": {"qty": 48}}
+        self.assertEqual(_draft_near(54, plans), "≒現状維持")
+        self.assertEqual(_draft_near(70, plans), "売上UPより多")
+        self.assertEqual(_draft_near(40, plans), "廃棄率重視より少")
