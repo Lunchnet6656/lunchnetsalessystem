@@ -3,8 +3,9 @@
 - 店は「名前」で数える。販売場所No.は途中で振り直されている（2026-06・2026-10）ため、
   日計表の location_no で集計すると別の店の実績が混ざる。
 - 完売した日は「売れた数＝持っていった数」で頭打ちなので、完売時刻が早いほど需要を上乗せして見る。
-- 予測＝直近5営業日の需要 × その店の曜日の癖。実データ（2026-06〜10・30店）で
-  「同じ曜日4回の加重平均」より誤差が小さかった（ズレ率 10.0%→9.1%）。
+- 予測＝直近の水準 × その店の曜日の癖。直近の水準＝新しい日ほど重い直近5営業日の平均7割＋直近20営業日の平均3割
+  （2026-10検証。日計表で「その日だけの理由」が選ばれた日は水準から外す）。当初の「直近5営業日の平均 × 曜日の癖」も
+  実データ（2026-06〜10・30店）で「同じ曜日4回の加重平均」より誤差が小さかった（ズレ率 10.0%→9.1%）。
   直近の増減率をさらに掛けると反応しすぎて悪化したので、増減率は表示だけにする。
 - 月内のクセ（上旬・中旬・下旬）は一部の店にだけ本物があるが、予測に掛けても当たりは変わらなかった
   （2026-10検証）ので、はっきりしている店に目印を出すだけにする。
@@ -15,9 +16,12 @@ from datetime import timedelta
 from django.conf import settings
 
 from sales.models import DailyReport, SalesLocation
+from sales.daily_questions import ONE_OFF_REASONS
 from sales.weather import rain_factor, rain_level
 
-RECENT_DAYS = 5          # 直近の水準を見る営業日数
+RECENT_DAYS = 5          # 直近の水準を見る営業日数（新しい日ほど重く 1〜5）
+RECENT_LONG_DAYS = 20    # 直近の水準に混ぜる長めの平均
+RECENT_LONG_SHARE = 0.3  # 長めの平均の割合（2026-10検証：一時的な落ち込みに引っ張られにくく、誤差5.08→4.96食）
 WEEKDAY_SAMPLES = 8      # 曜日の癖：同じ曜日の直近何回
 LEVEL_DAYS = 40          # 曜日の癖の分母：直近何営業日の平均
 WEEKDAY_MIN = 4          # 曜日の癖を使う最低回数（足りなければ癖なし＝1倍）
@@ -57,7 +61,7 @@ def _excluded_names():
 
 
 def load_history(since, until):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, qty, rev)。"""
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, qty, rev, one_off)。"""
     excluded = _excluded_names()
     rows = (
         DailyReport.objects
@@ -65,11 +69,12 @@ def load_history(since, until):
         .exclude(location__in=excluded)
         .values_list("date", "location", "total_sales_quantity", "total_remaining",
                      "sold_out_time", "opening_time", "closing_time", "lost_customers",
-                     "auto_lunch_precip", "auto_lunch_snow", "total_quantity", "total_revenue")
+                     "auto_lunch_precip", "auto_lunch_snow", "total_quantity", "total_revenue",
+                     "unusual_reasons")
         .order_by("date")
     )
     hist = {}
-    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, qty, rev in rows:
+    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, qty, rev, reasons in rows:
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name.strip(), []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
@@ -78,6 +83,8 @@ def load_history(since, until):
             # 実際の昼の雨の段階（日計表に自動で添えた天気。無い日は None）
             "level": rain_level(precip, snow or 0) if precip is not None else None,
             "qty": int(qty or 0), "rev": float(rev or 0),
+            # その日だけの理由（出張・ビルの休み・イベント等）の日は、直近の水準に入れない
+            "one_off": bool(set(reasons or []) & ONE_OFF_REASONS),
         })
     return hist
 
@@ -91,7 +98,13 @@ def predict(rows, weekday):
     if len(rows) < MIN_HISTORY:
         return None
     demand = [r["demand"] for r in rows]
-    recent = _mean(demand[-RECENT_DAYS:])
+    usual = [r["demand"] for r in rows if not r.get("one_off")]
+    if len(usual) < MIN_HISTORY:
+        usual = demand
+    last = usual[-RECENT_DAYS:]
+    weights = list(range(1, len(last) + 1))
+    recent = ((1 - RECENT_LONG_SHARE) * sum(w * x for w, x in zip(weights, last)) / sum(weights)
+              + RECENT_LONG_SHARE * _mean(usual[-RECENT_LONG_DAYS:]))
 
     same = [r["demand"] for r in rows if r["wd"] == weekday][-WEEKDAY_SAMPLES:]
     level = _mean(demand[-LEVEL_DAYS:])

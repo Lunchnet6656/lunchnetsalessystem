@@ -3356,7 +3356,7 @@ def stamp_list_api(request):
 
 
 # ============ 食数予測（直近営業日の需要を店舗別に予測・仕込みの目安） ============
-# 計算は sales/meal_forecast.py（店は名前で数える・完売補正・直近5営業日×曜日の癖）。
+# 計算は sales/meal_forecast.py（店は名前で数える・完売補正・直近の水準×曜日の癖）。
 
 FORECAST_DAYS_AHEAD = 3      # 先の営業日を何日分予測するか
 FORECAST_ACTIVE_DAYS = 56    # 直近この日数に稼働している店だけ対象（撤退店を除外）

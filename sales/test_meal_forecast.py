@@ -57,8 +57,21 @@ class DemandTests(TestCase):
             rows.append({"date": d, "wd": d.weekday(), "sold": demand, "rem": 5, "demand": demand, "sold_out": False})
         p = predict(rows, 0)
         self.assertAlmostEqual(p["trend"], 0.25)
-        self.assertAlmostEqual(p["recent"], 100)
+        # 直近の水準＝重い5日（100）7割＋直近20日（80×10・100×10＝90）3割
+        self.assertAlmostEqual(p["recent"], 97)
         self.assertLessEqual(p["pred"], 100 * 1.3)
+
+    def test_one_off_days_are_left_out_of_level(self):
+        rows = []
+        for i, d in enumerate(weekdays_before(TODAY, 25)):
+            one_off = i >= 21          # 直近4日は出張で落ちた（日計表で「その日だけの理由」）
+            demand = 20 if one_off else 40
+            rows.append({"date": d, "wd": d.weekday(), "sold": demand, "rem": 5, "demand": demand,
+                         "sold_out": False, "one_off": one_off})
+        self.assertAlmostEqual(predict(rows, 0)["recent"], 40)
+        for r in rows:
+            r["one_off"] = False
+        self.assertLess(predict(rows, 0)["recent"], 32)
 
     def test_too_little_history(self):
         rows = [{"date": TODAY, "wd": 0, "sold": 10, "rem": 0, "demand": 10, "sold_out": True}] * 3

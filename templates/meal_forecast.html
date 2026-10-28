@@ -13,7 +13,7 @@
     <h1 class="mb-1">食数予測（仕込みの目安）</h1>
     <p class="text-muted mb-2">
         直近{{ fc.days|length }}営業日ぶんの<strong>需要（売れそうな数）を店舗別に予測</strong>します。
-        計算は「<strong>直近5営業日の平均 × その店の曜日の癖 × 昼の雨の補正</strong>」。
+        計算は「<strong>直近の水準 × その店の曜日の癖 × 昼の雨の補正</strong>」。直近の水準は、新しい日ほど重く見た直近5営業日に直近20営業日を3割混ぜた数です（出張・ビルの休みなど、日計表で「その日だけの理由」が選ばれた日は除きます）。
         雨の補正は、その店の地点の天気予報を使い、<strong>売場の形態ごとの値にその店の雨の日の実績</strong>を掛けます（室内でも雨の日に売れる店は増やします）。
         完売した日は、完売時刻が早いほど少し上乗せして数えています。
     </p>
@@ -138,7 +138,7 @@
                             <th class="text-end text-nowrap">現状維持</th>
                             <th class="text-end text-nowrap mf-plan-last">廃棄率重視</th>
                             {% if day.has_draft %}<th class="text-end text-nowrap mf-ref-col">差</th><th class="text-end text-nowrap mf-ref-col">半々の目安</th>{% endif %}
-                            <th class="text-end text-nowrap mf-ref-col">直近5日</th>
+                            <th class="text-end text-nowrap mf-ref-col">直近の水準</th>
                             <th class="text-end text-nowrap mf-ref-col">曜日の癖</th>
                             <th class="text-center text-nowrap mf-ref-col">月内のクセ</th>
                             <th class="text-end text-nowrap mf-ref-col">直近の流れ</th>
