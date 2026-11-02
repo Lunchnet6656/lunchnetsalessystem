@@ -186,3 +186,16 @@ class PlanQuantitiesTest(TestCase):
         self.assertEqual(_draft_near(54, plans), "≒現状維持")
         self.assertEqual(_draft_near(70, plans), "売上UPより多")
         self.assertEqual(_draft_near(40, plans), "廃棄率重視より少")
+
+
+class ForecastDatesTest(TestCase):
+    """祝日・会社の休みは売らないので、予測する日から飛ばす。"""
+
+    def test_holidays_are_skipped(self):
+        from lunchnetsale.views import _meal_forecast
+        from sales.models import Holiday
+        Holiday.objects.create(date=date(2026, 11, 5))           # 会社の休み
+        with patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):
+            fc = _meal_forecast(date(2026, 11, 2))               # 11/3 は文化の日
+        days = [(d["date"], d["when"]) for d in fc["days"]]
+        self.assertEqual(days, [(date(2026, 11, 4), "あさって"), (date(2026, 11, 6), "4日後"), (date(2026, 11, 9), "7日後")])

@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm
 import pandas as pd
-from sales.item_quantity_import import next_business_day, parse_item_quantity_workbook, save_item_quantities
+from sales.item_quantity_import import is_business_day, next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, known_codes, pattern_of
 from sales.price_admin import assignable_patterns
@@ -3482,7 +3482,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     target_dates = []
     d = today + timedelta(days=1)
     while len(target_dates) < days_ahead:
-        if d.weekday() < 5:
+        if is_business_day(d):   # 土日・祝日・会社の休みは売らないので予測しない
             target_dates.append(d)
         d += timedelta(days=1)
 
@@ -3589,6 +3589,8 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
         with_draft = [l for l in locs if l["draft"]]
         forecast_days.append({
             "date": td, "weekday": FORECAST_WEEKDAY_JA[wd], "locs": locs,
+            # 祝日を飛ばすので「1つ目＝あす」とは限らない。日数で呼び方を決める
+            "when": {1: "あす", 2: "あさって"}.get((td - today).days, f"{(td - today).days}日後"),
             "total": sum(l["pred"] for l in locs), "base_total": sum(l["base"] for l in locs),
             "rainy": rainy, "third_label": THIRD_LABELS[third], "show_comments": True,
             "has_draft": bool(with_draft),
