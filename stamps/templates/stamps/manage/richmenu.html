@@ -58,11 +58,11 @@
 </div>
 
 <div class="card">
-  <span class="hp-lbl"><form method="post" style="display:inline;">
+  <div class="hp-lbl"><form method="post" style="display:inline;">
     {% csrf_token %}
     <input type="hidden" name="action" value="reassign_all">
     <button class="btn" type="submit" {% if not configured %}disabled{% endif %}>一括適用</button>
-  </form>{% include "includes/info_tip.html" with id="rm-bulk" label="一括適用" text="スタンプ利用者全員にスタンプ用メニューを適用。LINE連携とメニュー登録が済むまで押せない。" %}</span>
+  </form>{% include "includes/info_tip.html" with id="rm-bulk" label="一括適用" text="スタンプ利用者全員にスタンプ用メニューを適用。LINE連携とメニュー登録が済むまで押せない。" %}</div>
 </div>
 
 <div class="card">

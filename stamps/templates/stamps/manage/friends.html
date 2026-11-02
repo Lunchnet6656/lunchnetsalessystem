@@ -50,7 +50,7 @@
     <span class="badge off">🚫 ブロック中 {{ blk_summary.blocked }}</span>
     {% if blk_summary.unchecked %}<span class="badge">❔ 未確認 {{ blk_summary.unchecked }}</span>{% endif %}
     <span class="muted">
-      {% if blk_summary.last_checked %}最終確認：{{ blk_summary.last_checked|date:'n/j H:i' }}{% else %}未確認{% endif %}
+      {% if blk_summary.last_checked %}最終確認：{{ blk_summary.last_checked|date:'n/j H:i' }}{% else %}最終確認：—{% endif %}
     </span>
   </div>
   <div class="hp-lbl">
