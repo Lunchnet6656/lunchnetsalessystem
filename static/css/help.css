@@ -1,0 +1,89 @@
+/* help.css — ⓘ（項目の補足）と ？（画面のヘルプ）の共通部品。
+ * 4種類の base.html（tokens.css系 / Bootstrap / attendance / ビルド済みTailwind）で共用するため、
+ * 色は --ln-*（共通tokens）→ --color-*（attendance）→ 固定値 の順にフォールバックする。
+ * Bootstrap の .popover / .tooltip と衝突しないよう接頭辞は hp- に統一。 */
+.hp-tip-btn, .hp-help-btn, .hp-tip, .hp-dialog {
+  --hp-fg: var(--ln-color-text-strong, var(--color-text, #333));
+  --hp-muted: var(--ln-color-text-muted, var(--color-text-sub, #6c757d));
+  --hp-bg: var(--ln-color-white, var(--color-surface, #fff));
+  --hp-border: var(--ln-color-border, var(--color-border, #dee2e6));
+  --hp-shadow: var(--ln-shadow-panel, 0 4px 8px rgba(0, 0, 0, .1));
+}
+
+/* ラベルとⓘを横並びにする包み（<label> の中にボタンを入れないため） */
+.hp-lbl { display: inline-flex; align-items: center; gap: 0; white-space: nowrap; }
+
+/* ⓘ ボタン：見た目15px・押せる範囲24px（WCAG 2.5.8） */
+.hp-tip-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 24px; height: 24px; margin: 0 0 0 2px; padding: 0; border: 0;
+  background: transparent; color: var(--hp-muted); cursor: pointer;
+  vertical-align: middle; font: inherit; line-height: 1;
+}
+.hp-tip-btn .hp-i {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  width: 15px; height: 15px; border: 1.5px solid currentColor; border-radius: 50%;
+  font: italic 700 10px/1 Georgia, "Times New Roman", serif;
+}
+.hp-tip-btn:hover, .hp-tip-btn[aria-expanded="true"] { color: var(--hp-fg); }
+
+/* ポップオーバー本体：既定（スマホ・JSなし）は画面下に固定のカード */
+.hp-tip {
+  display: none; position: fixed; inset: auto 12px 12px 12px; width: auto; height: auto;
+  margin: 0; box-sizing: border-box; max-width: none; overflow: visible;
+  padding: 12px 40px 12px 14px; z-index: 1000;
+  background: var(--hp-bg); color: var(--hp-fg); border: 1px solid var(--hp-border);
+  border-radius: 10px; box-shadow: var(--hp-shadow);
+  font-size: 13px; font-weight: normal; line-height: 1.6; text-align: left;
+  white-space: normal; letter-spacing: normal; text-transform: none;
+}
+.hp-tip:popover-open { display: block; }   /* 非対応ブラウザではこの1行だけ無視される */
+.hp-tip.hp-open { display: block; }        /* popover 非対応時（help.js が付ける） */
+.hp-tip-text { display: block; }
+@media (min-width: 681px) {
+  .hp-tip { width: max-content; max-width: 320px; }
+}
+
+/* ？ ボタン：見た目36px・押せる範囲44px */
+.hp-help-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 36px; padding: 0 12px; border: 1px solid var(--hp-border); border-radius: 999px;
+  background: var(--hp-bg); color: var(--hp-muted); cursor: pointer; white-space: nowrap; flex: none;
+  font: inherit; font-size: 13px; font-weight: 700; line-height: 1;
+}
+.hp-help-btn::before { content: ""; position: absolute; inset: -4px; }
+.hp-help-btn:hover { color: var(--hp-fg); }
+
+.hp-tip-btn:focus-visible, .hp-help-btn:focus-visible, .hp-close:focus-visible {
+  outline: 2px solid var(--hp-fg); outline-offset: 1px;
+}
+
+/* 閉じるボタン（ⓘ・？共通） */
+.hp-close {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
+  background: transparent; color: var(--hp-muted); cursor: pointer; font: inherit; font-size: 18px; line-height: 1;
+}
+.hp-tip .hp-close { position: absolute; top: 4px; right: 4px; }
+
+/* ？ヘルプのダイアログ */
+.hp-dialog {
+  box-sizing: border-box; width: min(560px, calc(100% - 32px)); max-width: none;
+  max-height: min(80vh, 640px); padding: 0; overflow: auto;
+  border: 1px solid var(--hp-border); border-radius: 12px;
+  background: var(--hp-bg); color: var(--hp-fg); box-shadow: var(--hp-shadow);
+}
+.hp-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.hp-dialog-head {
+  position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 8px 10px 16px; background: var(--hp-bg); border-bottom: 1px solid var(--hp-border);
+}
+.hp-dialog-head h2 { margin: 0; font-size: 15px; white-space: nowrap; color: var(--hp-fg); }
+.hp-dialog-body { padding: 12px 16px 18px; font-size: 13px; line-height: 1.7; }
+.hp-qa { margin: 0; }
+.hp-qa dt { margin: 14px 0 0; font-weight: 700; }
+.hp-qa dt:first-child { margin-top: 0; }
+.hp-qa dd { margin: 2px 0 0; }
+@media (max-width: 680px) {
+  .hp-dialog { width: 100%; max-height: 85vh; margin: auto 0 0; border-radius: 12px 12px 0 0; }
+}

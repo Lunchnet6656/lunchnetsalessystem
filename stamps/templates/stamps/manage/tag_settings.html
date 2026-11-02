@@ -1,12 +1,11 @@
 {% extends "stamps/manage/base.html" %}
 {% load humanize %}
 {% block title %}タグ設定{% endblock %}
-{% block heading %}タグ設定（友だち管理）{% endblock %}
+{% block heading %}タグ設定{% endblock %}
 {% block content %}
 
 <div class="card">
-  <h2>自動タグのしきい値</h2>
-  <p class="muted" style="margin:-4px 0 12px;">来店データから自動で付くタグの基準。保存すると<a href="{% url 'stamps:manage_friends' %}">友だち一覧</a>のタグが即追従します（タグはこの基準で毎回計算）。</p>
+  <h2>自動タグのしきい値{% include "includes/info_tip.html" with id="tg-auto" label="自動タグのしきい値" text="来店データから自動で付くタグの基準。保存すると友だち一覧のタグにすぐ反映。リピーター／常連／ヘビーは来店回数で1つだけ付く（基準の大きい方を優先）。「特典保有」は使える特典がある会員に自動で付く（基準なし）。" %}</h2>
   <form method="post" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
     {% csrf_token %}
     <input type="hidden" name="action" value="config">
@@ -26,15 +25,10 @@
       <input type="number" name="dormant_days" value="{{ cfg.dormant_days }}" min="0" style="width:80px;"></div>
     <button class="btn sm" type="submit">保存</button>
   </form>
-  <p class="muted" style="margin:12px 0 0;">
-    リピーター／常連／ヘビーは来店回数でどれか1つに振り分け（下限が大きい方を優先）。
-    「特典保有」（今すぐ使える特典あり）は自動判定で、しきい値はありません。
-  </p>
 </div>
 
 <div class="card">
-  <h2>手動タグ</h2>
-  <p class="muted" style="margin:-4px 0 12px;">運営が任意に付けるラベル（例：VIP／クレーム対応中／試食会来店）。付け外しは<a href="{% url 'stamps:manage_friends' %}">友だち一覧</a>の各行から。有効にしたタグだけ一覧に出ます。</p>
+  <h2>手動タグ{% include "includes/info_tip.html" with id="tg-manual" label="手動タグ" text="運営が任意に付けるラベル（例：VIP）。付け外しは友だち一覧の各行から。「有効」のタグだけ一覧に表示。" %}</h2>
   {% if tag_rows %}
   <table class="grid">
     <thead><tr><th>タグ名</th><th>色</th><th>表示順</th><th>有効</th><th>付与人数</th><th></th></tr></thead>
@@ -58,18 +52,18 @@
             <div class="fld"><label class="muted">付与</label><span style="font-size:13px;">{{ row.count|intcomma }}人</span></div>
             <button class="btn sm" type="submit">保存</button>
           </form>
-          <form method="post" style="margin-top:6px;" onsubmit="return confirm('「{{ row.t.name }}」を削除しますか？（{{ row.count|intcomma }}人への付与も消えます）');">
+          <form method="post" style="margin-top:6px;" onsubmit="return confirm('「{{ row.t.name|escapejs }}」を削除します。{{ row.count|intcomma }}人に付いたタグも外れます。');">
             {% csrf_token %}
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="tag_id" value="{{ row.t.id }}">
-            <button class="btn sm ghost" type="submit">このタグを削除</button>
+            <button class="btn sm ghost" type="submit">削除</button>
           </form>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  {% else %}<p class="empty">まだ手動タグがありません。下から追加してください。</p>{% endif %}
+  {% else %}<p class="empty">手動タグなし</p>{% endif %}
 </div>
 
 <div class="card">
@@ -85,7 +79,7 @@
     </div>
     <div class="fld"><label class="muted">表示順</label><input type="number" name="order" value="0" min="0" style="width:70px;"></div>
     <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" checked> 使う</label></div>
-    <button class="btn sm" type="submit">追加する</button>
+    <button class="btn sm" type="submit">追加</button>
   </form>
 </div>
 {% endblock %}

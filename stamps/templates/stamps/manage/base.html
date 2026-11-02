@@ -6,6 +6,8 @@
 <meta name="robots" content="noindex, nofollow">
 <title>{% block title %}LINE運営{% endblock %}｜ランチネット</title>
 <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+<script src="{% static 'js/help.js' %}" defer></script>
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
     margin:0;background:var(--ln-color-body-bg);color:var(--ln-color-text);}
@@ -21,13 +23,16 @@
   .side a{display:block;padding:9px 10px;border-radius:8px;color:#e9ecef;text-decoration:none;font-size:14px;margin-bottom:2px;}
   .side a:hover{background:rgba(255,255,255,.08);}
   .side a.on{background:var(--ln-color-brand);color:#fff;font-weight:bold;}
+  .side a.back{white-space:nowrap;margin:8px 0 4px;padding-bottom:12px;border-radius:8px 8px 0 0;
+    border-bottom:1px solid var(--ln-color-border-strong);}
   .side .soon{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;
     color:var(--ln-color-text-dim);font-size:14px;opacity:.7;cursor:default;}
   .side .soon .tag{font-size:9px;background:rgba(255,255,255,.12);padding:2px 6px;border-radius:6px;}
   /* --- コンテンツ --- */
   .main{flex:1;min-width:0;padding:18px 22px 60px;}
   .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
-  .topbar h1{font-size:20px;margin:0;color:var(--ln-color-text-strong);}
+  .topbar .ttl{display:flex;align-items:center;gap:8px;min-width:0;}
+  .topbar h1{font-size:20px;margin:0;color:var(--ln-color-text-strong);white-space:nowrap;}
   .topbar .who{font-size:12px;color:var(--ln-color-text-muted);}
   .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:16px;
     background:var(--ln-color-white);border:1px solid var(--ln-color-border);border-radius:10px;padding:12px;}
@@ -37,10 +42,10 @@
     font-size:14px;padding:7px 8px;border:1px solid var(--ln-color-border);border-radius:8px;
     background:var(--ln-color-white);color:var(--ln-color-text);}
   .summary{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
-  .stat{flex:1;min-width:120px;background:var(--ln-color-white);border:1px solid var(--ln-color-border);
+  .stat{flex:1;min-width:120px;box-sizing:border-box;background:var(--ln-color-white);border:1px solid var(--ln-color-border);
     border-radius:10px;padding:12px 14px;}
   .stat .n{font-size:26px;font-weight:800;color:var(--ln-color-text-strong);line-height:1.2;}
-  .stat .l{font-size:12px;color:var(--ln-color-text-muted);margin-top:2px;}
+  .stat .l{font-size:12px;color:var(--ln-color-text-muted);margin-top:2px;white-space:nowrap;}
   .stat.brand .n{color:var(--ln-color-brand);}
   .card{background:var(--ln-color-white);border:1px solid var(--ln-color-border);
     border-radius:12px;box-shadow:var(--ln-shadow-card);padding:16px;margin-bottom:16px;}
@@ -54,7 +59,7 @@
   .tscroll table.grid th,.tscroll table.grid td{white-space:nowrap;}
   .tscroll table.grid td.wrapok{white-space:normal;}   /* 折り返し許可（タグ編集など） */
   .btn{display:inline-block;padding:8px 13px;border:none;border-radius:8px;font-size:13px;font-weight:bold;
-    cursor:pointer;text-decoration:none;background:var(--ln-color-brand);color:#fff;}
+    cursor:pointer;text-decoration:none;background:var(--ln-color-brand);color:#fff;white-space:nowrap;}
   .btn.ghost{background:var(--ln-color-white);color:var(--ln-color-text-muted);border:1px solid var(--ln-color-border);}
   .btn.sm{padding:5px 9px;font-size:12px;}
   .badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap;}
@@ -72,6 +77,8 @@
   .flashmsg{padding:11px 16px;border-radius:10px;font-size:14px;font-weight:800;margin-bottom:14px;
     background:var(--ln-color-success-bg);color:var(--ln-color-success);border:1px solid var(--ln-color-success);}
   .flashmsg.error{background:#fdecec;color:var(--ln-color-danger);border-color:var(--ln-color-danger);}
+  .flashmsg.warning{background:#fff1e0;color:#c2560c;border-color:#ffd6a8;}
+  .flashmsg.info{background:var(--ln-color-surface-muted);color:var(--ln-color-text-strong);border-color:var(--ln-color-border);}
   .empty{text-align:center;color:var(--ln-color-text-muted);padding:30px 8px;}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ln-color-text-muted);
     word-break:break-all;}
@@ -114,11 +121,12 @@
 <div class="shell">
   <nav class="side">
     <div class="brand">
-      <span class="brand-t">ランチネット LINE運営<small>自作プラットフォーム（β）</small></span>
+      <span class="brand-t">ランチネット LINE運営<small>β版</small></span>
       <label for="navtoggle" class="navbtn" aria-label="メニューを開閉">☰</label>
     </div>
     <input type="checkbox" id="navtoggle" class="navtoggle" hidden>
     <div class="navlinks">
+      <a href="{% url 'dashboard' %}" class="back">← LSSトップ</a>
       <div class="grp">スタンプカード</div>
       <a href="{% url 'stamps:manage_dashboard' %}" class="{% if nav == 'dashboard' %}on{% endif %}">ダッシュボード</a>
       <a href="{% url 'stamps:manage_visits' %}" class="{% if nav == 'visits' %}on{% endif %}">来店データ</a>
@@ -131,19 +139,19 @@
       <a href="{% url 'stamps:manage_tag_settings' %}" class="{% if nav == 'tag_settings' %}on{% endif %}">タグ設定</a>
       <a href="{% url 'stamps:manage_richmenu' %}" class="{% if nav == 'richmenu' %}on{% endif %}">リッチメニュー</a>
       <a href="{% url 'stamps:manage_messages' %}" class="{% if nav == 'messages' %}on{% endif %}">配信</a>
-      <div class="grp">今後のモジュール</div>
+      <div class="grp">準備中の機能</div>
       <div class="soon">セグメント配信 <span class="tag">準備中</span></div>
       <div class="soon">効果測定 <span class="tag">準備中</span></div>
     </div>
   </nav>
   <main class="main">
     <div class="topbar">
-      <h1>{% block heading %}{% endblock %}</h1>
+      <div class="ttl"><h1>{% block heading %}{% endblock %}</h1>{% block help %}{% endblock %}</div>
       <span class="who">{{ request.user.get_username }}</span>
     </div>
     {% if messages %}
       {% for m in messages %}
-      <div class="flashmsg {{ m.tags }}">{{ m }}</div>
+      <div class="flashmsg {{ m.tags }}" role="{% if m.tags == 'error' or m.tags == 'warning' %}alert{% else %}status{% endif %}">{{ m }}</div>
       {% endfor %}
     {% endif %}
     {% block content %}{% endblock %}

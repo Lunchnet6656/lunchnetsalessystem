@@ -1,7 +1,8 @@
 {% extends "stamps/manage/base.html" %}
 {% load humanize %}
 {% block title %}CRM分析{% endblock %}
-{% block heading %}CRM分析（リピート・定着・離反）{% endblock %}
+{% block heading %}CRM分析{% endblock %}
+{% block help %}{% include "includes/help_button.html" with title="CRM分析のヘルプ" body="stamps/manage/help/analytics.html" %}{% endblock %}
 {% block content %}
 <style>
   /* 折れ線（既存ダッシュボードと同じ間引きルール） */
@@ -90,7 +91,7 @@
   </div>
   <input type="hidden" name="cohort" value="{{ cohort_unit }}">
   <button class="btn" type="submit">表示</button>
-  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort={{ cohort_unit }}&export=csv">CSVダウンロード</a>
+  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort={{ cohort_unit }}&export=csv">CSV出力</a>
 </form>
 
 {% if m.n_members %}
@@ -99,15 +100,14 @@
 <div class="card">
   <h2>今の気づき <span class="autotag" style="float:right;">自動生成</span></h2>
   <div class="overall">
-    <span class="lead">総合の現在地</span>
+    <span class="lead">総合の現在地{% include "includes/info_tip.html" with id="an-overall" label="総合の現在地" text="各指標を目標ライン（暫定）で判定し、最も低い判定を表示。緑＝好調／橙＝ふつう／赤＝要注意／灰＝データ待ち。" %}</span>
     <span class="pill {{ verdicts.overall.level }}"><span class="d"></span>{{ verdicts.overall.label }}</span>
-    <span class="muted">各項目を目標ライン（暫定・後で調整可）で判定。緑=好調／橙=ふつう／赤=要注意。</span>
   </div>
   {% if insights %}
   <ul class="insights">
     {% for i in insights %}<li class="{{ i.level }}"><span class="dot"></span><span>{{ i.text }}</span></li>{% endfor %}
   </ul>
-  {% else %}<p class="empty" style="margin:0;">まだ十分なデータがありません。</p>{% endif %}
+  {% else %}<p class="empty" style="margin:0;">データ不足</p>{% endif %}
 </div>
 
 {# ② リピート率 #}
@@ -117,25 +117,27 @@
   <div class="summary">
     <div class="stat brand">
       <div class="n">{% if m.period_rate is not None %}{{ m.period_rate }}%{% else %}-{% endif %}</div>
-      <div class="l">期間内リピート率（{{ m.n_members|intcomma }}人中）</div>
+      <div class="l">期間内リピート率{% include "includes/info_tip.html" with id="an-repeat" label="期間内リピート率" text="期間内に来店した会員のうち、期間内に2日以上来店した会員の割合。前期比＝直前の同じ日数の期間との差。" %}</div>
+      <div class="l">{{ m.n_members|intcomma }}人中</div>
       <div class="delta {{ deltas.period_rate.cls }}">{{ deltas.period_rate.txt }}</div>
     </div>
     <div class="stat">
       <div class="n">{% if m.within_rate is not None %}{{ m.within_rate }}%{% else %}-{% endif %}</div>
-      <div class="l">{{ m.within_days }}日以内再来率（対象{{ m.within_obs|intcomma }}人）</div>
+      <div class="l">{{ m.within_days }}日以内再来率{% include "includes/info_tip.html" with id="an-within" label="日数以内の再来率" text="初回来店から表示の日数以内に2回目の来店があった会員の割合。初回から表示の日数以上たった会員だけで算出。" %}</div>
+      <div class="l">対象{{ m.within_obs|intcomma }}人</div>
       <div class="delta {{ deltas.within_rate.cls }}">{{ deltas.within_rate.txt }}</div>
     </div>
     <div class="stat">
       <div class="n">{% if m.new_rate is not None %}{{ m.new_rate }}%{% else %}-{% endif %}</div>
-      <div class="l">新規客の再来率（新規{{ m.new_count|intcomma }}人）</div>
+      <div class="l">新規客の再来率{% include "includes/info_tip.html" with id="an-new" label="新規客の再来率" text="期間内に初来店した会員のうち、期間内に2日以上来店した会員の割合。" %}</div>
+      <div class="l">新規{{ m.new_count|intcomma }}人</div>
       <div class="delta {{ deltas.new_rate.cls }}">{{ deltas.new_rate.txt }}</div>
     </div>
   </div>
   {% if repeat_chart %}
-    <div style="margin-top:14px;">{% include "stamps/manage/_line_chart.html" with chart=repeat_chart %}</div>
-    <p class="muted" style="margin:6px 0 0;">週次の期間内リピート率（その週に2回以上来た人の割合）。</p>
+    <div style="margin-top:14px;">{% include "stamps/manage/_line_chart.html" with chart=repeat_chart chart_label="週ごとのリピート率" %}</div>
+    <p class="muted" style="margin:6px 0 0;">推移：週ごとのリピート率</p>
   {% endif %}
-  <p class="muted" style="margin-top:8px;">※ {{ m.within_days }}日以内再来率は初回から{{ m.within_days }}日以上経った会員のみで算出。数字は記述であり、原因（スタンプ効果など）は特定しない。</p>
 </div>
 
 {# ③ 来店間隔 #}
@@ -145,7 +147,7 @@
   <div class="summary">
     <div class="stat brand">
       <div class="n">{% if m.interval_median is not None %}{{ m.interval_median }}日{% else %}-{% endif %}</div>
-      <div class="l">来店間隔の中央値</div>
+      <div class="l">来店間隔の中央値{% include "includes/info_tip.html" with id="an-interval" label="来店間隔の中央値" text="2日以上来店した会員の、来店と来店の間の日数の中央値。" %}</div>
       <div class="delta {{ deltas.interval_median.cls }}">{{ deltas.interval_median.txt }}</div>
     </div>
     <div class="stat">
@@ -166,22 +168,20 @@
     </tbody>
   </table>
   {% if interval_chart %}
-    <div style="margin-top:14px;">{% include "stamps/manage/_line_chart.html" with chart=interval_chart %}</div>
-    <p class="muted" style="margin:6px 0 0;">週次・その週に発生した来店間隔の中央値。短縮＝定着傾向だが、原因は特定しない。</p>
+    <div style="margin-top:14px;">{% include "stamps/manage/_line_chart.html" with chart=interval_chart chart_label="週ごとの来店間隔（中央値）" %}</div>
+    <p class="muted" style="margin:6px 0 0;">推移：週ごとの来店間隔（中央値）</p>
   {% endif %}
-  <p class="muted" style="margin-top:8px;">※ 算出対象 {{ m.interval_target|intcomma }}人／来店1回のみ {{ m.interval_single|intcomma }}人（間隔は算出不可のため対象外）。</p>
-  {% else %}<p class="empty">間隔を算出できる会員（2回以上来店）がまだいません。</p>{% endif %}
+  <p class="muted" style="margin-top:8px;">算出対象 {{ m.interval_target|intcomma }}人／来店1回のみ {{ m.interval_single|intcomma }}人（対象外）</p>
+  {% else %}<p class="empty">対象会員なし（2日以上の来店が必要）</p>{% endif %}
 </div>
 
 {# ④ コホート継続マトリクス #}
 <div class="card">
-  <h2>コホート継続（{% if cohort_unit == 'month' %}月次{% else %}週次{% endif %}）
-    <span class="pill {{ verdicts.cohort.level }}" style="margin-left:6px;"><span class="d"></span>{{ verdicts.cohort.label }}</span>
-    <span class="toggle" style="float:right;">
-      <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=week" class="{% if cohort_unit != 'month' %}on{% endif %}">週次</a>
-      <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=month" class="{% if cohort_unit == 'month' %}on{% endif %}">月次</a>
-    </span>
-  </h2>
+  <h2>コホート継続（{% if cohort_unit == 'month' %}月次{% else %}週次{% endif %}）{% include "includes/info_tip.html" with id="an-cohort" label="コホート継続" text="初来店の週（月）ごとの会員グループが、その後の各週（月）に1回以上来店した割合。下段＝来店人数／グループ人数。「集計中」＝期間が終わっていない週（月）。人数が少ない行は割合が大きく振れる。" %}<span class="pill {{ verdicts.cohort.level }}" style="margin-left:6px;"><span class="d"></span>{{ verdicts.cohort.label }}</span></h2>
+  <div class="toggle" style="text-align:right;margin:-4px 0 4px;">
+    <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=week" class="{% if cohort_unit != 'month' %}on{% endif %}">週次</a>
+    <a href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&cohort=month" class="{% if cohort_unit == 'month' %}on{% endif %}">月次</a>
+  </div>
   <p class="readout">{{ verdicts.cohort.text }}<span class="scale">{{ verdicts.cohort.scale }}</span></p>
   {% if m.cohort.rows %}
   <div class="tscroll">
@@ -208,13 +208,12 @@
       </tbody>
     </table>
   </div>
-  <p class="muted" style="margin-top:10px;">※ 各セル＝その{% if cohort_unit == 'month' %}月{% else %}週{% endif %}に初来店した会員が、経過{% if cohort_unit == 'month' %}月{% else %}週{% endif %}に1回でも来た割合（下段＝実人数）。母数の少ない行は割合が振れる。</p>
-  {% else %}<p class="empty">この期間に初来店した新規会員がまだいません。</p>{% endif %}
+  {% else %}<p class="empty">期間内の新規会員なし</p>{% endif %}
 </div>
 
 {# ⑤ RFM / 離反セグメント #}
 <div class="card">
-  <h2>RFM / 離反セグメント <span class="pill {{ verdicts.churn.level }}" style="float:right;"><span class="d"></span>{{ verdicts.churn.label }}</span></h2>
+  <h2>RFM / 離反セグメント{% include "includes/info_tip.html" with id="an-rfm" label="RFM / 離反セグメント" text="縦＝最終来店からの日数、横＝通算来店回数ごとの会員数。概算¥＝来店回数×650円の目安（実購入額ではない）。緑＝最近来ているリピーター層、赤＝元常連で来ていない層。離反の日数は［タグ設定］の「離反ぎみ」と連動。" %} <span class="pill {{ verdicts.churn.level }}" style="float:right;"><span class="d"></span>{{ verdicts.churn.label }}</span></h2>
   <p class="readout">{{ verdicts.churn.text }}<span class="scale">{{ verdicts.churn.scale }}</span></p>
   <div class="tscroll">
     <table class="grid rfm">
@@ -239,10 +238,9 @@
     </table>
   </div>
   <div class="followcard">
-    <div class="txt">要フォロー：以前は常連（5回以上）で{{ m.rfm.dormant_days }}日以上来ていない会員 <strong>{{ m.rfm.followup|intcomma }}</strong>人</div>
-    <a class="btn sm" href="{% url 'stamps:manage_friends' %}?tag={{ '離反ぎみ'|urlencode }}&sort=visits">友だち管理で見る（離反ぎみ）</a>
+    <div class="txt">要フォロー：元常連（5回以上）・{{ m.rfm.dormant_days }}日以上未来店 <strong>{{ m.rfm.followup|intcomma }}</strong>人</div>
+    <a class="btn sm" href="{% url 'stamps:manage_friends' %}?tag={{ '離反ぎみ'|urlencode }}&sort=visits">対象者を表示</a>
   </div>
-  <p class="muted" style="margin-top:10px;">※ 概算¥は「来店回数×弁当{{ 650 }}円」の目安（実購入額ではない）。緑＝最近×リピートの優良層／赤＝元常連の離脱。離反ラインはタグ設定の日数に追従。</p>
 </div>
 
 {# ⑥ その他の内訳（既存吸収） #}
@@ -264,13 +262,13 @@
       </tbody>
     </table>
   </div>
-  {% else %}<p class="empty">この期間のデータはありません。</p>{% endif %}
+  {% else %}<p class="empty">該当データなし</p>{% endif %}
 </div>
 
 <div class="card">
   <h2>特典使用の推移（内訳・{% if usage_weekly %}週次{% else %}日次{% endif %}）</h2>
   {% if usage_total %}
-  <p class="muted" style="margin:0 0 12px;">期間内の使用 <strong>{{ usage_total|intcomma }}件</strong>／ピーク <strong>{{ usage_peak|intcomma }}件</strong>（使用日ベース）</p>
+  <p class="muted" style="margin:0 0 12px;">使用 <strong>{{ usage_total|intcomma }}件</strong>／ピーク <strong>{{ usage_peak|intcomma }}件</strong>（使用日で集計）</p>
   <table class="grid ibars">
     <tbody>
       {% for row in usage_rows %}
@@ -282,10 +280,10 @@
       {% endfor %}
     </tbody>
   </table>
-  {% else %}<p class="empty">この期間に使われた特典はありません。</p>{% endif %}
+  {% else %}<p class="empty">期間内の特典使用なし</p>{% endif %}
 </div>
 
 {% else %}
-<div class="card"><p class="empty">この期間の来店データがありません。期間や店舗を変えて確認してください。</p></div>
+<div class="card"><p class="empty">来店データなし（期間・店舗を変更）</p></div>
 {% endif %}
 {% endblock %}

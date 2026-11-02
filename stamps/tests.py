@@ -414,7 +414,7 @@ class StampManageViewTests(TestCase):
             resp = self.client.post("/stamp/manage/friends/",
                                     {"action": "refresh_blocks"}, follow=True)
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "トークンが未設定")
+        self.assertContains(resp, "LINE連携が未設定")
 
     def test_friends_refresh_blocks_updates(self):
         m = LineMember.objects.create(line_user_id="U_real", name="実在さん")
@@ -901,7 +901,7 @@ class DashboardFriendBaseTests(TestCase):
         # スナップショットは要求期間内の固定日に置く（実行日に依存しない＝毎日安定して通す）。
         self._snap(_dt(2026, 8, 1, 0, 0).date(), targeted_reaches=50)
         resp = self.client.get("/stamp/manage/?from=2026-07-01&to=2026-08-01")
-        self.assertContains(resp, "全友だち50人")
+        self.assertContains(resp, "1／50人")
         self.assertContains(resp, "2.0%")
 
     def test_waiting_when_no_snapshot(self):

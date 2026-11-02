@@ -37,9 +37,9 @@
 </head>
 <body>
   <div class="toolbar">
-    <button class="btn" onclick="window.print()">印刷する</button>
-    <a class="btn" style="background:#0a5a2a;" href="?pattern={{ other_pattern }}">柄を切替 → {{ other_label }}</a>
-    <span class="muted">店舗：{{ loc.name }}／ 柄：<b>{{ pattern_label }}</b>／ A5横・卓上スタンド版。刷ったら<b>真ん中の点線で半分に切る</b>とA6のPOPが2枚。QRは店舗別の本物（読み取り可能）。</span>
+    <button class="btn" onclick="window.print()">印刷</button>
+    <a class="btn" style="background:#0a5a2a;" href="?pattern={{ other_pattern }}">柄切替（{{ other_label }}）</a>
+    <span class="muted">{{ loc.name }}／{{ pattern_label }}／A5横・中央の点線で切ってA6×2</span>
   </div>
 
   <div class="sheet">

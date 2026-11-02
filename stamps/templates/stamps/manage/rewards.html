@@ -2,6 +2,7 @@
 {% load humanize %}
 {% block title %}特典設定{% endblock %}
 {% block heading %}特典設定・コスト{% endblock %}
+{% block help %}{% include "includes/help_button.html" with title="特典設定のヘルプ" body="stamps/manage/help/rewards.html" %}{% endblock %}
 {% block content %}
 
 <div class="card">
@@ -18,23 +19,16 @@
 
     <div style="flex-basis:100%;height:1px;background:#eee;margin:4px 0;"></div>
     <div class="fld" style="flex-basis:100%;"><b>スタンプ2倍イベント</b></div>
-    <div class="fld"><label class="muted">☔ 雨の日ボーナス（本日 {{ today }}）</label>
-      <label style="font-size:13px;"><input type="checkbox" name="rain_bonus_today" {% if rain_on_today %}checked{% endif %}> 本日の来店を2倍にする</label></div>
-    <div class="fld"><label class="muted">🔥 連続来店ボーナス</label>
-      <label style="font-size:13px;"><input type="checkbox" name="streak_bonus_enabled" {% if config.streak_bonus_enabled %}checked{% endif %}> 有効にする</label></div>
+    <div class="fld"><span class="hp-lbl"><label class="muted">☔ 雨の日ボーナス（{{ today }}）</label>{% include "includes/info_tip.html" with id="rw-rain" label="雨の日ボーナス" text="チェックして保存した日の来店だけスタンプ2倍。翌日は自動でOFF。連続来店ボーナスと重なっても2倍まで。" %}</span>
+      <label style="font-size:13px;"><input type="checkbox" name="rain_bonus_today" {% if rain_on_today %}checked{% endif %}> 本日2倍</label></div>
+    <div class="fld"><span class="hp-lbl"><label class="muted">🔥 連続来店ボーナス</label>{% include "includes/info_tip.html" with id="rw-streak" label="連続来店ボーナス" text="連続来店の日数が節目（例：3日→3・6・9日目…）に達した日をスタンプ2倍。雨の日ボーナスと重なっても2倍まで。" %}</span>
+      <label style="font-size:13px;"><input type="checkbox" name="streak_bonus_enabled" {% if config.streak_bonus_enabled %}checked{% endif %}> 有効</label></div>
     <div class="fld"><label class="muted">連続の節目（日）</label>
       <input type="number" name="streak_bonus_days" value="{{ config.streak_bonus_days }}" min="1" style="width:70px;"></div>
 
     <button class="btn sm" type="submit">保存</button>
   </form>
-  <p class="muted" style="margin:10px 0 0;">
-    ☔ <b>雨の日</b>：チェックを入れて保存すると<b>本日ぶんだけ</b>2倍。翌日は自動でOFFに戻ります（消し忘れなし）。
-    🔥 <b>連続来店</b>：連続来店が節目（既定3日＝3・6・9日目…）に達した日を2倍。両方該当しても<b>最大2倍</b>で据え置きです。
-  </p>
-  <p class="muted" style="margin:10px 0 0;">
-    カードの満了pt（マス数）は <b>{{ cap_pt|intcomma }}個</b>。＝有効な段階のうち最大の到達ptで自動決定します（段階を足すとカードも伸びます）。
-    基準コストは損益・コスト集計用の想定値（実装には影響しません）。
-  </p>
+  <p class="muted" style="margin:10px 0 0;">カード満了：<b>{{ cap_pt|intcomma }}pt</b>{% include "includes/info_tip.html" with id="rw-cap" label="カード満了" text="有効な段階のうち最大の到達ptで自動決定。段階を追加するとカードのマス数も増える。" %}</p>
 </div>
 
 {% for row in tier_rows %}
@@ -53,25 +47,25 @@
         <option value="{{ kind_free }}" {% if row.tier.kind == kind_free %}selected{% endif %}>お弁当無料</option>
       </select>
     </div>
-    <div class="fld"><label class="muted">割引額（円・無料は0）</label><input type="number" name="discount_yen" value="{{ row.tier.discount_yen }}" min="0" style="width:80px;"></div>
-    <div class="fld"><label class="muted">基準コスト（円）</label><input type="number" name="benefit_cost" value="{{ row.tier.benefit_cost }}" min="0" style="width:90px;"></div>
+    <div class="fld"><label class="muted">割引額（円）</label><input type="number" name="discount_yen" value="{{ row.tier.discount_yen }}" min="0" style="width:80px;"></div>
+    <div class="fld"><span class="hp-lbl"><label class="muted">基準コスト（円）</label>{% include "includes/info_tip.html" with id="rw-cost" key=row.tier.id label="基準コスト" text="損益・コスト集計用の想定値。お客さんへの特典内容には影響しない。" %}</span><input type="number" name="benefit_cost" value="{{ row.tier.benefit_cost }}" min="0" style="width:90px;"></div>
     <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" {% if row.tier.active %}checked{% endif %}> 使う</label></div>
     <button class="btn sm" type="submit">保存</button>
   </form>
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:12px;">
+  <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:12px;">
     <table class="grid" style="margin:0;">
       <thead><tr><th>発行数</th><th>使用数</th><th>使用済みコスト</th></tr></thead>
       <tbody><tr><td>{{ row.issued|intcomma }}</td><td>{{ row.used|intcomma }}</td><td>¥{{ row.cost|intcomma }}</td></tr></tbody>
     </table>
     {% if row.deletable %}
-    <form method="post" onsubmit="return confirm('到達pt {{ row.tier.threshold_pt }} の段階を削除しますか？');">
+    <form method="post" onsubmit="return confirm('{{ row.tier.threshold_pt }}ptの段階を削除します。');">
       {% csrf_token %}
       <input type="hidden" name="action" value="delete">
       <input type="hidden" name="tier_id" value="{{ row.tier.id }}">
-      <button class="btn sm ghost" type="submit">この段階を削除</button>
+      <button class="btn sm ghost" type="submit">削除</button>
     </form>
     {% else %}
-    <span class="muted" style="font-size:12px;">発行済みあり＝削除不可（無効化で対応）</span>
+    <span class="muted" style="font-size:12px;">発行済みのため削除不可（「有効」を外して停止）</span>
     {% endif %}
   </div>
 </div>
@@ -90,14 +84,14 @@
         <option value="{{ kind_free }}">お弁当無料</option>
       </select>
     </div>
-    <div class="fld"><label class="muted">割引額（円・無料は0）</label><input type="number" name="discount_yen" value="0" min="0" style="width:80px;"></div>
-    <div class="fld"><label class="muted">基準コスト（円）</label><input type="number" name="benefit_cost" value="0" min="0" style="width:90px;"></div>
+    <div class="fld"><label class="muted">割引額（円）</label><input type="number" name="discount_yen" value="0" min="0" style="width:80px;"></div>
+    <div class="fld"><span class="hp-lbl"><label class="muted">基準コスト（円）</label>{% include "includes/info_tip.html" with id="rw-cost" key="new" label="基準コスト" text="損益・コスト集計用の想定値。お客さんへの特典内容には影響しない。" %}</span><input type="number" name="benefit_cost" value="0" min="0" style="width:90px;"></div>
     <div class="fld"><label class="muted">有効</label><label style="font-size:13px;"><input type="checkbox" name="active" checked> 使う</label></div>
-    <button class="btn sm" type="submit">追加する</button>
+    <button class="btn sm" type="submit">追加</button>
   </form>
 </div>
 
 <div class="card">
-  <div class="stat brand" style="display:inline-block;"><div class="n">¥{{ total_cost|intcomma }}</div><div class="l">使用済み特典の総コスト（全段階）</div></div>
+  <div class="stat brand" style="display:inline-block;"><div class="n">¥{{ total_cost|intcomma }}</div><div class="l">総コスト（使用分・全段階）</div></div>
 </div>
 {% endblock %}

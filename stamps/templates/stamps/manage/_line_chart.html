@@ -2,7 +2,7 @@
 {# 単線の推移グラフ。context: chart（_svg_line_chart の戻り値）。呼び元で {% include %} する。 #}
 <div class="fchart">
   <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" preserveAspectRatio="xMidYMid meet"
-       aria-label="推移グラフ">
+       aria-label="{{ chart_label|default:'推移グラフ' }}">
     {% for t in chart.yticks %}
       <line x1="{{ chart.axis_x0 }}" y1="{{ t.y }}" x2="{{ chart.axis_x1 }}" y2="{{ t.y }}" stroke="#eceef1" stroke-width="1"/>
       <text x="{{ chart.axis_x0 }}" y="{{ t.y }}" dx="-6" dy="3" text-anchor="end" fill="#6c757d">{{ t.v|intcomma }}{{ chart.unit }}</text>

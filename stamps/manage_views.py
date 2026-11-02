@@ -1339,7 +1339,7 @@ def _friends_assign_tags(request):
     remove = existing - chosen
     if remove:
         MemberTagLink.objects.filter(member=member, tag_id__in=remove).delete()
-    messages.success(request, f"{member.name} のタグを更新しました。")
+    messages.success(request, f"{member.name}の手動タグを更新しました。")
 
 
 def _friends_refresh_blocks(request):
@@ -1352,17 +1352,16 @@ def _friends_refresh_blocks(request):
     from stamps import line_block
 
     if not line_richmenu._token():
-        messages.error(request, "LINEのアクセストークンが未設定のため、ブロック状態を確認できませんでした。")
+        messages.error(request, "ブロック状態を更新できません。LINE連携が未設定です。システム管理者に設定を依頼してください。")
         return
     stats = line_block.refresh_block_status(LineMember.objects.all())
     if not stats["checked"]:
-        messages.info(request, "確認できる友だちがいませんでした。")
+        messages.info(request, "ブロック状態の確認対象がいません。")
         return
-    parts = [f"{stats['checked']}人を確認しました",
-             f"アクティブ{stats['active']}／ブロック{stats['blocked']}"]
+    messages.success(request, f"ブロック状態を更新しました（確認{stats['checked']}人："
+                              f"アクティブ{stats['active']}／ブロック{stats['blocked']}）。")
     if stats["unknown"]:
-        parts.append(f"判定できず{stats['unknown']}（次回再確認）")
-    messages.success(request, "ブロック状態を更新しました：" + "／".join(parts) + "。")
+        messages.warning(request, f"{stats['unknown']}人は判定できませんでした。時間をおいて再度更新してください。")
 
 
 def _friends_redirect(request):
@@ -1482,7 +1481,7 @@ def _tagcfg_save(request):
         for f in _TAGCFG_FIELDS:
             setattr(cfg, f, max(0, int(request.POST.get(f) or getattr(cfg, f))))
     except (TypeError, ValueError):
-        messages.error(request, "しきい値は0以上の数値で入力してください。")
+        messages.error(request, "しきい値を保存できません。0以上の整数を入力してください。")
         return
     cfg.save()
     messages.success(request, "自動タグのしきい値を保存しました。")
@@ -1500,10 +1499,10 @@ def _memtag_apply(request, tag):
 def _memtag_add(request):
     name = (request.POST.get("name") or "").strip()
     if not name:
-        messages.error(request, "タグ名を入力してください。")
+        messages.error(request, "手動タグを追加できません。タグ名を入力してください。")
         return
     if MemberTag.objects.filter(name=name).exists():
-        messages.error(request, f"「{name}」は既にあります。")
+        messages.error(request, f"手動タグを追加できません。「{name}」は登録済みです。別の名前を入力してください。")
         return
     tag = MemberTag(name=name)
     _memtag_apply(request, tag)
@@ -1516,7 +1515,7 @@ def _memtag_save(request):
     name = (request.POST.get("name") or "").strip()
     if name and name != tag.name:
         if MemberTag.objects.filter(name=name).exclude(pk=tag.pk).exists():
-            messages.error(request, f"「{name}」は既にあります。")
+            messages.error(request, f"手動タグを保存できません。「{name}」は登録済みです。別の名前を入力してください。")
             return
         tag.name = name
     _memtag_apply(request, tag)
@@ -1571,7 +1570,7 @@ def richmenu(request):
             img = request.FILES.get("image")
             img_bytes = _normalize_richmenu_image(img) if img else None
             if img is not None and img_bytes is None:
-                messages.error(request, "画像を読み込めませんでした（PNG/JPGの画像をアップロードしてください）。")
+                messages.error(request, "リッチメニューを登録できません。画像を読み込めませんでした。PNGまたはJPGの画像を選択してください。")
                 return redirect("stamps:manage_richmenu")
             urls = {
                 "menu": (request.POST.get("url_menu") or "").strip(),
@@ -1580,23 +1579,39 @@ def richmenu(request):
                 "stamp": (request.POST.get("url_stamp") or "").strip(),
             }
             urls = {k: v for k, v in urls.items() if v}
+            was_registered = rm.get_or_create_stamp_menu().is_registered
             ok, err = rm.register_stamp_menu(image_png_bytes=img_bytes, urls=urls)
             if ok:
-                messages.success(request, "リッチメニューを登録/更新しました。スタンプ利用者へ自動で出ます。")
+                messages.success(request, "リッチメニューを更新しました。" if was_registered
+                                 else "リッチメニューを登録しました。")
             else:
-                messages.error(request, f"登録できませんでした：{err}")
+                messages.error(request, "リッチメニューを登録できません。" + _richmenu_register_error(err))
             return redirect("stamps:manage_richmenu")
         if action == "reassign_all":
             targets = LineMember.objects.filter(stamp_cards__isnull=False).distinct()
+            n = targets.count()
             ok = sum(1 for m in targets if rm.assign(m))
-            messages.success(request, f"スタンプ利用者 {targets.count()}人中 {ok}人に適用しました。")
+            if not n:
+                messages.info(request, "適用対象のスタンプ利用者がいません。")
+            elif ok == n:
+                messages.success(request, f"スタンプ用メニューを{n}人に適用しました。")
+            elif ok:
+                messages.warning(request, f"スタンプ用メニューを{n}人中{ok}人に適用しました。{n - ok}人は失敗しました。"
+                                          "利用者一覧の［適用］で再実行してください。")
+            else:
+                messages.error(request, "スタンプ用メニューを適用できません。LINE連携・メニュー登録を確認してください。")
         elif action in ("link", "unlink"):
             member = get_object_or_404(LineMember, pk=request.POST.get("member_id"))
             if action == "link":
-                messages.success(request, f"{member.name} に適用{'しました' if rm.assign(member) else 'できませんでした（設定/通信を確認）'}。")
+                if rm.assign(member):
+                    messages.success(request, f"{member.name}にスタンプ用メニューを適用しました。")
+                else:
+                    messages.error(request, f"{member.name}にスタンプ用メニューを適用できません。"
+                                            "LINE連携・メニュー登録を確認し、再実行してください。")
+            elif rm.unassign(member):
+                messages.success(request, f"{member.name}のスタンプ用メニューを解除しました。")
             else:
-                rm.unassign(member)
-                messages.success(request, f"{member.name} の割当てを解除しました（デフォルトに戻ります）。")
+                messages.error(request, f"{member.name}のスタンプ用メニューを解除できません。時間をおいて再実行してください。")
         return redirect("stamps:manage_richmenu")
 
     # スタンプ利用者（カードを持つ会員）＋割当て状況
@@ -1611,7 +1626,8 @@ def richmenu(request):
             n_linked += 1
         elif status == RichMenuLink.STATUS_FAILED:
             n_failed += 1
-        rows.append({"m": m, "link": link, "status": status})
+        rows.append({"m": m, "link": link, "status": status,
+                     "detail_label": _richmenu_detail_label(link.detail if link else "")})
     rows.sort(key=lambda r: (r["status"] != "linked", r["m"].name))
 
     menu = rm.get_or_create_stamp_menu()
@@ -1633,6 +1649,31 @@ def richmenu(request):
         "n_linked": n_linked,
         "n_failed": n_failed,
     })
+
+
+# richmenu.py が保存・返却する内部向け文字列（環境変数名など）を画面用の言葉に置き換える。
+# 保存値とログはそのまま残し、表示だけ差し替える。
+_RICHMENU_DETAIL_LABELS = {
+    "LINE_CHANNEL_ACCESS_TOKEN 未設定": "LINE連携未設定",
+    "LINE_STAMP_RICHMENU_ID 未設定": "メニュー未登録",
+    "LINE APIリンク失敗（トークン/ID/通信を確認）": "LINEへの適用失敗",
+    "解除API失敗": "LINEでの解除失敗",
+}
+
+
+def _richmenu_detail_label(detail):
+    if not detail:
+        return ""
+    return _RICHMENU_DETAIL_LABELS.get(detail, "エラー（詳細はログ）")
+
+
+def _richmenu_register_error(err):
+    err = err or ""
+    if err.startswith("画像"):
+        return "画像を選択してください。"
+    if "LINE_CHANNEL_ACCESS_TOKEN" in err:
+        return "LINE連携が未設定です。システム管理者に設定を依頼してください。"
+    return "LINEとの通信に失敗しました。時間をおいて再実行してください。"
 
 
 def _normalize_richmenu_image(uploaded):
@@ -1678,7 +1719,7 @@ def locations(request):
         if action == "regen_qr":
             loc.qr_stamp_token = _generate_qr_token()
             loc.save(update_fields=["qr_stamp_token"])
-            messages.success(request, f"{loc.name}のスタンプQRを再発行しました（古いQRは無効になりました）。")
+            messages.success(request, f"{loc.name}のQRを再発行しました。掲示中のQRは無効です。")
         else:
             loc.stamp_enabled = bool(request.POST.get("stamp_enabled"))
             loc.stamp_open_time = _parse_time(request.POST.get("stamp_open_time")) or None
@@ -1889,7 +1930,7 @@ def _rewards_save(request):
     new_pt = _parse_pt(request.POST.get("threshold_pt"))
     if new_pt and new_pt != tier.threshold_pt:
         if RewardTier.objects.filter(threshold_pt=new_pt).exclude(pk=tier.pk).exists():
-            messages.error(request, f"到達pt {new_pt} は他の段階と重複しています。")
+            messages.error(request, f"特典を保存できません。{new_pt}ptは他の段階で使用中です。別の値を入力してください。")
             return
         tier.threshold_pt = new_pt
     _apply_tier_fields(request, tier)
@@ -1901,10 +1942,10 @@ def _rewards_save(request):
 def _rewards_add(request):
     new_pt = _parse_pt(request.POST.get("threshold_pt"))
     if not new_pt:
-        messages.error(request, "到達ptは1以上の数値で入力してください。")
+        messages.error(request, "段階を追加できません。到達ptに1以上の整数を入力してください。")
         return
     if RewardTier.objects.filter(threshold_pt=new_pt).exists():
-        messages.error(request, f"到達pt {new_pt} の段階は既にあります。編集してください。")
+        messages.error(request, f"段階を追加できません。{new_pt}ptは登録済みです。既存の段階を編集してください。")
         return
     tier = RewardTier(threshold_pt=new_pt)
     _apply_tier_fields(request, tier)
@@ -1912,7 +1953,7 @@ def _rewards_add(request):
         tier.label = f"{new_pt}pt特典"
     tier.save()
     RewardTier.sync_cap_flag()
-    messages.success(request, f"到達pt {new_pt} の段階を追加しました。")
+    messages.success(request, f"{new_pt}ptの段階を追加しました。")
 
 
 def _rewards_delete(request):
@@ -1922,7 +1963,7 @@ def _rewards_delete(request):
         tier.delete()
     except ProtectedError:
         messages.error(request,
-                       f"{pt}ptは発行済みの特典があるため削除できません。『有効』を外して無効化してください。")
+                       f"{pt}ptの段階を削除できません。発行済みの特典があります。「有効」を外して保存してください。")
         return
     RewardTier.sync_cap_flag()
     messages.success(request, f"{pt}ptの段階を削除しました。")
@@ -1936,7 +1977,7 @@ def _rewards_config(request):
         cfg.reward_validity_days = max(1, int(request.POST.get("reward_validity_days")
                                               or cfg.reward_validity_days))
     except (TypeError, ValueError):
-        messages.error(request, "有効日数は1以上の数値で入力してください。")
+        messages.error(request, "運用ルールを保存できません。有効日数に1以上の整数を入力してください。")
         return
     cfg.reward_starts_next_day = bool(request.POST.get("reward_starts_next_day"))
     # スタンプ2倍イベント：雨の日（当日セット）／連続来店。
@@ -1946,7 +1987,7 @@ def _rewards_config(request):
         cfg.streak_bonus_days = max(1, int(request.POST.get("streak_bonus_days")
                                            or cfg.streak_bonus_days))
     except (TypeError, ValueError):
-        messages.error(request, "連続来店の節目は1以上の数値で入力してください。")
+        messages.error(request, "運用ルールを保存できません。連続の節目に1以上の整数を入力してください。")
         return
     cfg.save()
     messages.success(request, "運用ルールを保存しました。")
@@ -2028,7 +2069,7 @@ def message_settings(request):
         if action == "common":
             cfg.menu_url = (request.POST.get("menu_url") or "").strip()
             cfg.save(update_fields=["menu_url", "updated_at"])
-            messages.success(request, "保存しました。")
+            messages.success(request, "メニューリンクURLを保存しました。")
         else:
             sc = get_object_or_404(MessageScenario, kind=action)
             sc.enabled = bool(request.POST.get("enabled"))
@@ -2037,7 +2078,7 @@ def message_settings(request):
                 sc.offset_days = max(0, int(request.POST.get("offset_days") or sc.offset_days))
                 sc.holdout_pct = min(50, max(0, int(request.POST.get("holdout_pct") or 0)))
             except (TypeError, ValueError):
-                messages.error(request, "日数・対照群は0以上の数値で入力してください。")
+                messages.error(request, f"「{sc.get_kind_display()}」を保存できません。日数・対照群に0以上の整数を入力してください。")
                 return redirect("stamps:manage_messages")
             sc.save()
             messages.success(request, f"「{sc.get_kind_display()}」を保存しました。")

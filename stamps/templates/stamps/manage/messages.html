@@ -1,7 +1,8 @@
 {% extends "stamps/manage/base.html" %}
 {% load humanize %}
 {% block title %}配信{% endblock %}
-{% block heading %}狙い撃ち配信（設定）{% endblock %}
+{% block heading %}狙い撃ち配信{% endblock %}
+{% block help %}{% include "includes/help_button.html" with title="狙い撃ち配信のヘルプ" body="stamps/manage/help/messages.html" %}{% endblock %}
 {% block content %}
 <style>
   .warnbar{background:#fdecec;color:var(--ln-color-danger);border:1px solid var(--ln-color-danger);
@@ -25,7 +26,6 @@
   .varchip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid #bcd3ff;background:#e7f0ff;
     color:#1d4ed8;cursor:pointer;font-family:ui-monospace,Menlo,monospace;}
   .varchip:hover{background:#d6e6ff;}
-  .varhelp{font-size:11px;color:var(--ln-color-text-muted);margin:2px 0 8px;}
   textarea.tpl{width:100%;box-sizing:border-box;min-height:96px;font-size:14px;padding:9px;
     border:1px solid var(--ln-color-border);border-radius:8px;line-height:1.5;resize:vertical;}
   .fld-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin:12px 0;}
@@ -44,7 +44,7 @@
 </style>
 
 {% if not line_ok %}
-<div class="warnbar">配信は現在停止中：LINEのチャネルアクセストークンが未設定です（設定するまで送信されません）。</div>
+<div class="warnbar">配信停止中：LINE連携未設定</div>
 {% endif %}
 
 {{ sample|json_script:"sample-data" }}
@@ -57,7 +57,7 @@
     <input type="hidden" name="action" value="common">
     <div class="fld-row">
       <div class="fld" style="flex:1;min-width:220px;">
-        <label>メニューリンクURL（文面の {メニューリンク} に入る）</label>
+        <span class="hp-lbl"><label>メニューリンクURL</label>{% include "includes/info_tip.html" with id="ms-url" label="メニューリンクURL" text="文面の {メニューリンク} に入るURL。全シナリオ共通。" %}</span>
         <input type="url" name="menu_url" value="{{ cfg.menu_url }}" placeholder="https://…" style="width:100%;">
       </div>
       <button class="btn" type="submit">保存</button>
@@ -81,7 +81,6 @@
       </label>
     </div>
     <p class="cond">発動条件：<span data-cond="{{ s.kind }}">{{ s.condition_text }}</span></p>
-    {% if s.kind == 'welcome' %}<p class="cond" style="margin-top:-8px;">※感謝のみ・来店は生みません。次回後押しに統合も可。</p>{% endif %}
 
     <div class="sc-body {% if not s.enabled %}off{% endif %}">
       <div class="varchips">
@@ -89,9 +88,8 @@
         <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="現在pt">{現在pt}</button>
         <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="次の特典まで">{次の特典まで}</button>
         <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="次の特典">{次の特典}</button>
-        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="メニューリンク">{メニューリンク}</button>
+        <button type="button" class="varchip" data-t="tpl-{{ s.kind }}" data-v="メニューリンク">{メニューリンク}</button>{% include "includes/info_tip.html" with id="ms-vars" key=s.kind label="変数" text="{名前}＝会員名／{現在pt}＝現在のスタンプ数／{次の特典まで}＝次の特典までの残り数／{次の特典}＝次の特典名／{メニューリンク}＝共通設定のURL。ボタンで文面のカーソル位置に挿入。" %}
       </div>
-      <div class="varhelp">{名前}=会員名／{現在pt}=今のスタンプ数／{次の特典まで}=あと何個で次の特典か／{次の特典}=次の特典名／{メニューリンク}=共通設定のURL</div>
       <textarea class="tpl" id="tpl-{{ s.kind }}" name="template"
                 data-cond-kind="{{ s.kind }}" oninput="pvRender('{{ s.kind }}')">{{ s.template }}</textarea>
 
@@ -112,33 +110,31 @@
           {% endif %}
         </div>
         <div class="fld">
-          <label>対照群（送らず残す）</label>
+          <span class="hp-lbl"><label>対照群</label>{% include "includes/info_tip.html" with id="ms-hold" key=s.kind label="対照群" text="条件に合う会員のうち、この割合には送らずに残し、送った会員との再来率を比べる（効果測定用）。上限50%。" %}</span>
           <span><input class="num" type="number" min="0" max="50" name="holdout_pct" value="{{ s.holdout_pct }}"
                 oninput="holdWarn('{{ s.kind }}', this.value)">%
-            <span class="warn-inline" id="hw-{{ s.kind }}" {% if s.holdout_pct %}style="display:none;"{% endif %}>0%だと効果を測れません</span>
+            <span class="warn-inline" id="hw-{{ s.kind }}" {% if s.holdout_pct %}style="display:none;"{% endif %}>0%：効果測定不可</span>
           </span>
         </div>
       </div>
 
-      <div class="preview-h">プレビュー（サンプル値・実データではありません）</div>
+      <div class="preview-h">プレビュー（サンプル値）</div>
       <div class="preview" id="pv-{{ s.kind }}"></div>
 
       {% with r=s.result %}
       <div class="result">
         {% if r.sent or r.held %}
-          送信 <strong>{{ r.sent|intcomma }}</strong>人／対照 <strong>{{ r.held|intcomma }}</strong>人｜
-          再来率
-          {% if r.sent_rate is not None %}送信 {{ r.sent_rate }}%{% else %}送信 -{% endif %}
-          vs
-          {% if r.held_rate is not None %}対照 {{ r.held_rate }}%{% else %}対照 -{% endif %}
-          {% if r.sent_rate is not None and r.held_rate is not None %}
-            {% if r.sent_rate > r.held_rate %}<span class="up">🟢効いてる</span>
-            {% elif r.sent_rate < r.held_rate %}<span class="down">🔴効いてない</span>
-            {% else %}<span class="flat">差なし</span>{% endif %}
-          {% endif %}
-          <span class="cond">（再来率＝配信後{{ measure_days }}日以内の来店）</span>
+          <div>送信 <strong>{{ r.sent|intcomma }}</strong>人／対照 <strong>{{ r.held|intcomma }}</strong>人</div>
+          <div>再来率（{{ measure_days }}日以内）
+            {% if r.sent_rate is not None %}送信 {{ r.sent_rate }}%{% else %}送信 -{% endif %}／{% if r.held_rate is not None %}対照 {{ r.held_rate }}%{% else %}対照 -{% endif %}
+            {% if r.sent_rate is not None and r.held_rate is not None %}
+              {% if r.sent_rate > r.held_rate %}<span class="up">送信＞対照</span>
+              {% elif r.sent_rate < r.held_rate %}<span class="down">送信＜対照</span>
+              {% else %}<span class="flat">差なし</span>{% endif %}
+            {% endif %}
+          </div>
         {% else %}
-          <span class="cond">まだ配信データがありません。</span>
+          <span class="cond">配信実績なし</span>
         {% endif %}
       </div>
       {% endwith %}

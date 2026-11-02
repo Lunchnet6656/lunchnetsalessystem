@@ -2,6 +2,7 @@
 {% load humanize %}
 {% block title %}友だち管理{% endblock %}
 {% block heading %}友だち管理（LINE会員）{% endblock %}
+{% block help %}{% include "includes/help_button.html" with title="友だち管理のヘルプ" body="stamps/manage/help/friends.html" %}{% endblock %}
 {% block content %}
 <form method="get" class="filters">
   <div class="fld"><label>並び替え</label>
@@ -40,7 +41,7 @@
       <option value="blocked" {% if blk == 'blocked' %}selected{% endif %}>ブロック中のみ</option>
     </select>
   </div>
-  <a class="btn ghost" href="?sort={{ sort }}&tag={{ tag }}&loc={{ f_loc }}&blk={{ blk }}&export=csv">CSVダウンロード</a>
+  <a class="btn ghost" href="?sort={{ sort }}&tag={{ tag }}&loc={{ f_loc }}&blk={{ blk }}&export=csv">CSV出力</a>
 </form>
 
 <div class="card blkbar">
@@ -49,9 +50,10 @@
     <span class="badge off">🚫 ブロック中 {{ blk_summary.blocked }}</span>
     {% if blk_summary.unchecked %}<span class="badge">❔ 未確認 {{ blk_summary.unchecked }}</span>{% endif %}
     <span class="muted">
-      {% if blk_summary.last_checked %}最終確認：{{ blk_summary.last_checked|date:'n/j H:i' }}{% else %}まだ確認していません{% endif %}
+      {% if blk_summary.last_checked %}最終確認：{{ blk_summary.last_checked|date:'n/j H:i' }}{% else %}未確認{% endif %}
     </span>
   </div>
+  <div class="hp-lbl">
   <form method="post" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='確認中…';">
     {% csrf_token %}
     <input type="hidden" name="action" value="refresh_blocks">
@@ -59,13 +61,12 @@
     <input type="hidden" name="tag" value="{{ tag }}">
     <input type="hidden" name="loc" value="{{ f_loc }}">
     <button class="btn" type="submit">ブロック状態を更新</button>
-  </form>
+  </form>{% include "includes/info_tip.html" with id="fr-block" label="ブロック状態を更新" text="LINEにブロック一覧を取得する機能がないため、友だち1人ずつLINEに問い合わせて判定。人数が多いと時間がかかる。" %}
+  </div>
 </div>
-<p class="muted" style="margin:-4px 0 12px;">LINEには「ブロックした人の一覧」を返す仕組みが無いため、更新ボタンで各友だちの状態をLINEに問い合わせて判定します（人数が多いと少し時間がかかります）。</p>
 
 <div class="card">
-  <h2>友だち一覧（{{ total|intcomma }}人）</h2>
-  <p class="muted" style="margin:-4px 0 12px;">自動タグ（来店データから自動付与）＋手動タグ（●付き）を各行で編集できます。しきい値やタグの追加は<a href="{% url 'stamps:manage_tag_settings' %}">タグ設定</a>から。これがそのままセグメント配信（準備中）の絞り込み条件になります。</p>
+  <h2>友だち一覧（{{ total|intcomma }}人）{% include "includes/info_tip.html" with id="fr-tags" label="友だち一覧" text="自動タグ＝来店データから自動で付与（基準は［タグ設定］）。手動タグ（●付き）＝各行の［タグ編集］で付け外し。" %}</h2>
   {% if rows %}
   <div class="tscroll">
   <table class="grid">
@@ -81,7 +82,7 @@
           {% if r.block_checked_at %}
             {% if r.blocked %}<span class="badge off" title="{{ r.block_checked_at|date:'n/j H:i' }}に確認">🚫ブロック中</span>
             {% else %}<span class="badge on" title="{{ r.block_checked_at|date:'n/j H:i' }}に確認">🟢アクティブ</span>{% endif %}
-          {% else %}<span class="badge" title="ブロック状態を更新ボタンで確認できます">❔未確認</span>{% endif %}
+          {% else %}<span class="badge">❔未確認</span>{% endif %}
           <div class="mono">{{ r.m.line_user_id|slice:':10' }}…</div>
         </td>
         <td class="tagcell wrapok">
@@ -127,7 +128,7 @@
     </tbody>
   </table>
   </div>
-  {% else %}<p class="empty">該当する友だちがいません。</p>{% endif %}
+  {% else %}<p class="empty">該当する友だちなし</p>{% endif %}
 </div>
 
 <style>

@@ -1,0 +1,8 @@
+<button type="button" class="hp-help-btn" data-hp-open="hp-help-{{ id|default:'page' }}" aria-haspopup="dialog"><span aria-hidden="true">？</span>ヘルプ</button>
+<dialog id="hp-help-{{ id|default:'page' }}" class="hp-dialog" aria-labelledby="hp-help-{{ id|default:'page' }}-t">
+  <div class="hp-dialog-head">
+    <h2 id="hp-help-{{ id|default:'page' }}-t">{{ title }}</h2>
+    <form method="dialog"><button class="hp-close" aria-label="閉じる">×</button></form>
+  </div>
+  <div class="hp-dialog-body">{% include body %}</div>
+</dialog>

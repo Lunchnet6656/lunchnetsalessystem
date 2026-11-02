@@ -2,6 +2,7 @@
 {% load humanize %}
 {% block title %}来店タイミング分析{% endblock %}
 {% block heading %}来店タイミング分析{% endblock %}
+{% block help %}{% include "includes/help_button.html" with title="来店タイミングのヘルプ" body="stamps/manage/help/timing.html" %}{% endblock %}
 {% block content %}
 <style>
   /* 母数補正バー（1営業日あたり平均を横棒で） */
@@ -14,7 +15,7 @@
   .tbar .val b{color:var(--ln-color-text-strong);font-size:14px;}
   /* 仕込み指数マトリクス（曜日×月内） */
   .heat{border-collapse:collapse;width:100%;font-size:13px;}
-  .heat th{font-size:11px;color:var(--ln-color-text-muted);padding:6px 8px;text-align:center;}
+  .heat th{font-size:11px;color:var(--ln-color-text-muted);padding:6px 8px;text-align:center;white-space:nowrap;}
   .heat th.rowh{text-align:left;width:56px;}
   .heat td{padding:0;text-align:center;border:2px solid var(--ln-color-white);}
   .heat .cell{padding:10px 6px;border-radius:8px;}
@@ -40,18 +41,18 @@
     </select>
   </div>
   <button class="btn" type="submit">表示</button>
-  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&export=csv">CSV</a>
+  <a class="btn ghost" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&loc={{ f_loc }}&export=csv">CSV出力</a>
 </form>
 
 <div class="summary">
-  <div class="stat brand"><div class="n">{{ t.overall_avg }}</div><div class="l">全体：1営業日あたり平均来店</div></div>
-  <div class="stat"><div class="n">{{ t.total_visits|intcomma }}</div><div class="l">期間内の総来店（スタンプ）</div></div>
-  <div class="stat"><div class="n">{{ t.total_bizdays }}</div><div class="l">営業日数（来店のあった日）</div></div>
+  <div class="stat brand"><div class="n">{{ t.overall_avg }}</div><div class="l">1日平均来店{% include "includes/info_tip.html" with id="tm-avg" label="1日平均来店" text="期間内の来店数÷営業日数。営業日＝来店記録のあった日。" %}</div></div>
+  <div class="stat"><div class="n">{{ t.total_visits|intcomma }}</div><div class="l">来店数</div></div>
+  <div class="stat"><div class="n">{{ t.total_bizdays }}</div><div class="l">営業日数</div></div>
 </div>
 
 {% if t.total_bizdays %}
 <div class="card">
-  <h2>① 曜日のクセ（1営業日あたり平均・母数補正済み）</h2>
+  <h2>① 曜日別{% include "includes/info_tip.html" with id="tm-wd" label="曜日別" text="曜日ごとの1営業日あたり平均来店数。曜日ごとに営業日数が違うため、合計ではなく平均で比較。指数＝全体平均を100とした値（120＝1.2倍）。" %}</h2>
   {% for r in t.weekday_rows %}
   <div class="tbar">
     <span class="lbl">{{ r.name }}曜</span>
@@ -59,11 +60,10 @@
     <span class="val"><b>{{ r.avg }}</b>/日　<span class="idxbadge lv-{{ r.level }}">指数 {{ r.index }}</span></span>
   </div>
   {% endfor %}
-  <p class="muted" style="margin:10px 0 0;">指数は全体平均を100とした相対値（120＝全体の1.2倍来る＝仕込み厚め、80＝薄め）。曜日ごとに営業日数が違うので「合計」ではなく「1営業日あたり平均」で比べている。</p>
 </div>
 
 <div class="card">
-  <h2>② 月内のタイミング（前半・中旬・後半）</h2>
+  <h2>② 月内（前半・中旬・後半）{% include "includes/info_tip.html" with id="tm-third" label="月内" text="前半＝1〜10日、中旬＝11〜20日、後半＝21日〜月末。各期間の1営業日あたり平均と指数。日別より日数が多く安定。" %}</h2>
   {% for r in t.third_rows %}
   <div class="tbar">
     <span class="lbl" style="width:120px;">{{ r.name }}</span>
@@ -71,12 +71,10 @@
     <span class="val"><b>{{ r.avg }}</b>/日　<span class="idxbadge lv-{{ r.level }}">指数 {{ r.index }}</span></span>
   </div>
   {% endfor %}
-  <p class="muted" style="margin:10px 0 0;">給料日〜月末にかけて増える／月初は少ない、といった月内の波を読む。3分割は各10日ぶんを集約するので日別より信頼できる。</p>
 </div>
 
 <div class="card">
-  <h2>③ 曜日 × 月内 仕込み指数（全体＝100）</h2>
-  <p class="muted" style="margin:0 0 12px;">両方を掛け合わせた needs の目安。<b>この数字を仕込み量の増減率の目安に使う</b>（例：指数130なら平常の約1.3倍、70なら約0.7倍）。</p>
+  <h2>③ 曜日×月内 指数{% include "includes/info_tip.html" with id="tm-matrix" label="曜日×月内 指数" text="曜日×月内ごとの1営業日あたり平均を指数化（全体平均＝100）。仕込み量の増減率の目安（130＝平常の約1.3倍、70＝約0.7倍）。" %}</h2>
   <div class="tscroll">
     <table class="heat">
       <tr><th class="rowh"></th>{% for th in t.third_labels %}<th>{{ th }}</th>{% endfor %}</tr>
@@ -94,21 +92,19 @@
     </table>
   </div>
   <div class="legend">
-    <span><b class="lv-high" style="background:#e7f6ec;"></b>厚め（指数115↑）</span>
-    <span><b class="lv-mid" style="background:var(--ln-color-surface-muted);"></b>平常（85〜115）</span>
-    <span><b class="lv-low" style="background:#fdecec;"></b>薄め（85↓）</span>
+    <span><b class="lv-high" style="background:#e7f6ec;"></b>厚め（115以上）</span>
+    <span><b class="lv-mid" style="background:var(--ln-color-surface-muted);"></b>平常（86〜114）</span>
+    <span><b class="lv-low" style="background:#fdecec;"></b>薄め（85以下）</span>
   </div>
   {% if t.top_combo and t.low_combo %}
-  <p class="muted" style="margin:12px 0 0;">
-    いちばん厚くすべき枠 → <b style="color:#137a3a;">{{ t.top_combo.0 }}曜 × {{ t.top_combo.1 }}（指数{{ t.top_combo.2.index }}）</b>／
-    いちばん絞れる枠 → <b style="color:#b42318;">{{ t.low_combo.0 }}曜 × {{ t.low_combo.1 }}（指数{{ t.low_combo.2.index }}）</b>
-  </p>
+  <p class="muted" style="margin:12px 0 0;">最多：<b style="color:#137a3a;">{{ t.top_combo.0 }}曜×{{ t.top_combo.1 }}（指数{{ t.top_combo.2.index }}）</b></p>
+  <p class="muted" style="margin:4px 0 0;">最少：<b style="color:#b42318;">{{ t.low_combo.0 }}曜×{{ t.low_combo.1 }}（指数{{ t.low_combo.2.index }}）</b></p>
   {% endif %}
 </div>
 
 <div class="card">
   <h2>④ 日別（1〜31日）</h2>
-  <div class="note">⚠️ 日別は1日ぶんのサンプルが少ないと誤差が大きい（「5がつく日」「25日」などのジンクスを言い切るにはまだデータ不足）。傾向が固まるのはデータが半年〜1年ぶん貯まってから。まずは①②③で判断するのが安全。</div>
+  <div class="note">⚠️ 参考値（サンプル少）{% include "includes/info_tip.html" with id="tm-dom" label="日別" text="1日あたりのサンプルが少なく誤差が大きい。傾向の判断はデータが半年〜1年分たまってから。判断は①〜③を優先。" %}</div>
   <div class="tscroll" style="margin-top:10px;">
     <table class="grid" style="min-width:640px;">
       <tr><th>日</th>{% for r in t.dom_rows %}<th style="text-align:center;">{{ r.day }}</th>{% endfor %}</tr>
@@ -120,8 +116,8 @@
 </div>
 
 <div class="card">
-  <h2>⑤ 会員の来やすい曜日（複数曜日を追跡）</h2>
-  <p class="muted" style="margin:0 0 10px;">通算{{ t.habit_min_visits }}回以上来ている会員について、在籍期間（初回〜最終来店）中の<b>各曜日の来店率</b>（来た回数÷その曜日の営業日数）を出し、<b>{{ t.habit_rate_high_pct }}%以上の曜日をまとめて</b>表示。例：「月・水」＝その2曜日に来る可能性が高い／「月・水・金」＝3曜日高い。仕込み・欠品読み・狙い撃ち配信に使える。</p>
+  <h2>⑤ 会員の来やすい曜日{% include "includes/info_tip.html" with id="tm-habit" label="会員の来やすい曜日" text="在籍期間（初回〜最終来店）中の、曜日ごとの来店率（来店回数÷その曜日の営業日数）が基準以上の曜日を表示。仕込み・欠品の予測や狙い撃ち配信に使う。" %}</h2>
+  <p class="muted" style="margin:0 0 10px;">対象：通算{{ t.habit_min_visits }}回以上／来店率{{ t.habit_rate_high_pct }}%以上の曜日</p>
   {% if t.habit_members %}
   <div class="tscroll">
     <table class="grid">
@@ -136,12 +132,12 @@
       {% endfor %}
     </table>
   </div>
-  <p class="muted" style="margin:10px 0 0;">該当 {{ t.habit_members|length }}人（来やすい曜日が多い順）</p>
+  <p class="muted" style="margin:10px 0 0;">{{ t.habit_members|length }}人（曜日数の多い順）</p>
   {% else %}
-  <p class="empty" style="margin:0;">条件に合う会員がまだいません（データが貯まると出てきます）。</p>
+  <p class="empty" style="margin:0;">該当会員なし</p>
   {% endif %}
 </div>
 {% else %}
-<div class="card"><p class="empty" style="margin:0;">この期間・店舗に来店データがありません。期間を広げてください。</p></div>
+<div class="card"><p class="empty" style="margin:0;">来店データなし（期間・店舗を変更）</p></div>
 {% endif %}
 {% endblock %}
