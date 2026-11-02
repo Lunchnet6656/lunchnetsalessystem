@@ -51,13 +51,17 @@ class TotalsTests(TestCase):
         self.assertAlmostEqual(s["waste_rate"], 7.5)
         # 評価の基準は売り場だけの廃棄率
         self.assertAlmostEqual(s["store_waste_rate"], 12.0)
-        # 1売り場1日あたり＝44 ÷ (虎ノ門2日＋高輪1日)
-        self.assertAlmostEqual(s["avg_sales"], 44 / 3)
-        self.assertEqual(s["revenue"], 31000)
+        # (売り場44＋受注30) ÷ (虎ノ門2日＋高輪1日)
+        self.assertAlmostEqual(s["avg_sales"], 74 / 3)
+        # 日計表31,000＋受注30食×700
+        self.assertEqual(s["revenue"], 31000 + 21000)
         self.assertEqual(s["orders"], 30)
+        # 稼働日数は売り場の中でいちばん多い日数（虎ノ門2日・高輪1日）
+        self.assertEqual(s["op_days"], 2)
+        self.assertEqual(s["deltas"]["op_days"][0]["text"], "—")
 
     def test_store_renumbered_is_one_row(self):
-        locs = {l["name"]: l for l in analyze(date(2026, 10, 1), date(2026, 10, 31))["locations"]}
+        locs = {l["name"]: l for l in analyze(date(2026, 10, 1), date(2026, 10, 31))["locations"] if not l.get("is_orders")}
         self.assertEqual(set(locs), {"虎ノ門", "高輪"})
         self.assertEqual(locs["虎ノ門"]["days"], 2)
         self.assertEqual(locs["虎ノ門"]["revenue"], 27000)
@@ -67,8 +71,37 @@ class TotalsTests(TestCase):
         r = analyze(date(2026, 10, 1), date(2026, 10, 31))
         self.assertAlmostEqual(r["summary"]["waste_rate"], 6 / 180 * 100)
         self.assertAlmostEqual(r["summary"]["store_waste_rate"], 12.0)
-        # 平均販売数は売り場だけ
-        self.assertAlmostEqual(r["summary"]["avg_sales"], 44 / 3)
+        # 平均販売数も受注を含む（分母は売り場の稼働日数）
+        self.assertAlmostEqual(r["summary"]["avg_sales"], (44 + 30 + 100) / 3)
+        # 売り場別の売上・1日平均は日計表だけ
+        locs = {l["name"]: l for l in r["locations"]}
+        self.assertEqual(locs["虎ノ門"]["revenue"], 27000)
+        self.assertAlmostEqual(locs["虎ノ門"]["avg_sales"], 19.0)
+
+
+class OrdersRowTests(TestCase):
+    def test_orders_row_in_locations(self):
+        report(date(2026, 10, 1), "虎ノ門", [(1, "唐揚げ", 20, 18, 2)], revenue=13000)
+        order(date(2026, 10, 1), 30)
+        order(date(2026, 10, 2), 10)
+        order(date(2026, 9, 1), 20)
+        r = analyze(date(2026, 10, 1), date(2026, 10, 31))
+        row = r["locations"][-1]
+        self.assertEqual(row["name"], "ルート&別注仕出し(受注販売)")
+        self.assertEqual((row["quantity"], row["sales"], row["remaining"], row["days"]), (40, 40, 0, 2))
+        self.assertEqual(row["waste_rate"], 0)
+        self.assertEqual(row["avg_sales"], 20)
+        self.assertEqual(row["revenue"], 40 * 700)
+        self.assertIsNone(row["label"])
+        self.assertEqual(row["eval_rank"], -2)
+        self.assertEqual(row["deltas"]["sales"][0]["text"], "▲ 100%")
+        # 対象外の件数には入らない（稼働1日の虎ノ門だけ）
+        self.assertEqual([c["count"] for c in r["location_counts"] if c["label"] is None], [1])
+
+    def test_no_orders_no_row(self):
+        report(date(2026, 10, 1), "虎ノ門", [(1, "唐揚げ", 20, 18, 2)])
+        r = analyze(date(2026, 10, 1), date(2026, 10, 31))
+        self.assertFalse(any(l.get("is_orders") for l in r["locations"]))
 
 
 class ComparisonTests(TestCase):
@@ -168,6 +201,7 @@ class TrendTests(TestCase):
         order(date(2026, 10, 6), 20)
         last = analyze(date(2026, 10, 1), date(2026, 10, 31))["trend"][-1]
         self.assertEqual((last["quantity"], last["sales"], last["remaining"]), (40, 35, 5))
+        self.assertEqual(last["revenue"], 10000 + 20 * 700)
 
     def test_month_over_month(self):
         report(date(2026, 9, 5), "虎ノ門", [(1, "唐揚げ", 20, 20, 0)], revenue=10000)

@@ -4,6 +4,7 @@
 お弁当（メニュー1〜10）だけを数え、売り場は店名でまとめる（販売場所No.は振り直しがあるため）。
 前月比・前週比は、指定期間をそのまま1か月前／7日前にずらした期間と比べる（期間が自由指定のため）。
 """
+from collections import defaultdict
 from datetime import timedelta
 from statistics import mean, median
 
@@ -11,10 +12,11 @@ from dateutil.relativedelta import relativedelta
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncMonth
 
-from orders.models import OrderItem
+from orders.models import OrderExtraItem, OrderItem
 from sales.models import AnalysisBasisSetting, rule_text, DailyReport, DailyReportEntry, SalesLocation
 
 TREND_MONTHS = 12
+ORDERS_ROW_NAME = "ルート&別注仕出し(受注販売)"
 
 LOCATION_LABEL_ORDER = ["優良", "持参を減らす", "テコ入れ", "撤退検討", "様子見"]
 OTHER_LABEL = "様子見"  # 評価ごとに決めるとき、どの条件にも当てはまらないもの
@@ -62,6 +64,12 @@ def _rates(q, s, r, days):
     }
 
 
+def _order_revenue(start, end):
+    items = OrderItem.objects.filter(order__delivery_date__range=(start, end)).aggregate(v=Sum("subtotal"))["v"] or 0
+    extras = OrderExtraItem.objects.filter(order__delivery_date__range=(start, end)).aggregate(v=Sum("subtotal"))["v"] or 0
+    return int(items + extras)
+
+
 def _period_stats(start, end):
     entries = _bento_entries(start, end)
 
@@ -100,22 +108,30 @@ def _period_stats(start, end):
     )
     # 受注は注文どおり作って全部渡す＝持参数・販売数に足し、残数0として廃棄率に入れる（2026-11-02 しょうへい確定）
     total = _rates(store_q + orders, store_s + orders, store_r, store_days)
-    # 平均販売数は売り場だけ。分母が売り場ごとの稼働日数の合計＝「1売り場1日あたり」で、受注には稼働日がないため
-    total["avg_sales"] = (store_s / store_days) if store_days else None
+    # 平均販売数は受注も含めた販売数 ÷ 売り場ごとの稼働日数の合計（受注には稼働日がないので分母は売り場だけ）
+    total["avg_sales"] = ((store_s + orders) / store_days) if store_days else None
     # 売り場・メニューの評価の基準は売り場だけの廃棄率（受注は売り場・メニューの数字に入っていないので、同じ土俵で比べる）
     total["store_waste_rate"] = (store_r / store_q * 100) if store_q else None
-    total["revenue"] = int(sum(revenue_by_location.values(), 0) or 0)
+    # 売上金額は日計表の総売上＋受注（お弁当・追加品）。売り場別の売上は日計表だけ
+    total["revenue"] = int(sum(revenue_by_location.values(), 0) or 0) + _order_revenue(start, end)
     total["orders"] = orders
-    return {"total": total, "locations": locations, "menus": menus}
+    # 稼働日数は売り場の中でいちばん多い日数（＝その期間に営業した日数の目安）
+    total["op_days"] = max((v["days"] for v in locations.values()), default=0)
+    # 受注は売り場別の一覧に1行で出す。注文どおり作って全部渡すので 持参＝販売・残0
+    order_days = (OrderItem.objects.filter(order__delivery_date__range=(start, end), quantity__gt=0)
+                  .values("order__delivery_date").distinct().count())
+    orders_row = _rates(orders, orders, 0, order_days)
+    orders_row["revenue"] = _order_revenue(start, end)
+    return {"total": total, "locations": locations, "menus": menus, "orders_row": orders_row}
 
 
 # 指標ごとに「上がると良いか」。None は良し悪しを付けない（持参数・稼働日数）
 DIRECTION = {
-    "quantity": None, "days": None, "sales": True, "remaining": False, "revenue": True, "orders": True,
+    "quantity": None, "days": None, "op_days": None, "sales": True, "remaining": False, "revenue": True, "orders": True,
     "avg_sales": True, "waste_rate": False,
 }
 # 差で比べる指標と単位。それ以外は増減率%
-DIFF_UNITS = {"waste_rate": "pt", "days": "日"}
+DIFF_UNITS = {"waste_rate": "pt", "days": "日", "op_days": "日"}
 WITH_WEEK = ("avg_sales", "waste_rate")
 SR_UNITS = {"%": "%", "pt": "ポイント", "日": "日"}
 
@@ -277,6 +293,12 @@ def _trend(end):
         for row in DailyReport.objects.filter(date__range=(first, last))
         .annotate(m=TruncMonth("date")).values("m").annotate(rev=Sum("total_revenue"))
     }
+    order_revenue = defaultdict(int)
+    for model in (OrderItem, OrderExtraItem):
+        for row in (model.objects.filter(order__delivery_date__range=(first, last))
+                    .annotate(m=TruncMonth("order__delivery_date")).values("m").annotate(v=Sum("subtotal"))):
+            m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
+            order_revenue[m] += int(row["v"] or 0)
     months = []
     for i in range(TREND_MONTHS + 1):
         m = first + relativedelta(months=i)
@@ -290,7 +312,7 @@ def _trend(end):
         q, s = q + o, s + o  # サマリーと同じく受注を含める
         months.append({
             "month": m, "empty": False, "quantity": q, "sales": s, "remaining": r,
-            "waste_rate": (r / q * 100) if q else None, "revenue": int(rev or 0),
+            "waste_rate": (r / q * 100) if q else None, "revenue": int(rev or 0) + order_revenue.get(m, 0),
         })
     keys = ["quantity", "sales", "remaining", "waste_rate", "revenue"]
     for prev, cur in zip(months, months[1:]):
@@ -316,7 +338,7 @@ def analyze(start, end):
         cur["total"],
         pm["total"] if has_data(pm["total"]) else None,
         pw["total"] if has_data(pw["total"]) else None,
-        ["revenue", "sales", "avg_sales", "waste_rate", "quantity", "remaining", "orders"],
+        ["revenue", "sales", "avg_sales", "waste_rate", "quantity", "remaining", "orders", "op_days"],
     )
 
     row_keys = ["quantity", "sales", "remaining", "waste_rate", "avg_sales", "revenue", "days"]
@@ -334,6 +356,12 @@ def analyze(start, end):
     # 1日平均の多い順。評価対象外（稼働が足りない）は最後。上半分＝中央値以上になるので区切り行で基準線を見せる
     locations.sort(key=lambda x: (x["label"] is None, -(x["avg_sales"] or 0)))
     _mark_breaks(locations)
+    # 受注の行は評価しない・評価の基準にも入れない（評価が済んでから足す）。並べ替えでは常に評価なしより後ろ
+    if cur["orders_row"]["quantity"] > 0:
+        row = dict(_compare(cur["orders_row"], pm["orders_row"], pw["orders_row"], row_keys),
+                   name=ORDERS_ROW_NAME, label=None, no=None, eval_rank=-2, waste_class="",
+                   is_orders=True, median_break=False, na_break=False)
+        locations.append(row)
 
     menu_keys = ["quantity", "sales", "remaining", "waste_rate", "avg_sales"]
     menus = [
@@ -357,7 +385,7 @@ def analyze(start, end):
         "location_counts": [
             {"label": label, "badge": BADGE[label], "count": sum(1 for l in locations if l["label"] == label)}
             for label in LOCATION_LABEL_ORDER
-        ] + [{"label": None, "badge": None, "count": sum(1 for l in locations if l["label"] is None)}],
+        ] + [{"label": None, "badge": None, "count": sum(1 for l in locations if l["label"] is None and not l.get("is_orders"))}],
         "menus": menus, "menu_basis": menu_basis, "menu_setting": menu_setting,
         "menu_counts": {label: sum(1 for m in menus if m["label"] == label) for label in MENU_LABEL_ORDER},
         "menu_count_badges": [

@@ -9,12 +9,11 @@
     .pa-hide-delta .ln-delta, .pa-hide-delta .ln-delta-legend { display: none; }
     .pa-section { scroll-margin-top: 64px; }
     .pa-tiles { display: grid; gap: 0.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .pa-tile-orders { grid-column: 1 / -1; background: var(--ln-color-surface-muted); }
     @media (min-width: 768px) { .pa-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    @media (min-width: 1200px) {
-        .pa-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)) auto; }
-        .pa-tile-orders { grid-column: auto; margin-left: 0.5rem; min-width: 9rem; }
-    }
+    /* 7枚。ノートPC幅で1列に並べると金額が窮屈になるので4列×2段、広い画面だけ1段 */
+    @media (min-width: 1200px) { .pa-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    @media (min-width: 1600px) { .pa-tiles { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+    .pa-orders-row td, .pa-orders-row .card { background: var(--ln-color-surface-muted); }
     .pa-value { color: var(--ln-color-text-strong); }
     .pa-chip { background: var(--ln-color-surface-muted); border: 1px solid var(--ln-color-border); color: var(--ln-color-text-strong); font-weight: 500; }
     .pa-break td, .pa-break > div { border-top: 2px dashed var(--ln-color-border-strong) !important; }
@@ -106,19 +105,19 @@
                     {% include 'includes/_delta.html' with deltas=s.deltas.waste_rate %}
                 </div></div>
                 <div class="card h-100"><div class="card-body py-2">
-                    <div class="small text-muted text-nowrap">平均販売数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="売り場の販売数 ÷ 売り場ごとの稼働日数の合計（1売り場1日あたり・受注は含まない）" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="small text-muted text-nowrap">平均販売数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="販売数（受注を含む） ÷ 売り場ごとの稼働日数の合計" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
                     <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.avg_sales|floatformat:1|default:"—" }}<small class="fs-6 fw-normal text-muted ms-1">食/日</small></div>
                     {% include 'includes/_delta.html' with deltas=s.deltas.avg_sales %}
                 </div></div>
                 <div class="card h-100"><div class="card-body py-2">
-                    <div class="small text-muted text-nowrap">売上金額 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="日計表の総売上。受注は含まない" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="small text-muted text-nowrap">稼働日数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="売り場の中でいちばん多い稼働日数" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.op_days }}<small class="fs-6 fw-normal text-muted ms-1">日</small></div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.op_days %}
+                </div></div>
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">売上金額 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="日計表の総売上＋受注" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
                     <div class="fs-4 fw-bold pa-value text-nowrap">&yen;{{ s.revenue|intcomma }}</div>
                     {% include 'includes/_delta.html' with deltas=s.deltas.revenue %}
-                </div></div>
-                <div class="card h-100 pa-tile-orders"><div class="card-body py-2">
-                    <div class="small text-muted text-nowrap">受注 販売数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="受注の販売数。持参数・販売数に含む（残数0）" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
-                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.orders|intcomma }}<small class="fs-6 fw-normal text-muted ms-1">食</small></div>
-                    {% include 'includes/_delta.html' with deltas=s.deltas.orders %}
                 </div></div>
             </div>
         </div>
@@ -163,7 +162,7 @@
                 {% for l in a.locations %}
                     {% if l.median_break %}<tr class="pa-break" data-break="median" hidden><td colspan="9" class="small text-muted">{{ a.location_basis.avg_word }} {{ a.location_basis.avg_sales|floatformat:1 }}</td></tr>{% endif %}
                     {% if l.na_break %}<tr class="pa-break" data-break="na" hidden><td colspan="9" class="small text-muted">対象外（稼働{{ a.location_basis.min_days }}日未満）</td></tr>{% endif %}
-                    <tr class="align-top pa-sort-row{% if not l.label %} text-muted{% endif %}" data-no="{{ l.no|default_if_none:-1 }}" data-quantity="{{ l.quantity }}" data-sales="{{ l.sales }}" data-remaining="{{ l.remaining }}" data-waste="{{ l.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ l.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ l.days }}" data-revenue="{{ l.revenue }}" data-eval="{{ l.eval_rank }}" data-median-below="{% if l.label and l.above_median is False %}1{% endif %}">
+                    <tr class="align-top pa-sort-row{% if l.is_orders %} pa-orders-row{% elif not l.label %} text-muted{% endif %}" data-no="{{ l.no|default_if_none:-1 }}" data-quantity="{{ l.quantity }}" data-sales="{{ l.sales }}" data-remaining="{{ l.remaining }}" data-waste="{{ l.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ l.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ l.days }}" data-revenue="{{ l.revenue }}" data-eval="{{ l.eval_rank }}" data-median-below="{% if l.label and l.above_median is False %}1{% endif %}">
                         <td><span class="small text-muted me-1">{{ l.no|default_if_none:"" }}</span><span class="fw-bold">{{ l.name }}</span></td>
                         <td class="text-end">{{ l.quantity|intcomma }}{% include 'includes/_delta.html' with deltas=l.deltas.quantity %}</td>
                         <td class="text-end">{{ l.sales|intcomma }}{% include 'includes/_delta.html' with deltas=l.deltas.sales %}</td>
@@ -183,8 +182,8 @@
             {% for l in a.locations %}
                 {% if l.median_break %}<div class="col-12 pa-break" data-break="median" hidden><div class="small text-muted pt-1">{{ a.location_basis.avg_word }} {{ a.location_basis.avg_sales|floatformat:1 }}</div></div>{% endif %}
                 {% if l.na_break %}<div class="col-12 pa-break" data-break="na" hidden><div class="small text-muted pt-1">対象外（稼働{{ a.location_basis.min_days }}日未満）</div></div>{% endif %}
-                <div class="col pa-sort-row" data-no="{{ l.no|default_if_none:-1 }}" data-quantity="{{ l.quantity }}" data-sales="{{ l.sales }}" data-remaining="{{ l.remaining }}" data-waste="{{ l.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ l.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ l.days }}" data-revenue="{{ l.revenue }}" data-eval="{{ l.eval_rank }}" data-median-below="{% if l.label and l.above_median is False %}1{% endif %}">
-                    <div class="card h-100{% if not l.label %} text-muted{% endif %}"><div class="card-body py-2">
+                <div class="col pa-sort-row{% if l.is_orders %} pa-orders-row{% endif %}" data-no="{{ l.no|default_if_none:-1 }}" data-quantity="{{ l.quantity }}" data-sales="{{ l.sales }}" data-remaining="{{ l.remaining }}" data-waste="{{ l.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ l.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ l.days }}" data-revenue="{{ l.revenue }}" data-eval="{{ l.eval_rank }}" data-median-below="{% if l.label and l.above_median is False %}1{% endif %}">
+                    <div class="card h-100{% if not l.label and not l.is_orders %} text-muted{% endif %}"><div class="card-body py-2">
                         <div class="mb-1"><span class="small text-muted me-1">{{ l.no|default_if_none:"" }}</span><span class="fw-bold">{{ l.name }}</span></div>
                         <div class="row g-2">
                             <div class="col-6"><div class="small text-muted">持参数</div><div class="pa-value">{{ l.quantity|intcomma }}</div>{% include 'includes/_delta.html' with deltas=l.deltas.quantity %}</div>
@@ -288,7 +287,7 @@
             <h2 class="h6 mb-0 fw-bold">月別推移</h2>
             <span class="small text-muted text-nowrap">{{ trend_data.labels|first }}〜{{ trend_data.labels|last }}</span>
             <span class="small text-muted text-nowrap ln-delta-legend">下段：前月比</span>
-            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-content="終了日の月まで12か月。期間指定の開始日は影響しない。持参数・販売数は受注を含む" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-content="終了日の月まで12か月。期間指定の開始日は影響しない。持参数・販売数・売上は受注を含む" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
             <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="グラフの切替">
                 <input type="radio" class="btn-check" name="pa-trend-mode" id="pa-t-qty" value="qty" checked><label class="btn btn-outline-secondary text-nowrap" for="pa-t-qty">数量</label>
                 <input type="radio" class="btn-check" name="pa-trend-mode" id="pa-t-rev" value="rev"><label class="btn btn-outline-secondary text-nowrap" for="pa-t-rev">売上</label>
@@ -489,19 +488,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 var rows = Array.prototype.slice.call(box.querySelectorAll('.pa-sort-row'));
                 rows.sort(function (x, y) {
                     var a = Number(x.dataset[sortKey]), b = Number(y.dataset[sortKey]);
-                    // 評価なし・値なし（-1）は並び方向に関係なく最後
-                    if (a < 0 && b >= 0) return 1;
-                    if (b < 0 && a >= 0) return -1;
+                    // 評価なし・値なし（負の値）は並び方向に関係なく最後。受注（-2）は評価なし（-1）より後ろ
+                    if (a < 0 || b < 0) return (a < 0 && b < 0) ? b - a : (a < 0 ? 1 : -1);
                     return sortDesc ? b - a : a - b;
                 });
                 // 区切りを出すときは評価対象外を最後にまとめる（区切りの下に並べるため）
+                // 受注の行（-2）はさらに後ろ
                 if (showBreaks) rows = rows.filter(function (r) { return Number(r.dataset.eval) >= 0; })
-                    .concat(rows.filter(function (r) { return Number(r.dataset.eval) < 0; }));
+                    .concat(rows.filter(function (r) { return Number(r.dataset.eval) === -1; }))
+                    .concat(rows.filter(function (r) { return Number(r.dataset.eval) === -2; }));
                 var median = box.querySelector('[data-break="median"]');
                 var na = box.querySelector('[data-break="na"]');
                 rows.forEach(function (r) {
                     if (showBreaks && median && r.dataset.medianBelow === '1' && !median.placed) { box.appendChild(median); median.placed = true; }
-                    if (showBreaks && na && Number(r.dataset.eval) < 0 && !na.placed) { box.appendChild(na); na.placed = true; }
+                    if (showBreaks && na && Number(r.dataset.eval) === -1 && !na.placed) { box.appendChild(na); na.placed = true; }
                     box.appendChild(r);
                 });
                 [median, na].forEach(function (br) { if (br) { br.hidden = !(showBreaks && br.placed); br.placed = false; } });
