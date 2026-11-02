@@ -518,7 +518,7 @@ class UserMenuPermission(models.Model):
     can_view_daily_report_form = models.BooleanField(default=True, verbose_name="日計表入力フォーム")
     can_view_shift_app = models.BooleanField(default=True, verbose_name="シフトアプリ")
     can_view_orders = models.BooleanField(default=False, verbose_name="受注管理")
-    can_view_dashboard = models.BooleanField(default=False, verbose_name="売上ダッシュボード")
+    can_view_dashboard = models.BooleanField(default=False, verbose_name="実績分析")
     can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")
     can_view_attendance = models.BooleanField(default=False, verbose_name="勤怠アプリ")
     can_view_stamp = models.BooleanField(default=False, verbose_name="公式LINE（スタンプ）")
@@ -964,3 +964,76 @@ class MenuWeekCheck(models.Model):
 
     def __str__(self):
         return f"{self.week:%Y-%m-%d}週 {'確認済み' if self.is_confirmed else '未確認'}"
+
+
+def rule_text(rule):
+    """評価ごとの条件を1行に。例「優良 1日平均25.0食以上・廃棄率10.0%以下」"""
+    parts = []
+    if rule.get("avg_op"):
+        parts.append(f"1日平均{float(rule['avg_value']):.1f}食{'以上' if rule['avg_op'] == 'gte' else '未満'}")
+    if rule.get("waste_op"):
+        parts.append(f"廃棄率{float(rule['waste_value']):.1f}%{'以下' if rule['waste_op'] == 'lte' else '超'}")
+    return f"{rule['label']} " + "・".join(parts)
+
+
+class AnalysisBasisSetting(models.Model):
+    """実績分析の4象限評価の基準。売り場用・メニュー用で1行ずつ。行が無ければ既定値（中央値・売り場全体・3日）で評価する。"""
+    TARGET_CHOICES = [("location", "売り場"), ("menu", "メニュー")]
+    AVG_MODE_CHOICES = [("median", "中央値"), ("mean", "平均値"), ("fixed", "固定")]
+    WASTE_MODE_CHOICES = [("store", "売り場全体"), ("total", "全体（受注を含む）"), ("fixed", "固定")]
+    RULE_MODE_CHOICES = [("lines", "2本の線で分ける"), ("rules", "評価ごとに決める")]
+    COLOR_MODE_CHOICES = [("basis", "基準と比べる"), ("bands", "数値で決める")]
+    # 色は見分けやすいものに絞る（自由に選ぶと読みにくい色が混ざる）。値は Bootstrap の文字色クラス
+    COLOR_CHOICES = [("danger", "赤"), ("orange", "オレンジ"), ("primary", "青"), ("success", "緑"), ("secondary", "グレー")]
+
+    target = models.CharField(max_length=10, choices=TARGET_CHOICES, unique=True, verbose_name="対象")
+    rule_mode = models.CharField(max_length=10, choices=RULE_MODE_CHOICES, default="lines", verbose_name="評価の決め方")
+    # 評価ごとに決めるときの条件。判定順に [{"label", "avg_op": "gte|lt|", "avg_value", "waste_op": "lte|gt|", "waste_value"}]
+    rules = models.JSONField(default=list, blank=True, verbose_name="評価ごとの条件")
+    waste_color_mode = models.CharField(max_length=10, choices=COLOR_MODE_CHOICES, default="basis", verbose_name="廃棄率の色の決め方")
+    # 数値で決めるときの段。高い順に [{"min": 20.0, "color": "danger", "bold": true}]。いちばん高く当てはまった段の色
+    waste_bands = models.JSONField(default=list, blank=True, verbose_name="廃棄率の色の段")
+    avg_mode = models.CharField(max_length=10, choices=AVG_MODE_CHOICES, default="median", verbose_name="1日平均の基準")
+    avg_fixed = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True, verbose_name="1日平均の固定値")
+    waste_mode = models.CharField(max_length=10, choices=WASTE_MODE_CHOICES, default="store", verbose_name="廃棄率の基準")
+    waste_fixed = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True, verbose_name="廃棄率の固定値")
+    min_days = models.PositiveSmallIntegerField(default=3, verbose_name="対象外にする日数")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="更新した人")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+
+    class Meta:
+        verbose_name = "実績分析の評価基準"
+        verbose_name_plural = "実績分析の評価基準"
+
+    def __str__(self):
+        return self.get_target_display()
+
+    def color_summary(self):
+        if self.waste_color_mode != "bands":
+            return "色：基準と比べる"
+        names = dict(self.COLOR_CHOICES)
+        return "色：" + "・".join(f"{b['min']:.1f}%以上{names[b['color']]}{'太字' if b['bold'] else ''}" for b in self.waste_bands)
+
+    def summary(self):
+        return f"{self._rule_summary()}／{self.color_summary()}"[:255]
+
+    def _rule_summary(self):
+        if self.rule_mode == "rules":
+            return "評価ごと：" + "／".join(rule_text(r) for r in self.rules) + f"／{self.min_days}日未満は対象外"
+        avg = f"固定 {self.avg_fixed:.1f}食" if self.avg_mode == "fixed" else self.get_avg_mode_display()
+        waste = f"固定 {self.waste_fixed:.1f}%" if self.waste_mode == "fixed" else self.get_waste_mode_display()
+        return f"1日平均 {avg}／廃棄率 {waste}／{self.min_days}日未満は対象外"
+
+
+class AnalysisBasisLog(models.Model):
+    """評価基準の変更履歴。全員の評価が変わる設定なので、いつ誰が何をどう変えたか残す。"""
+    target = models.CharField(max_length=10, choices=AnalysisBasisSetting.TARGET_CHOICES, verbose_name="対象")
+    before = models.CharField(max_length=255, verbose_name="変更前")
+    after = models.CharField(max_length=255, verbose_name="変更後")
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="変更した人")
+    changed_at = models.DateTimeField(auto_now_add=True, verbose_name="日時")
+
+    class Meta:
+        ordering = ["-changed_at", "-id"]
+        verbose_name = "実績分析の評価基準の変更履歴"
+        verbose_name_plural = "実績分析の評価基準の変更履歴"

@@ -120,3 +120,110 @@ class ShiftRequestForm(forms.ModelForm):
             raise forms.ValidationError("この日付のシフトは既に送信されています。")
 
         return selected_date
+
+class AnalysisBasisForm(forms.ModelForm):
+    """実績分析の評価基準。固定を選んだときだけ固定値が必要。"""
+
+    class Meta:
+        from sales.models import AnalysisBasisSetting
+        model = AnalysisBasisSetting
+        fields = ["rule_mode", "avg_mode", "avg_fixed", "waste_mode", "waste_fixed", "min_days", "waste_color_mode"]
+        widgets = {
+            "rule_mode": forms.RadioSelect,
+            "waste_color_mode": forms.RadioSelect,
+            "avg_mode": forms.RadioSelect,
+            "waste_mode": forms.RadioSelect,
+        }
+
+    def __init__(self, *args, rule_labels=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rule_labels = list(rule_labels)
+        self.fields["rule_mode"].required = False  # 送られてこなければ「2本の線」
+        self.fields["waste_color_mode"].required = False  # 送られてこなければ「基準と比べる」
+
+    def _clean_rules(self):
+        """評価ごとの条件（判定順）。画面では rule-<番号>-avg_op 等の名前で送られる。"""
+        rules = []
+        for i, label in enumerate(self.rule_labels):
+            key = lambda name: self.add_prefix(f"rule-{i}-{name}")
+            rule = {"label": label}
+            for op_name, value_name, ops, lo, hi in (("avg_op", "avg_value", ("gte", "lt"), 0, 999.9),
+                                                    ("waste_op", "waste_value", ("lte", "gt"), 0, 100)):
+                op = self.data.get(key(op_name), "")
+                if op not in ops:
+                    op = ""
+                value = None
+                if op:
+                    try:
+                        value = round(float(self.data.get(key(value_name), "")), 1)
+                    except ValueError:
+                        value = None
+                    if value is None or not (lo <= value <= hi):
+                        self.add_error(None, f"{label}の数値を確認")
+                rule[op_name], rule[value_name] = op, value
+            if not rule["avg_op"] and not rule["waste_op"]:
+                self.add_error(None, f"{label}の条件を1つ以上")
+            rules.append(rule)
+        return rules
+
+    BAND_ROWS = 5
+
+    def _clean_bands(self):
+        """廃棄率の色の段。数値が空の行は使わない。"""
+        from sales.models import AnalysisBasisSetting
+        colors = dict(AnalysisBasisSetting.COLOR_CHOICES)
+        bands = []
+        for i in range(self.BAND_ROWS):
+            raw = self.data.get(self.add_prefix(f"band-{i}-min"), "").strip()
+            if not raw:
+                continue
+            try:
+                value = round(float(raw), 1)
+            except ValueError:
+                value = None
+            if value is None or not (0 <= value <= 100):
+                self.add_error(None, "色の段の数値を確認")
+                continue
+            color = self.data.get(self.add_prefix(f"band-{i}-color"), "")
+            if color not in colors:
+                self.add_error(None, "色の段の色を確認")
+                continue
+            bands.append({"min": value, "color": color, "bold": bool(self.data.get(self.add_prefix(f"band-{i}-bold")))})
+        if not bands:
+            self.add_error(None, "色の段を1つ以上")
+        return sorted(bands, key=lambda b: -b["min"])
+
+    def clean(self):
+        data = super().clean()
+        data["rule_mode"] = data.get("rule_mode") or "lines"
+        data["waste_color_mode"] = data.get("waste_color_mode") or "basis"
+        if data["waste_color_mode"] == "bands":
+            self.instance.waste_bands = self._clean_bands()
+        days = data.get("min_days")
+        if days is not None and not (1 <= days <= 31):
+            self.add_error("min_days", "1〜31の値を入力")
+        if data.get("rule_mode") == "rules":
+            data["rules"] = self._clean_rules()
+            # 線の設定は使わないので、前の値のまま残す（線に戻したとき元どおり）
+            for name in ("avg_mode", "avg_fixed", "waste_mode", "waste_fixed"):
+                self.errors.pop(name, None)
+                data[name] = getattr(self.instance, name)
+            self.instance.rules = data["rules"]
+            return data
+        if data.get("avg_mode") == "fixed":
+            v = data.get("avg_fixed")
+            if v is None:
+                self.add_error("avg_fixed", "固定値を入力")
+            elif v <= 0:
+                self.add_error("avg_fixed", "0より大きい値を入力")
+        else:
+            data["avg_fixed"] = None
+        if data.get("waste_mode") == "fixed":
+            v = data.get("waste_fixed")
+            if v is None:
+                self.add_error("waste_fixed", "固定値を入力")
+            elif not (0 <= v <= 100):
+                self.add_error("waste_fixed", "0〜100の値を入力")
+        else:
+            data["waste_fixed"] = None
+        return data

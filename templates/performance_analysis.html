@@ -1,0 +1,607 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}実績分析{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ln-delta { white-space: nowrap; font-size: 0.75rem; line-height: 1.3; }
+    .pa-hide-delta .ln-delta, .pa-hide-delta .ln-delta-legend { display: none; }
+    .pa-section { scroll-margin-top: 64px; }
+    .pa-tiles { display: grid; gap: 0.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pa-tile-orders { grid-column: 1 / -1; background: var(--ln-color-surface-muted); }
+    @media (min-width: 768px) { .pa-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (min-width: 1200px) {
+        .pa-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)) auto; }
+        .pa-tile-orders { grid-column: auto; margin-left: 0.5rem; min-width: 9rem; }
+    }
+    .pa-value { color: var(--ln-color-text-strong); }
+    .pa-chip { background: var(--ln-color-surface-muted); border: 1px solid var(--ln-color-border); color: var(--ln-color-text-strong); font-weight: 500; }
+    .pa-break td, .pa-break > div { border-top: 2px dashed var(--ln-color-border-strong) !important; }
+    .pa-cmp { min-width: 7.5rem; }
+    .pa-trend-current td { background: var(--ln-color-surface-muted) !important; font-weight: 700; }
+    .pa-chart { position: relative; height: 220px; }
+    @media (min-width: 768px) { .pa-chart { height: 280px; } }
+    .pa-info { display: inline-block; padding: 2px 4px; min-width: 24px; text-align: center; }
+    .pa-trend-table { font-size: 0.8125rem; }
+    input[type=date].form-control { -webkit-appearance: none; appearance: none; }
+    .pa-basis-fixed { width: 8rem; }
+    .pa-basis-days { width: 11rem; }
+    .pa-rule-name { width: 3.5rem; }
+    /* 廃棄率の色の「オレンジ」。Bootstrap に文字用のオレンジが無いため。--bs-orange は白地の小さい文字で薄すぎるので一段濃く */
+    .text-orange { color: #e8590c !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 mb-4" id="pa-root">
+    <h4 class="mb-3">実績分析</h4>
+
+    {% if error %}
+    <div class="alert alert-danger py-2" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="get" class="card mb-2" id="pa-form">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-lg-auto">
+                    <label for="pa-start" class="form-label small text-muted mb-0">開始日</label>
+                    <input type="date" id="pa-start" name="start" value="{{ start_value }}" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-6 col-lg-auto">
+                    <label for="pa-end" class="form-label small text-muted mb-0">終了日</label>
+                    <input type="date" id="pa-end" name="end" value="{{ end_value }}" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-12 col-lg-auto d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm text-nowrap" id="pa-submit">表示</button>
+                    <a href="{% url 'performance_analysis' %}" class="btn btn-outline-secondary btn-sm text-nowrap">クリア</a>
+                    <a href="?start={{ last_month_start }}&end={{ last_month_end }}" class="btn btn-outline-secondary btn-sm text-nowrap">前月</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {% if a %}
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a href="#sec-summary" class="btn btn-sm btn-outline-secondary text-nowrap">サマリー</a>
+        <a href="#sec-locations" class="btn btn-sm btn-outline-secondary text-nowrap">売り場</a>
+        <a href="#sec-menus" class="btn btn-sm btn-outline-secondary text-nowrap">メニュー</a>
+        <a href="#sec-trend" class="btn btn-sm btn-outline-secondary text-nowrap">推移</a>
+        <div class="form-check form-switch ms-auto mb-0 d-flex align-items-center gap-2">
+            <input class="form-check-input mt-0" type="checkbox" role="switch" id="pa-delta-toggle" checked>
+            <label class="form-check-label small text-nowrap" for="pa-delta-toggle">前月比・前週比</label>
+        </div>
+    </div>
+
+    {# ===== サマリー ===== #}
+    {% with s=a.summary %}
+    <section class="card mb-3 pa-section" id="sec-summary">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center column-gap-3 row-gap-1">
+            <h2 class="h6 mb-0 fw-bold">サマリー</h2>
+            <span class="small text-muted text-nowrap">前月比 {{ a.prev_month.0|date:"m/d" }}〜{{ a.prev_month.1|date:"m/d" }}</span>
+            <span class="small text-muted text-nowrap">前週比 {{ a.prev_week.0|date:"m/d" }}〜{{ a.prev_week.1|date:"m/d" }}</span>
+            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-html="true"
+               data-bs-content="前月比：期間を1か月前にずらして比較<br>前週比：期間を7日前にずらして比較<br>対象：お弁当（No.1〜10）。大盛りごはん除外" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+        </div>
+        <div class="card-body">
+            <div class="pa-tiles">
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">持参数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="受注を含む" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.quantity|intcomma }}<small class="fs-6 fw-normal text-muted ms-1">食</small></div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.quantity %}
+                </div></div>
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">販売数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="受注を含む" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.sales|intcomma }}<small class="fs-6 fw-normal text-muted ms-1">食</small></div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.sales %}
+                </div></div>
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">残数</div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.remaining|intcomma }}<small class="fs-6 fw-normal text-muted ms-1">食</small></div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.remaining %}
+                </div></div>
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">廃棄率 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="残数 ÷ 持参数（受注を含む）。比較はpt差" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{% if s.waste_rate is not None %}{{ s.waste_rate|floatformat:1 }}%{% else %}—{% endif %}</div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.waste_rate %}
+                </div></div>
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">平均販売数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="売り場の販売数 ÷ 売り場ごとの稼働日数の合計（1売り場1日あたり・受注は含まない）" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.avg_sales|floatformat:1|default:"—" }}<small class="fs-6 fw-normal text-muted ms-1">食/日</small></div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.avg_sales %}
+                </div></div>
+                <div class="card h-100"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">売上金額 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="日計表の総売上。受注は含まない" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">&yen;{{ s.revenue|intcomma }}</div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.revenue %}
+                </div></div>
+                <div class="card h-100 pa-tile-orders"><div class="card-body py-2">
+                    <div class="small text-muted text-nowrap">受注 販売数 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="受注の販売数。持参数・販売数に含む（残数0）" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></div>
+                    <div class="fs-4 fw-bold pa-value text-nowrap">{{ s.orders|intcomma }}<small class="fs-6 fw-normal text-muted ms-1">食</small></div>
+                    {% include 'includes/_delta.html' with deltas=s.deltas.orders %}
+                </div></div>
+            </div>
+        </div>
+    </section>
+    {% endwith %}
+
+    {# ===== 売り場別 ===== #}
+    <section class="card mb-3 pa-section" id="sec-locations">
+        <div class="card-header py-2 d-flex align-items-center gap-1">
+            <h2 class="h6 mb-0 fw-bold">売り場別</h2>
+            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-html="true"
+               data-bs-content="{% if a.location_basis.mode == 'rules' %}{% for t in a.location_basis.rules %}{{ forloop.counter }}. {{ t }}<br>{% endfor %}どれにも当てはまらない：様子見<br>稼働{{ a.location_basis.min_days }}日未満は評価対象外{% else %}1日平均の基準：{{ a.location_basis.avg_word }}<br>廃棄率の基準：{{ a.location_basis.waste_word }}<br>優良：1日平均≥基準・廃棄率≤基準<br>持参を減らす：1日平均≥基準・廃棄率＞基準<br>テコ入れ：1日平均＜基準・廃棄率≤基準<br>撤退検討：1日平均＜基準・廃棄率＞基準<br>稼働{{ a.location_basis.min_days }}日未満は評価対象外{% endif %}" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+        </div>
+        <div class="card-body">
+        {% if basis_error == 'location' %}<div class="alert alert-danger py-2 small">基準を保存できません</div>{% endif %}
+        {% if a.locations %}
+            {% include 'includes/_analysis_basis.html' with basis=a.location_basis target='location' form=basis_forms.location %}
+            <div class="d-flex flex-wrap gap-1 mb-3">
+                {% for c in a.location_counts %}
+                    {% if c.label == '様子見' and not c.count %}{% elif c.label %}<span class="badge bg-{{ c.badge }}-subtle text-{{ c.badge }}-emphasis border border-{{ c.badge }}-subtle text-nowrap">{{ c.label }} {{ c.count }}</span>
+                    {% elif c.count %}<span class="badge text-muted border text-nowrap">対象外 {{ c.count }}</span>{% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="pa-sortable" data-default-key="no" data-default-desc="0">
+            {# スマホ・タブレット：並べ替えの選択（PCは見出しを押す） #}
+            <div class="d-flex d-xl-none align-items-center gap-2 mb-2">
+                <label for="pa-loc-sort-select" class="small text-muted text-nowrap mb-0">並べ替え</label>
+                <select id="pa-loc-sort-select" class="form-select form-select-sm w-auto pa-sort-select"><option value="no" selected>売り場No.</option><option value="quantity">持参数</option><option value="sales">販売数</option><option value="remaining">残数</option><option value="waste">廃棄率</option><option value="avg">1日平均</option><option value="days">稼働</option><option value="revenue">売上</option><option value="eval">評価</option></select>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap pa-sort-dir">小さい順</button>
+            </div>
+
+            {# PC：表。中央値・対象外の区切りは1日平均の多い順のときだけ出す #}
+            <table class="table table-sm table-hover mb-0 d-none d-xl-table pa-sort-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-nowrap" aria-sort="ascending"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="no">売り場<span class="pa-sort-mark ms-1" aria-hidden="true">▲</span></button></th>
+                        <th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="quantity">持参数<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="sales">販売数<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="remaining">残数<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="waste">廃棄率<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="avg">1日平均<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="days">稼働<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="revenue">売上<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="eval">評価<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th>
+                    </tr>
+                </thead>
+                <tbody class="pa-sort-box">
+                {% for l in a.locations %}
+                    {% if l.median_break %}<tr class="pa-break" data-break="median" hidden><td colspan="9" class="small text-muted">{{ a.location_basis.avg_word }} {{ a.location_basis.avg_sales|floatformat:1 }}</td></tr>{% endif %}
+                    {% if l.na_break %}<tr class="pa-break" data-break="na" hidden><td colspan="9" class="small text-muted">対象外（稼働{{ a.location_basis.min_days }}日未満）</td></tr>{% endif %}
+                    <tr class="align-top pa-sort-row{% if not l.label %} text-muted{% endif %}" data-no="{{ l.no|default_if_none:-1 }}" data-quantity="{{ l.quantity }}" data-sales="{{ l.sales }}" data-remaining="{{ l.remaining }}" data-waste="{{ l.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ l.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ l.days }}" data-revenue="{{ l.revenue }}" data-eval="{{ l.eval_rank }}" data-median-below="{% if l.label and l.above_median is False %}1{% endif %}">
+                        <td><span class="small text-muted me-1">{{ l.no|default_if_none:"" }}</span><span class="fw-bold">{{ l.name }}</span></td>
+                        <td class="text-end">{{ l.quantity|intcomma }}{% include 'includes/_delta.html' with deltas=l.deltas.quantity %}</td>
+                        <td class="text-end">{{ l.sales|intcomma }}{% include 'includes/_delta.html' with deltas=l.deltas.sales %}</td>
+                        <td class="text-end">{{ l.remaining|intcomma }}{% include 'includes/_delta.html' with deltas=l.deltas.remaining %}</td>
+                        <td class="text-end pa-cmp">{% include 'includes/_analysis_waste.html' with item=l basis=a.location_basis %}{% include 'includes/_delta.html' with deltas=l.deltas.waste_rate %}</td>
+                        <td class="text-end pa-cmp">{{ l.avg_sales|floatformat:1 }}{% include 'includes/_delta.html' with deltas=l.deltas.avg_sales %}</td>
+                        <td class="text-end text-nowrap">{{ l.days }}日{% include 'includes/_delta.html' with deltas=l.deltas.days %}</td>
+                        <td class="text-end text-nowrap">&yen;{{ l.revenue|intcomma }}{% include 'includes/_delta.html' with deltas=l.deltas.revenue %}</td>
+                        <td>{% include 'includes/_analysis_badge.html' with item=l %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            {# スマホ・タブレット：カード #}
+            <div class="d-xl-none row row-cols-1 row-cols-md-2 g-2 pa-sort-box">
+            {% for l in a.locations %}
+                {% if l.median_break %}<div class="col-12 pa-break" data-break="median" hidden><div class="small text-muted pt-1">{{ a.location_basis.avg_word }} {{ a.location_basis.avg_sales|floatformat:1 }}</div></div>{% endif %}
+                {% if l.na_break %}<div class="col-12 pa-break" data-break="na" hidden><div class="small text-muted pt-1">対象外（稼働{{ a.location_basis.min_days }}日未満）</div></div>{% endif %}
+                <div class="col pa-sort-row" data-no="{{ l.no|default_if_none:-1 }}" data-quantity="{{ l.quantity }}" data-sales="{{ l.sales }}" data-remaining="{{ l.remaining }}" data-waste="{{ l.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ l.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ l.days }}" data-revenue="{{ l.revenue }}" data-eval="{{ l.eval_rank }}" data-median-below="{% if l.label and l.above_median is False %}1{% endif %}">
+                    <div class="card h-100{% if not l.label %} text-muted{% endif %}"><div class="card-body py-2">
+                        <div class="mb-1"><span class="small text-muted me-1">{{ l.no|default_if_none:"" }}</span><span class="fw-bold">{{ l.name }}</span></div>
+                        <div class="row g-2">
+                            <div class="col-6"><div class="small text-muted">持参数</div><div class="pa-value">{{ l.quantity|intcomma }}</div>{% include 'includes/_delta.html' with deltas=l.deltas.quantity %}</div>
+                            <div class="col-6"><div class="small text-muted">販売数</div><div class="pa-value">{{ l.sales|intcomma }}</div>{% include 'includes/_delta.html' with deltas=l.deltas.sales %}</div>
+                            <div class="col-6"><div class="small text-muted">残数</div><div class="pa-value">{{ l.remaining|intcomma }}</div>{% include 'includes/_delta.html' with deltas=l.deltas.remaining %}</div>
+                            <div class="col-6"><div class="small text-muted">廃棄率</div>{% include 'includes/_analysis_waste.html' with item=l basis=a.location_basis bold=True %}{% include 'includes/_delta.html' with deltas=l.deltas.waste_rate %}</div>
+                            <div class="col-6"><div class="small text-muted">1日平均</div><div class="fw-bold pa-value">{{ l.avg_sales|floatformat:1 }}</div>{% include 'includes/_delta.html' with deltas=l.deltas.avg_sales %}</div>
+                            <div class="col-6"><div class="small text-muted">稼働</div><div class="pa-value">{{ l.days }}日</div>{% include 'includes/_delta.html' with deltas=l.deltas.days %}</div>
+                            <div class="col-6"><div class="small text-muted">売上</div><div class="pa-value text-nowrap">&yen;{{ l.revenue|intcomma }}</div>{% include 'includes/_delta.html' with deltas=l.deltas.revenue %}</div>
+                            <div class="col-6"><div class="small text-muted">評価</div>{% include 'includes/_analysis_badge.html' with item=l %}</div>
+                        </div>
+                    </div></div>
+                </div>
+            {% endfor %}
+            </div>
+            </div>
+        {% else %}
+            <div class="d-flex mb-2">{% include 'includes/_analysis_basis_button.html' with target='location' form=basis_forms.location %}</div>
+            <div class="text-muted text-center py-4">該当データなし</div>
+        {% endif %}
+        </div>
+    </section>
+    {% include 'includes/_analysis_basis_modal.html' with target='location' title='売り場' day_word='稼働' form=basis_forms.location setting=a.location_setting basis=a.location_basis rules=basis_rules.location bands=basis_bands.location color_choices=color_choices start=start_value end=end_value %}
+
+    {# ===== メニュー別 ===== #}
+    <section class="card mb-3 pa-section" id="sec-menus">
+        <div class="card-header py-2 d-flex align-items-center gap-1">
+            <h2 class="h6 mb-0 fw-bold">メニュー別</h2>
+            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-html="true"
+               data-bs-content="1日平均：販売数 ÷ 提供日数<br>{% if a.menu_basis.mode == 'rules' %}{% for t in a.menu_basis.rules %}{{ forloop.counter }}. {{ t }}<br>{% endfor %}どれにも当てはまらない：様子見<br>提供{{ a.menu_basis.min_days }}日未満は評価対象外{% else %}1日平均の基準：{{ a.menu_basis.avg_word }}<br>廃棄率の基準：{{ a.menu_basis.waste_word }}<br>人気：1日平均≥基準・廃棄率≤基準<br>作りすぎ：1日平均≥基準・廃棄率＞基準<br>増やせる：1日平均＜基準・廃棄率≤基準<br>不人気：1日平均＜基準・廃棄率＞基準<br>提供{{ a.menu_basis.min_days }}日未満は評価対象外{% endif %}" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+        </div>
+        <div class="card-body">
+        {% if basis_error == 'menu' %}<div class="alert alert-danger py-2 small">基準を保存できません</div>{% endif %}
+        {% if a.menus %}
+            {% include 'includes/_analysis_basis.html' with basis=a.menu_basis target='menu' form=basis_forms.menu %}
+            <div class="d-flex flex-wrap gap-1 mb-3">
+                {% for c in a.menu_count_badges %}
+                    {% if c.label == '様子見' and not c.count %}{% elif c.label %}<span class="badge bg-{{ c.badge }}-subtle text-{{ c.badge }}-emphasis border border-{{ c.badge }}-subtle text-nowrap">{{ c.label }} {{ c.count }}</span>
+                    {% elif c.count %}<span class="badge text-muted border text-nowrap">対象外 {{ c.count }}</span>{% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="pa-sortable" data-default-key="sales" data-default-desc="1">
+            {# スマホ・タブレット：並べ替えの選択（PCは見出しを押す） #}
+            <div class="d-flex d-xl-none align-items-center gap-2 mb-2">
+                <label for="pa-sort-select" class="small text-muted text-nowrap mb-0">並べ替え</label>
+                <select id="pa-sort-select" class="form-select form-select-sm w-auto pa-sort-select"><option value="quantity">持参数</option><option value="sales" selected>販売数</option><option value="remaining">残数</option><option value="waste">廃棄率</option><option value="avg">1日平均</option><option value="days">提供</option><option value="eval">評価</option></select>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap pa-sort-dir">多い順</button>
+            </div>
+
+            {# PC：表 #}
+            <table class="table table-sm table-hover mb-0 d-none d-xl-table pa-sort-table">
+                <thead class="table-light"><tr>
+                    <th class="text-nowrap">メニュー</th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="quantity">持参数<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="descending"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="sales">販売数<span class="pa-sort-mark ms-1" aria-hidden="true">▼</span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="remaining">残数<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="waste">廃棄率<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="avg">1日平均<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap text-end" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="days">提供<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th><th class="text-nowrap" aria-sort="none"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap pa-sort" data-key="eval">評価<span class="pa-sort-mark ms-1" aria-hidden="true"></span></button></th>
+                </tr></thead>
+                <tbody class="pa-sort-box">
+                {% for m in a.menus %}
+                    <tr class="align-top pa-sort-row{% if not m.label %} text-muted{% endif %}" data-quantity="{{ m.quantity }}" data-sales="{{ m.sales }}" data-remaining="{{ m.remaining }}" data-waste="{{ m.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ m.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ m.days }}" data-eval="{{ m.eval_rank }}">
+                        <td class="fw-bold">{{ m.name }}</td>
+                        <td class="text-end">{{ m.quantity|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.quantity %}</td>
+                        <td class="text-end">{{ m.sales|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.sales %}</td>
+                        <td class="text-end">{{ m.remaining|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.remaining %}</td>
+                        <td class="text-end pa-cmp">{% include 'includes/_analysis_waste.html' with item=m basis=a.menu_basis %}{% include 'includes/_delta.html' with deltas=m.deltas.waste_rate %}</td>
+                        <td class="text-end pa-cmp">{{ m.avg_sales|floatformat:1 }}{% include 'includes/_delta.html' with deltas=m.deltas.avg_sales %}</td>
+                        <td class="text-end text-nowrap">{{ m.days }}日</td>
+                        <td>{% include 'includes/_analysis_badge.html' with item=m %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            {# スマホ・タブレット：リスト #}
+            <ul class="list-group d-xl-none pa-sort-box">
+                {% for m in a.menus %}
+                <li class="list-group-item py-2 pa-sort-row{% if not m.label %} text-muted{% endif %}" data-quantity="{{ m.quantity }}" data-sales="{{ m.sales }}" data-remaining="{{ m.remaining }}" data-waste="{{ m.waste_rate|default_if_none:-1|stringformat:'f' }}" data-avg="{{ m.avg_sales|default_if_none:-1|stringformat:'f' }}" data-days="{{ m.days }}" data-eval="{{ m.eval_rank }}">
+                    <div class="fw-bold mb-1">{{ m.name }}</div>
+                    <div class="row g-2">
+                        <div class="col-6"><div class="small text-muted">持参数</div><div class="pa-value">{{ m.quantity|intcomma }}</div>{% include 'includes/_delta.html' with deltas=m.deltas.quantity %}</div>
+                        <div class="col-6"><div class="small text-muted">販売数</div><div class="pa-value">{{ m.sales|intcomma }}</div>{% include 'includes/_delta.html' with deltas=m.deltas.sales %}</div>
+                        <div class="col-6"><div class="small text-muted">残数</div><div class="pa-value">{{ m.remaining|intcomma }}</div>{% include 'includes/_delta.html' with deltas=m.deltas.remaining %}</div>
+                        <div class="col-6"><div class="small text-muted">廃棄率</div>{% include 'includes/_analysis_waste.html' with item=m basis=a.menu_basis bold=True %}{% include 'includes/_delta.html' with deltas=m.deltas.waste_rate %}</div>
+                        <div class="col-6"><div class="small text-muted">1日平均</div><div class="fw-bold pa-value">{{ m.avg_sales|floatformat:1 }}</div>{% include 'includes/_delta.html' with deltas=m.deltas.avg_sales %}</div>
+                        <div class="col-6"><div class="small text-muted">提供</div><div class="pa-value">{{ m.days }}日</div></div>
+                        <div class="col-6"><div class="small text-muted">評価</div>{% include 'includes/_analysis_badge.html' with item=m %}</div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            </div>
+        {% else %}
+            <div class="d-flex mb-2">{% include 'includes/_analysis_basis_button.html' with target='menu' form=basis_forms.menu %}</div>
+            <div class="text-muted text-center py-4">該当データなし</div>
+        {% endif %}
+        </div>
+    </section>
+    {% include 'includes/_analysis_basis_modal.html' with target='menu' title='メニュー' day_word='提供' form=basis_forms.menu setting=a.menu_setting basis=a.menu_basis rules=basis_rules.menu bands=basis_bands.menu color_choices=color_choices start=start_value end=end_value %}
+
+    {# ===== 月別推移 ===== #}
+    <section class="card mb-3 pa-section" id="sec-trend">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center column-gap-2 row-gap-1">
+            <h2 class="h6 mb-0 fw-bold">月別推移</h2>
+            <span class="small text-muted text-nowrap">{{ trend_data.labels|first }}〜{{ trend_data.labels|last }}</span>
+            <span class="small text-muted text-nowrap ln-delta-legend">下段：前月比</span>
+            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-content="終了日の月まで12か月。期間指定の開始日は影響しない。持参数・販売数は受注を含む" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+            <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="グラフの切替">
+                <input type="radio" class="btn-check" name="pa-trend-mode" id="pa-t-qty" value="qty" checked><label class="btn btn-outline-secondary text-nowrap" for="pa-t-qty">数量</label>
+                <input type="radio" class="btn-check" name="pa-trend-mode" id="pa-t-rev" value="rev"><label class="btn btn-outline-secondary text-nowrap" for="pa-t-rev">売上</label>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if not trend_has_data %}
+                <div class="text-muted text-center py-4">該当データなし</div>
+            {% else %}
+                <div class="pa-chart mb-3"><canvas id="pa-trend-chart" role="img" aria-label="月別の販売数と残数の推移"></canvas></div>
+                <table class="table table-sm mb-0 pa-trend-table">
+                    <thead class="table-light"><tr>
+                        <th class="text-nowrap">月</th><th class="text-nowrap text-end d-none d-sm-table-cell">持参数</th><th class="text-nowrap text-end">販売数</th>
+                        <th class="text-nowrap text-end">残数</th><th class="text-nowrap text-end">廃棄率</th><th class="text-nowrap text-end">売上</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for m in a.trend %}
+                        <tr class="align-top{% if forloop.last %} pa-trend-current{% endif %}">
+                            <td class="text-nowrap">{{ m.month|date:"Y/m" }}</td>
+                            {% if m.empty %}
+                            <td class="text-end d-none d-sm-table-cell">—</td><td class="text-end">—</td><td class="text-end">—</td><td class="text-end">—</td><td class="text-end">—</td>
+                            {% else %}
+                            <td class="text-end d-none d-sm-table-cell">{{ m.quantity|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.quantity nolabel=True %}</td>
+                            <td class="text-end">{{ m.sales|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.sales nolabel=True %}</td>
+                            <td class="text-end">{{ m.remaining|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.remaining nolabel=True %}</td>
+                            <td class="text-end">{% if m.waste_rate is not None %}{{ m.waste_rate|floatformat:1 }}%{% else %}—{% endif %}{% include 'includes/_delta.html' with deltas=m.deltas.waste_rate nolabel=True %}</td>
+                            <td class="text-end text-nowrap">&yen;{{ m.revenue|intcomma }}{% include 'includes/_delta.html' with deltas=m.deltas.revenue nolabel=True %}</td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    </section>
+    {{ trend_data|json_script:"trend-data" }}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) { new bootstrap.Popover(el); });
+
+    // 評価の基準のモーダル：固定値を選んだときだけ数値欄を使う。保存前に入力を確かめる
+    document.querySelectorAll('.pa-basis-form').forEach(function (form) {
+        // 決め方で欄を出し分ける。隠した側の欄は無効にして、確かめも送信もしない
+        function syncMode() {
+            var checked = form.querySelector('.pa-rule-mode:checked');
+            var mode = checked ? checked.value : 'lines';
+            form.querySelectorAll('.pa-panel').forEach(function (panel) {
+                var on = panel.dataset.mode === mode;
+                panel.hidden = !on;
+                panel.querySelectorAll('input, select').forEach(function (el) { el.disabled = !on; });
+            });
+            if (mode === 'lines') syncFixed(); else syncOps();
+        }
+        function syncOps() {
+            form.querySelectorAll('.pa-rule-op').forEach(function (sel) {
+                var input = form.querySelector(sel.dataset.value);
+                input.disabled = sel.disabled || !sel.value;
+                input.required = !input.disabled;
+            });
+        }
+        form.querySelectorAll('.pa-rule-mode').forEach(function (r) { r.addEventListener('change', syncMode); });
+        // 廃棄率の色：数値で決めるときだけ段を使う。見本の文字に今の色を当てる
+        function syncColor() {
+            var checked = form.querySelector('.pa-color-mode:checked');
+            var on = checked && checked.value === 'bands';
+            var panel = form.querySelector('.pa-color-panel');
+            panel.hidden = !on;
+            panel.querySelectorAll('input, select').forEach(function (el) { el.disabled = !on; });
+            panel.querySelectorAll('.pa-band').forEach(function (row) {
+                var sample = row.querySelector('.pa-band-sample');
+                sample.className = 'pa-band-sample text-nowrap small text-' + row.querySelector('.pa-band-color').value + (row.querySelector('[type=checkbox]').checked ? ' fw-bold' : '');
+            });
+        }
+        form.querySelectorAll('.pa-color-mode, .pa-band-color, .pa-band [type=checkbox]').forEach(function (el) { el.addEventListener('change', syncColor); });
+        function bandsEmpty(check) {
+            var fb = form.querySelector('.pa-band-empty');
+            var mins = Array.prototype.slice.call(form.querySelectorAll('.pa-band-min'));
+            var empty = check && mins.every(function (m) { return !m.disabled && !m.value; });
+            fb.classList.toggle('d-block', empty);
+            return empty;
+        }
+        form.querySelectorAll('.pa-rule-op').forEach(function (sel) { sel.addEventListener('change', function () { syncOps(); ruleEmpty(false); }); });
+        // 評価ごとに、条件が1つもないと全部がその評価になるので止める
+        function ruleEmpty(check) {
+            var bad = false;
+            form.querySelectorAll('[data-rule-empty]').forEach(function (fb) {
+                var ops = Array.prototype.slice.call(fb.parentElement.querySelectorAll('.pa-rule-op'));
+                var empty = check && ops.every(function (s) { return !s.disabled && !s.value; });
+                fb.classList.toggle('d-block', empty);
+                if (empty) bad = true;
+            });
+            return bad;
+        }
+        function syncFixed() {
+            form.querySelectorAll('.pa-mode').forEach(function (r) {
+                var input = form.querySelector(r.dataset.fixed);
+                if (r.value !== 'fixed' || !input) return;
+                input.disabled = r.disabled || !r.checked;
+                input.required = r.checked;
+            });
+        }
+        function feedback(input, show) {
+            input.classList.toggle('is-invalid', show);
+            // 欄が input-group の中にあるので、Bootstrap の「隣の is-invalid で出す」が効かない。自分で出し入れする
+            var fb = form.querySelector('[data-for="' + input.id + '"]');
+            if (fb) fb.classList.toggle('d-block', show);
+        }
+        form.querySelectorAll('.pa-mode').forEach(function (r) {
+            r.addEventListener('change', function () {
+                syncFixed();
+                var input = form.querySelector(r.dataset.fixed);
+                if (r.value === 'fixed' && r.checked && input) {
+                    if (!input.value && input.dataset.current) input.value = input.dataset.current;
+                    input.focus();
+                    input.select();
+                }
+            });
+        });
+        form.querySelectorAll('input[type=number]').forEach(function (input) {
+            input.addEventListener('input', function () { feedback(input, false); });
+        });
+        form.addEventListener('submit', function (e) {
+            var bad = null;
+            form.querySelectorAll('input[type=number]').forEach(function (input) {
+                // 小数1桁まで（step と min の組み合わせだけでは 20.05 を通すブラウザがあるので桁も見る）
+                var ok = input.disabled || (input.checkValidity() && input.value !== '' && !/\.\d{2,}/.test(input.value));
+                feedback(input, !ok);
+                if (!ok && !bad) bad = input;
+            });
+            if (ruleEmpty(true) && !bad) bad = form.querySelector('[data-rule-empty].d-block');
+            if (bandsEmpty(true) && !bad) bad = form.querySelector('.pa-band-min');
+            if (bad) { e.preventDefault(); if (bad.focus) bad.focus(); return; }
+            var btn = form.querySelector('.pa-basis-submit');
+            btn.disabled = true;
+            btn.insertAdjacentHTML('afterbegin', '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>');
+        });
+        form.closest('.modal').addEventListener('hidden.bs.modal', function () {
+            form.reset();
+            form.querySelectorAll('input[type=number]').forEach(function (input) { feedback(input, false); });
+            ruleEmpty(false);
+            bandsEmpty(false);
+            syncMode();
+            syncColor();
+        });
+        syncMode();
+        syncColor();
+    });
+    // 保存直後の印は1回だけ。再読込で出続けないよう URL から saved を外す
+    if (new URLSearchParams(location.search).has('saved')) {
+        var u = new URL(location.href);
+        u.searchParams.delete('saved');
+        history.replaceState(null, '', u.pathname + u.search + u.hash);
+    }
+
+    // 比較の表示・非表示は見る人ごとの好みなので、この端末に覚えておく
+    var root = document.getElementById('pa-root');
+    var toggle = document.getElementById('pa-delta-toggle');
+    if (toggle) {
+        var hidden = false;
+        try { hidden = localStorage.getItem('pa-hide-delta') === '1'; } catch (e) {}
+        toggle.checked = !hidden;
+        root.classList.toggle('pa-hide-delta', hidden);
+        toggle.addEventListener('change', function () {
+            root.classList.toggle('pa-hide-delta', !toggle.checked);
+            try { localStorage.setItem('pa-hide-delta', toggle.checked ? '0' : '1'); } catch (e) {}
+        });
+    }
+
+    var form = document.getElementById('pa-form');
+    form.addEventListener('submit', function () {
+        var btn = document.getElementById('pa-submit');
+        btn.disabled = true;
+        btn.insertAdjacentHTML('afterbegin', '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>');
+    });
+
+    // 売り場・メニューの並べ替え。PCは見出し、スマホは選択とボタン。表とカード（リスト）を同じ順に保つ
+    document.querySelectorAll('.pa-sortable').forEach(function (sec) {
+        var sortKey = sec.dataset.defaultKey, sortDesc = sec.dataset.defaultDesc === '1';
+        var select = sec.querySelector('.pa-sort-select');
+        var dirBtn = sec.querySelector('.pa-sort-dir');
+        // 「多い順」で始めるもの。No.と評価は小さい（良い）方から
+        var startAsc = { no: true, eval: true };
+        function words(key, desc) {
+            if (key === 'eval') return desc ? '悪い順' : '良い順';
+            if (key === 'no') return desc ? '大きい順' : '小さい順';
+            return desc ? '多い順' : '少ない順';
+        }
+        function apply() {
+            // 中央値の区切りは、1日平均の多い順のときだけ意味がある
+            var showBreaks = sortKey === 'avg' && sortDesc;
+            sec.querySelectorAll('.pa-sort-box').forEach(function (box) {
+                var rows = Array.prototype.slice.call(box.querySelectorAll('.pa-sort-row'));
+                rows.sort(function (x, y) {
+                    var a = Number(x.dataset[sortKey]), b = Number(y.dataset[sortKey]);
+                    // 評価なし・値なし（-1）は並び方向に関係なく最後
+                    if (a < 0 && b >= 0) return 1;
+                    if (b < 0 && a >= 0) return -1;
+                    return sortDesc ? b - a : a - b;
+                });
+                // 区切りを出すときは評価対象外を最後にまとめる（区切りの下に並べるため）
+                if (showBreaks) rows = rows.filter(function (r) { return Number(r.dataset.eval) >= 0; })
+                    .concat(rows.filter(function (r) { return Number(r.dataset.eval) < 0; }));
+                var median = box.querySelector('[data-break="median"]');
+                var na = box.querySelector('[data-break="na"]');
+                rows.forEach(function (r) {
+                    if (showBreaks && median && r.dataset.medianBelow === '1' && !median.placed) { box.appendChild(median); median.placed = true; }
+                    if (showBreaks && na && Number(r.dataset.eval) < 0 && !na.placed) { box.appendChild(na); na.placed = true; }
+                    box.appendChild(r);
+                });
+                [median, na].forEach(function (br) { if (br) { br.hidden = !(showBreaks && br.placed); br.placed = false; } });
+            });
+            sec.querySelectorAll('.pa-sort').forEach(function (btn) {
+                var on = btn.dataset.key === sortKey;
+                btn.closest('th').setAttribute('aria-sort', on ? (sortDesc ? 'descending' : 'ascending') : 'none');
+                btn.querySelector('.pa-sort-mark').textContent = on ? (sortDesc ? '▼' : '▲') : '';
+            });
+            if (select) select.value = sortKey;
+            if (dirBtn) dirBtn.textContent = words(sortKey, sortDesc);
+        }
+        sec.querySelectorAll('.pa-sort').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (btn.dataset.key === sortKey) { sortDesc = !sortDesc; } else { sortKey = btn.dataset.key; sortDesc = !startAsc[sortKey]; }
+                apply();
+            });
+        });
+        if (select) select.addEventListener('change', function () { sortKey = select.value; sortDesc = !startAsc[sortKey]; apply(); });
+        if (dirBtn) dirBtn.addEventListener('click', function () { sortDesc = !sortDesc; apply(); });
+        apply();
+    });
+
+    // 月別推移グラフ。表が正なので、Chart.js が読めなくても画面は使える
+    var dataEl = document.getElementById('trend-data');
+    var canvas = document.getElementById('pa-trend-chart');
+    if (!dataEl || !canvas || typeof Chart === 'undefined') return;
+    var d = JSON.parse(dataEl.textContent);
+    var css = getComputedStyle(document.documentElement);
+    var dark = css.getPropertyValue('--ln-color-dark').trim();
+    var danger = css.getPropertyValue('--ln-color-danger').trim();
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var yen = function (v) { return '¥' + Number(v).toLocaleString(); };
+    var datasets = {
+        qty: [
+            { label: '販売数', data: d.sales, backgroundColor: dark, stack: 's' },
+            { label: '残数', data: d.remaining, backgroundColor: danger, stack: 's' },
+        ],
+        rev: [{ label: '売上', data: d.revenue, backgroundColor: dark }],
+    };
+    var toneColor = { good: '#198754', bad: '#dc3545', neutral: '#6c757d' };  // 表の text-success / text-danger / text-muted と同じ色
+    var mode = 'qty';
+    var deltasHidden = function () { return root.classList.contains('pa-hide-delta'); };
+    // 棒の上に前月比（数量＝販売数、売上＝売上）を描く。プラグインを増やさず、この画面だけの小さな描画で済ませる
+    var deltaLabels = {
+        id: 'paDeltaLabels',
+        afterDatasetsDraw: function (c) {
+            if (deltasHidden()) return;
+            var key = mode === 'rev' ? 'revenue' : 'sales';
+            var top = c.getDatasetMeta(c.data.datasets.length - 1);
+            var ctx = c.ctx;
+            ctx.save();
+            ctx.font = '600 11px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            top.data.forEach(function (bar, i) {
+                var dl = d.deltas[i] && d.deltas[i][key] && d.deltas[i][key][0];
+                if (!dl || dl.text === '—' || bar.y === undefined || isNaN(bar.y)) return;
+                ctx.fillStyle = toneColor[dl.tone];
+                ctx.fillText(dl.text, bar.x, bar.y - 3);
+            });
+            ctx.restore();
+        },
+    };
+    var deltaText = function (i, key) {
+        var dl = d.deltas[i] && d.deltas[i][key] && d.deltas[i][key][0];
+        return dl ? dl.text : '—';
+    };
+    var tooltipQty = {
+        callbacks: {
+            label: function (c) { return c.dataset.label + ' ' + Number(c.parsed.y).toLocaleString() + '食（前月比 ' + deltaText(c.dataIndex, c.datasetIndex === 0 ? 'sales' : 'remaining') + '）'; },
+            footer: function (items) { return items.length ? '廃棄率 前月比 ' + deltaText(items[0].dataIndex, 'waste_rate') : ''; },
+        },
+    };
+    var tooltipRev = {
+        callbacks: { label: function (c) { return c.dataset.label + ' ' + yen(c.parsed.y) + '（前月比 ' + deltaText(c.dataIndex, 'revenue') + '）'; } },
+    };
+    var chart = new Chart(canvas, {
+        type: 'bar',
+        data: { labels: d.labels, datasets: datasets.qty },
+        plugins: [deltaLabels],
+        options: {
+            maintainAspectRatio: false,
+            animation: reduce ? false : undefined,
+            layout: { padding: { top: 18 } },
+            plugins: { legend: { position: 'bottom' }, tooltip: tooltipQty },
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, grace: '8%' } },
+        },
+    });
+    document.querySelectorAll('input[name="pa-trend-mode"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+            mode = r.value;
+            var rev = mode === 'rev';
+            chart.data.datasets = rev ? datasets.rev : datasets.qty;
+            chart.options.scales.y.ticks = rev ? { callback: yen } : {};
+            chart.options.plugins.tooltip = rev ? tooltipRev : tooltipQty;
+            chart.update();
+        });
+    });
+    if (toggle) toggle.addEventListener('change', function () { chart.update(); });
+});
+</script>
+{% endblock %}

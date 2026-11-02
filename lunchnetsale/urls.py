@@ -135,7 +135,8 @@ urlpatterns = [
     path('location-ranking/', views.location_ranking_view, name='location_ranking'),
     path('meal-forecast/', views.meal_forecast_view, name='meal_forecast'),
     path('daily-report-questions/', daily_questions_views.daily_report_questions_view, name='daily_report_questions'),
-    path('sales_dashboard/', views.sales_dashboard_view, name='sales_dashboard'),
+    path('performance-analysis/', views.performance_analysis_view, name='performance_analysis'),
+    path('performance-analysis/basis/<str:target>/', views.performance_analysis_basis_save, name='performance_analysis_basis_save'),
 
     path('update_confirmation/<int:report_id>/', views.update_confirmation, name='update_confirmation'),
 

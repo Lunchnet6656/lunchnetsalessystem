@@ -30,7 +30,7 @@ def screens(location_id):
         (f"/location/{location_id}/performance/2026/10/", "can_view_performance_by_location"),
         ("/menu-history/", "can_view_menu_history"),
         ("/menu-ranking/", "can_view_menu_history"),
-        ("/sales_dashboard/", "can_view_dashboard"),
+        ("/performance-analysis/", "can_view_dashboard"),
     ]
 
 
@@ -61,6 +61,6 @@ class MainScreensPermissionTest(TestCase):
         self.assertContains(res, "/performance_by_location_rol/")  # 戻るは一般向けへ
 
     def test_login_required(self):
-        res = self.client.get("/sales_dashboard/")
+        res = self.client.get("/performance-analysis/")
         self.assertEqual(res.status_code, 302)
         self.assertIn("login", res.url)

@@ -1,0 +1,146 @@
+{# 評価の基準設定。管理者にだけ出力する（form がないときは何も出さない） #}
+{% if form %}
+<div class="modal fade" id="pa-basis-{{ target }}" tabindex="-1" aria-labelledby="pa-basis-{{ target }}-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <form method="post" action="{% url 'performance_analysis_basis_save' target %}" class="modal-content pa-basis-form" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="start" value="{{ start }}">
+            <input type="hidden" name="end" value="{{ end }}">
+            <div class="modal-header">
+                <h5 class="modal-title text-nowrap" id="pa-basis-{{ target }}-title">基準設定（{{ title }}）</h5>
+                <a tabindex="0" role="button" class="text-muted pa-info ms-1" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true"
+                   data-bs-content="既定：中央値・売り場全体・3日<br>全員共通の設定<br>過去の期間にも適用" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <fieldset class="mb-3">
+                    <legend class="fs-6 fw-bold mb-1">評価の決め方</legend>
+                    <div class="btn-group w-100" role="group" aria-label="評価の決め方">
+                        {% for value, label in form.fields.rule_mode.choices %}
+                        <input type="radio" class="btn-check pa-rule-mode" name="{{ form.rule_mode.html_name }}" id="{{ target }}-rule-mode-{{ value }}" value="{{ value }}"{% if form.rule_mode.value == value %} checked{% endif %}>
+                        <label class="btn btn-outline-secondary text-nowrap" for="{{ target }}-rule-mode-{{ value }}">{{ label }}</label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <div class="pa-panel" data-mode="lines">
+                <fieldset>
+                    <legend class="fs-6 fw-bold mb-1">1日平均 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-content="中央値・平均値：期間内の{{ title }}の1日平均から計算" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></legend>
+                    {% for value, label in form.fields.avg_mode.choices %}
+                    <div class="form-check py-1{% if value == 'fixed' %} d-flex align-items-center gap-2{% endif %}">
+                        <input class="form-check-input pa-mode" type="radio" name="{{ form.avg_mode.html_name }}" id="{{ target }}-avg-{{ value }}" value="{{ value }}" data-fixed="#{{ target }}-avg-fixed-value"{% if form.avg_mode.value == value %} checked{% endif %}>
+                        <label class="form-check-label text-nowrap" for="{{ target }}-avg-{{ value }}">{% if value == 'fixed' %}固定値{% else %}{{ label }}{% endif %}</label>
+                        {% if value == 'fixed' %}
+                        <div class="input-group pa-basis-fixed">
+                            <input type="number" class="form-control text-end" id="{{ target }}-avg-fixed-value" name="{{ form.avg_fixed.html_name }}" value="{{ form.avg_fixed.value|default_if_none:'' }}" step="0.1" min="0.1" max="999.9" inputmode="decimal" aria-label="1日平均の固定値" data-current="{% if basis.avg_sales is not None %}{{ basis.avg_sales|floatformat:1 }}{% endif %}">
+                            <span class="input-group-text">食</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="invalid-feedback" data-for="{{ target }}-avg-fixed-value">0.1〜999.9（小数1桁）</div>
+                </fieldset>
+                <fieldset class="border-top pt-3 mt-3">
+                    <legend class="fs-6 fw-bold mb-1">廃棄率 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="売り場全体：受注を含まない<br>全体（受注込み）：サマリーの廃棄率と同じ" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></legend>
+                    {% for value, label in form.fields.waste_mode.choices %}
+                    <div class="form-check py-1{% if value == 'fixed' %} d-flex align-items-center gap-2{% endif %}">
+                        <input class="form-check-input pa-mode" type="radio" name="{{ form.waste_mode.html_name }}" id="{{ target }}-waste-{{ value }}" value="{{ value }}" data-fixed="#{{ target }}-waste-fixed-value"{% if form.waste_mode.value == value %} checked{% endif %}>
+                        <label class="form-check-label text-nowrap" for="{{ target }}-waste-{{ value }}">{% if value == 'fixed' %}固定値{% elif value == 'total' %}全体（受注込み）{% else %}{{ label }}{% endif %}</label>
+                        {% if value == 'fixed' %}
+                        <div class="input-group pa-basis-fixed">
+                            <input type="number" class="form-control text-end" id="{{ target }}-waste-fixed-value" name="{{ form.waste_fixed.html_name }}" value="{{ form.waste_fixed.value|default_if_none:'' }}" step="0.1" min="0" max="100" inputmode="decimal" aria-label="廃棄率の固定値" data-current="{% if basis.waste_rate is not None %}{{ basis.waste_rate|floatformat:1 }}{% endif %}">
+                            <span class="input-group-text">%</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="invalid-feedback" data-for="{{ target }}-waste-fixed-value">0.0〜100.0（小数1桁）</div>
+                </fieldset>
+                </div>
+                <div class="pa-panel" data-mode="rules">
+                    <div class="d-flex align-items-center gap-1 mb-2">
+                        <span class="fs-6 fw-bold">評価ごとの条件</span>
+                        <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="上から順に判定<br>どれにも当てはまらない：様子見<br>指定なし：その項目は見ない" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+                    </div>
+                    {% for r in rules %}
+                    <div class="border rounded p-2 mb-2">
+                        <div class="mb-1"><span class="badge bg-{{ r.badge }}-subtle text-{{ r.badge }}-emphasis border border-{{ r.badge }}-subtle text-nowrap">{{ forloop.counter }}. {{ r.label }}</span></div>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                            <span class="small text-nowrap pa-rule-name">1日平均</span>
+                            <div class="input-group pa-basis-fixed">
+                                <input type="number" class="form-control text-end pa-rule-value" id="{{ target }}-rule-{{ forloop.counter0 }}-avg_value" name="{{ target }}-rule-{{ forloop.counter0 }}-avg_value" value="{{ r.avg_value|default_if_none:''|stringformat:'s' }}" step="0.1" min="0" max="999.9" inputmode="decimal" aria-label="{{ r.label }}の1日平均">
+                                <span class="input-group-text">食</span>
+                            </div>
+                            <select class="form-select w-auto pa-rule-op" name="{{ target }}-rule-{{ forloop.counter0 }}-avg_op" data-value="#{{ target }}-rule-{{ forloop.counter0 }}-avg_value" aria-label="{{ r.label }}の1日平均の条件">
+                                <option value="gte"{% if r.avg_op == 'gte' %} selected{% endif %}>以上</option>
+                                <option value="lt"{% if r.avg_op == 'lt' %} selected{% endif %}>未満</option>
+                                <option value=""{% if not r.avg_op %} selected{% endif %}>指定なし</option>
+                            </select>
+                        </div>
+                        <div class="invalid-feedback" data-for="{{ target }}-rule-{{ forloop.counter0 }}-avg_value">0〜999.9（小数1桁）</div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="small text-nowrap pa-rule-name">廃棄率</span>
+                            <div class="input-group pa-basis-fixed">
+                                <input type="number" class="form-control text-end pa-rule-value" id="{{ target }}-rule-{{ forloop.counter0 }}-waste_value" name="{{ target }}-rule-{{ forloop.counter0 }}-waste_value" value="{{ r.waste_value|default_if_none:''|stringformat:'s' }}" step="0.1" min="0" max="100" inputmode="decimal" aria-label="{{ r.label }}の廃棄率">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <select class="form-select w-auto pa-rule-op" name="{{ target }}-rule-{{ forloop.counter0 }}-waste_op" data-value="#{{ target }}-rule-{{ forloop.counter0 }}-waste_value" aria-label="{{ r.label }}の廃棄率の条件">
+                                <option value="lte"{% if r.waste_op == 'lte' %} selected{% endif %}>以下</option>
+                                <option value="gt"{% if r.waste_op == 'gt' %} selected{% endif %}>超</option>
+                                <option value=""{% if not r.waste_op %} selected{% endif %}>指定なし</option>
+                            </select>
+                        </div>
+                        <div class="invalid-feedback" data-for="{{ target }}-rule-{{ forloop.counter0 }}-waste_value">0〜100（小数1桁）</div>
+                        <div class="invalid-feedback" data-rule-empty="{{ forloop.counter0 }}">条件を1つ以上</div>
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex align-items-center gap-2 small text-muted"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle text-nowrap">様子見</span><span class="text-nowrap">上のどれにも当てはまらない</span></div>
+                </div>
+                <fieldset class="border-top pt-3 mt-3">
+                    <legend class="fs-6 fw-bold mb-1">廃棄率の色 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="基準と比べる：基準より高いと赤・太字<br>数値で決める：当てはまるいちばん高い段の色<br>数値が空の段は使わない" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></legend>
+                    <div class="btn-group w-100 mb-2" role="group" aria-label="廃棄率の色の決め方">
+                        {% for value, label in form.fields.waste_color_mode.choices %}
+                        <input type="radio" class="btn-check pa-color-mode" name="{{ form.waste_color_mode.html_name }}" id="{{ target }}-color-mode-{{ value }}" value="{{ value }}"{% if form.waste_color_mode.value == value %} checked{% endif %}>
+                        <label class="btn btn-outline-secondary text-nowrap" for="{{ target }}-color-mode-{{ value }}">{{ label }}</label>
+                        {% endfor %}
+                    </div>
+                    <div class="pa-color-panel">
+                        {% for b in bands %}
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 pa-band">
+                            <div class="input-group pa-basis-fixed">
+                                <input type="number" class="form-control text-end pa-band-min" id="{{ target }}-band-{{ forloop.counter0 }}-min" name="{{ target }}-band-{{ forloop.counter0 }}-min" value="{{ b.min|default_if_none:''|stringformat:'s' }}" step="0.1" min="0" max="100" inputmode="decimal" aria-label="{{ forloop.counter }}段目の廃棄率">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <span class="small text-nowrap">以上</span>
+                            <select class="form-select w-auto pa-band-color" name="{{ target }}-band-{{ forloop.counter0 }}-color" aria-label="{{ forloop.counter }}段目の色">
+                                {% for cv, cl in color_choices %}<option value="{{ cv }}"{% if b.color == cv %} selected{% endif %}>{{ cl }}</option>{% endfor %}
+                            </select>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" name="{{ target }}-band-{{ forloop.counter0 }}-bold" id="{{ target }}-band-{{ forloop.counter0 }}-bold" value="1"{% if b.bold %} checked{% endif %}>
+                                <label class="form-check-label small text-nowrap" for="{{ target }}-band-{{ forloop.counter0 }}-bold">太字</label>
+                            </div>
+                            <span class="pa-band-sample text-nowrap small" aria-hidden="true">12.3%</span>
+                        </div>
+                        <div class="invalid-feedback" data-for="{{ target }}-band-{{ forloop.counter0 }}-min">0〜100（小数1桁）</div>
+                        {% endfor %}
+                        <div class="invalid-feedback pa-band-empty">段を1つ以上</div>
+                    </div>
+                </fieldset>
+                <fieldset class="border-top pt-3 mt-3 pa-days">
+                    <legend class="fs-6 fw-bold mb-1">対象外</legend>
+                    <div class="input-group pa-basis-days">
+                        <span class="input-group-text">{{ day_word }}</span>
+                        <input type="number" class="form-control text-end" id="{{ target }}-min-days" name="{{ form.min_days.html_name }}" value="{{ form.min_days.value }}" step="1" min="1" max="31" inputmode="numeric" required aria-label="対象外にする日数">
+                        <span class="input-group-text">日未満</span>
+                    </div>
+                    <div class="invalid-feedback" data-for="{{ target }}-min-days">1〜31の整数</div>
+                </fieldset>
+                {% if setting.pk %}<div class="small text-muted text-nowrap mt-3">最終更新 {{ setting.updated_at|date:"Y/m/d H:i" }} {% if setting.updated_by %}{{ setting.updated_by.last_name }} {{ setting.updated_by.first_name }}{% endif %}</div>{% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-primary text-nowrap pa-basis-submit">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}

@@ -1,0 +1,1 @@
+{% if item.waste_rate is None %}<div>—</div>{% else %}<div class="{% if item.waste_class %}{{ item.waste_class }}{% elif bold %}fw-bold pa-value{% endif %}">{{ item.waste_rate|floatformat:1 }}%</div>{% endif %}

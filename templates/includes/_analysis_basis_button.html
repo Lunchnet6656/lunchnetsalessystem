@@ -1,0 +1,4 @@
+{% if form %}<div class="ms-auto d-flex align-items-center gap-2">
+    {% if saved == target %}<span class="small text-success text-nowrap" role="status"><i class="fas fa-check" aria-hidden="true"></i> 保存済み</span>{% endif %}
+    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" data-bs-toggle="modal" data-bs-target="#pa-basis-{{ target }}"><i class="fas fa-sliders-h me-1" aria-hidden="true"></i>基準設定</button>
+</div>{% endif %}

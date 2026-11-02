@@ -1,0 +1,12 @@
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <span class="small fw-bold text-nowrap">基準</span>
+    {% if basis.mode == 'rules' %}
+    <span class="badge pa-chip text-nowrap">評価ごとの条件</span>
+    <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true"
+       data-bs-content="{% for t in basis.rules %}{{ forloop.counter }}. {{ t }}<br>{% endfor %}どれにも当てはまらない：様子見" aria-label="評価ごとの条件"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+    {% else %}
+    <span class="badge pa-chip text-nowrap">1日平均 {{ basis.avg_word }} {% if basis.avg_sales is not None %}{{ basis.avg_sales|floatformat:1 }}{% else %}—{% endif %}</span>
+    <span class="badge pa-chip text-nowrap">廃棄率 {{ basis.waste_word }} {% if basis.waste_rate is not None %}{{ basis.waste_rate|floatformat:1 }}%{% else %}—{% endif %}</span>
+    {% endif %}
+    {% include 'includes/_analysis_basis_button.html' %}
+</div>

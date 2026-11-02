@@ -214,8 +214,8 @@
                             </summary>
                             <div class="sidebar-section-body">
                         {% if user.menu_permission.can_view_dashboard %}
-                        <a href="{% url 'sales_dashboard' %}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-chart-bar"></i> 売上ダッシュボード
+                        <a href="{% url 'performance_analysis' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-bar"></i> 実績分析
                         </a>
                         {% endif %}
                         {% if user.menu_permission.can_view_daily_report_list %}

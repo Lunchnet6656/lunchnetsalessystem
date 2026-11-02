@@ -1,0 +1,1 @@
+{% for d in deltas %}<div class="ln-delta"><span aria-hidden="true"><span class="{% if d.tone == 'good' %}text-success{% elif d.tone == 'bad' %}text-danger{% else %}text-muted{% endif %}">{{ d.text }}</span>{% if not nolabel %} <span class="text-muted">{{ d.label }}</span>{% endif %}</span><span class="visually-hidden">{{ d.sr }}</span></div>{% endfor %}

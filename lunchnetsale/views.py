@@ -2927,198 +2927,101 @@ def get_shin_yokohama_users(request):
 
 
 @menu_permission_required('can_view_dashboard')
-def sales_dashboard_view(request):
-    """売上実績ダッシュボード - sales + orders 統合"""
-    import json
+def performance_analysis_view(request):
+    """実績分析：期間ごとの売り場・メニューの実績と前月比・前週比・12か月推移（社長向け）"""
+    from sales.performance_analysis import analyze, default_period
 
-    today = date.today()
-    year = int(request.GET.get('year', today.year))
-    month = int(request.GET.get('month', today.month))
+    today = timezone.localdate()
+    default_start, default_end = default_period(today)
+    start_raw = request.GET.get('start', '')
+    end_raw = request.GET.get('end', '')
+    error = None
+    if start_raw or end_raw:
+        try:
+            start = date.fromisoformat(start_raw)
+            end = date.fromisoformat(end_raw)
+        except ValueError:
+            error = '日付が不正です'
+        else:
+            if start > end:
+                error = '開始日が終了日より後です'
+    else:
+        start, end = default_start, default_end
 
-    # 月の日付範囲
-    start_date = date(year, month, 1)
-    _, last_day = monthrange(year, month)
-    end_date = date(year, month, last_day)
-
-    # 月の全日付リスト
-    all_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
-
-    # ===== チャート1: 売上推移（積み上げ棒グラフ） =====
-    # DailyReport: 日別売上
-    dr_by_date = dict(
-        DailyReport.objects.filter(date__range=(start_date, end_date))
-        .values('date')
-        .annotate(revenue=Sum('total_revenue'))
-        .values_list('date', 'revenue')
-    )
-
-    # Orders: 日別売上（OrderItem + OrderExtraItem を別クエリ）
-    order_item_by_date = dict(
-        OrderItem.objects.filter(order__delivery_date__range=(start_date, end_date))
-        .values('order__delivery_date')
-        .annotate(revenue=Sum('subtotal'))
-        .values_list('order__delivery_date', 'revenue')
-    )
-    order_extra_by_date = dict(
-        OrderExtraItem.objects.filter(order__delivery_date__range=(start_date, end_date))
-        .values('order__delivery_date')
-        .annotate(revenue=Sum('subtotal'))
-        .values_list('order__delivery_date', 'revenue')
-    )
-
-    trend_labels = []
-    trend_dr_data = []
-    trend_order_data = []
-    for d in all_dates:
-        trend_labels.append(f"{d.month}/{d.day}")
-        trend_dr_data.append(float(dr_by_date.get(d, 0) or 0))
-        order_rev = float(order_item_by_date.get(d, 0) or 0) + float(order_extra_by_date.get(d, 0) or 0)
-        trend_order_data.append(order_rev)
-
-    # ===== チャート2: 販売場所別売上（横棒グラフ） =====
-    # 店名でまとめる。販売場所No.は途中で振り直されていて日計表には当時のNo.が残るため、
-    # No.込みで集計すると振り直しをまたぐ月に同じ店が2本に分かれる。
-    dr_by_location = list(
-        DailyReport.objects.filter(date__range=(start_date, end_date))
-        .values('location')
-        .annotate(revenue=Sum('total_revenue'))
-        .order_by('-revenue')
-    )
-
-    # Orders合計を「受注」カテゴリとして追加
-    order_total_items = OrderItem.objects.filter(
-        order__delivery_date__range=(start_date, end_date)
-    ).aggregate(revenue=Sum('subtotal'))['revenue'] or 0
-    order_total_extras = OrderExtraItem.objects.filter(
-        order__delivery_date__range=(start_date, end_date)
-    ).aggregate(revenue=Sum('subtotal'))['revenue'] or 0
-    order_total = float(order_total_items) + float(order_total_extras)
-
-    location_data = []
-    for loc in dr_by_location:
-        location_data.append({
-            'label': loc['location'] or "（店名なし）",
-            'revenue': float(loc['revenue'] or 0),
-        })
-    if order_total > 0:
-        location_data.append({'label': '受注', 'revenue': order_total})
-    location_data.sort(key=lambda x: x['revenue'], reverse=True)
-
-    location_labels = json.dumps([d['label'] for d in location_data], ensure_ascii=False)
-    location_revenues = json.dumps([d['revenue'] for d in location_data])
-
-    # ===== チャート3: 決済方法別（ドーナツチャート） =====
-    dr_payments = DailyReport.objects.filter(
-        date__range=(start_date, end_date)
-    ).aggregate(
-        cash=Sum('cash'),
-        paypay=Sum('paypay'),
-        digital_payment=Sum('digital_payment'),
-    )
-
-    payment_dict = defaultdict(float)
-    payment_dict['現金'] = float(dr_payments['cash'] or 0)
-    payment_dict['PayPay'] = float(dr_payments['paypay'] or 0)
-    payment_dict['電子決済'] = float(dr_payments['digital_payment'] or 0)
-
-    # Orders: 決済方法別（OrderItem, OrderExtraItem別クエリ）
-    order_pay_items = (
-        OrderItem.objects.filter(order__delivery_date__range=(start_date, end_date))
-        .values('order__customer__payment_method__name')
-        .annotate(revenue=Sum('subtotal'))
-    )
-    order_pay_extras = (
-        OrderExtraItem.objects.filter(order__delivery_date__range=(start_date, end_date))
-        .values('order__customer__payment_method__name')
-        .annotate(revenue=Sum('subtotal'))
-    )
-
-    for entry in order_pay_items:
-        name = entry['order__customer__payment_method__name'] or '未設定'
-        payment_dict[name] += float(entry['revenue'] or 0)
-    for entry in order_pay_extras:
-        name = entry['order__customer__payment_method__name'] or '未設定'
-        payment_dict[name] += float(entry['revenue'] or 0)
-
-    # 0円の決済方法を除外
-    payment_dict = {k: v for k, v in payment_dict.items() if v > 0}
-    payment_labels = json.dumps(list(payment_dict.keys()), ensure_ascii=False)
-    payment_data = json.dumps(list(payment_dict.values()))
-
-    # ===== チャート4: 商品別販売数・廃棄率 =====
-    dr_products = list(
-        DailyReportEntry.objects.filter(report__date__range=(start_date, end_date))
-        .values('product_no', 'product')
-        .annotate(
-            total_quantity=Sum('quantity'),
-            total_sales=Sum('sales_quantity'),
-            total_remaining=Sum('remaining_number'),
-        )
-        .filter(product_no__gte=1, product_no__lte=10)
-        .order_by('product_no')
-    )
-
-    order_products = dict(
-        OrderItem.objects.filter(order__delivery_date__range=(start_date, end_date))
-        .exclude(product_name='')
-        .values('product_name')
-        .annotate(total_qty=Sum('quantity'))
-        .values_list('product_name', 'total_qty')
-    )
-
-    product_labels = []
-    product_dr_sales = []
-    product_order_sales = []
-    product_waste_rates = []
-
-    for p in dr_products:
-        name = p['product'] or f"商品{p['product_no']}"
-        product_labels.append(name)
-        product_dr_sales.append(int(p['total_sales'] or 0))
-        product_order_sales.append(int(order_products.get(name, 0) or 0))
-        total_qty = int(p['total_quantity'] or 0)
-        remaining = int(p['total_remaining'] or 0)
-        waste_rate = round(remaining / total_qty * 100, 1) if total_qty > 0 else 0
-        product_waste_rates.append(waste_rate)
-
-    # 前月・翌月リンク用
-    prev_month = start_date - timedelta(days=1)
-    next_month = end_date + timedelta(days=1)
-
-    # 合計サマリー
-    total_dr_revenue = sum(trend_dr_data)
-    total_order_revenue = sum(trend_order_data)
-    total_revenue = total_dr_revenue + total_order_revenue
-
+    last_month_end = today.replace(day=1) - timedelta(days=1)
     context = {
-        'year': year,
-        'month': month,
-        'prev_year': prev_month.year,
-        'prev_month': prev_month.month,
-        'next_year': next_month.year,
-        'next_month': next_month.month,
-        # サマリー
-        'total_revenue': total_revenue,
-        'total_dr_revenue': total_dr_revenue,
-        'total_order_revenue': total_order_revenue,
-        # チャート1: 売上推移
-        'trend_labels': json.dumps(trend_labels, ensure_ascii=False),
-        'trend_dr_data': json.dumps(trend_dr_data),
-        'trend_order_data': json.dumps(trend_order_data),
-        # チャート2: 販売場所別
-        'location_labels': location_labels,
-        'location_data': location_revenues,
-        # チャート3: 決済方法
-        'payment_labels': payment_labels,
-        'payment_data': payment_data,
-        # チャート4: 商品別
-        'product_labels': json.dumps(product_labels, ensure_ascii=False),
-        'product_dr_sales': json.dumps(product_dr_sales),
-        'product_order_sales': json.dumps(product_order_sales),
-        'product_waste_rates': json.dumps(product_waste_rates),
+        'start_value': start_raw if error else start.isoformat(),
+        'end_value': end_raw if error else end.isoformat(),
+        'error': error,
+        'a': None if error else analyze(start, end),
+        'last_month_start': last_month_end.replace(day=1).isoformat(),
+        'last_month_end': last_month_end.isoformat(),
     }
+    if context['a']:
+        from sales.permissions import is_admin
+        from .forms import AnalysisBasisForm
+        if is_admin(request.user):
+            from sales.performance_analysis import BADGE, default_rules
+            context['basis_forms'] = {
+                'location': AnalysisBasisForm(instance=context['a']['location_setting'], prefix='location'),
+                'menu': AnalysisBasisForm(instance=context['a']['menu_setting'], prefix='menu'),
+            }
+            # モーダルの「評価ごと」の欄：保存済みの条件、なければ今の基準線から作った初期値
+            from sales.models import AnalysisBasisSetting
+            context['color_choices'] = AnalysisBasisSetting.COLOR_CHOICES
+            # 色の段は5行。保存済みの段、なければ「20%以上 赤太字・10%以上 オレンジ」を入れておき、残りは空行
+            context['basis_bands'] = {}
+            for t in ('location', 'menu'):
+                bands = list(context['a'][f'{t}_setting'].waste_bands) or [
+                    {'min': 20.0, 'color': 'danger', 'bold': True}, {'min': 10.0, 'color': 'orange', 'bold': False}]
+                context['basis_bands'][t] = bands + [{'min': None, 'color': 'danger', 'bold': False}] * (5 - len(bands))
+            context['basis_rules'] = {
+                t: [dict(r, badge=BADGE[r['label']]) for r in
+                    (context['a'][f'{t}_setting'].rules or default_rules(t, context['a'][f'{t}_basis']))]
+                for t in ('location', 'menu')
+            }
+        context['saved'] = request.GET.get('saved', '')
+        context['basis_error'] = request.GET.get('basis_error', '')
+        context['trend_has_data'] = any(not m['empty'] for m in context['a']['trend'])
+        context['trend_data'] = {
+            'labels': [m['month'].strftime('%Y/%m') for m in context['a']['trend']],
+            'sales': [None if m['empty'] else m['sales'] for m in context['a']['trend']],
+            'remaining': [None if m['empty'] else m['remaining'] for m in context['a']['trend']],
+            'revenue': [None if m['empty'] else m['revenue'] for m in context['a']['trend']],
+            'deltas': [None if m['empty'] else m['deltas'] for m in context['a']['trend']],
+        }
+    return render(request, 'performance_analysis.html', context)
 
-    return render(request, 'sales_dashboard.html', context)
+@require_POST
+@menu_permission_required('can_view_dashboard', staff=True)
+def performance_analysis_basis_save(request, target):
+    """実績分析の評価基準を保存して、同じ期間・同じセクションに戻る。"""
+    from urllib.parse import urlencode
+    from django.http import Http404
+    from sales.models import AnalysisBasisLog, AnalysisBasisSetting
+    from sales.performance_analysis import basis_setting
+    from .forms import AnalysisBasisForm
+
+    if target not in dict(AnalysisBasisSetting.TARGET_CHOICES):
+        raise Http404
+    setting = basis_setting(target)
+    before = setting.summary()
+    from sales.performance_analysis import RULE_ORDER
+    form = AnalysisBasisForm(request.POST, instance=setting, prefix=target, rule_labels=RULE_ORDER[target])
+    back = reverse('performance_analysis')
+    query = urlencode({k: request.POST.get(k, '') for k in ('start', 'end') if request.POST.get(k)})
+    anchor = '#sec-locations' if target == 'location' else '#sec-menus'
+    # 保存の結果はセクションの中に出す（アンカーで飛ぶので画面上部の通知は見えない）
+    if not form.is_valid():
+        return redirect(f'{back}?{query}&basis_error={target}{anchor}')
+    setting = form.save(commit=False)
+    setting.updated_by = request.user
+    setting.save()
+    after = setting.summary()
+    if after != before:
+        AnalysisBasisLog.objects.create(target=target, before=before, after=after, changed_by=request.user)
+    return redirect(f'{back}?{query}&saved={target}{anchor}')
+
 
 # ===== メッセージ/リアクション AJAX ビュー =====
 

@@ -40,7 +40,7 @@ PERMISSION_GROUPS = [
         Perm("can_view_price_master", "価格・メニュー設定", "価格表・割引・メニューデータベースを変える", honbu=True),
     ]),
     ("実績", [
-        Perm("can_view_dashboard", "売上ダッシュボード", "売上と受注をまとめたグラフ"),
+        Perm("can_view_dashboard", "実績分析", "期間ごとの売り場・メニューの実績と前月比"),
         Perm("can_view_daily_report_list", "日計表 送信結果（管理者）", "全員の日計表・現金・確認済み・CSV出力", honbu=True),
         Perm("can_view_performance_data", "日別実績集計データ", "日ごとの売上の集計"),
         Perm("can_view_performance_by_location", "販売場所別実績（管理者）", "店ごとの実績・ランキング・食数予測"),
