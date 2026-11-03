@@ -517,6 +517,7 @@ class UserMenuPermission(models.Model):
     can_view_performance_by_location_rol = models.BooleanField(default=True, verbose_name="販売場所別実績データ（一般）")
     can_view_daily_report_form = models.BooleanField(default=True, verbose_name="日計表入力フォーム")
     can_view_shift_app = models.BooleanField(default=True, verbose_name="シフトアプリ")
+    can_view_menu_list = models.BooleanField(default=True, verbose_name="メニューリスト")
     can_view_orders = models.BooleanField(default=False, verbose_name="受注管理")
     can_view_dashboard = models.BooleanField(default=False, verbose_name="実績分析")
     can_view_quest = models.BooleanField(default=False, verbose_name="ランチクエスト")

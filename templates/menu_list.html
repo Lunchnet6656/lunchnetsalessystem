@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}メニューリスト{% endblock %}
+{% block extra_css %}
+{# 販売員用。色は tokens.css のトークンだけを使う #}
+<style>
+    .ml-page { max-width: 860px; }
+    /* スマホはメニュー名の幅を取るため、左右の余白を詰める */
+    @media (max-width: 767.98px) { .ml-page { padding-left: .25rem; padding-right: .25rem; } }
+    .ml-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .ml-week { display: flex; gap: .25rem; align-items: center; }
+    .ml-week select { font-size: 16px; }
+    .ml-nav { white-space: nowrap; min-width: 2.5rem; }
+    .ml-period { color: var(--ln-color-text-muted); white-space: nowrap; }
+    .ml-badge { white-space: nowrap; font-size: .75rem; padding: .1rem .4rem; border-radius: 4px; }
+    .ml-badge-selling { color: var(--ln-color-success); background-color: var(--ln-color-success-bg); }
+    .ml-badge-ended { color: var(--ln-color-text-muted); background-color: var(--ln-color-surface-disabled); }
+    .ml-badge-upcoming { color: var(--ln-cal-blue); background-color: var(--ln-cal-blue-light); }
+    .ml-badge-unconfirmed { color: var(--ln-color-white); background-color: var(--ln-color-danger); }
+    /* 1品＝1行（No・メニュー名・種類・容器を横並び）。種類・容器の列幅は全行でそろえる（subgrid）。
+       種類の名前は本部が変えられるので、いちばん長い名前に合わせて列幅が決まる */
+    .ml-list {
+        list-style: none; padding: 0; margin: 0;
+        display: grid; grid-template-columns: 1.3rem minmax(0, 1fr) auto auto; column-gap: .4rem;
+    }
+    .ml-item {
+        display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center;
+        padding: .55rem .1rem; border-bottom: 1px solid var(--ln-color-border);
+    }
+    .ml-head { font-size: .72rem; color: var(--ln-color-text-muted); padding-top: 0; padding-bottom: .25rem; border-bottom: 1px solid var(--ln-color-border-strong); }
+    .ml-head .ml-col-rank, .ml-head .ml-col-container { text-align: center; }
+    .ml-no { font-weight: bold; color: var(--ln-color-text-muted); text-align: right; }
+    .ml-name { font-weight: bold; color: var(--ln-color-text-strong); font-size: .9rem; line-height: 1.35; overflow-wrap: anywhere; }
+    .ml-rank {
+        display: block; white-space: nowrap; font-size: .72rem; font-weight: bold; text-align: center;
+        padding: .15rem .35rem; border-radius: 4px;
+        color: var(--ln-color-white); background-color: var(--ln-cal-blue);
+    }
+    .ml-rank[data-role="star"] { background-color: var(--ln-color-brand); }
+    .ml-rank[data-role="normal"] { background-color: var(--ln-color-dark); }
+    .ml-rank[data-role="large"] { color: var(--ln-color-text-strong); background-color: var(--ln-color-surface-disabled); }
+    .ml-container { white-space: nowrap; font-size: .8rem; color: var(--ln-color-text-strong); text-align: center; }
+    .ml-container .ml-full { display: none; }
+    @media (min-width: 768px) {
+        .ml-list { grid-template-columns: 2.5rem minmax(0, 1fr) auto 5rem; column-gap: .75rem; }
+        .ml-name { font-size: 1rem; }
+        .ml-rank { font-size: .78rem; }
+        .ml-container { font-size: .9rem; text-align: left; }
+        .ml-container .ml-full { display: inline; }
+        .ml-container .ml-short { display: none; }
+        .ml-head .ml-col-container { text-align: left; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container mt-4 ml-page">
+    <h1 class="h3">メニューリスト</h1>
+
+    <form method="get" class="ml-controls mb-2" id="ml-form">
+        <div class="ml-week">
+            {% if older_week %}<a class="btn btn-sm btn-outline-secondary ml-nav" href="?week={{ older_week|date:'Y-m-d' }}" aria-label="前の週">‹</a>{% endif %}
+            <select name="week" class="form-select form-select-sm" aria-label="週">
+                {% for w in weeks %}<option value="{{ w.week|date:'Y-m-d' }}" {% if w.week == week %}selected{% endif %}>{{ w.label }}{% if w.state == "selling" %}（販売中）{% endif %}</option>{% endfor %}
+            </select>
+            {% if newer_week %}<a class="btn btn-sm btn-outline-secondary ml-nav" href="?week={{ newer_week|date:'Y-m-d' }}" aria-label="次の週">›</a>{% endif %}
+        </div>
+        <noscript><button type="submit" class="btn btn-sm btn-primary">表示</button></noscript>
+    </form>
+
+    {% if not week %}
+    <p class="text-muted mt-4">メニューは未登録です。</p>
+    {% else %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <span class="ml-period">{{ period }}</span>
+        {% if state == "selling" %}<span class="ml-badge ml-badge-selling">販売中</span>
+        {% elif state == "upcoming" %}<span class="ml-badge ml-badge-upcoming">販売前</span>
+        {% else %}<span class="ml-badge ml-badge-ended">終了</span>{% endif %}
+        {% if unconfirmed %}<span class="ml-badge ml-badge-unconfirmed">本部確認前</span>{% endif %}
+    </div>
+
+    {% if not items %}
+    <p class="text-muted mt-4">この週のメニューは未登録です。</p>
+    {% else %}
+    <ul class="ml-list">
+        <li class="ml-item ml-head" aria-hidden="true"><span class="ml-no">No</span><span>メニュー名</span><span class="ml-col-rank">種類</span><span class="ml-col-container">容器</span></li>
+        {% for item in items %}
+        <li class="ml-item">
+            <span class="ml-no">{{ item.no }}</span>
+            <span class="ml-name">{{ item.name }}</span>
+            <span>{% if item.rank %}<span class="ml-rank" data-role="{{ item.rank_role }}">{{ item.rank }}</span>{% endif %}</span>
+            <span class="ml-container"><span class="ml-short">{{ item.container_short }}</span><span class="ml-full">{{ item.container }}</span></span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('ml-form');
+    if (!form) return;
+    form.querySelectorAll('select').forEach(function (select) {
+        select.addEventListener('change', function () { form.submit(); });
+    });
+})();
+</script>
+{% endblock %}

@@ -300,7 +300,7 @@
                     {% endif %}
 
                     <!-- 一般ユーザー向けデータセクション -->
-                    {% if user.menu_permission.can_view_daily_report_rol or user.menu_permission.can_view_performance_by_location_rol %}
+                    {% if user.menu_permission.can_view_daily_report_rol or user.menu_permission.can_view_performance_by_location_rol or user.menu_permission.can_view_menu_list %}
                     <li class="list-group-item p-0">
                         <details class="sidebar-section">
                             <summary class="sidebar-section-header">
@@ -319,6 +319,11 @@
                         {% if user.menu_permission.can_view_performance_by_location_rol %}
                         <a href="{% url 'performance_by_location_rol' %}" class="list-group-item list-group-item-action">
                             <i class="fas fa-list"></i> 販売場所別実績データ（一般用）
+                        </a>
+                        {% endif %}
+                        {% if user.menu_permission.can_view_menu_list %}
+                        <a href="{% url 'staff_menu_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-utensils"></i> メニューリスト
                         </a>
                         {% endif %}
                             </div>

@@ -23,6 +23,7 @@ from .views import locked_out_view,my_page,submit_shift,edit_shift
 from sales import qr_views as sales_qr_views
 from sales import api_views as sales_api_views
 from sales import price_admin_views
+from sales import menu_list_views
 from sales import direct_return_views
 from sales import user_admin_views
 from stamps import views as stamp_views
@@ -63,6 +64,7 @@ urlpatterns = [
     path('discounts/<int:pk>/cancel-plan/', price_admin_views.discount_cancel_plan, name='discount_cancel_plan'),
     path('discounts/<int:pk>/move/<str:step>/', price_admin_views.discount_move, name='discount_move'),
     path('discounts/apply/', price_admin_views.discount_apply, name='discount_apply'),
+    path('menus/list/', menu_list_views.staff_menu_list, name='staff_menu_list'),
     path('menus/week/', price_admin_views.menu_week_list, name='menu_week_list'),
     path('menus/dictionary/', price_admin_views.menu_dictionary, name='menu_dictionary'),
     path('menus/rules/', price_admin_views.menu_rules, name='menu_rules'),

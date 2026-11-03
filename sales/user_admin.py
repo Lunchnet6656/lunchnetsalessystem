@@ -55,6 +55,7 @@ PERMISSION_GROUPS = [
     ("一般", [
         Perm("can_view_daily_report_rol", "日計表 送信結果（一般）", "自分の日計表の送信結果"),
         Perm("can_view_performance_by_location_rol", "販売場所別実績データ（一般）", "店ごとの月の実績"),
+        Perm("can_view_menu_list", "メニューリスト", "週ごとのメニュー名・値段の種類・容器"),
     ]),
     ("日計表", [
         Perm("can_view_daily_report_form", "日計表入力フォーム", "日計表を入力して送信する"),
