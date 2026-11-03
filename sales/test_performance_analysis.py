@@ -560,3 +560,29 @@ class BasisNumberTests(TestCase):
         self.assertContains(res, "優良・条件2：上限：下限以上の値")
         # 理由は1回だけ出す
         self.assertNotContains(self.client.get(res.redirect_chain[-1][0]), "対象外の日数：整数のみ")
+
+
+class PrevMonthLabelTests(TestCase):
+    """前月（期間を1か月前にずらした期間）を今の基準で評価し直し、評価が変わった行だけ前月の評価を出す。"""
+
+    def setUp(self):
+        AnalysisBasisSetting.objects.create(target="location", rule_mode="rules", rules=[
+            {"label": "優良", "color": "success", "conds": [{"metric": "avg_sales", "op": "gte", "value": 25}]},
+            {"label": "標準", "color": "info", "conds": [{"metric": "avg_sales", "op": "gte", "value": 10}]},
+        ])
+        for day in (1, 2, 3):
+            # A店：前月 20食→今月 30食（標準→優良）。B店：ずっと30食。C店：前月 30食→今月 5食（優良→様子見）。D店：今月だけ
+            report(date(2026, 9, day), "A店", [(1, "唐揚げ", 20, 20, 0)])
+            report(date(2026, 9, day), "B店", [(1, "唐揚げ", 30, 30, 0)])
+            report(date(2026, 9, day), "C店", [(1, "唐揚げ", 30, 30, 0)])
+            report(date(2026, 10, day), "A店", [(1, "唐揚げ", 30, 30, 0)])
+            report(date(2026, 10, day), "B店", [(1, "唐揚げ", 30, 30, 0)])
+            report(date(2026, 10, day), "C店", [(1, "唐揚げ", 5, 5, 0)])
+            report(date(2026, 10, day), "D店", [(1, "唐揚げ", 30, 30, 0)])
+
+    def test_only_changed_rows(self):
+        r = analyze(date(2026, 10, 1), date(2026, 10, 31))
+        prev = {l["name"]: (l["label"], l["prev_label"]) for l in r["locations"]}
+        self.assertEqual(prev, {"A店": ("優良", "標準"), "B店": ("優良", None), "C店": ("様子見", "優良"), "D店": ("優良", None)})
+        self.assertEqual(r["location_changed"], 2)
+        self.assertEqual(next(l for l in r["locations"] if l["name"] == "A店")["prev_badge"], "info")

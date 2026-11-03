@@ -288,6 +288,23 @@ def _evaluate(items, setting, summary, labels, label_order):
     return dict(words, avg_sales=avg_line, waste_rate=waste_line, empty=False)
 
 
+def _mark_label_changes(items, prev_stats, setting, prev_summary, labels, label_order):
+    """前月（期間を1か月前にずらした期間）を今の基準設定で評価し直し、評価が変わった行に prev_label/prev_badge を付ける。
+    前月が対象外・データなしの行は比べられないので付けない。変わった件数を返す。"""
+    prev_items = [dict(stats, name=name) for name, stats in prev_stats.items() if stats["quantity"] > 0]
+    _evaluate(prev_items, setting, prev_summary, labels, label_order)
+    prev = {it["name"]: it for it in prev_items if it["label"]}
+    changed = 0
+    for it in items:
+        p = prev.get(it["name"])
+        if it.get("label") and p and p["label"] != it["label"]:
+            it["prev_label"], it["prev_badge"] = p["label"], p["badge"]
+            changed += 1
+        else:
+            it["prev_label"] = None
+    return changed
+
+
 def _trend(end):
     # 先頭の月にも前月比を出すため、1か月前から集めて最後に落とす
     first = (end.replace(day=1) - relativedelta(months=TREND_MONTHS))
@@ -364,6 +381,8 @@ def analyze(start, end):
     location_setting = basis_setting("location")
     location_basis = _evaluate(locations, location_setting, summary, LOCATION_LABELS, LOCATION_LABEL_ORDER)
     _waste_colors(locations, location_setting, location_basis)
+    location_changed = _mark_label_changes(locations, pm["locations"], location_setting, pm["total"],
+                                           LOCATION_LABELS, LOCATION_LABEL_ORDER)
     numbers = _location_numbers([l["name"] for l in locations])
     location_order = [label for label, _ in location_basis["labels"]]
     for l in locations:
@@ -387,6 +406,7 @@ def analyze(start, end):
     menu_setting = basis_setting("menu")
     menu_basis = _evaluate(menus, menu_setting, summary, MENU_LABELS, MENU_LABEL_ORDER)
     _waste_colors(menus, menu_setting, menu_basis)
+    menu_changed = _mark_label_changes(menus, pm["menus"], menu_setting, pm["total"], MENU_LABELS, MENU_LABEL_ORDER)
     # 既定は販売数の多い順。並べ替えは画面で行う
     menus.sort(key=lambda x: -x["sales"])
     menu_order = [label for label, _ in menu_basis["labels"]]
@@ -399,6 +419,7 @@ def analyze(start, end):
         "prev_month": (pm_start, pm_end), "prev_week": (pw_start, pw_end),
         "summary": summary,
         "locations": locations, "location_basis": location_basis, "location_setting": location_setting,
+        "location_changed": location_changed, "menu_changed": menu_changed,
         "location_counts": [
             {"label": label, "badge": badge, "count": sum(1 for l in locations if l["label"] == label)}
             for label, badge in location_basis["labels"]

@@ -27,15 +27,19 @@
     .pa-basis-fixed { width: 8rem; }
     .pa-basis-days { width: 11rem; }
     .pa-rule-label { width: 10rem; }
-    .pa-cond { display: grid; grid-template-columns: 7.5rem 8rem 5.5rem auto; grid-template-areas: "metric value op del" ". value2 . ."; gap: .5rem; align-items: center; }
+    /* 数値欄は売上金額の7桁（9,999,999）が見える幅。上下の矢印は幅を食うので出さない */
+    .pa-cond { display: grid; grid-template-columns: 7.5rem 9rem 5.5rem auto; grid-template-areas: "metric value op del" ". value2 value2 ."; gap: .5rem; align-items: center; }
     .pa-cond .pa-cond-metric { grid-area: metric; }
     .pa-cond .pa-cond-value { grid-area: value; }
     .pa-cond .pa-cond-op { grid-area: op; }
     .pa-cond .pa-cond-del { grid-area: del; justify-self: start; }
     .pa-cond .pa-cond-value2 { grid-area: value2; }
-    .pa-cond .pa-cond-value2[hidden] { display: none; }
+    .pa-cond .pa-cond-value2[hidden] { display: none !important; }  /* d-flex の !important に負けないように */
+    .pa-cond .pa-basis-fixed { width: 9rem; }
+    .pa-cond input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+    .pa-cond input[type=number]::-webkit-inner-spin-button, .pa-cond input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     @media (max-width: 575.98px) {
-        .pa-cond { grid-template-columns: 8rem 5.5rem 1fr; grid-template-areas: "metric metric del" "value op ." "value2 . ."; }
+        .pa-cond { grid-template-columns: 9rem 5.5rem 1fr; grid-template-areas: "metric metric del" "value op ." "value2 value2 ."; }
         .pa-cond .pa-cond-del { justify-self: end; }
     }
     /* 廃棄率の色の「オレンジ」。Bootstrap に文字用のオレンジが無いため。--bs-orange は白地の小さい文字で薄すぎるので一段濃く */
@@ -151,6 +155,7 @@
                     {% if c.label == '様子見' and not c.count %}{% elif c.label %}<span class="badge bg-{{ c.badge }}-subtle text-{{ c.badge }}-emphasis border border-{{ c.badge }}-subtle text-nowrap">{{ c.label }} {{ c.count }}</span>
                     {% elif c.count %}<span class="badge text-muted border text-nowrap">対象外 {{ c.count }}</span>{% endif %}
                 {% endfor %}
+                {% if a.location_changed %}<span class="badge text-muted border text-nowrap ln-delta"><i class="fas fa-exchange-alt me-1" aria-hidden="true"></i>前月から変化 {{ a.location_changed }}</span>{% endif %}
             </div>
 
             <div class="pa-sortable" data-default-key="no" data-default-desc="0">
@@ -235,6 +240,7 @@
                     {% if c.label == '様子見' and not c.count %}{% elif c.label %}<span class="badge bg-{{ c.badge }}-subtle text-{{ c.badge }}-emphasis border border-{{ c.badge }}-subtle text-nowrap">{{ c.label }} {{ c.count }}</span>
                     {% elif c.count %}<span class="badge text-muted border text-nowrap">対象外 {{ c.count }}</span>{% endif %}
                 {% endfor %}
+                {% if a.menu_changed %}<span class="badge text-muted border text-nowrap ln-delta"><i class="fas fa-exchange-alt me-1" aria-hidden="true"></i>前月から変化 {{ a.menu_changed }}</span>{% endif %}
             </div>
 
             <div class="pa-sortable" data-default-key="sales" data-default-desc="1">
