@@ -2961,12 +2961,11 @@ def performance_analysis_view(request):
         from sales.permissions import is_admin
         from .forms import AnalysisBasisForm
         if is_admin(request.user):
-            from sales.performance_analysis import BADGE, default_rules
+            from sales.performance_analysis import default_rules
             context['basis_forms'] = {
                 'location': AnalysisBasisForm(instance=context['a']['location_setting'], prefix='location'),
                 'menu': AnalysisBasisForm(instance=context['a']['menu_setting'], prefix='menu'),
             }
-            # モーダルの「評価ごと」の欄：保存済みの条件、なければ今の基準線から作った初期値
             from sales.models import AnalysisBasisSetting
             context['color_choices'] = AnalysisBasisSetting.COLOR_CHOICES
             # 色の段は5行。保存済みの段、なければ「20%以上 赤太字・10%以上 オレンジ」を入れておき、残りは空行
@@ -2975,11 +2974,26 @@ def performance_analysis_view(request):
                 bands = list(context['a'][f'{t}_setting'].waste_bands) or [
                     {'min': 20.0, 'color': 'danger', 'bold': True}, {'min': 10.0, 'color': 'orange', 'bold': False}]
                 context['basis_bands'][t] = bands + [{'min': None, 'color': 'danger', 'bold': False}] * (5 - len(bands))
-            context['basis_rules'] = {
-                t: [dict(r, badge=BADGE[r['label']]) for r in
-                    (context['a'][f'{t}_setting'].rules or default_rules(t, context['a'][f'{t}_basis']))]
+            # 条件の指標の選択肢（売り場とメニューで違う）。単位・桁・上限は入力欄の制約に使う
+            from sales.models import (OTHER_RULE_LABEL, RULE_COLOR_CHOICES, RULE_COND_MAX, RULE_LABEL_MAX, RULE_MAX,
+                                      RULE_METRIC_KEYS, RULE_METRICS, RULE_OPS, metric_name)
+
+            def metric_attrs(k):
+                return {'unit': RULE_METRICS[k][1], 'step': '0.1' if RULE_METRICS[k][2] else '1', 'max': RULE_METRICS[k][3]}
+            context['rule_metrics'] = {
+                t: [dict(metric_attrs(k), key=k, name=metric_name(k, t)) for k in RULE_METRIC_KEYS[t]]
                 for t in ('location', 'menu')
             }
+            # モーダルの「評価ごと」の欄：保存済みの評価、なければ今の基準線から作った初期値。条件には入力欄の単位等を付ける
+            context['basis_rules'] = {
+                t: [dict(r, conds=[dict(c, **metric_attrs(c['metric'])) for c in r['conds']]) for r in
+                    (context['a'][f'{t}_setting'].normalized_rules() or default_rules(t, context['a'][f'{t}_basis']))]
+                for t in ('location', 'menu')
+            }
+            context['rule_ops'] = list(RULE_OPS.items())
+            context['rule_colors'] = RULE_COLOR_CHOICES
+            context['rule_limits'] = {'max': RULE_MAX, 'cond_max': RULE_COND_MAX, 'label_max': RULE_LABEL_MAX,
+                                      'other': OTHER_RULE_LABEL}
         context['saved'] = request.GET.get('saved', '')
         context['basis_error'] = request.GET.get('basis_error', '')
         context['trend_has_data'] = any(not m['empty'] for m in context['a']['trend'])
@@ -3006,8 +3020,7 @@ def performance_analysis_basis_save(request, target):
         raise Http404
     setting = basis_setting(target)
     before = setting.summary()
-    from sales.performance_analysis import RULE_ORDER
-    form = AnalysisBasisForm(request.POST, instance=setting, prefix=target, rule_labels=RULE_ORDER[target])
+    form = AnalysisBasisForm(request.POST, instance=setting, prefix=target)
     back = reverse('performance_analysis')
     query = urlencode({k: request.POST.get(k, '') for k in ('start', 'end') if request.POST.get(k)})
     anchor = '#sec-locations' if target == 'location' else '#sec-menus'

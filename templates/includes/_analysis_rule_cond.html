@@ -1,0 +1,17 @@
+{# 評価の条件1行。指標を変えると単位・桁・上限を option の data-* から差し替える #}
+<div class="pa-cond-wrap mb-2">
+    <div class="pa-cond">
+        <select class="form-select pa-cond-metric" data-field="metric" name="{{ target }}-rule-{{ i }}-cond-{{ forloop.counter0 }}-metric">
+            {% for m in metrics %}<option value="{{ m.key }}" data-unit="{{ m.unit }}" data-step="{{ m.step }}" data-max="{{ m.max|stringformat:'s' }}"{% if c.metric == m.key %} selected{% endif %}>{{ m.name }}</option>{% endfor %}
+        </select>
+        <div class="input-group pa-basis-fixed pa-cond-value">
+            <input type="number" class="form-control text-end" data-field="value" name="{{ target }}-rule-{{ i }}-cond-{{ forloop.counter0 }}-value" value="{{ c.value|default_if_none:''|stringformat:'s' }}" step="{{ c.step|default:'0.1' }}" min="0" max="{{ c.max|default:'999.9'|stringformat:'s' }}" inputmode="{% if c.step == '1' %}numeric{% else %}decimal{% endif %}" required>
+            <span class="input-group-text pa-cond-unit">{{ c.unit|default:'食' }}</span>
+        </div>
+        <select class="form-select pa-cond-op" data-field="op" name="{{ target }}-rule-{{ i }}-cond-{{ forloop.counter0 }}-op">
+            {% for ov, ol in ops %}<option value="{{ ov }}"{% if c.op == ov %} selected{% endif %}>{{ ol }}</option>{% endfor %}
+        </select>
+        <button type="button" class="btn btn-outline-secondary px-2 pa-cond-del" data-act="del-cond"><i class="fas fa-times" aria-hidden="true"></i></button>
+    </div>
+    <div class="invalid-feedback pa-value-feedback"></div>
+</div>

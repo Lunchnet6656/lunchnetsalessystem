@@ -26,7 +26,16 @@
     input[type=date].form-control { -webkit-appearance: none; appearance: none; }
     .pa-basis-fixed { width: 8rem; }
     .pa-basis-days { width: 11rem; }
-    .pa-rule-name { width: 3.5rem; }
+    .pa-rule-label { width: 10rem; }
+    .pa-cond { display: grid; grid-template-columns: 7.5rem 8rem 5.5rem auto; gap: .5rem; align-items: center; }
+    .pa-cond .pa-cond-del { justify-self: start; }
+    @media (max-width: 575.98px) {
+        .pa-cond { grid-template-columns: 8rem 5.5rem 1fr; grid-template-areas: "metric metric del" "value op ."; }
+        .pa-cond .pa-cond-metric { grid-area: metric; }
+        .pa-cond .pa-cond-value { grid-area: value; }
+        .pa-cond .pa-cond-op { grid-area: op; }
+        .pa-cond .pa-cond-del { grid-area: del; justify-self: end; }
+    }
     /* 廃棄率の色の「オレンジ」。Bootstrap に文字用のオレンジが無いため。--bs-orange は白地の小さい文字で薄すぎるので一段濃く */
     .text-orange { color: #e8590c !important; }
 </style>
@@ -206,7 +215,7 @@
         {% endif %}
         </div>
     </section>
-    {% include 'includes/_analysis_basis_modal.html' with target='location' title='売り場' day_word='稼働' form=basis_forms.location setting=a.location_setting basis=a.location_basis rules=basis_rules.location bands=basis_bands.location color_choices=color_choices start=start_value end=end_value %}
+    {% include 'includes/_analysis_basis_modal.html' with target='location' title='売り場' day_word='稼働' form=basis_forms.location setting=a.location_setting basis=a.location_basis rules=basis_rules.location metrics=rule_metrics.location ops=rule_ops colors=rule_colors limits=rule_limits bands=basis_bands.location color_choices=color_choices start=start_value end=end_value %}
 
     {# ===== メニュー別 ===== #}
     <section class="card mb-3 pa-section" id="sec-menus">
@@ -279,7 +288,7 @@
         {% endif %}
         </div>
     </section>
-    {% include 'includes/_analysis_basis_modal.html' with target='menu' title='メニュー' day_word='提供' form=basis_forms.menu setting=a.menu_setting basis=a.menu_basis rules=basis_rules.menu bands=basis_bands.menu color_choices=color_choices start=start_value end=end_value %}
+    {% include 'includes/_analysis_basis_modal.html' with target='menu' title='メニュー' day_word='提供' form=basis_forms.menu setting=a.menu_setting basis=a.menu_basis rules=basis_rules.menu metrics=rule_metrics.menu ops=rule_ops colors=rule_colors limits=rule_limits bands=basis_bands.menu color_choices=color_choices start=start_value end=end_value %}
 
     {# ===== 月別推移 ===== #}
     <section class="card mb-3 pa-section" id="sec-trend">
@@ -345,14 +354,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 panel.hidden = !on;
                 panel.querySelectorAll('input, select').forEach(function (el) { el.disabled = !on; });
             });
-            if (mode === 'lines') syncFixed(); else syncOps();
-        }
-        function syncOps() {
-            form.querySelectorAll('.pa-rule-op').forEach(function (sel) {
-                var input = form.querySelector(sel.dataset.value);
-                input.disabled = sel.disabled || !sel.value;
-                input.required = !input.disabled;
-            });
+            if (mode === 'lines') syncFixed();
         }
         form.querySelectorAll('.pa-rule-mode').forEach(function (r) { r.addEventListener('change', syncMode); });
         // 廃棄率の色：数値で決めるときだけ段を使う。見本の文字に今の色を当てる
@@ -375,15 +377,151 @@ document.addEventListener('DOMContentLoaded', function () {
             fb.classList.toggle('d-block', empty);
             return empty;
         }
-        form.querySelectorAll('.pa-rule-op').forEach(function (sel) { sel.addEventListener('change', function () { syncOps(); ruleEmpty(false); }); });
-        // 評価ごとに、条件が1つもないと全部がその評価になるので止める
-        function ruleEmpty(check) {
-            var bad = false;
-            form.querySelectorAll('[data-rule-empty]').forEach(function (fb) {
-                var ops = Array.prototype.slice.call(fb.parentElement.querySelectorAll('.pa-rule-op'));
-                var empty = check && ops.every(function (s) { return !s.disabled && !s.value; });
-                fb.classList.toggle('d-block', empty);
-                if (empty) bad = true;
+        // 評価ごとに決めるときの評価：追加・削除・並べ替え。番号（name・id・aria-label）は操作のたびに上から振り直す
+        var rulePanel = form.querySelector('.pa-rules');
+        var ruleList = rulePanel.querySelector('.pa-rule-list');
+        var ruleMax = Number(rulePanel.dataset.max), condMax = Number(rulePanel.dataset.condMax);
+        var labelMax = Number(rulePanel.dataset.labelMax), otherLabel = rulePanel.dataset.other;
+        var colorOrder = ['success', 'info', 'primary', 'warning', 'danger', 'secondary'];
+        function cards() { return Array.prototype.slice.call(ruleList.querySelectorAll('.pa-rule')); }
+        function announce(text) { rulePanel.querySelector('.pa-rule-status').textContent = text; }
+        function sampleRule(card, n) {
+            var color = card.querySelector('.pa-rule-color').value;
+            var sample = card.querySelector('.pa-rule-sample');
+            sample.className = 'badge bg-' + color + '-subtle text-' + color + '-emphasis border border-' + color + '-subtle text-nowrap pa-rule-sample';
+            sample.textContent = n + '. ' + card.querySelector('.pa-rule-label').value.trim();
+        }
+        function setLabel(el, text) { el.setAttribute('aria-label', text); if (el.tagName === 'BUTTON') el.title = text; }
+        function renumber() {
+            var all = cards(), prefix = form.dataset.target;
+            all.forEach(function (card, i) {
+                var n = i + 1, base = prefix + '-rule-' + i;
+                card.querySelector('.pa-rule-sample').id = base + '-sample';
+                card.setAttribute('aria-labelledby', base + '-sample');
+                var label = card.querySelector('.pa-rule-label');
+                label.name = label.id = base + '-label';
+                card.querySelector('.pa-label-feedback').dataset.for = label.id;
+                setLabel(label, '評価' + n + 'の名前');
+                var color = card.querySelector('.pa-rule-color');
+                color.name = base + '-color';
+                setLabel(color, '評価' + n + 'の色');
+                var up = card.querySelector('[data-act=up]'), down = card.querySelector('[data-act=down]'), del = card.querySelector('[data-act=del]');
+                setLabel(up, '評価' + n + 'を上へ移動'); up.disabled = i === 0;
+                setLabel(down, '評価' + n + 'を下へ移動'); down.disabled = i === all.length - 1;
+                setLabel(del, '評価' + n + 'を削除'); del.disabled = all.length === 1;
+                var conds = card.querySelectorAll('.pa-cond-wrap');
+                conds.forEach(function (wrap, j) {
+                    var m = j + 1, cbase = base + '-cond-' + j;
+                    ['metric', 'value', 'op'].forEach(function (f) {
+                        var el = wrap.querySelector('[data-field=' + f + ']');
+                        el.name = cbase + '-' + f;
+                        if (f === 'value') { el.id = cbase + '-value'; wrap.querySelector('.pa-value-feedback').dataset.for = el.id; }
+                        setLabel(el, '評価' + n + 'の条件' + m + 'の' + {metric: '指標', value: '数値', op: '演算子'}[f]);
+                    });
+                    var x = wrap.querySelector('[data-act=del-cond]');
+                    setLabel(x, '評価' + n + 'の条件' + m + 'を削除');
+                    x.disabled = conds.length === 1;
+                });
+                card.querySelector('[data-act=add-cond]').disabled = conds.length >= condMax;
+                sampleRule(card, n);
+            });
+            rulePanel.querySelector('[data-act=add-rule]').disabled = all.length >= ruleMax;
+            rulePanel.querySelector('.pa-rule-count').textContent = all.length + '/' + ruleMax;
+        }
+        // 指標に合わせて単位・桁・上限を変える。clear のときは数値を空にする（20食が20%に化けないように）
+        function syncMetric(wrap, clear) {
+            var opt = wrap.querySelector('.pa-cond-metric').selectedOptions[0];
+            var input = wrap.querySelector('[data-field=value]');
+            input.step = opt.dataset.step;
+            input.max = opt.dataset.max;
+            input.inputMode = opt.dataset.step === '1' ? 'numeric' : 'decimal';
+            wrap.querySelector('.pa-cond-unit').textContent = opt.dataset.unit;
+            var fb = wrap.querySelector('.pa-value-feedback');
+            fb.textContent = '0〜' + opt.dataset.max + (opt.dataset.step === '1' ? 'の整数' : '（小数1桁）');
+            if (clear) { input.value = ''; feedback(input, false); }
+        }
+        function newCond(card) {
+            var frag = rulePanel.querySelector('.pa-cond-tpl').content.cloneNode(true);
+            var wrap = frag.querySelector('.pa-cond-wrap');
+            var used = Array.prototype.map.call(card.querySelectorAll('.pa-cond-metric'), function (s) { return s.value; });
+            var sel = wrap.querySelector('.pa-cond-metric');
+            var free = Array.prototype.find.call(sel.options, function (o) { return used.indexOf(o.value) < 0; });
+            if (free) sel.value = free.value;
+            card.querySelector('.pa-conds').appendChild(frag);
+            syncMetric(wrap, true);
+            return wrap;
+        }
+        rulePanel.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-act]');
+            if (!btn || btn.disabled) return;
+            var card = btn.closest('.pa-rule'), act = btn.dataset.act;
+            var name = card ? card.querySelector('.pa-rule-label').value.trim() : '';
+            if (act === 'up' || act === 'down') {
+                if (act === 'up') ruleList.insertBefore(card, card.previousElementSibling);
+                else ruleList.insertBefore(card.nextElementSibling, card);
+                renumber();
+                if (btn.disabled) card.querySelector(act === 'up' ? '[data-act=down]' : '[data-act=up]').focus();
+                else btn.focus();
+                announce(name + 'を' + (cards().indexOf(card) + 1) + '番目に移動');
+            } else if (act === 'del') {
+                var next = card.nextElementSibling || card.previousElementSibling;
+                card.remove();
+                renumber();
+                next.focus();
+                announce(name + 'を削除');
+            } else if (act === 'add-rule') {
+                var frag = rulePanel.querySelector('.pa-rule-tpl').content.cloneNode(true);
+                var added = frag.querySelector('.pa-rule');
+                var names = cards().map(function (c) { return c.querySelector('.pa-rule-label').value.trim(); });
+                var colors = cards().map(function (c) { return c.querySelector('.pa-rule-color').value; });
+                var k = cards().length + 1;
+                while (names.indexOf('評価' + k) >= 0) k++;
+                added.querySelector('.pa-rule-label').value = '評価' + k;
+                added.querySelector('.pa-rule-color').value = colorOrder.find(function (c) { return colors.indexOf(c) < 0; }) || 'primary';
+                ruleList.appendChild(frag);
+                var wrap = newCond(added);
+                wrap.querySelector('.pa-cond-metric').value = 'avg_sales';
+                syncMetric(wrap, true);
+                renumber();
+                var input = added.querySelector('.pa-rule-label');
+                input.focus();
+                input.select();
+                announce('評価を追加');
+            } else if (act === 'add-cond') {
+                var w = newCond(card);
+                renumber();
+                w.querySelector('[data-field=value]').focus();
+                announce('条件を追加');
+            } else if (act === 'del-cond') {
+                btn.closest('.pa-cond-wrap').remove();
+                renumber();
+                card.querySelector('[data-act=add-cond]').focus();
+                announce('条件を削除');
+            }
+        });
+        rulePanel.addEventListener('change', function (e) {
+            if (e.target.classList.contains('pa-cond-metric')) {
+                syncMetric(e.target.closest('.pa-cond-wrap'), true);
+                e.target.closest('.pa-cond-wrap').querySelector('[data-field=value]').focus();
+            }
+            if (e.target.classList.contains('pa-rule-color')) renumber();
+        });
+        rulePanel.addEventListener('input', function (e) {
+            if (e.target.classList.contains('pa-rule-label')) { feedback(e.target, false); renumber(); }
+        });
+        // 名前：1〜8文字・重複不可・様子見は使えない。いちばん上の不備を返す
+        function rulesInvalid() {
+            var bad = null, seen = [];
+            if (rulePanel.hidden) return null;
+            cards().forEach(function (card) {
+                var input = card.querySelector('.pa-rule-label'), v = input.value.trim(), msg = '';
+                if (!v || v.length > labelMax) msg = '1〜' + labelMax + '文字';
+                else if (v === otherLabel) msg = otherLabel + 'は使用不可';
+                else if (seen.indexOf(v) >= 0) msg = '名前が重複';
+                seen.push(v);
+                card.querySelector('.pa-label-feedback').textContent = msg;
+                feedback(input, !!msg);
+                if (msg && !bad) bad = input;
             });
             return bad;
         }
@@ -412,8 +550,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
         });
-        form.querySelectorAll('input[type=number]').forEach(function (input) {
-            input.addEventListener('input', function () { feedback(input, false); });
+        form.addEventListener('input', function (e) {
+            if (e.target.type === 'number') feedback(e.target, false);
         });
         form.addEventListener('submit', function (e) {
             var bad = null;
@@ -423,7 +561,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 feedback(input, !ok);
                 if (!ok && !bad) bad = input;
             });
-            if (ruleEmpty(true) && !bad) bad = form.querySelector('[data-rule-empty].d-block');
+            var badLabel = rulesInvalid();
+            // 最初のエラーへ（評価の名前と数値は画面の上から順）
+            if (badLabel && (!bad || (badLabel.compareDocumentPosition(bad) & Node.DOCUMENT_POSITION_FOLLOWING))) bad = badLabel;
             if (bandsEmpty(true) && !bad) bad = form.querySelector('.pa-band-min');
             if (bad) { e.preventDefault(); if (bad.focus) bad.focus(); return; }
             var btn = form.querySelector('.pa-basis-submit');
@@ -432,12 +572,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         form.closest('.modal').addEventListener('hidden.bs.modal', function () {
             form.reset();
-            form.querySelectorAll('input[type=number]').forEach(function (input) { feedback(input, false); });
-            ruleEmpty(false);
+            // 追加・削除・並べ替えは reset では戻らないので、開いたときの評価の欄に差し替える
+            ruleList.innerHTML = savedRules;
+            renumber();
+            form.querySelectorAll('.pa-cond-wrap').forEach(function (w) { syncMetric(w, false); });
+            form.querySelectorAll('input[type=number], .pa-rule-label').forEach(function (input) { feedback(input, false); });
             bandsEmpty(false);
             syncMode();
             syncColor();
         });
+        renumber();
+        form.querySelectorAll('.pa-cond-wrap').forEach(function (w) { syncMetric(w, false); });
+        var savedRules = ruleList.innerHTML;
         syncMode();
         syncColor();
     });

@@ -966,14 +966,63 @@ class MenuWeekCheck(models.Model):
         return f"{self.week:%Y-%m-%d}週 {'確認済み' if self.is_confirmed else '未確認'}"
 
 
-def rule_text(rule):
-    """評価ごとの条件を1行に。例「優良 1日平均25.0食以上・廃棄率10.0%以下」"""
-    parts = []
+# 評価ごとに決めるときの条件に使える指標。(名前, 単位, 小数の桁, 上限)。販売数・持参数・残数・売上金額は期間の合計
+RULE_METRICS = {
+    "avg_sales": ("1日平均", "食", 1, 999.9),
+    "waste_rate": ("廃棄率", "%", 1, 100),
+    "sales": ("販売数", "食", 0, 99999),
+    "quantity": ("持参数", "食", 0, 99999),
+    "remaining": ("残数", "食", 0, 99999),
+    "revenue": ("売上金額", "円", 0, 9999999),
+    "days": ("稼働日数", "日", 0, 366),
+}
+# メニューには売上金額がない。稼働日数は提供日数と呼ぶ
+RULE_METRIC_KEYS = {
+    "location": ["avg_sales", "waste_rate", "sales", "quantity", "remaining", "revenue", "days"],
+    "menu": ["avg_sales", "waste_rate", "sales", "quantity", "remaining", "days"],
+}
+RULE_OPS = {"gte": "以上", "gt": "超", "lte": "以下", "lt": "未満"}
+# 評価のバッジの色。値は Bootstrap の色名（bg-*-subtle 等）
+RULE_COLOR_CHOICES = [("success", "緑"), ("info", "水色"), ("primary", "青"), ("warning", "黄"), ("danger", "赤"), ("secondary", "グレー")]
+RULE_MAX = 8
+RULE_COND_MAX = 3
+RULE_LABEL_MAX = 8
+OTHER_RULE_LABEL = "様子見"  # どの評価にも当てはまらないもの。名前は固定
+# 4つ固定だったころの評価の色（保存済みの条件を読み替えるとき・初期値に使う）
+LEGACY_RULE_COLORS = {
+    "優良": "success", "人気": "success", "持参を減らす": "warning", "作りすぎ": "warning",
+    "テコ入れ": "info", "増やせる": "info", "撤退検討": "danger", "不人気": "danger",
+}
+
+
+def metric_name(metric, target):
+    if metric == "days" and target == "menu":
+        return "提供日数"
+    return RULE_METRICS[metric][0]
+
+
+def normalize_rule(rule):
+    """評価ごとの条件を {"label", "color", "conds": [{"metric", "op", "value"}]} にそろえる。
+    4つ固定だったころの形（avg_op/waste_op）で保存された条件もこの形に読み替える。"""
+    if "conds" in rule:
+        return rule
+    conds = []
     if rule.get("avg_op"):
-        parts.append(f"1日平均{float(rule['avg_value']):.1f}食{'以上' if rule['avg_op'] == 'gte' else '未満'}")
+        conds.append({"metric": "avg_sales", "op": rule["avg_op"], "value": float(rule["avg_value"])})
     if rule.get("waste_op"):
-        parts.append(f"廃棄率{float(rule['waste_value']):.1f}%{'以下' if rule['waste_op'] == 'lte' else '超'}")
-    return f"{rule['label']} " + "・".join(parts)
+        conds.append({"metric": "waste_rate", "op": rule["waste_op"], "value": float(rule["waste_value"])})
+    return {"label": rule["label"], "color": rule.get("color") or LEGACY_RULE_COLORS.get(rule["label"], "secondary"), "conds": conds}
+
+
+def cond_text(cond, target="location"):
+    unit, digits = RULE_METRICS[cond["metric"]][1], RULE_METRICS[cond["metric"]][2]
+    return f"{metric_name(cond['metric'], target)}{float(cond['value']):,.{digits}f}{unit}{RULE_OPS[cond['op']]}"
+
+
+def rule_text(rule, target="location"):
+    """評価ごとの条件を1行に。例「優良 1日平均25.0食以上・廃棄率10.0%以下」"""
+    rule = normalize_rule(rule)
+    return f"{rule['label']} " + "・".join(cond_text(c, target) for c in rule["conds"])
 
 
 class AnalysisBasisSetting(models.Model):
@@ -988,7 +1037,8 @@ class AnalysisBasisSetting(models.Model):
 
     target = models.CharField(max_length=10, choices=TARGET_CHOICES, unique=True, verbose_name="対象")
     rule_mode = models.CharField(max_length=10, choices=RULE_MODE_CHOICES, default="lines", verbose_name="評価の決め方")
-    # 評価ごとに決めるときの条件。判定順に [{"label", "avg_op": "gte|lt|", "avg_value", "waste_op": "lte|gt|", "waste_value"}]
+    # 評価ごとに決めるときの評価と条件。判定順に [{"label", "color", "conds": [{"metric", "op", "value"}]}]
+    # 旧形式 [{"label", "avg_op", "avg_value", "waste_op", "waste_value"}] も normalize_rule で読み替える
     rules = models.JSONField(default=list, blank=True, verbose_name="評価ごとの条件")
     waste_color_mode = models.CharField(max_length=10, choices=COLOR_MODE_CHOICES, default="basis", verbose_name="廃棄率の色の決め方")
     # 数値で決めるときの段。高い順に [{"min": 20.0, "color": "danger", "bold": true}]。いちばん高く当てはまった段の色
@@ -1014,12 +1064,17 @@ class AnalysisBasisSetting(models.Model):
         names = dict(self.COLOR_CHOICES)
         return "色：" + "・".join(f"{b['min']:.1f}%以上{names[b['color']]}{'太字' if b['bold'] else ''}" for b in self.waste_bands)
 
+    def normalized_rules(self):
+        return [normalize_rule(r) for r in self.rules or []]
+
     def summary(self):
-        return f"{self._rule_summary()}／{self.color_summary()}"[:255]
+        return f"{self._rule_summary()}／{self.color_summary()}"
 
     def _rule_summary(self):
         if self.rule_mode == "rules":
-            return "評価ごと：" + "／".join(rule_text(r) for r in self.rules) + f"／{self.min_days}日未満は対象外"
+            colors = dict(RULE_COLOR_CHOICES)
+            return "評価ごと：" + "／".join(f"{rule_text(r, self.target)}（{colors.get(r['color'], r['color'])}）"
+                                       for r in self.normalized_rules()) + f"／{self.min_days}日未満は対象外"
         avg = f"固定 {self.avg_fixed:.1f}食" if self.avg_mode == "fixed" else self.get_avg_mode_display()
         waste = f"固定 {self.waste_fixed:.1f}%" if self.waste_mode == "fixed" else self.get_waste_mode_display()
         return f"1日平均 {avg}／廃棄率 {waste}／{self.min_days}日未満は対象外"
@@ -1028,8 +1083,9 @@ class AnalysisBasisSetting(models.Model):
 class AnalysisBasisLog(models.Model):
     """評価基準の変更履歴。全員の評価が変わる設定なので、いつ誰が何をどう変えたか残す。"""
     target = models.CharField(max_length=10, choices=AnalysisBasisSetting.TARGET_CHOICES, verbose_name="対象")
-    before = models.CharField(max_length=255, verbose_name="変更前")
-    after = models.CharField(max_length=255, verbose_name="変更後")
+    # 評価が最大8つ×条件3つになり255字に収まらないので TextField
+    before = models.TextField(verbose_name="変更前")
+    after = models.TextField(verbose_name="変更後")
     changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="変更した人")
     changed_at = models.DateTimeField(auto_now_add=True, verbose_name="日時")
 

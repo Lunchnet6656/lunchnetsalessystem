@@ -377,23 +377,64 @@ class RuleModeTests(TestCase):
         AnalysisBasisSetting.objects.create(target="location", rule_mode="rules", rules=default_rules("location", basis))
         self.assertEqual(self.labels(), before)
 
-    def test_save_rules_via_form(self):
-        user = get_user_model().objects.create_user("boss", password="pw-boss-123456", is_staff=True)
+    def post_rules(self, rules, target="location"):
+        user = get_user_model().objects.get_or_create(username="boss", defaults={"is_staff": True})[0]
         UserMenuPermission.objects.update_or_create(user=user, defaults={"can_view_dashboard": True})
         self.client.force_login(user)
-        data = {"location-rule_mode": "rules", "location-min_days": "3"}
-        for i in range(4):
-            data.update({f"location-rule-{i}-avg_op": "gte", f"location-rule-{i}-avg_value": "20",
-                         f"location-rule-{i}-waste_op": "", f"location-rule-{i}-waste_value": ""})
-        self.client.post(reverse("performance_analysis_basis_save", args=["location"]), data)
+        data = {f"{target}-rule_mode": "rules", f"{target}-min_days": "3"}
+        for i, (label, color, conds) in enumerate(rules):
+            data.update({f"{target}-rule-{i}-label": label, f"{target}-rule-{i}-color": color})
+            for j, (metric, op, value) in enumerate(conds):
+                data.update({f"{target}-rule-{i}-cond-{j}-metric": metric, f"{target}-rule-{i}-cond-{j}-op": op,
+                             f"{target}-rule-{i}-cond-{j}-value": value})
+        return self.client.post(reverse("performance_analysis_basis_save", args=[target]), data)
+
+    def test_save_rules_via_form(self):
+        self.post_rules([("売れ筋", "primary", [("sales", "gte", "90"), ("waste_rate", "lte", "10")]),
+                         ("要注意", "danger", [("remaining", "gt", "20")])])
         s = AnalysisBasisSetting.objects.get(target="location")
         self.assertEqual(s.rule_mode, "rules")
-        self.assertEqual([r["label"] for r in s.rules], ["優良", "持参を減らす", "撤退検討", "テコ入れ"])
-        self.assertIn("評価ごと", AnalysisBasisLog.objects.get().after)
-        # 条件なしの評価があると保存しない
-        data["location-rule-0-avg_op"] = ""
-        self.client.post(reverse("performance_analysis_basis_save", args=["location"]), data)
-        self.assertEqual(AnalysisBasisSetting.objects.get(target="location").rules[0]["avg_op"], "gte")
+        self.assertEqual(s.rules, [
+            {"label": "売れ筋", "color": "primary", "conds": [{"metric": "sales", "op": "gte", "value": 90},
+                                                             {"metric": "waste_rate", "op": "lte", "value": 10.0}]},
+            {"label": "要注意", "color": "danger", "conds": [{"metric": "remaining", "op": "gt", "value": 20}]},
+        ])
+        self.assertIn("売れ筋 販売数90食以上・廃棄率10.0%以下（青）", AnalysisBasisLog.objects.get().after)
+        # 販売数 A店90・B店90・C店15・D店15、残数 0・30・0・30
+        self.assertEqual(self.labels(), {"A店": "売れ筋", "B店": "要注意", "C店": "様子見", "D店": "要注意"})
+        r = analyze(date(2026, 10, 1), date(2026, 10, 31))
+        self.assertEqual([(c["label"], c["badge"], c["count"]) for c in r["location_counts"] if c["label"]],
+                         [("売れ筋", "primary", 1), ("要注意", "danger", 2), ("様子見", "secondary", 1)])
+        self.assertEqual({l["name"]: l["eval_rank"] for l in r["locations"]}, {"A店": 0, "B店": 1, "C店": 2, "D店": 1})
+
+    def test_invalid_rules_not_saved(self):
+        self.post_rules([("売れ筋", "primary", [("sales", "gte", "90")])])
+        for rules in (
+            [("売れ筋", "primary", [])],  # 条件なし
+            [("", "primary", [("sales", "gte", "1")])],  # 名前なし
+            [("とても長い評価の名前", "primary", [("sales", "gte", "1")])],  # 9文字
+            [("A", "primary", [("sales", "gte", "1")]), ("A", "danger", [("sales", "gte", "1")])],  # 重複
+            [("様子見", "primary", [("sales", "gte", "1")])],
+            [("売れ筋", "pink", [("sales", "gte", "1")])],
+            [("売れ筋", "primary", [("waste_rate", "gte", "101")])],
+            [("売れ筋", "primary", [("sales", "eq", "1")])],
+        ):
+            self.post_rules(rules)
+            self.assertEqual(AnalysisBasisSetting.objects.get(target="location").rules[0]["conds"][0]["value"], 90)
+        # メニューに売上金額はない
+        self.post_rules([("売れ筋", "primary", [("revenue", "gte", "1")])], target="menu")
+        self.assertFalse(AnalysisBasisSetting.objects.filter(target="menu").exists())
+
+    def test_eight_rules_max(self):
+        self.post_rules([(f"評価{i}", "primary", [("sales", "gte", str(100 - i))]) for i in range(9)])
+        self.assertEqual(len(AnalysisBasisSetting.objects.get(target="location").rules), 8)
+
+    def test_legacy_rules_shown_in_modal(self):
+        AnalysisBasisSetting.objects.create(target="location", rule_mode="rules", rules=[
+            {"label": "優良", "avg_op": "gte", "avg_value": 25, "waste_op": "", "waste_value": None}])
+        self.post_rules([])  # ログイン用（評価なしは保存されない）
+        res = self.client.get(reverse("performance_analysis"), {"start": "2026-10-01", "end": "2026-10-31"})
+        self.assertContains(res, 'id="location-rule-0-label" value="優良"')
 
     def test_no_median_break_in_rule_mode(self):
         from sales.performance_analysis import default_rules

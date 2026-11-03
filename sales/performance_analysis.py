@@ -13,13 +13,14 @@ from django.db.models import Count, Sum
 from django.db.models.functions import TruncMonth
 
 from orders.models import OrderExtraItem, OrderItem
-from sales.models import AnalysisBasisSetting, rule_text, DailyReport, DailyReportEntry, SalesLocation
+from sales.models import (AnalysisBasisSetting, LEGACY_RULE_COLORS, OTHER_RULE_LABEL, RULE_METRICS, rule_text, DailyReport,
+                          DailyReportEntry, SalesLocation)
 
 TREND_MONTHS = 12
 ORDERS_ROW_NAME = "ルート&別注仕出し(受注販売)"
 
 LOCATION_LABEL_ORDER = ["優良", "持参を減らす", "テコ入れ", "撤退検討", "様子見"]
-OTHER_LABEL = "様子見"  # 評価ごとに決めるとき、どの条件にも当てはまらないもの
+OTHER_LABEL = OTHER_RULE_LABEL  # 評価ごとに決めるとき、どの条件にも当てはまらないもの
 # 評価ごとに決めるときの判定順（良い→悪いの両端を先に決め、残りを中間で拾う）
 RULE_ORDER = {
     "location": ["優良", "持参を減らす", "撤退検討", "テコ入れ"],
@@ -205,36 +206,46 @@ def default_rules(target, basis):
         "撤退検討": ("lt", "gt"), "不人気": ("lt", "gt"),
         "テコ入れ": ("lt", "lte"), "増やせる": ("lt", "lte"),
     }
-    return [{"label": label, "avg_op": ops[label][0], "avg_value": avg, "waste_op": ops[label][1], "waste_value": waste}
+    return [{"label": label, "color": LEGACY_RULE_COLORS[label], "conds": [
+                {"metric": "avg_sales", "op": ops[label][0], "value": avg},
+                {"metric": "waste_rate", "op": ops[label][1], "value": waste}]}
             for label in RULE_ORDER[target]]
 
 
+def _metric_value(item, metric):
+    v = item.get(metric)
+    # 1日平均・廃棄率は画面と同じ小数1桁で判定する（表示 10.0% なのに「10.0%超」に入る、を防ぐ）
+    if v is not None and RULE_METRICS[metric][2] == 1:
+        v = round(v, 1)
+    return v
+
+
 def _matches(item, rule):
-    if rule.get("avg_op") == "gte" and not item["avg_sales"] >= float(rule["avg_value"]):
-        return False
-    if rule.get("avg_op") == "lt" and not item["avg_sales"] < float(rule["avg_value"]):
-        return False
-    if rule.get("waste_op") == "lte" and not item["waste_rate"] <= float(rule["waste_value"]):
-        return False
-    if rule.get("waste_op") == "gt" and not item["waste_rate"] > float(rule["waste_value"]):
-        return False
+    for cond in rule["conds"]:
+        v, x = _metric_value(item, cond["metric"]), float(cond["value"])
+        if v is None:
+            return False
+        if not {"gte": v >= x, "gt": v > x, "lte": v <= x, "lt": v < x}[cond["op"]]:
+            return False
     return True
 
 
 def _evaluate_rules(items, eligible, setting):
+    rules = setting.normalized_rules()
     eligible_ids = {id(it) for it in eligible}
     for it in items:
         if id(it) not in eligible_ids:
             it["label"] = None
             continue
-        it["label"] = next((r["label"] for r in setting.rules if _matches(it, r)), OTHER_LABEL)
-        it["badge"] = BADGE[it["label"]]
+        rule = next((r for r in rules if _matches(it, r)), None)
+        it["label"], it["badge"] = (rule["label"], rule["color"]) if rule else (OTHER_LABEL, BADGE[OTHER_LABEL])
         it["above_median"] = None
-    return {"mode": "rules", "rules": [rule_text(r) for r in setting.rules], "min_days": setting.min_days,
-            "avg_word": "", "waste_word": "", "avg_sales": None, "waste_rate": None, "empty": not eligible}
+    return {"mode": "rules", "rules": [rule_text(r, setting.target) for r in rules], "min_days": setting.min_days,
+            "avg_word": "", "waste_word": "", "avg_sales": None, "waste_rate": None, "empty": not eligible,
+            "labels": [(r["label"], r["color"]) for r in rules] + [(OTHER_LABEL, BADGE[OTHER_LABEL])]}
 
 
-def _evaluate(items, setting, summary, labels):
+def _evaluate(items, setting, summary, labels, label_order):
     """評価。「2本の線で分ける」（4象限）か「評価ごとに決める」（条件を上から順に）。評価しない日数も設定に従う。"""
     eligible = [it for it in items if it["days"] >= setting.min_days and it["quantity"] > 0]
     if setting.rule_mode == "rules" and setting.rules:
@@ -249,6 +260,7 @@ def _evaluate(items, setting, summary, labels):
         "avg_word": {"median": "中央値", "mean": "平均値", "fixed": "固定"}[setting.avg_mode],
         "waste_word": {"store": "売り場全体", "total": "受注込み", "fixed": "固定"}[setting.waste_mode],
         "min_days": setting.min_days, "mode": "lines",
+        "labels": [(label, BADGE[label]) for label in label_order],
     }
     if not eligible or waste_line is None:
         for it in items:
@@ -347,12 +359,13 @@ def analyze(start, end):
         for name, stats in cur["locations"].items() if stats["quantity"] > 0
     ]
     location_setting = basis_setting("location")
-    location_basis = _evaluate(locations, location_setting, summary, LOCATION_LABELS)
+    location_basis = _evaluate(locations, location_setting, summary, LOCATION_LABELS, LOCATION_LABEL_ORDER)
     _waste_colors(locations, location_setting, location_basis)
     numbers = _location_numbers([l["name"] for l in locations])
+    location_order = [label for label, _ in location_basis["labels"]]
     for l in locations:
         l["no"] = numbers.get(l["name"])
-        l["eval_rank"] = LOCATION_LABEL_ORDER.index(l["label"]) if l["label"] else -1
+        l["eval_rank"] = location_order.index(l["label"]) if l["label"] else -1
     # 1日平均の多い順。評価対象外（稼働が足りない）は最後。上半分＝中央値以上になるので区切り行で基準線を見せる
     locations.sort(key=lambda x: (x["label"] is None, -(x["avg_sales"] or 0)))
     _mark_breaks(locations)
@@ -369,13 +382,14 @@ def analyze(start, end):
         for name, stats in cur["menus"].items() if stats["quantity"] > 0
     ]
     menu_setting = basis_setting("menu")
-    menu_basis = _evaluate(menus, menu_setting, summary, MENU_LABELS)
+    menu_basis = _evaluate(menus, menu_setting, summary, MENU_LABELS, MENU_LABEL_ORDER)
     _waste_colors(menus, menu_setting, menu_basis)
     # 既定は販売数の多い順。並べ替えは画面で行う
     menus.sort(key=lambda x: -x["sales"])
+    menu_order = [label for label, _ in menu_basis["labels"]]
     for m in menus:
-        # 評価で並べ替えるときの順位（人気が先）。評価なしは -1 で常に最後
-        m["eval_rank"] = MENU_LABEL_ORDER.index(m["label"]) if m["label"] else -1
+        # 評価で並べ替えるときの順位（判定順の上が先）。評価なしは -1 で常に最後
+        m["eval_rank"] = menu_order.index(m["label"]) if m["label"] else -1
 
     return {
         "start": start, "end": end,
@@ -383,14 +397,14 @@ def analyze(start, end):
         "summary": summary,
         "locations": locations, "location_basis": location_basis, "location_setting": location_setting,
         "location_counts": [
-            {"label": label, "badge": BADGE[label], "count": sum(1 for l in locations if l["label"] == label)}
-            for label in LOCATION_LABEL_ORDER
+            {"label": label, "badge": badge, "count": sum(1 for l in locations if l["label"] == label)}
+            for label, badge in location_basis["labels"]
         ] + [{"label": None, "badge": None, "count": sum(1 for l in locations if l["label"] is None and not l.get("is_orders"))}],
         "menus": menus, "menu_basis": menu_basis, "menu_setting": menu_setting,
-        "menu_counts": {label: sum(1 for m in menus if m["label"] == label) for label in MENU_LABEL_ORDER},
+        "menu_counts": {label: sum(1 for m in menus if m["label"] == label) for label in menu_order},
         "menu_count_badges": [
-            {"label": label, "badge": BADGE[label], "count": sum(1 for m in menus if m["label"] == label)}
-            for label in MENU_LABEL_ORDER
+            {"label": label, "badge": badge, "count": sum(1 for m in menus if m["label"] == label)}
+            for label, badge in menu_basis["labels"]
         ] + [{"label": None, "badge": None, "count": sum(1 for m in menus if m["label"] is None)}],
         "trend": _trend(end),
     }

@@ -135,35 +135,58 @@ class AnalysisBasisForm(forms.ModelForm):
             "waste_mode": forms.RadioSelect,
         }
 
-    def __init__(self, *args, rule_labels=(), **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.rule_labels = list(rule_labels)
         self.fields["rule_mode"].required = False  # 送られてこなければ「2本の線」
         self.fields["waste_color_mode"].required = False  # 送られてこなければ「基準と比べる」
 
     def _clean_rules(self):
-        """評価ごとの条件（判定順）。画面では rule-<番号>-avg_op 等の名前で送られる。"""
-        rules = []
-        for i, label in enumerate(self.rule_labels):
+        """評価ごとの評価と条件（判定順）。画面では rule-<番号>-label、rule-<番号>-cond-<番号>-metric 等の名前で送られる。
+        番号は画面で並べ替え・削除のたびに 0 から振り直すので、label の欄が送られてきた番号だけを上から読む。"""
+        from sales.models import (OTHER_RULE_LABEL, RULE_COLOR_CHOICES, RULE_COND_MAX, RULE_LABEL_MAX, RULE_MAX,
+                                  RULE_METRIC_KEYS, RULE_METRICS, RULE_OPS)
+        metrics = RULE_METRIC_KEYS[self.instance.target]
+        colors = dict(RULE_COLOR_CHOICES)
+        rules, seen = [], set()
+        for i in range(RULE_MAX):
             key = lambda name: self.add_prefix(f"rule-{i}-{name}")
-            rule = {"label": label}
-            for op_name, value_name, ops, lo, hi in (("avg_op", "avg_value", ("gte", "lt"), 0, 999.9),
-                                                    ("waste_op", "waste_value", ("lte", "gt"), 0, 100)):
-                op = self.data.get(key(op_name), "")
-                if op not in ops:
-                    op = ""
-                value = None
-                if op:
-                    try:
-                        value = round(float(self.data.get(key(value_name), "")), 1)
-                    except ValueError:
-                        value = None
-                    if value is None or not (lo <= value <= hi):
-                        self.add_error(None, f"{label}の数値を確認")
-                rule[op_name], rule[value_name] = op, value
-            if not rule["avg_op"] and not rule["waste_op"]:
-                self.add_error(None, f"{label}の条件を1つ以上")
-            rules.append(rule)
+            if key("label") not in self.data:
+                continue
+            label = self.data.get(key("label"), "").strip()
+            name = label or f"{i + 1}番目"
+            if not label or len(label) > RULE_LABEL_MAX:
+                self.add_error(None, f"{name}の名前は1〜{RULE_LABEL_MAX}文字")
+            elif label == OTHER_RULE_LABEL or label in seen:
+                self.add_error(None, f"{name}の名前が重複")
+            seen.add(label)
+            color = self.data.get(key("color"), "")
+            if color not in colors:
+                self.add_error(None, f"{name}の色を確認")
+            conds = []
+            for j in range(RULE_COND_MAX):
+                metric = self.data.get(key(f"cond-{j}-metric"), "")
+                if not metric:
+                    continue
+                op = self.data.get(key(f"cond-{j}-op"), "")
+                if metric not in metrics or op not in RULE_OPS:
+                    self.add_error(None, f"{name}の条件を確認")
+                    continue
+                _, _, digits, hi = RULE_METRICS[metric]
+                try:
+                    value = round(float(self.data.get(key(f"cond-{j}-value"), "")), digits)
+                except ValueError:
+                    value = None
+                if value is None or not (0 <= value <= hi):
+                    self.add_error(None, f"{name}の数値を確認")
+                    continue
+                if not digits:
+                    value = int(value)
+                conds.append({"metric": metric, "op": op, "value": value})
+            if not conds:
+                self.add_error(None, f"{name}の条件を1つ以上")
+            rules.append({"label": label, "color": color, "conds": conds})
+        if not rules:
+            self.add_error(None, "評価を1つ以上")
         return rules
 
     BAND_ROWS = 5

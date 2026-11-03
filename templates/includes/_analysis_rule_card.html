@@ -1,0 +1,22 @@
+{# 評価ごとに決めるときの評価1つ。name・id・aria-label の番号は画面の並べ替えのたびに JS が振り直す（renumber） #}
+<div class="border rounded p-2 mb-2 pa-rule" role="group" tabindex="-1" aria-labelledby="{{ target }}-rule-{{ i }}-sample">
+    <div class="d-flex align-items-center gap-1 mb-2">
+        <span class="badge bg-{{ r.color }}-subtle text-{{ r.color }}-emphasis border border-{{ r.color }}-subtle text-nowrap pa-rule-sample" id="{{ target }}-rule-{{ i }}-sample">{{ i|add:1 }}. {{ r.label }}</span>
+        <div class="ms-auto d-flex gap-1">
+            <button type="button" class="btn btn-outline-secondary px-2" data-act="up"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
+            <button type="button" class="btn btn-outline-secondary px-2" data-act="down"><i class="fas fa-arrow-down" aria-hidden="true"></i></button>
+            <button type="button" class="btn btn-outline-danger px-2" data-act="del"><i class="fas fa-trash-alt" aria-hidden="true"></i></button>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+        <input type="text" class="form-control pa-rule-label" data-field="label" name="{{ target }}-rule-{{ i }}-label" id="{{ target }}-rule-{{ i }}-label" value="{{ r.label }}" maxlength="{{ limits.label_max }}" required>
+        <select class="form-select w-auto pa-rule-color" data-field="color" name="{{ target }}-rule-{{ i }}-color">
+            {% for cv, cl in colors %}<option value="{{ cv }}"{% if r.color == cv %} selected{% endif %}>{{ cl }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="invalid-feedback pa-label-feedback mb-1"></div>
+    <div class="pa-conds">
+        {% for c in r.conds %}{% include 'includes/_analysis_rule_cond.html' %}{% endfor %}
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap mt-1" data-act="add-cond"><i class="fas fa-plus me-1" aria-hidden="true"></i>条件を追加</button>
+</div>

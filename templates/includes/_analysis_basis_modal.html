@@ -1,8 +1,8 @@
 {# 評価の基準設定。管理者にだけ出力する（form がないときは何も出さない） #}
 {% if form %}
-<div class="modal fade" id="pa-basis-{{ target }}" tabindex="-1" aria-labelledby="pa-basis-{{ target }}-title" aria-hidden="true">
+<div class="modal fade" id="pa-basis-{{ target }}" data-bs-backdrop="static" tabindex="-1" aria-labelledby="pa-basis-{{ target }}-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
-        <form method="post" action="{% url 'performance_analysis_basis_save' target %}" class="modal-content pa-basis-form" novalidate>
+        <form method="post" action="{% url 'performance_analysis_basis_save' target %}" class="modal-content pa-basis-form" data-target="{{ target }}" novalidate>
             {% csrf_token %}
             <input type="hidden" name="start" value="{{ start }}">
             <input type="hidden" name="end" value="{{ end }}">
@@ -56,44 +56,20 @@
                     <div class="invalid-feedback" data-for="{{ target }}-waste-fixed-value">0.0〜100.0（小数1桁）</div>
                 </fieldset>
                 </div>
-                <div class="pa-panel" data-mode="rules">
+                <div class="pa-panel pa-rules" data-mode="rules" data-max="{{ limits.max }}" data-cond-max="{{ limits.cond_max }}" data-label-max="{{ limits.label_max }}" data-other="{{ limits.other }}">
                     <div class="d-flex align-items-center gap-1 mb-2">
-                        <span class="fs-6 fw-bold">評価ごとの条件</span>
-                        <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="上から順に判定<br>どれにも当てはまらない：様子見<br>指定なし：その項目は見ない" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+                        <span class="fs-6 fw-bold text-nowrap">評価ごとの条件</span>
+                        <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="上から順に判定<br>条件はすべて満たすとき<br>どれにも当てはまらない：{{ limits.other }}<br>販売数・持参数・残数・売上金額：期間の合計<br>評価は1〜{{ limits.max }}つ・条件は1〜{{ limits.cond_max }}つ" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+                        <span class="ms-auto small text-muted text-nowrap pa-rule-count"></span>
                     </div>
-                    {% for r in rules %}
-                    <div class="border rounded p-2 mb-2">
-                        <div class="mb-1"><span class="badge bg-{{ r.badge }}-subtle text-{{ r.badge }}-emphasis border border-{{ r.badge }}-subtle text-nowrap">{{ forloop.counter }}. {{ r.label }}</span></div>
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                            <span class="small text-nowrap pa-rule-name">1日平均</span>
-                            <div class="input-group pa-basis-fixed">
-                                <input type="number" class="form-control text-end pa-rule-value" id="{{ target }}-rule-{{ forloop.counter0 }}-avg_value" name="{{ target }}-rule-{{ forloop.counter0 }}-avg_value" value="{{ r.avg_value|default_if_none:''|stringformat:'s' }}" step="0.1" min="0" max="999.9" inputmode="decimal" aria-label="{{ r.label }}の1日平均">
-                                <span class="input-group-text">食</span>
-                            </div>
-                            <select class="form-select w-auto pa-rule-op" name="{{ target }}-rule-{{ forloop.counter0 }}-avg_op" data-value="#{{ target }}-rule-{{ forloop.counter0 }}-avg_value" aria-label="{{ r.label }}の1日平均の条件">
-                                <option value="gte"{% if r.avg_op == 'gte' %} selected{% endif %}>以上</option>
-                                <option value="lt"{% if r.avg_op == 'lt' %} selected{% endif %}>未満</option>
-                                <option value=""{% if not r.avg_op %} selected{% endif %}>指定なし</option>
-                            </select>
-                        </div>
-                        <div class="invalid-feedback" data-for="{{ target }}-rule-{{ forloop.counter0 }}-avg_value">0〜999.9（小数1桁）</div>
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span class="small text-nowrap pa-rule-name">廃棄率</span>
-                            <div class="input-group pa-basis-fixed">
-                                <input type="number" class="form-control text-end pa-rule-value" id="{{ target }}-rule-{{ forloop.counter0 }}-waste_value" name="{{ target }}-rule-{{ forloop.counter0 }}-waste_value" value="{{ r.waste_value|default_if_none:''|stringformat:'s' }}" step="0.1" min="0" max="100" inputmode="decimal" aria-label="{{ r.label }}の廃棄率">
-                                <span class="input-group-text">%</span>
-                            </div>
-                            <select class="form-select w-auto pa-rule-op" name="{{ target }}-rule-{{ forloop.counter0 }}-waste_op" data-value="#{{ target }}-rule-{{ forloop.counter0 }}-waste_value" aria-label="{{ r.label }}の廃棄率の条件">
-                                <option value="lte"{% if r.waste_op == 'lte' %} selected{% endif %}>以下</option>
-                                <option value="gt"{% if r.waste_op == 'gt' %} selected{% endif %}>超</option>
-                                <option value=""{% if not r.waste_op %} selected{% endif %}>指定なし</option>
-                            </select>
-                        </div>
-                        <div class="invalid-feedback" data-for="{{ target }}-rule-{{ forloop.counter0 }}-waste_value">0〜100（小数1桁）</div>
-                        <div class="invalid-feedback" data-rule-empty="{{ forloop.counter0 }}">条件を1つ以上</div>
+                    <div class="pa-rule-list">
+                        {% for r in rules %}{% include 'includes/_analysis_rule_card.html' with i=forloop.counter0 %}{% endfor %}
                     </div>
-                    {% endfor %}
-                    <div class="d-flex align-items-center gap-2 small text-muted"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle text-nowrap">様子見</span><span class="text-nowrap">上のどれにも当てはまらない</span></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap mb-2" data-act="add-rule"><i class="fas fa-plus me-1" aria-hidden="true"></i>評価を追加</button>
+                    <div class="d-flex align-items-center gap-2 small text-muted"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle text-nowrap">{{ limits.other }}</span><span class="text-nowrap">上のどれにも当てはまらない</span></div>
+                    <div class="visually-hidden pa-rule-status" role="status" aria-live="polite"></div>
+                    <template class="pa-rule-tpl">{% include 'includes/_analysis_rule_card.html' with i=0 r=None %}</template>
+                    <template class="pa-cond-tpl">{% include 'includes/_analysis_rule_cond.html' with i=0 c=None %}</template>
                 </div>
                 <fieldset class="border-top pt-3 mt-3">
                     <legend class="fs-6 fw-bold mb-1">廃棄率の色 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="基準と比べる：基準より高いと赤・太字<br>数値で決める：当てはまるいちばん高い段の色<br>数値が空の段は使わない" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></legend>
