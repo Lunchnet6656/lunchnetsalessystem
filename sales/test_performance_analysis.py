@@ -425,6 +425,29 @@ class RuleModeTests(TestCase):
         self.post_rules([("売れ筋", "primary", [("revenue", "gte", "1")])], target="menu")
         self.assertFalse(AnalysisBasisSetting.objects.filter(target="menu").exists())
 
+    def test_between_inclusive(self):
+        user = get_user_model().objects.get_or_create(username="boss", defaults={"is_staff": True})[0]
+        UserMenuPermission.objects.update_or_create(user=user, defaults={"can_view_dashboard": True})
+        self.client.force_login(user)
+        url = reverse("performance_analysis_basis_save", args=["location"])
+        # 1日平均 A30・B30・C5・D5。5〜30 の両端を含む
+        data = {"location-rule_mode": "rules", "location-min_days": "3",
+                "location-rule-0-label": "中くらい", "location-rule-0-color": "info",
+                "location-rule-0-cond-0-metric": "avg_sales", "location-rule-0-cond-0-op": "between",
+                "location-rule-0-cond-0-value": "5", "location-rule-0-cond-0-value2": "30"}
+        self.client.post(url, data)
+        s = AnalysisBasisSetting.objects.get(target="location")
+        self.assertEqual(s.rules[0]["conds"], [{"metric": "avg_sales", "op": "between", "value": 5.0, "value2": 30.0}])
+        self.assertEqual(set(self.labels().values()), {"中くらい"})
+        self.assertIn("中くらい 1日平均5.0〜30.0食", AnalysisBasisLog.objects.get().after)
+        data["location-rule-0-cond-0-value"] = "5.1"
+        self.client.post(url, data)
+        self.assertEqual(self.labels(), {"A店": "中くらい", "B店": "中くらい", "C店": "様子見", "D店": "様子見"})
+        # 上限なし・上限が下限より小さいときは保存しない
+        for v2 in ("", "3"):
+            self.client.post(url, dict(data, **{"location-rule-0-cond-0-value2": v2}))
+            self.assertEqual(AnalysisBasisSetting.objects.get(target="location").rules[0]["conds"][0]["value2"], 30.0)
+
     def test_eight_rules_max(self):
         self.post_rules([(f"評価{i}", "primary", [("sales", "gte", str(100 - i))]) for i in range(9)])
         self.assertEqual(len(AnalysisBasisSetting.objects.get(target="location").rules), 8)

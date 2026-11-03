@@ -172,16 +172,22 @@ class AnalysisBasisForm(forms.ModelForm):
                     self.add_error(None, f"{name}の条件を確認")
                     continue
                 _, _, digits, hi = RULE_METRICS[metric]
-                try:
-                    value = round(float(self.data.get(key(f"cond-{j}-value"), "")), digits)
-                except ValueError:
-                    value = None
-                if value is None or not (0 <= value <= hi):
+                values = []
+                for field in (("value", "value2") if op == "between" else ("value",)):
+                    try:
+                        v = round(float(self.data.get(key(f"cond-{j}-{field}"), "")), digits)
+                    except ValueError:
+                        v = None
+                    if v is None or not (0 <= v <= hi):
+                        break
+                    values.append(v if digits else int(v))
+                if len(values) != (2 if op == "between" else 1) or (op == "between" and values[0] > values[1]):
                     self.add_error(None, f"{name}の数値を確認")
                     continue
-                if not digits:
-                    value = int(value)
-                conds.append({"metric": metric, "op": op, "value": value})
+                cond = {"metric": metric, "op": op, "value": values[0]}
+                if op == "between":
+                    cond["value2"] = values[1]
+                conds.append(cond)
             if not conds:
                 self.add_error(None, f"{name}の条件を1つ以上")
             rules.append({"label": label, "color": color, "conds": conds})

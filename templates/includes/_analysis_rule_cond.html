@@ -12,6 +12,12 @@
             {% for ov, ol in ops %}<option value="{{ ov }}"{% if c.op == ov %} selected{% endif %}>{{ ol }}</option>{% endfor %}
         </select>
         <button type="button" class="btn btn-outline-secondary px-2 pa-cond-del" data-act="del-cond"><i class="fas fa-times" aria-hidden="true"></i></button>
+        <div class="input-group pa-basis-fixed pa-cond-value2"{% if c.op != 'between' %} hidden{% endif %}>
+            <span class="input-group-text px-2">〜</span>
+            <input type="number" class="form-control text-end" data-field="value2" name="{{ target }}-rule-{{ i }}-cond-{{ forloop.counter0 }}-value2" value="{{ c.value2|default_if_none:''|stringformat:'s' }}" step="{{ c.step|default:'0.1' }}" min="0" max="{{ c.max|default:'999.9'|stringformat:'s' }}" inputmode="{% if c.step == '1' %}numeric{% else %}decimal{% endif %}" required>
+            <span class="input-group-text pa-cond-unit">{{ c.unit|default:'食' }}</span>
+        </div>
     </div>
     <div class="invalid-feedback pa-value-feedback"></div>
+    <div class="invalid-feedback pa-value2-feedback"></div>
 </div>

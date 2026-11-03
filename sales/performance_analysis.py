@@ -225,7 +225,10 @@ def _matches(item, rule):
         v, x = _metric_value(item, cond["metric"]), float(cond["value"])
         if v is None:
             return False
-        if not {"gte": v >= x, "gt": v > x, "lte": v <= x, "lt": v < x}[cond["op"]]:
+        if cond["op"] == "between":
+            if not x <= v <= float(cond["value2"]):
+                return False
+        elif not {"gte": v >= x, "gt": v > x, "lte": v <= x, "lt": v < x}[cond["op"]]:
             return False
     return True
 

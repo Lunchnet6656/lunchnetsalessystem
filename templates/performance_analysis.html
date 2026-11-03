@@ -27,14 +27,16 @@
     .pa-basis-fixed { width: 8rem; }
     .pa-basis-days { width: 11rem; }
     .pa-rule-label { width: 10rem; }
-    .pa-cond { display: grid; grid-template-columns: 7.5rem 8rem 5.5rem auto; gap: .5rem; align-items: center; }
-    .pa-cond .pa-cond-del { justify-self: start; }
+    .pa-cond { display: grid; grid-template-columns: 7.5rem 8rem 5.5rem auto; grid-template-areas: "metric value op del" ". value2 . ."; gap: .5rem; align-items: center; }
+    .pa-cond .pa-cond-metric { grid-area: metric; }
+    .pa-cond .pa-cond-value { grid-area: value; }
+    .pa-cond .pa-cond-op { grid-area: op; }
+    .pa-cond .pa-cond-del { grid-area: del; justify-self: start; }
+    .pa-cond .pa-cond-value2 { grid-area: value2; }
+    .pa-cond .pa-cond-value2[hidden] { display: none; }
     @media (max-width: 575.98px) {
-        .pa-cond { grid-template-columns: 8rem 5.5rem 1fr; grid-template-areas: "metric metric del" "value op ."; }
-        .pa-cond .pa-cond-metric { grid-area: metric; }
-        .pa-cond .pa-cond-value { grid-area: value; }
-        .pa-cond .pa-cond-op { grid-area: op; }
-        .pa-cond .pa-cond-del { grid-area: del; justify-self: end; }
+        .pa-cond { grid-template-columns: 8rem 5.5rem 1fr; grid-template-areas: "metric metric del" "value op ." "value2 . ."; }
+        .pa-cond .pa-cond-del { justify-self: end; }
     }
     /* 廃棄率の色の「オレンジ」。Bootstrap に文字用のオレンジが無いため。--bs-orange は白地の小さい文字で薄すぎるので一段濃く */
     .text-orange { color: #e8590c !important; }
@@ -354,7 +356,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 panel.hidden = !on;
                 panel.querySelectorAll('input, select').forEach(function (el) { el.disabled = !on; });
             });
-            if (mode === 'lines') syncFixed();
+            if (mode === 'lines') syncFixed(); else syncOps();
+        }
+        // 演算子が「間」のときだけ2つ目の数値（〜の後ろ）を使う。隠した欄は無効にして送らない
+        function syncOps() {
+            form.querySelectorAll('.pa-cond-wrap').forEach(function (wrap) {
+                var op = wrap.querySelector('.pa-cond-op');
+                var on = op.value === 'between' && !op.disabled;
+                var group = wrap.querySelector('.pa-cond-value2');
+                group.hidden = op.value !== 'between';
+                group.querySelector('input').disabled = !on;
+                if (!on) feedback(group.querySelector('input'), false);
+            });
         }
         form.querySelectorAll('.pa-rule-mode').forEach(function (r) { r.addEventListener('change', syncMode); });
         // 廃棄率の色：数値で決めるときだけ段を使う。見本の文字に今の色を当てる
@@ -412,11 +425,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 var conds = card.querySelectorAll('.pa-cond-wrap');
                 conds.forEach(function (wrap, j) {
                     var m = j + 1, cbase = base + '-cond-' + j;
-                    ['metric', 'value', 'op'].forEach(function (f) {
+                    ['metric', 'value', 'op', 'value2'].forEach(function (f) {
                         var el = wrap.querySelector('[data-field=' + f + ']');
                         el.name = cbase + '-' + f;
-                        if (f === 'value') { el.id = cbase + '-value'; wrap.querySelector('.pa-value-feedback').dataset.for = el.id; }
-                        setLabel(el, '評価' + n + 'の条件' + m + 'の' + {metric: '指標', value: '数値', op: '演算子'}[f]);
+                        if (f === 'value' || f === 'value2') { el.id = cbase + '-' + f; wrap.querySelector('.pa-' + f + '-feedback').dataset.for = el.id; }
+                        setLabel(el, '評価' + n + 'の条件' + m + 'の' + {metric: '指標', value: '数値', op: '演算子', value2: '上限'}[f]);
                     });
                     var x = wrap.querySelector('[data-act=del-cond]');
                     setLabel(x, '評価' + n + 'の条件' + m + 'を削除');
@@ -431,14 +444,17 @@ document.addEventListener('DOMContentLoaded', function () {
         // 指標に合わせて単位・桁・上限を変える。clear のときは数値を空にする（20食が20%に化けないように）
         function syncMetric(wrap, clear) {
             var opt = wrap.querySelector('.pa-cond-metric').selectedOptions[0];
-            var input = wrap.querySelector('[data-field=value]');
-            input.step = opt.dataset.step;
-            input.max = opt.dataset.max;
-            input.inputMode = opt.dataset.step === '1' ? 'numeric' : 'decimal';
-            wrap.querySelector('.pa-cond-unit').textContent = opt.dataset.unit;
-            var fb = wrap.querySelector('.pa-value-feedback');
-            fb.textContent = '0〜' + opt.dataset.max + (opt.dataset.step === '1' ? 'の整数' : '（小数1桁）');
-            if (clear) { input.value = ''; feedback(input, false); }
+            var range = '0〜' + opt.dataset.max + (opt.dataset.step === '1' ? 'の整数' : '（小数1桁）');
+            ['value', 'value2'].forEach(function (f) {
+                var input = wrap.querySelector('[data-field=' + f + ']');
+                input.step = opt.dataset.step;
+                input.max = opt.dataset.max;
+                input.inputMode = opt.dataset.step === '1' ? 'numeric' : 'decimal';
+                input.dataset.range = range;
+                wrap.querySelector('.pa-' + f + '-feedback').textContent = range;
+                if (clear) { input.value = ''; feedback(input, false); }
+            });
+            wrap.querySelectorAll('.pa-cond-unit').forEach(function (u) { u.textContent = opt.dataset.unit; });
         }
         function newCond(card) {
             var frag = rulePanel.querySelector('.pa-cond-tpl').content.cloneNode(true);
@@ -504,6 +520,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 syncMetric(e.target.closest('.pa-cond-wrap'), true);
                 e.target.closest('.pa-cond-wrap').querySelector('[data-field=value]').focus();
             }
+            if (e.target.classList.contains('pa-cond-op')) {
+                syncOps();
+                if (e.target.value === 'between') e.target.closest('.pa-cond-wrap').querySelector('[data-field=value2]').focus();
+            }
             if (e.target.classList.contains('pa-rule-color')) renumber();
         });
         rulePanel.addEventListener('input', function (e) {
@@ -558,6 +578,11 @@ document.addEventListener('DOMContentLoaded', function () {
             form.querySelectorAll('input[type=number]').forEach(function (input) {
                 // 小数1桁まで（step と min の組み合わせだけでは 20.05 を通すブラウザがあるので桁も見る）
                 var ok = input.disabled || (input.checkValidity() && input.value !== '' && !/\.\d{2,}/.test(input.value));
+                // 「間」の上限は前の値以上
+                var order = ok && !input.disabled && input.dataset.field === 'value2' &&
+                    Number(input.value) < Number(input.closest('.pa-cond').querySelector('[data-field=value]').value);
+                if (input.dataset.range) form.querySelector('[data-for="' + input.id + '"]').textContent = order ? '前の値以上' : input.dataset.range;
+                if (order) ok = false;
                 feedback(input, !ok);
                 if (!ok && !bad) bad = input;
             });

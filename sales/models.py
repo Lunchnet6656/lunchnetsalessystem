@@ -981,7 +981,8 @@ RULE_METRIC_KEYS = {
     "location": ["avg_sales", "waste_rate", "sales", "quantity", "remaining", "revenue", "days"],
     "menu": ["avg_sales", "waste_rate", "sales", "quantity", "remaining", "days"],
 }
-RULE_OPS = {"gte": "以上", "gt": "超", "lte": "以下", "lt": "未満"}
+# between は value 以上 value2 以下（両端を含む）
+RULE_OPS = {"gte": "以上", "gt": "超", "lte": "以下", "lt": "未満", "between": "間"}
 # 評価のバッジの色。値は Bootstrap の色名（bg-*-subtle 等）
 RULE_COLOR_CHOICES = [("success", "緑"), ("info", "水色"), ("primary", "青"), ("warning", "黄"), ("danger", "赤"), ("secondary", "グレー")]
 RULE_MAX = 8
@@ -1016,7 +1017,10 @@ def normalize_rule(rule):
 
 def cond_text(cond, target="location"):
     unit, digits = RULE_METRICS[cond["metric"]][1], RULE_METRICS[cond["metric"]][2]
-    return f"{metric_name(cond['metric'], target)}{float(cond['value']):,.{digits}f}{unit}{RULE_OPS[cond['op']]}"
+    name = metric_name(cond["metric"], target)
+    if cond["op"] == "between":
+        return f"{name}{float(cond['value']):,.{digits}f}〜{float(cond['value2']):,.{digits}f}{unit}"
+    return f"{name}{float(cond['value']):,.{digits}f}{unit}{RULE_OPS[cond['op']]}"
 
 
 def rule_text(rule, target="location"):
@@ -1037,7 +1041,7 @@ class AnalysisBasisSetting(models.Model):
 
     target = models.CharField(max_length=10, choices=TARGET_CHOICES, unique=True, verbose_name="対象")
     rule_mode = models.CharField(max_length=10, choices=RULE_MODE_CHOICES, default="lines", verbose_name="評価の決め方")
-    # 評価ごとに決めるときの評価と条件。判定順に [{"label", "color", "conds": [{"metric", "op", "value"}]}]
+    # 評価ごとに決めるときの評価と条件。判定順に [{"label", "color", "conds": [{"metric", "op", "value"(, "value2")}]}]（value2 は op=between のときだけ）
     # 旧形式 [{"label", "avg_op", "avg_value", "waste_op", "waste_value"}] も normalize_rule で読み替える
     rules = models.JSONField(default=list, blank=True, verbose_name="評価ごとの条件")
     waste_color_mode = models.CharField(max_length=10, choices=COLOR_MODE_CHOICES, default="basis", verbose_name="廃棄率の色の決め方")
