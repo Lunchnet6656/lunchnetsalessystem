@@ -143,7 +143,7 @@
                data-bs-content="{% if a.location_basis.mode == 'rules' %}{% for t in a.location_basis.rules %}{{ forloop.counter }}. {{ t }}<br>{% endfor %}どれにも当てはまらない：様子見<br>稼働{{ a.location_basis.min_days }}日未満は評価対象外{% else %}1日平均の基準：{{ a.location_basis.avg_word }}<br>廃棄率の基準：{{ a.location_basis.waste_word }}<br>優良：1日平均≥基準・廃棄率≤基準<br>持参を減らす：1日平均≥基準・廃棄率＞基準<br>テコ入れ：1日平均＜基準・廃棄率≤基準<br>撤退検討：1日平均＜基準・廃棄率＞基準<br>稼働{{ a.location_basis.min_days }}日未満は評価対象外{% endif %}" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
         </div>
         <div class="card-body">
-        {% if basis_error == 'location' %}<div class="alert alert-danger py-2 small">基準を保存できません</div>{% endif %}
+        {% if basis_error == 'location' %}<div class="alert alert-danger py-2 small" role="alert">基準を保存できません{% if basis_error_list %}<ul class="mb-0 mt-1 ps-3">{% for e in basis_error_list %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
         {% if a.locations %}
             {% include 'includes/_analysis_basis.html' with basis=a.location_basis target='location' form=basis_forms.location %}
             <div class="d-flex flex-wrap gap-1 mb-3">
@@ -227,7 +227,7 @@
                data-bs-content="1日平均：販売数 ÷ 提供日数<br>{% if a.menu_basis.mode == 'rules' %}{% for t in a.menu_basis.rules %}{{ forloop.counter }}. {{ t }}<br>{% endfor %}どれにも当てはまらない：様子見<br>提供{{ a.menu_basis.min_days }}日未満は評価対象外{% else %}1日平均の基準：{{ a.menu_basis.avg_word }}<br>廃棄率の基準：{{ a.menu_basis.waste_word }}<br>人気：1日平均≥基準・廃棄率≤基準<br>作りすぎ：1日平均≥基準・廃棄率＞基準<br>増やせる：1日平均＜基準・廃棄率≤基準<br>不人気：1日平均＜基準・廃棄率＞基準<br>提供{{ a.menu_basis.min_days }}日未満は評価対象外{% endif %}" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
         </div>
         <div class="card-body">
-        {% if basis_error == 'menu' %}<div class="alert alert-danger py-2 small">基準を保存できません</div>{% endif %}
+        {% if basis_error == 'menu' %}<div class="alert alert-danger py-2 small" role="alert">基準を保存できません{% if basis_error_list %}<ul class="mb-0 mt-1 ps-3">{% for e in basis_error_list %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
         {% if a.menus %}
             {% include 'includes/_analysis_basis.html' with basis=a.menu_basis target='menu' form=basis_forms.menu %}
             <div class="d-flex flex-wrap gap-1 mb-3">
@@ -444,14 +444,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // 指標に合わせて単位・桁・上限を変える。clear のときは数値を空にする（20食が20%に化けないように）
         function syncMetric(wrap, clear) {
             var opt = wrap.querySelector('.pa-cond-metric').selectedOptions[0];
-            var range = '0〜' + opt.dataset.max + (opt.dataset.step === '1' ? 'の整数' : '（小数1桁）');
             ['value', 'value2'].forEach(function (f) {
                 var input = wrap.querySelector('[data-field=' + f + ']');
                 input.step = opt.dataset.step;
                 input.max = opt.dataset.max;
                 input.inputMode = opt.dataset.step === '1' ? 'numeric' : 'decimal';
-                input.dataset.range = range;
-                wrap.querySelector('.pa-' + f + '-feedback').textContent = range;
                 if (clear) { input.value = ''; feedback(input, false); }
             });
             wrap.querySelectorAll('.pa-cond-unit').forEach(function (u) { u.textContent = opt.dataset.unit; });
@@ -553,6 +550,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 input.required = r.checked;
             });
         }
+        // 数値欄の確かめ。基準・文言はサーバー（forms.basis_number）と同じ。範囲は欄の min/max、小数の桁は step（1＝整数・0.1＝小数第1位まで）
+        function numberError(input) {
+            if (input.disabled) return '';
+            if (input.validity.badInput) return '数値を入力';
+            if (input.value === '') return '未入力';
+            var v = Number(input.value), lo = Number(input.min), hi = Number(input.max);
+            if (v < lo || v > hi) return lo.toLocaleString() + '〜' + hi.toLocaleString() + 'の範囲';
+            var decimals = (input.value.split('.')[1] || '').replace(/0+$/, '').length;
+            if (input.step === '1' && decimals) return '整数のみ';
+            if (decimals > 1) return '小数は第1位まで（例：12.5）';
+            if (input.dataset.field === 'value2' && v < Number(input.closest('.pa-cond').querySelector('[data-field=value]').value)) return '下限以上の値';
+            return '';
+        }
         function feedback(input, show) {
             input.classList.toggle('is-invalid', show);
             // 欄が input-group の中にあるので、Bootstrap の「隣の is-invalid で出す」が効かない。自分で出し入れする
@@ -576,13 +586,9 @@ document.addEventListener('DOMContentLoaded', function () {
         form.addEventListener('submit', function (e) {
             var bad = null;
             form.querySelectorAll('input[type=number]').forEach(function (input) {
-                // 小数1桁まで（step と min の組み合わせだけでは 20.05 を通すブラウザがあるので桁も見る）
-                var ok = input.disabled || (input.checkValidity() && input.value !== '' && !/\.\d{2,}/.test(input.value));
-                // 「間」の上限は前の値以上
-                var order = ok && !input.disabled && input.dataset.field === 'value2' &&
-                    Number(input.value) < Number(input.closest('.pa-cond').querySelector('[data-field=value]').value);
-                if (input.dataset.range) form.querySelector('[data-for="' + input.id + '"]').textContent = order ? '前の値以上' : input.dataset.range;
-                if (order) ok = false;
+                var msg = numberError(input), ok = !msg;
+                var fb = form.querySelector('[data-for="' + input.id + '"]');
+                if (fb) fb.textContent = msg;
                 feedback(input, !ok);
                 if (!ok && !bad) bad = input;
             });

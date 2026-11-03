@@ -121,6 +121,26 @@ class ShiftRequestForm(forms.ModelForm):
 
         return selected_date
 
+def basis_number(raw, digits, lo, hi):
+    """実績分析の基準の数値を確かめる。(値, エラー文言)。文言は画面（performance_analysis.html の numberError）と同じ。
+    桁が多い・小数を入れた等は丸めずに止める（画面で弾く値とサーバーで弾く値をそろえる）。"""
+    from decimal import Decimal, InvalidOperation
+    raw = (raw or "").strip()
+    if not raw:
+        return None, "未入力"
+    try:
+        d = Decimal(raw)
+    except InvalidOperation:
+        return None, "数値を入力"
+    if not d.is_finite():
+        return None, "数値を入力"
+    if not (lo <= d <= hi):
+        return None, f"{lo:,}〜{hi:,}の範囲"
+    if d != d.quantize(Decimal(1).scaleb(-digits)):
+        return None, "整数のみ" if digits == 0 else "小数は第1位まで（例：12.5）"
+    return (int(d) if digits == 0 else float(d)), None
+
+
 class AnalysisBasisForm(forms.ModelForm):
     """実績分析の評価基準。固定を選んだときだけ固定値が必要。"""
 
@@ -172,17 +192,17 @@ class AnalysisBasisForm(forms.ModelForm):
                     self.add_error(None, f"{name}の条件を確認")
                     continue
                 _, _, digits, hi = RULE_METRICS[metric]
-                values = []
+                values, err = [], None
                 for field in (("value", "value2") if op == "between" else ("value",)):
-                    try:
-                        v = round(float(self.data.get(key(f"cond-{j}-{field}"), "")), digits)
-                    except ValueError:
-                        v = None
-                    if v is None or not (0 <= v <= hi):
+                    v, err = basis_number(self.data.get(key(f"cond-{j}-{field}")), digits, 0, hi)
+                    if err:
+                        err = ("上限：" if field == "value2" else "") + err
                         break
-                    values.append(v if digits else int(v))
-                if len(values) != (2 if op == "between" else 1) or (op == "between" and values[0] > values[1]):
-                    self.add_error(None, f"{name}の数値を確認")
+                    values.append(v)
+                if not err and op == "between" and values[0] > values[1]:
+                    err = "上限：下限以上の値"
+                if err:
+                    self.add_error(None, f"{name}・条件{j + 1}：{err}")
                     continue
                 cond = {"metric": metric, "op": op, "value": values[0]}
                 if op == "between":
@@ -206,12 +226,9 @@ class AnalysisBasisForm(forms.ModelForm):
             raw = self.data.get(self.add_prefix(f"band-{i}-min"), "").strip()
             if not raw:
                 continue
-            try:
-                value = round(float(raw), 1)
-            except ValueError:
-                value = None
-            if value is None or not (0 <= value <= 100):
-                self.add_error(None, "色の段の数値を確認")
+            value, err = basis_number(raw, 1, 0, 100)
+            if err:
+                self.add_error(None, f"廃棄率の色・{i + 1}段目：{err}")
                 continue
             color = self.data.get(self.add_prefix(f"band-{i}-color"), "")
             if color not in colors:
@@ -228,9 +245,13 @@ class AnalysisBasisForm(forms.ModelForm):
         data["waste_color_mode"] = data.get("waste_color_mode") or "basis"
         if data["waste_color_mode"] == "bands":
             self.instance.waste_bands = self._clean_bands()
-        days = data.get("min_days")
-        if days is not None and not (1 <= days <= 31):
-            self.add_error("min_days", "1〜31の値を入力")
+        # 数値欄は Django 既定の文言（英語混じり・基準が画面と違う）を使わず、画面と同じ基準・文言で確かめ直す
+        self.errors.pop("min_days", None)
+        days, err = basis_number(self.data.get(self.add_prefix("min_days")), 0, 1, 31)
+        if err:
+            self.add_error(None, f"対象外の日数：{err}")
+        else:
+            data["min_days"] = days
         if data.get("rule_mode") == "rules":
             data["rules"] = self._clean_rules()
             # 線の設定は使わないので、前の値のまま残す（線に戻したとき元どおり）
@@ -239,20 +260,15 @@ class AnalysisBasisForm(forms.ModelForm):
                 data[name] = getattr(self.instance, name)
             self.instance.rules = data["rules"]
             return data
-        if data.get("avg_mode") == "fixed":
-            v = data.get("avg_fixed")
-            if v is None:
-                self.add_error("avg_fixed", "固定値を入力")
-            elif v <= 0:
-                self.add_error("avg_fixed", "0より大きい値を入力")
-        else:
-            data["avg_fixed"] = None
-        if data.get("waste_mode") == "fixed":
-            v = data.get("waste_fixed")
-            if v is None:
-                self.add_error("waste_fixed", "固定値を入力")
-            elif not (0 <= v <= 100):
-                self.add_error("waste_fixed", "0〜100の値を入力")
-        else:
-            data["waste_fixed"] = None
+        for name, word, hi in (("avg_fixed", "1日平均", 999.9), ("waste_fixed", "廃棄率", 100)):
+            self.errors.pop(name, None)
+            if data.get(name.replace("fixed", "mode")) != "fixed":
+                data[name] = None
+                continue
+            v, err = basis_number(self.data.get(self.add_prefix(name)), 1, 0, hi)
+            if err:
+                self.add_error(None, f"{word}の固定値：{err}")
+            else:
+                from decimal import Decimal
+                data[name] = Decimal(str(v))
         return data

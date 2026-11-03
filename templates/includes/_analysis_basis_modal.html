@@ -31,13 +31,13 @@
                         <label class="form-check-label text-nowrap" for="{{ target }}-avg-{{ value }}">{% if value == 'fixed' %}固定値{% else %}{{ label }}{% endif %}</label>
                         {% if value == 'fixed' %}
                         <div class="input-group pa-basis-fixed">
-                            <input type="number" class="form-control text-end" id="{{ target }}-avg-fixed-value" name="{{ form.avg_fixed.html_name }}" value="{{ form.avg_fixed.value|default_if_none:'' }}" step="0.1" min="0.1" max="999.9" inputmode="decimal" aria-label="1日平均の固定値" data-current="{% if basis.avg_sales is not None %}{{ basis.avg_sales|floatformat:1 }}{% endif %}">
+                            <input type="number" class="form-control text-end" id="{{ target }}-avg-fixed-value" name="{{ form.avg_fixed.html_name }}" value="{{ form.avg_fixed.value|default_if_none:'' }}" step="0.1" min="0" max="999.9" inputmode="decimal" aria-label="1日平均の固定値" data-current="{% if basis.avg_sales is not None %}{{ basis.avg_sales|floatformat:1 }}{% endif %}">
                             <span class="input-group-text">食</span>
                         </div>
                         {% endif %}
                     </div>
                     {% endfor %}
-                    <div class="invalid-feedback" data-for="{{ target }}-avg-fixed-value">0.1〜999.9（小数1桁）</div>
+                    <div class="invalid-feedback" data-for="{{ target }}-avg-fixed-value"></div>
                 </fieldset>
                 <fieldset class="border-top pt-3 mt-3">
                     <legend class="fs-6 fw-bold mb-1">廃棄率 <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true" data-bs-content="売り場全体：受注を含まない<br>全体（受注込み）：サマリーの廃棄率と同じ" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a></legend>
@@ -53,7 +53,7 @@
                         {% endif %}
                     </div>
                     {% endfor %}
-                    <div class="invalid-feedback" data-for="{{ target }}-waste-fixed-value">0.0〜100.0（小数1桁）</div>
+                    <div class="invalid-feedback" data-for="{{ target }}-waste-fixed-value"></div>
                 </fieldset>
                 </div>
                 <div class="pa-panel pa-rules" data-mode="rules" data-max="{{ limits.max }}" data-cond-max="{{ limits.cond_max }}" data-label-max="{{ limits.label_max }}" data-other="{{ limits.other }}">
@@ -96,7 +96,7 @@
                             </div>
                             <span class="pa-band-sample text-nowrap small" aria-hidden="true">12.3%</span>
                         </div>
-                        <div class="invalid-feedback" data-for="{{ target }}-band-{{ forloop.counter0 }}-min">0〜100（小数1桁）</div>
+                        <div class="invalid-feedback" data-for="{{ target }}-band-{{ forloop.counter0 }}-min"></div>
                         {% endfor %}
                         <div class="invalid-feedback pa-band-empty">段を1つ以上</div>
                     </div>
@@ -108,7 +108,7 @@
                         <input type="number" class="form-control text-end" id="{{ target }}-min-days" name="{{ form.min_days.html_name }}" value="{{ form.min_days.value }}" step="1" min="1" max="31" inputmode="numeric" required aria-label="対象外にする日数">
                         <span class="input-group-text">日未満</span>
                     </div>
-                    <div class="invalid-feedback" data-for="{{ target }}-min-days">1〜31の整数</div>
+                    <div class="invalid-feedback" data-for="{{ target }}-min-days"></div>
                 </fieldset>
                 {% if setting.pk %}<div class="small text-muted text-nowrap mt-3">最終更新 {{ setting.updated_at|date:"Y/m/d H:i" }} {% if setting.updated_by %}{{ setting.updated_by.last_name }} {{ setting.updated_by.first_name }}{% endif %}</div>{% endif %}
             </div>

@@ -519,3 +519,44 @@ class WasteColorTests(TestCase):
         AnalysisBasisSetting.objects.create(target="location", waste_color_mode="bands",
                                             waste_bands=[{"min": 20, "color": "orange", "bold": False}])
         self.assertEqual(self.classes()["B店"], "text-orange")
+
+
+class BasisNumberTests(TestCase):
+    """基準の数値の確かめ。画面（numberError）と同じ基準・文言。"""
+
+    def test_messages(self):
+        from lunchnetsale.forms import basis_number
+        cases = [
+            (("", 1, 0, 999.9), (None, "未入力")),
+            (("abc", 1, 0, 999.9), (None, "数値を入力")),
+            (("1000", 1, 0, 999.9), (None, "0〜999.9の範囲")),
+            (("12.35", 1, 0, 999.9), (None, "小数は第1位まで（例：12.5）")),
+            (("12.50", 1, 0, 999.9), (12.5, None)),
+            (("2.5", 0, 0, 99999), (None, "整数のみ")),
+            (("3.0", 0, 0, 99999), (3, None)),
+            (("10000000", 0, 0, 9999999), (None, "0〜9,999,999の範囲")),
+            (("0", 0, 1, 31), (None, "1〜31の範囲")),
+        ]
+        for args, expected in cases:
+            self.assertEqual(basis_number(*args), expected, args)
+
+    def test_server_error_reasons_shown(self):
+        report(date(2026, 10, 1), "A店", [(1, "唐揚げ", 30, 30, 0)])
+        user = get_user_model().objects.create_user("boss", password="pw-boss-123456", is_staff=True)
+        UserMenuPermission.objects.update_or_create(user=user, defaults={"can_view_dashboard": True})
+        self.client.force_login(user)
+        res = self.client.post(reverse("performance_analysis_basis_save", args=["location"]), {
+            "start": "2026-10-01", "end": "2026-10-31",
+            "location-rule_mode": "rules", "location-min_days": "2.5",
+            "location-rule-0-label": "優良", "location-rule-0-color": "success",
+            "location-rule-0-cond-0-metric": "avg_sales", "location-rule-0-cond-0-op": "between",
+            "location-rule-0-cond-0-value": "20.25", "location-rule-0-cond-0-value2": "30",
+            "location-rule-0-cond-1-metric": "sales", "location-rule-0-cond-1-op": "between",
+            "location-rule-0-cond-1-value": "30", "location-rule-0-cond-1-value2": "20",
+        }, follow=True)
+        self.assertFalse(AnalysisBasisSetting.objects.exists())
+        self.assertContains(res, "対象外の日数：整数のみ")
+        self.assertContains(res, "優良・条件1：小数は第1位まで（例：12.5）")
+        self.assertContains(res, "優良・条件2：上限：下限以上の値")
+        # 理由は1回だけ出す
+        self.assertNotContains(self.client.get(res.redirect_chain[-1][0]), "対象外の日数：整数のみ")

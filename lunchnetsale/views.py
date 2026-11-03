@@ -2996,6 +2996,8 @@ def performance_analysis_view(request):
                                       'other': OTHER_RULE_LABEL}
         context['saved'] = request.GET.get('saved', '')
         context['basis_error'] = request.GET.get('basis_error', '')
+        # 保存できなかった理由（画面の確かめをすり抜けたときだけ。1回出したら消す）
+        context['basis_error_list'] = request.session.pop('pa_basis_errors', []) if context['basis_error'] else []
         context['trend_has_data'] = any(not m['empty'] for m in context['a']['trend'])
         context['trend_data'] = {
             'labels': [m['month'].strftime('%Y/%m') for m in context['a']['trend']],
@@ -3026,6 +3028,7 @@ def performance_analysis_basis_save(request, target):
     anchor = '#sec-locations' if target == 'location' else '#sec-menus'
     # 保存の結果はセクションの中に出す（アンカーで飛ぶので画面上部の通知は見えない）
     if not form.is_valid():
+        request.session['pa_basis_errors'] = [e for errors in form.errors.values() for e in errors]
         return redirect(f'{back}?{query}&basis_error={target}{anchor}')
     setting = form.save(commit=False)
     setting.updated_by = request.user
