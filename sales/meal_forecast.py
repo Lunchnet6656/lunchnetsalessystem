@@ -10,14 +10,17 @@
 - 月内のクセ（上旬・中旬・下旬）は一部の店にだけ本物があるが、予測に掛けても当たりは変わらなかった
   （2026-10検証）ので、はっきりしている店に目印を出すだけにする。
 - 雨の補正＝形態ごとの値 × その店の倍率（rain_multiplier）。1年分の答え合わせで雨の日の誤差が約6%減った（2026-10）。
+- 飛び石（前の日も次の日も休み）の日は全店 ×0.90、昼の風6m以上はテーブル・行商 ×0.95（2026-11検証）。
+  給料日・月末・五十日は効かなかったので入れない（research/topics/2026-11-04-食数予測-外れ要素の探索）。
 """
 from datetime import timedelta
 
+import jpholiday
 from django.conf import settings
 
-from sales.models import DailyReport, SalesLocation
+from sales.models import DailyReport, Holiday, SalesLocation
 from sales.daily_questions import ONE_OFF_REASONS
-from sales.weather import rain_factor, rain_level
+from sales.weather import rain_factor, rain_level, wind_factor
 
 RECENT_DAYS = 5          # 直近の水準を見る営業日数（新しい日ほど重く 1〜5）
 RECENT_LONG_DAYS = 20    # 直近の水準に混ぜる長めの平均
@@ -31,6 +34,7 @@ SOLD_OUT_UPLIFT = 0.2    # 完売日の上乗せ：閉店までに残ってい�
 MIN_HISTORY = 5
 RAIN_STORE_K = 8               # 店ごとの雨の倍率：雨の日の実績が少ない店ほど1.0（形態の値のまま）に寄せる強さ
 RAIN_STORE_CLIP = (0.6, 1.4)   # 2026-10検証：雨の日の誤差 6.71→6.31食（research/topics/2026-10-23-食数予測-雨補正の店別化…）
+BRIDGE_FACTOR = 0.90           # 飛び石の日：過去3回 −14%・−16%・−6%。答え合わせで誤差 6.27→2.13食
 
 
 def _minutes(t):
@@ -54,6 +58,27 @@ def estimated_demand(sold, remaining, sold_out_time, opening_time, closing_time,
     return sold * (1 + SOLD_OUT_UPLIFT * left)
 
 
+def bridge_days(dates):
+    """dates のうち飛び石の日（前の日も次の日も休み）。11/2(月)のように日曜と祝日に挟まれると全店で落ちる。"""
+    dates = list(dates)
+    if not dates:
+        return set()
+    company = set(Holiday.objects.filter(date__gte=min(dates) - timedelta(days=1),
+                                         date__lte=max(dates) + timedelta(days=1)).values_list("date", flat=True))
+
+    def off(d):
+        return d.weekday() >= 5 or jpholiday.is_holiday(d) or d in company
+
+    one = timedelta(days=1)
+    return {d for d in dates if not off(d) and off(d - one) and off(d + one)}
+
+
+def day_factor(level, wind, bridge, sales_type, rain_mult=1.0):
+    """雨（形態×店の倍率）・強風・飛び石をまとめた掛け率。"""
+    f = rain_factor(level, sales_type) * (rain_mult if level else 1.0) * wind_factor(wind, sales_type)
+    return f * BRIDGE_FACTOR if bridge else f
+
+
 def _excluded_names():
     names = set(getattr(settings, "MENU_HISTORY_EXCLUDED_LOCATIONS", []))
     names |= set(SalesLocation.objects.filter(type="配達").values_list("name", flat=True))
@@ -61,7 +86,7 @@ def _excluded_names():
 
 
 def load_history(since, until):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, qty, rev, one_off)。"""
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, wind, bridge, qty, rev, one_off)。"""
     excluded = _excluded_names()
     rows = (
         DailyReport.objects
@@ -69,12 +94,13 @@ def load_history(since, until):
         .exclude(location__in=excluded)
         .values_list("date", "location", "total_sales_quantity", "total_remaining",
                      "sold_out_time", "opening_time", "closing_time", "lost_customers",
-                     "auto_lunch_precip", "auto_lunch_snow", "total_quantity", "total_revenue",
+                     "auto_lunch_precip", "auto_lunch_snow", "auto_lunch_wind", "total_quantity", "total_revenue",
                      "unusual_reasons")
         .order_by("date")
     )
+    bridges = bridge_days({r[0] for r in rows})
     hist = {}
-    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, qty, rev, reasons in rows:
+    for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, wind, qty, rev, reasons in rows:
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name.strip(), []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
@@ -82,6 +108,7 @@ def load_history(since, until):
             "lost": lost if rem <= 0 else None,
             # 実際の昼の雨の段階（日計表に自動で添えた天気。無い日は None）
             "level": rain_level(precip, snow or 0) if precip is not None else None,
+            "wind": wind, "bridge": d in bridges,
             "qty": int(qty or 0), "rev": float(rev or 0),
             # その日だけの理由（出張・ビルの休み・イベント等）の日は、直近の水準に入れない
             "one_off": bool(set(reasons or []) & ONE_OFF_REASONS),
@@ -98,7 +125,8 @@ def predict(rows, weekday):
     if len(rows) < MIN_HISTORY:
         return None
     demand = [r["demand"] for r in rows]
-    usual = [r["demand"] for r in rows if not r.get("one_off")]
+    # 飛び石の日も、その日だけ落ちる日なので水準に入れない（翌週の予測を引き下げない）
+    usual = [r["demand"] for r in rows if not r.get("one_off") and not r.get("bridge")]
     if len(usual) < MIN_HISTORY:
         usual = demand
     last = usual[-RECENT_DAYS:]
@@ -133,7 +161,7 @@ def rain_multiplier(rows, sales_type):
         p = predict(rows[:i], r["wd"])
         if not p or p["pred"] <= 0:
             continue
-        obs.append(r["demand"] / (p["pred"] * rain_factor(r["level"], sales_type)))
+        obs.append(r["demand"] / (p["pred"] * day_factor(r["level"], r.get("wind"), r.get("bridge"), sales_type)))
     if not obs:
         return 1.0, 0
     obs.sort()
@@ -216,7 +244,7 @@ def _quantile(xs, q):
 
 
 def demand_ratios(rows, sales_type, mult, since):
-    """直近の「実際の需要 ÷ 予測（雨の補正込み）」。完売した日は需要の推定を使う。"""
+    """直近の「実際の需要 ÷ 予測（雨・強風・飛び石の補正込み）」。完売した日は需要の推定を使う。"""
     out = []
     for i, r in enumerate(rows):
         if r["date"] < since or r["sold"] <= 0:
@@ -224,7 +252,7 @@ def demand_ratios(rows, sales_type, mult, since):
         p = predict(rows[:i], r["wd"])
         if not p or p["pred"] <= 0:
             continue
-        f = rain_factor(r.get("level"), sales_type) * (mult if r.get("level") else 1.0)
+        f = day_factor(r.get("level"), r.get("wind"), r.get("bridge"), sales_type, mult)
         out.append(r["demand"] / (p["pred"] * f))
     return out
 

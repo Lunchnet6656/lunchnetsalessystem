@@ -24,6 +24,7 @@ class Command(BaseCommand):
                     pred=l["pred"], base=l["base"], recent=l["recent"],
                     weekday_pct=l["weekday_pct"], trend_pct=l["trend_pct"],
                     rain_level=l["rain"] or "", rain_pct=l["rain_pct"],
+                    wind_pct=l["wind_pct"], bridge_pct=l["bridge_pct"],
                     draft=l["draft"]["draft"] if l["draft"] else None,
                     comment_num=l["comment"]["num"] if l["comment"] else None,
                 ))

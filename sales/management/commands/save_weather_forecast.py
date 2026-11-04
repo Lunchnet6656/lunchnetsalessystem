@@ -24,7 +24,7 @@ class Command(BaseCommand):
             snapshots += [
                 WeatherForecastSnapshot(
                     target_date=day, area=area, lunch_precip=w["precip"], lunch_snow=w["snow"],
-                    lunch_temp=w["temp"], lunch_feels=w["feels"],
+                    lunch_temp=w["temp"], lunch_feels=w["feels"], lunch_wind=w.get("wind"),
                 )
                 for day, w in sorted(days.items())
             ]

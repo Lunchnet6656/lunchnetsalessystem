@@ -7,7 +7,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from sales.meal_forecast import estimated_demand, load_history, predict
+from sales.meal_forecast import bridge_days, estimated_demand, load_history, predict
 from sales.models import DailyReport, SalesLocation
 from sales.permissions_testing import grant
 
@@ -72,6 +72,15 @@ class DemandTests(TestCase):
         for r in rows:
             r["one_off"] = False
         self.assertLess(predict(rows, 0)["recent"], 32)
+
+    def test_bridge_days_are_left_out_of_level(self):
+        rows = []
+        for i, d in enumerate(weekdays_before(TODAY, 25)):
+            bridge = i == 24           # 直近1日は飛び石で落ちた
+            demand = 20 if bridge else 40
+            rows.append({"date": d, "wd": d.weekday(), "sold": demand, "rem": 5, "demand": demand,
+                         "sold_out": False, "bridge": bridge})
+        self.assertAlmostEqual(predict(rows, 0)["recent"], 40)
 
     def test_too_little_history(self):
         rows = [{"date": TODAY, "wd": 0, "sold": 10, "rem": 0, "demand": 10, "sold_out": True}] * 3
@@ -199,3 +208,32 @@ class ForecastDatesTest(TestCase):
             fc = _meal_forecast(date(2026, 11, 2))               # 11/3 は文化の日
         days = [(d["date"], d["when"]) for d in fc["days"]]
         self.assertEqual(days, [(date(2026, 11, 4), "あさって"), (date(2026, 11, 6), "4日後"), (date(2026, 11, 9), "7日後")])
+
+
+class BridgeDayTests(TestCase):
+    """飛び石（前の日も次の日も休み）の日は全店 −10%。"""
+
+    def test_detect(self):
+        from sales.models import Holiday
+        Holiday.objects.create(date=date(2026, 12, 29))   # 会社の休み
+        days = [date(2026, 11, 2),    # 日曜と文化の日(火)に挟まれた月曜
+                date(2026, 11, 9),    # ふつうの月曜
+                date(2026, 11, 20),   # 3連休前の金曜（翌月曜は祝日ではない）
+                date(2026, 11, 4),    # 祝日の翌日（次の日は平日）
+                date(2026, 12, 28)]   # 日曜と会社の休みに挟まれた月曜
+        self.assertEqual(bridge_days(days), {date(2026, 11, 2), date(2026, 12, 28)})
+
+    def test_forecast_reduces_all_stores(self):
+        from lunchnetsale.views import _meal_forecast
+        for name, no, t in (("外の店", 1, "車"), ("ビルの店", 2, "室内")):
+            SalesLocation.objects.create(no=no, name=name, type=t, price_type="A", service_name="")
+            for d in weekdays_before(date(2026, 10, 30), 20):
+                report(d, name, no, 100)
+        with patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):
+            fc = _meal_forecast(date(2026, 10, 30))      # 金曜。次は 11/2（飛び石）
+        day = fc["days"][0]
+        self.assertEqual(day["date"], date(2026, 11, 2))
+        self.assertTrue(day["bridge"])
+        self.assertEqual({l["name"]: (l["pred"], l["base"], l["bridge_pct"]) for l in day["locs"]},
+                         {"外の店": (90, 100, -10), "ビルの店": (90, 100, -10)})
+        self.assertFalse(fc["days"][1]["bridge"])        # 11/4（水）

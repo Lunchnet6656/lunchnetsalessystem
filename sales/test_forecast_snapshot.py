@@ -41,6 +41,8 @@ class ForecastSnapshotTests(TestCase):
         self.assertEqual(snap["外の店"].pred, 85)       # 車・雨 0.85
         self.assertEqual(snap["外の店"].base, 100)
         self.assertEqual(snap["外の店"].rain_level, "雨")
+        self.assertEqual(snap["外の店"].wind_pct, 0)
+        self.assertEqual(snap["外の店"].bridge_pct, 0)
         self.assertEqual(snap["ビルの店"].pred, 100)    # 室内は減らさない
         self.assertEqual(snap["ビルの店"].draft, 120)
         self.assertIsNone(snap["外の店"].draft)

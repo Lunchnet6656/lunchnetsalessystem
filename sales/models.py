@@ -217,6 +217,7 @@ class WeatherForecastSnapshot(models.Model):
     lunch_snow = models.FloatField(default=0)  # 同・降雪(cm)
     lunch_temp = models.FloatField(null=True, blank=True)
     lunch_feels = models.FloatField(null=True, blank=True)  # 体感温度
+    lunch_wind = models.FloatField(null=True, blank=True)   # 風速(m/s)
 
     class Meta:
         ordering = ["-fetched_at"]
@@ -256,6 +257,8 @@ class ForecastSnapshot(models.Model):
     trend_pct = models.IntegerField(null=True, blank=True)
     rain_level = models.CharField(max_length=10, blank=True)
     rain_pct = models.IntegerField(default=0)
+    wind_pct = models.IntegerField(default=0)                 # 強風の補正
+    bridge_pct = models.IntegerField(default=0)               # 飛び石の日の補正
     draft = models.IntegerField(null=True, blank=True)        # その時点の下書き
     comment_num = models.IntegerField(null=True, blank=True)  # その時点の現場コメントの数字
 

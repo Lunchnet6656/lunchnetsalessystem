@@ -13,7 +13,7 @@
     <h1 class="mb-1">食数予測（仕込みの目安）</h1>
     <p class="text-muted mb-2">
         直近{{ fc.days|length }}営業日ぶんの<strong>需要（売れそうな数）を店舗別に予測</strong>します。
-        計算は「<strong>直近の水準 × その店の曜日の癖 × 昼の雨の補正</strong>」。直近の水準は、新しい日ほど重く見た直近5営業日に直近20営業日を3割混ぜた数です（出張・ビルの休みなど、日計表で「その日だけの理由」が選ばれた日は除きます）。
+        計算は「<strong>直近の水準 × その店の曜日の癖 × 昼の雨・強風の補正</strong>」（飛び石の日は全店 −10%）。直近の水準は、新しい日ほど重く見た直近5営業日に直近20営業日を3割混ぜた数です（出張・ビルの休みなど、日計表で「その日だけの理由」が選ばれた日は除きます）。
         雨の補正は、その店の地点の天気予報を使い、<strong>売場の形態ごとの値にその店の雨の日の実績</strong>を掛けます（室内でも雨の日に売れる店は増やします）。
         完売した日は、完売時刻が早いほど少し上乗せして数えています。
     </p>
@@ -47,6 +47,7 @@
                                     {% else %}<span class="badge bg-light text-dark border">降らない</span>{% endif %}
                                     <div class="small mt-1">{{ w.precip }}mm{% if w.snow %}・雪{{ w.snow }}cm{% endif %}</div>
                                     <div class="small text-muted">{{ w.temp|floatformat:0 }}℃（体感{{ w.feels|floatformat:0 }}℃）</div>
+                                    {% if w.wind is not None %}<div class="small text-nowrap">{% if w.wind >= fc.wind_strong %}<span class="badge bg-secondary">強風</span> {% endif %}風 {{ w.wind|floatformat:1 }}m</div>{% endif %}
                                 {% else %}
                                     <span class="text-muted small">取得できませんでした</span>
                                 {% endif %}
@@ -60,7 +61,8 @@
             <p class="small text-muted px-3 py-2 mb-0">
                 雨の段階：小雨 1mm〜／雨 3mm〜／大雨 8mm〜または雪。
                 外の売場の減らし方：テーブル・行商 小雨{{ fc.rain_factors.小雨.テーブル|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.テーブル|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.テーブル|floatformat:2 }}倍／
-                車 小雨{{ fc.rain_factors.小雨.車|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.車|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.車|floatformat:2 }}倍
+                車 小雨{{ fc.rain_factors.小雨.車|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.車|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.車|floatformat:2 }}倍。
+                強風：{{ fc.wind_strong|floatformat:0 }}m/s以上でテーブル・行商 {{ fc.wind_factor|floatformat:2 }}倍
             </p>
         </div>
     </div>
@@ -76,10 +78,12 @@
                     ・{{ day.third_label }}
                 </span>
                 {% if day.rainy %}<span class="badge bg-warning text-dark ms-2"><i class="fas fa-cloud-showers-heavy"></i> 雨の補正あり</span>{% endif %}
+                {% if day.windy %}<span class="badge bg-secondary ms-2"><i class="fas fa-wind"></i> 強風の補正あり</span>{% endif %}
+                {% if day.bridge %}<span class="badge bg-danger ms-2" title="前の日も次の日も休み"><i class="fas fa-calendar-minus"></i> 飛び石 {{ day.bridge_pct }}%</span>{% endif %}
             </span>
             <span class="text-muted">
                 需要予測 合計 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong>食
-                {% if day.rainy %}<span class="small ms-2">（雨がなければ {{ day.base_total|intcomma }} 食）</span>{% endif %}
+                {% if day.adjusted %}<span class="small ms-2">（補正がなければ {{ day.base_total|intcomma }} 食）</span>{% endif %}
                 {% if day.has_draft %}<span class="small ms-2">／下書き {{ day.draft_total|intcomma }} 食{% if day.draft_flags %}・<span class="text-danger fw-bold">要確認 {{ day.draft_flags }}店</span>{% endif %}</span>{% endif %}
             </span>
         </div>
@@ -156,7 +160,7 @@
                             </td>
                             <td class="text-end text-nowrap">
                                 <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
-                                {% if l.rain_pct %}<div class="small {% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{% endif %}{{ l.rain_pct }}%（なし{{ l.base }}）</div>{% endif %}
+                                {% if l.rain_pct or l.wind_pct or l.bridge_pct %}<div class="small text-nowrap">{% if l.rain_pct %}<span class="{% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{% endif %}{{ l.rain_pct }}%</span>{% endif %}{% if l.wind_pct %}{% if l.rain_pct %}・{% endif %}<span class="text-danger">風{{ l.wind_pct }}%</span>{% endif %}{% if l.bridge_pct %}{% if l.rain_pct or l.wind_pct %}・{% endif %}<span class="text-danger">飛び石{{ l.bridge_pct }}%</span>{% endif %}<span class="text-muted">（なし{{ l.base }}）</span></div>{% endif %}
                             </td>
                             {% if l.plans %}
                             {% for key in plan_keys_store %}{% with v=l.plans|get_item:key %}

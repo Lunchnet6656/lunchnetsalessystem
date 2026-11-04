@@ -3293,7 +3293,7 @@ def _fetch_lunch_weather(today):
     from django.core.cache import cache
     from sales.weather import fetch_all_areas
 
-    cache_key = "meal_forecast_lunch_weather_v2_%s" % today.isoformat()
+    cache_key = "meal_forecast_lunch_weather_v3_%s" % today.isoformat()
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -3389,10 +3389,11 @@ def _draft_comparison(draft, rows, pred):
 
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
-    from sales.meal_forecast import (PLAN_MIN_SAMPLES, PLAN_SAMPLE_DAYS, THIRD_LABELS, backtest, demand_ratios,
-                                     load_history, month_third, outlook, plan_quantities, predict, rain_multiplier,
-                                     store_plan_basis, third_effect)
-    from sales.weather import DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, rain_factor
+    from sales.meal_forecast import (BRIDGE_FACTOR, PLAN_MIN_SAMPLES, PLAN_SAMPLE_DAYS, THIRD_LABELS, backtest,
+                                     bridge_days, demand_ratios, load_history, month_third, outlook, plan_quantities,
+                                     predict, rain_multiplier, store_plan_basis, third_effect)
+    from sales.weather import (DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, WIND_FACTORS, WIND_STRONG, rain_factor,
+                               wind_factor)
 
     hist = load_history(today - timedelta(days=FORECAST_HISTORY_DAYS), today)
     active_since = today - timedelta(days=FORECAST_ACTIVE_DAYS)
@@ -3404,6 +3405,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
         if is_business_day(d):   # 土日・祝日・会社の休みは売らないので予測しない
             target_dates.append(d)
         d += timedelta(days=1)
+    bridges = bridge_days(target_dates)
 
     weather = _fetch_lunch_weather(today)            # {地点: {日付: 昼の予報}}（取れない地点は無い）
     loc_info = {name.strip(): (t, area) for name, t, area in
@@ -3458,7 +3460,10 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             wx = weather.get(area, {}).get(td.isoformat())
             level = wx["level"] if wx else None
             mult = rain_mult[name][0]
-            factor = rain_factor(level, sales_type) * (mult if level else 1.0)
+            rain_f = rain_factor(level, sales_type) * (mult if level else 1.0)
+            wind_f = wind_factor(wx.get("wind") if wx else None, sales_type)
+            bridge_f = BRIDGE_FACTOR if td in bridges else 1.0
+            factor = rain_f * wind_f * bridge_f
             same = [r for r in rows if r["wd"] == wd]
             recent10 = rows[-10:]
             eff = third_effect(rows, third)
@@ -3482,9 +3487,10 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 num = None
             locs.append({
                 "name": name, "type": sales_type, "area": WEATHER_AREAS.get(area, WEATHER_AREAS[DEFAULT_AREA])[0],
-                "base": int(p["pred"] + 0.5),                 # 雨がない場合
-                "pred": int(p["pred"] * factor + 0.5),        # 雨の補正込み（これを見る）
-                "rain": level, "rain_pct": int(round((factor - 1) * 100)),
+                "base": int(p["pred"] + 0.5),                 # 雨・強風・飛び石の補正がない場合
+                "pred": int(p["pred"] * factor + 0.5),        # 補正込み（これを見る）
+                "rain": level, "rain_pct": int(round((rain_f - 1) * 100)),
+                "wind_pct": int(round((wind_f - 1) * 100)), "bridge_pct": int(round((bridge_f - 1) * 100)),
                 # 「雨」の日の補正（形態×店の倍率）。形態の値から3%以上ずれた店だけ、店名の欄に出す
                 "rain_store_pct": int(round((rain_factor("雨", sales_type) * mult - 1) * 100)),
                 "rain_store_note": abs(mult - 1) >= 0.03,
@@ -3505,13 +3511,16 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             })
         locs.sort(key=lambda x: -x["pred"])
         rainy = any(l["rain_pct"] for l in locs)
+        bridge = td in bridges
         with_draft = [l for l in locs if l["draft"]]
         forecast_days.append({
             "date": td, "weekday": FORECAST_WEEKDAY_JA[wd], "locs": locs,
             # 祝日を飛ばすので「1つ目＝あす」とは限らない。日数で呼び方を決める
             "when": {1: "あす", 2: "あさって"}.get((td - today).days, f"{(td - today).days}日後"),
             "total": sum(l["pred"] for l in locs), "base_total": sum(l["base"] for l in locs),
-            "rainy": rainy, "third_label": THIRD_LABELS[third], "show_comments": True,
+            "rainy": rainy, "windy": any(l["wind_pct"] for l in locs), "bridge": bridge,
+            "bridge_pct": int(round((BRIDGE_FACTOR - 1) * 100)),
+            "adjusted": rainy or bridge or any(l["wind_pct"] for l in locs), "third_label": THIRD_LABELS[third], "show_comments": True,
             "has_draft": bool(with_draft),
             "draft_total": sum(l["draft"]["draft"] for l in with_draft),
             "draft_flags": sum(1 for l in with_draft if l["draft"]["flag"]),
@@ -3519,7 +3528,8 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
         })
     return {"days": forecast_days, "backtest": backtest(active, today),
             "weather_table": weather_table, "weather_dates": target_dates,
-            "rain_factors": RAIN_FACTORS}
+            "rain_factors": RAIN_FACTORS, "wind_strong": WIND_STRONG,
+            "wind_factor": WIND_FACTORS.get("テーブル", 1.0)}
 
 
 @menu_permission_required('can_view_performance_by_location')

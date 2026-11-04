@@ -9,8 +9,8 @@ import urllib.request
 OPEN_METEO_URL = (
     "https://api.open-meteo.com/v1/forecast"
     "?latitude={lat}&longitude={lon}"
-    "&hourly=precipitation,snowfall,temperature_2m,apparent_temperature"
-    "&timezone=Asia%2FTokyo&forecast_days=7"
+    "&hourly=precipitation,snowfall,temperature_2m,apparent_temperature,wind_speed_10m"
+    "&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7"
 )
 LUNCH_HOURS = (11, 12)  # 11:00〜12:59
 
@@ -33,6 +33,11 @@ RAIN_FACTORS = {
     "大雨": {"テーブル": 0.60, "行商": 0.60, "車": 0.80},
 }
 
+# 昼の風が強い日（6m/s以上）。雨なしでも外の売場は落ちる（2025-04〜2026-11：6〜7.5mで−3%、7.5m以上は−17%）。
+# 答え合わせでテーブル・行商は誤差が減り（6.60→5.62食）、車は変わらないか悪化したので、テーブル・行商だけ減らす
+WIND_STRONG = 6.0
+WIND_FACTORS = {"テーブル": 0.95, "行商": 0.95}
+
 
 def rain_level(precip_mm, snow_cm):
     if snow_cm and snow_cm > 0:
@@ -49,6 +54,12 @@ def rain_factor(level, sales_type):
     return RAIN_FACTORS[level].get(sales_type, 1.0)
 
 
+def wind_factor(wind, sales_type):
+    if wind is None or wind < WIND_STRONG:
+        return 1.0
+    return WIND_FACTORS.get(sales_type, 1.0)
+
+
 def fetch_lunch_weather(area=DEFAULT_AREA):
     """日付('YYYY-MM-DD')ごとの昼の予報。取得できなければ例外を投げる（呼び出し側で扱う）。"""
     _, lat, lon = WEATHER_AREAS[area]
@@ -56,19 +67,24 @@ def fetch_lunch_weather(area=DEFAULT_AREA):
         data = json.loads(resp.read().decode())
     hourly = data.get("hourly", {})
     days = {}
-    for t, p, s, temp, feels in zip(
-        hourly.get("time", []), hourly.get("precipitation", []), hourly.get("snowfall", []),
-        hourly.get("temperature_2m", []), hourly.get("apparent_temperature", []),
+    times = hourly.get("time", [])
+    # 風速は後から足したので、無い応答（古い形）でも他の値は読めるようにする
+    winds = hourly.get("wind_speed_10m") or [None] * len(times)
+    for t, p, s, temp, feels, wind in zip(
+        times, hourly.get("precipitation", []), hourly.get("snowfall", []),
+        hourly.get("temperature_2m", []), hourly.get("apparent_temperature", []), winds,
     ):
         if int(t[11:13]) not in LUNCH_HOURS:
             continue
-        d = days.setdefault(t[:10], {"precip": 0.0, "snow": 0.0, "temps": [], "feels": []})
+        d = days.setdefault(t[:10], {"precip": 0.0, "snow": 0.0, "temps": [], "feels": [], "winds": []})
         d["precip"] += p or 0
         d["snow"] += s or 0
         if temp is not None:
             d["temps"].append(temp)
         if feels is not None:
             d["feels"].append(feels)
+        if wind is not None:
+            d["winds"].append(wind)
     result = {}
     for day, d in days.items():
         precip, snow = round(d["precip"], 1), round(d["snow"], 1)
@@ -77,6 +93,7 @@ def fetch_lunch_weather(area=DEFAULT_AREA):
             "snow": snow,
             "temp": round(sum(d["temps"]) / len(d["temps"]), 1) if d["temps"] else None,
             "feels": round(sum(d["feels"]) / len(d["feels"]), 1) if d["feels"] else None,
+            "wind": round(sum(d["winds"]) / len(d["winds"]), 1) if d["winds"] else None,
             "level": rain_level(precip, snow),
         }
     return result

@@ -11,7 +11,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from sales.models import DailyReport, SalesLocation, WeatherForecastSnapshot
-from sales.weather import fetch_lunch_weather, rain_factor, rain_level
+from sales.weather import fetch_lunch_weather, rain_factor, rain_level, wind_factor
 from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)  # 金曜。次の営業日は 10/5（月）
@@ -64,6 +64,23 @@ class RainFactorTests(TestCase):
         self.assertEqual(w["precip"], 3.5)  # 朝9時と13時台の雨は入らない
         self.assertEqual(w["level"], "雨")
         self.assertEqual(w["feels"], 18.0)
+        self.assertIsNone(w["wind"])        # 風速の無い応答でも他の値は読める
+
+    def test_lunch_wind_is_averaged(self):
+        payload = open_meteo_payload("2026-10-05", {})
+        payload["hourly"]["wind_speed_10m"] = [9.0 if h in (11, 12) else 1.0 for h in range(24)]
+        payload["hourly"]["wind_speed_10m"][12] = 5.0
+        with patch("sales.weather.urllib.request.urlopen", fake_urlopen(payload)):
+            w = fetch_lunch_weather()["2026-10-05"]
+        self.assertEqual(w["wind"], 7.0)
+
+    def test_strong_wind_only_table_and_peddler(self):
+        self.assertEqual(wind_factor(6.0, "テーブル"), 0.95)
+        self.assertEqual(wind_factor(8.0, "行商"), 0.95)
+        self.assertEqual(wind_factor(5.9, "テーブル"), 1.0)
+        self.assertEqual(wind_factor(8.0, "車"), 1.0)      # 車は答え合わせで良くならなかった
+        self.assertEqual(wind_factor(8.0, "室内"), 1.0)
+        self.assertEqual(wind_factor(None, "テーブル"), 1.0)
 
 
 class SaveForecastCommandTests(TestCase):
@@ -76,6 +93,7 @@ class SaveForecastCommandTests(TestCase):
         self.assertEqual(snap.target_date, date(2026, 10, 5))
         self.assertEqual(snap.lunch_precip, 4.0)
         self.assertEqual(snap.lunch_temp, 20.0)
+        self.assertIsNone(snap.lunch_wind)
 
     def test_fetch_failure_is_an_error(self):
         with patch("sales.weather.urllib.request.urlopen", side_effect=OSError("down")):
@@ -103,8 +121,8 @@ class MealForecastRainTests(TestCase):
                                                total_sales_quantity=100, total_remaining=10, total_revenue=0)
             d += timedelta(days=1)
 
-    def wx(self, precip, level):
-        return {"precip": precip, "snow": 0.0, "temp": 15, "feels": 13, "level": level}
+    def wx(self, precip, level, wind=None):
+        return {"precip": precip, "snow": 0.0, "temp": 15, "feels": 13, "level": level, "wind": wind}
 
     def get(self, weather):
         with patch("lunchnetsale.views.timezone.localdate", return_value=TODAY), \
@@ -138,6 +156,31 @@ class MealForecastRainTests(TestCase):
         self.assertEqual([r["label"] for r in table], ["東京", "横浜みなと", "新横浜"])
         self.assertEqual(table[0]["days"][0]["level"], "小雨")
         self.assertIsNone(table[1]["days"][0])          # 取れなかった地点
+
+    def test_strong_wind_reduces_table_and_peddler(self):
+        res = self.get({"tokyo": {"2026-10-05": self.wx(0.0, None, wind=7.0)},
+                        "yokohama": {"2026-10-05": self.wx(0.0, None, wind=7.0)}})
+        locs = self.monday(res)
+        self.assertEqual(locs["テーブルの店"]["pred"], 95)
+        self.assertEqual(locs["テーブルの店"]["wind_pct"], -5)
+        self.assertEqual(locs["横浜の店"]["pred"], 95)
+        self.assertEqual(locs["ビルの店"]["pred"], 100)
+        self.assertEqual(locs["ビルの店"]["wind_pct"], 0)
+        self.assertContains(res, "強風の補正あり")
+        self.assertContains(res, "補正がなければ 300 食")
+
+    def test_rain_and_wind_together(self):
+        res = self.get({"tokyo": {"2026-10-05": self.wx(4.0, "雨", wind=6.5)}})
+        locs = self.monday(res)
+        self.assertEqual(locs["テーブルの店"]["pred"], 76)     # 雨0.80 × 風0.95
+        self.assertEqual(locs["テーブルの店"]["rain_pct"], -20)
+        self.assertEqual(locs["テーブルの店"]["wind_pct"], -5)
+
+    def test_calm_day_has_no_wind_mark(self):
+        res = self.get({"tokyo": {"2026-10-05": self.wx(0.0, None, wind=3.0)}})
+        self.assertEqual(self.monday(res)["テーブルの店"]["pred"], 100)
+        self.assertNotContains(res, "強風の補正あり")
+        self.assertNotContains(res, "補正がなければ")
         self.assertContains(res, "取得できませんでした")
 
     def test_weather_unavailable(self):
