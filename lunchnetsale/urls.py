@@ -106,6 +106,7 @@ urlpatterns = [
     path('submission_complete/', views.submission_complete_view, name='submission_complete'),  # 完了ページのURL
 
     path('daily_report_list/', views.daily_report_list, name='daily_report_list'),
+    path('daily_report_list/review/<str:date>/', views.daily_report_review_save, name='daily_report_review_save'),  # その日の振り返り（日付の詳細より上）
     path('daily_report_list/<str:date>/', views.daily_report_detail, name='daily_report_detail'),  # 日付をキーにした詳細ページ
     path('daily_report_list/<int:pk>/edit/', views.daily_report_edit, name='daily_report_edit'),
     path('daily_report_list/<int:pk>/delete/', views.daily_report_delete, name='daily_report_delete'),

@@ -1,0 +1,88 @@
+{# その日の振り返りの入力。ページに1個だけ置き、押した日付の内容を daily_report_review.js が差し込む。入力できる人にだけ出力する #}
+{% if can_edit_review and review_locations is not None %}
+<div class="modal fade drv-modal" id="drv-modal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="drv-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <form method="post" action="" class="modal-content" id="drv-form" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="search_date_start" value="{{ search_date_start }}">
+            <input type="hidden" name="search_date_end" value="{{ search_date_end }}">
+            <input type="hidden" name="search_location" value="{{ search_location }}">
+            <input type="hidden" name="search_person" value="{{ search_person }}">
+            <input type="hidden" name="ev-TOTAL" value="0" id="drv-total">
+            <input type="hidden" name="action" value="save" id="drv-action">
+            <div class="modal-header">
+                <h5 class="modal-title text-nowrap" id="drv-modal-title">振り返り <span id="drv-date"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <label for="drv-comment" class="form-label fw-bold">コメント</label>
+                <textarea id="drv-comment" name="comment" rows="3" maxlength="1000" class="form-control" aria-describedby="drv-comment-error"></textarea>
+                <div class="invalid-feedback" id="drv-comment-error">コメントか出来事を入力</div>
+
+                <div class="d-flex align-items-center mt-3 mb-1">
+                    <span class="fw-bold text-nowrap">出来事</span>{% include "includes/info_tip.html" with id="drv-ev" label="出来事" text="店に影響した出来事。1日10件まで" %}
+                    <span class="small text-muted ms-auto" id="drv-count">0/10</span>
+                </div>
+                <div id="drv-events"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" id="drv-add"><i class="fas fa-plus me-1" aria-hidden="true"></i>出来事を追加</button>
+                <div class="small text-muted mt-3" id="drv-updated"></div>
+                <div class="visually-hidden" aria-live="polite" id="drv-live"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger text-nowrap me-auto" id="drv-delete">削除</button>
+                <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-primary text-nowrap" id="drv-save">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# 出来事カード。__i__ は追加した順の番号に置き換える（削除予定は消さずに残すので、番号の振り直しは要らない） #}
+<template id="drv-ev-tpl">
+    <div class="border rounded p-2 mb-2 drv-ev" role="group" aria-labelledby="drv-ev-__i__-sum" data-i="__i__">
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="drv-ev-toggle" aria-expanded="false" aria-controls="drv-ev-__i__-body">
+                <i class="fas fa-chevron-right drv-chev" aria-hidden="true"></i>
+                <span class="drv-ev-sum d-flex flex-wrap align-items-center gap-2" id="drv-ev-__i__-sum"></span>
+            </button>
+            <button type="button" class="btn btn-outline-danger px-2 drv-ev-del"><i class="fas fa-trash-alt" aria-hidden="true"></i></button>
+            <span class="drv-ev-undo-wrap text-nowrap" hidden><span class="small text-muted me-2">削除予定</span><button type="button" class="btn btn-link btn-sm p-0 text-nowrap drv-ev-undo">元に戻す</button></span>
+        </div>
+        <div class="drv-ev-body pt-2" id="drv-ev-__i__-body" hidden>
+            <label class="form-label mb-1" for="drv-ev-__i__-kind">種類</label>
+            <select class="form-select drv-ev-kind" name="ev-__i__-kind" id="drv-ev-__i__-kind">
+                <option value="">選択</option>
+                {% for value, label in review_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+            <div class="invalid-feedback">種類を選択</div>
+
+            <div class="form-label mb-1 mt-3">影響した店</div>
+            <div class="btn-group w-100" role="group" aria-label="影響した店">
+                <input type="radio" class="btn-check drv-scope" name="ev-__i__-scope" id="drv-ev-__i__-scope-all" value="all" autocomplete="off">
+                <label class="btn btn-outline-secondary text-nowrap" for="drv-ev-__i__-scope-all">全店</label>
+                <input type="radio" class="btn-check drv-scope" name="ev-__i__-scope" id="drv-ev-__i__-scope-select" value="select" autocomplete="off">
+                <label class="btn btn-outline-secondary text-nowrap" for="drv-ev-__i__-scope-select">店を選ぶ</label>
+            </div>
+            <div class="drv-locs mt-2" hidden>
+                <div class="d-flex align-items-center gap-3 mb-1">
+                    <span class="small text-muted text-nowrap drv-loc-count">0店選択</span>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-nowrap drv-loc-clear" disabled>全解除</button>
+                </div>
+                <div class="drv-loc-list">
+                    {% for loc in review_locations %}<input type="checkbox" class="btn-check drv-loc" name="ev-__i__-locations" id="drv-ev-__i__-loc-{{ loc.id }}" value="{{ loc.id }}" data-label="{{ loc.name }}" autocomplete="off"><label class="btn btn-outline-primary dr-choice dr-choice-multi text-nowrap" for="drv-ev-__i__-loc-{{ loc.id }}">{{ loc.name }}</label>{% endfor %}
+                </div>
+                <div class="invalid-feedback">店を1つ以上選択</div>
+            </div>
+
+            <div class="form-check form-switch mt-3 d-flex align-items-center gap-1">
+                <input class="form-check-input drv-ev-exclude" type="checkbox" role="switch" name="ev-__i__-exclude" id="drv-ev-__i__-exclude" value="1">
+                <label class="form-check-label text-nowrap ms-1" for="drv-ev-__i__-exclude">予測から外す</label>{% include "includes/info_tip.html" with id="drv-exclude" key="__i__" label="予測から外す" text="ON：影響した店のこの日の販売データを食数予測の計算に使わない" %}
+            </div>
+
+            <label class="form-label mb-1 mt-3" for="drv-ev-__i__-note">メモ</label>
+            <input type="text" class="form-control drv-ev-note" name="ev-__i__-note" id="drv-ev-__i__-note" maxlength="100">
+        </div>
+    </div>
+</template>
+{{ reviews_json|json_script:"drv-data" }}
+{% endif %}

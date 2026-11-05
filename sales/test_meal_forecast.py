@@ -8,7 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from sales.meal_forecast import bridge_days, estimated_demand, load_history, predict
-from sales.models import DailyReport, SalesLocation
+from sales.models import DailyReport, DayReview, SalesLocation
 from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)  # 金曜
@@ -123,6 +123,42 @@ class RenumberingTests(TestCase):
         self.assertEqual(locs["B店"]["type"], "室内")
         self.assertNotIn("店", locs)
         self.assertContains(res, "直近の流れ")
+
+
+class DayReviewExclusionTests(TestCase):
+    """その日の振り返りで「予測から外す」出来事があった日は、影響した店のその日を計算に使わない。"""
+
+    def setUp(self):
+        self.a = SalesLocation.objects.create(no=1, name="A店", type="車", price_type="A", service_name="")
+        self.b = SalesLocation.objects.create(no=2, name="B店", type="室内", price_type="A", service_name="")
+        self.days = weekdays_before(TODAY, 10)
+        for d in self.days:
+            report(d, "A店", 1, 40)
+            report(d, "B店", 2, 140)
+        self.review = DayReview.objects.create(date=self.days[3], comment="")
+
+    def dates(self, name):
+        return {r["date"] for r in load_history(TODAY - timedelta(days=60), TODAY).get(name, [])}
+
+    def test_all_locations_event_drops_the_day_everywhere(self):
+        self.review.events.create(kind="stop", all_locations=True)
+        self.assertNotIn(self.days[3], self.dates("A店"))
+        self.assertNotIn(self.days[3], self.dates("B店"))
+        self.assertEqual(len(self.dates("A店")), 9)
+
+    def test_selected_locations_only(self):
+        self.review.events.create(kind="reallocation").locations.add(self.a)
+        self.assertNotIn(self.days[3], self.dates("A店"))
+        self.assertIn(self.days[3], self.dates("B店"))
+
+    def test_event_not_excluded_keeps_the_day(self):
+        self.review.events.create(kind="reallocation", exclude=False).locations.add(self.a)
+        self.assertIn(self.days[3], self.dates("A店"))
+
+    def test_comment_only_keeps_the_day(self):
+        self.review.comment = "新メニューの評判が良かった"
+        self.review.save()
+        self.assertIn(self.days[3], self.dates("A店"))
 
 
 class MonthThirdTests(TestCase):

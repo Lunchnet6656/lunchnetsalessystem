@@ -1104,9 +1104,39 @@ def daily_report_list(request):
         .order_by('person_in_charge')
     )
 
+    # その日の振り返り（日付ごと・全店ぶん）。入力できるのは食数予測と同じ権限の人
+    from sales.day_review import display_rows, location_marks, mark_for, modal_data, reviews_by_date
+    from sales.models import DayReviewEvent
+    from sales.permissions import has_menu_permission
+    can_edit_review = has_menu_permission(request.user, 'can_view_performance_by_location')
+    if is_filtered:
+        filtered_reports = list(filtered_reports)
+        reviews = reviews_by_date({r.date for r in filtered_reports})
+        marks = location_marks(reviews)
+        for r in filtered_reports:
+            r.review_mark = mark_for(marks, r.date, r.location)
+        has_review_mark = any(r.review_mark for r in filtered_reports)
+    else:
+        aggregated_reports = list(aggregated_reports)
+        reviews = reviews_by_date(row['date'] for row in aggregated_reports)
+        for row in aggregated_reports:
+            review = reviews.get(row['date'])
+            row['review'] = review
+            row['review_rows'] = display_rows(review) if review else []
+        has_review_mark = False
+
     context = {
         'aggregated_reports': aggregated_reports,
         'filtered_reports': filtered_reports,
+        'can_edit_review': can_edit_review,
+        'reviews_json': modal_data(reviews) if can_edit_review and not is_filtered else None,
+        'review_locations': all_locations if can_edit_review and not is_filtered else None,
+        'review_kinds': DayReviewEvent.KIND_CHOICES,
+        'has_review_mark': has_review_mark,
+        'review_saved': request.GET.get('saved', ''),
+        'review_deleted': request.GET.get('deleted', ''),
+        'review_error': request.GET.get('review_error', ''),
+        'review_error_list': request.session.pop('day_review_errors', []) if request.GET.get('review_error') else [],
         'is_filtered': is_filtered,
         'search_date_start': search_date_start,
         'search_date_end': search_date_end,
@@ -1119,6 +1149,32 @@ def daily_report_list(request):
         'total_locations': all_locations.count(),
     }
     return render(request, 'daily_report_list.html', context)
+
+
+@require_POST
+@menu_permission_required('can_view_performance_by_location')
+def daily_report_review_save(request, date):
+    """その日の振り返りの保存・削除。結果は一覧のその日の行に出す。"""
+    from urllib.parse import urlencode
+    from sales.day_review import save_review
+    from sales.models import DayReview
+    try:
+        day = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return redirect('daily_report_list')
+    keys = ('search_date_start', 'search_date_end', 'search_location', 'search_person')
+    query = {k: request.POST.get(k) for k in keys if request.POST.get(k)}
+    if request.POST.get('action') == 'delete':
+        DayReview.objects.filter(date=day).delete()
+        query['deleted'] = date
+    else:
+        errors = save_review(day, request.POST, request.user)
+        if errors:
+            request.session['day_review_errors'] = errors
+            query['review_error'] = date
+        else:
+            query['saved'] = date
+    return redirect(f"{reverse('daily_report_list')}?{urlencode(query)}#day-{date}")
 
 # Location別の詳細ビュー
 @menu_permission_required('can_view_daily_report_list')

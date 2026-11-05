@@ -3,6 +3,13 @@
 
 {% block title %}日計表データ確認{% endblock %}
 
+{% block extra_css %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/daily_report_shared.css' %}">
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+<link rel="stylesheet" href="{% static 'css/daily_report_list.css' %}">
+{% endblock %}
+
 {% block content %}
 {% load custom_filters %}
 
@@ -70,7 +77,7 @@
         <thead>
             <tr>
                 <th>日付</th>
-                <th>販売場所</th>
+                <th class="text-nowrap">販売場所{% if has_review_mark %}{% include "includes/info_tip.html" with id="drv-excl-f" label="予測除外" text="予測除外：この日の販売データを食数予測に使わない店／出来事：影響ありだが予測には使う店" %}{% endif %}</th>
                 <th>担当者</th>
                 <th>最終更新日時</th>
             </tr>
@@ -79,7 +86,7 @@
             {% for report in filtered_reports %}
             <tr>
                 <td><a href="{% url 'daily_report_detail' report.date %}">{{ report.date|japanese_date }}</a></td>
-                <td>{{ report.location }}</td>
+                <td>{{ report.location }}{% if report.review_mark %} <span class="badge text-bg-light border fw-normal text-muted text-nowrap">{% if report.review_mark == 'exclude' %}予測除外{% else %}出来事{% endif %}</span>{% endif %}</td>
                 <td>{{ report.person_in_charge }}</td>
                 <td>{{ report.updated_at|date:"Y/m/d H:i" }}</td>
             </tr>
@@ -91,29 +98,69 @@
         </tbody>
     </table>
     {% else %}
-    <!-- 絞り込みなし：日付ごとの集約表示 -->
-    <table class="table table-striped">
+    <!-- 絞り込みなし：日付ごとの集約表示（縞は日付単位。振り返り行も親の日付と同じ背景） -->
+    <table class="table table-sm drv-table">
         <thead>
             <tr>
                 <th>日付</th>
-                <th>レポート数</th>
-                <th>最終更新日時</th>
+                <th class="text-nowrap"><span class="d-none d-md-inline">レポート数</span><span class="d-md-none">件数</span></th>
+                <th class="text-nowrap"><span class="d-none d-md-inline">最終更新日時</span><span class="d-md-none">更新</span></th>
+                {% if can_edit_review %}
+                <th class="text-end text-nowrap"><span class="d-none d-md-inline">振り返り{% include "includes/info_tip.html" with id="drv-col" label="振り返り" text="その日全体の振り返り。1日1件。出来事は店ごとの影響" %}</span><span class="visually-hidden">振り返り</span></th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
             {% for report in aggregated_reports %}
-            <tr>
-                <td><a href="{% url 'daily_report_detail' report.date %}">{{ report.date|japanese_date }}</a></td>
-                <td>{{ report.count }} / {{ total_locations }}</td>
-                <td>{{ report.latest_update|date:"Y/m/d H:i" }}</td>
+            {% with d=report.date|date:"Y-m-d" %}
+            <tr id="day-{{ d }}" class="{% if not forloop.counter|divisibleby:2 %}drv-day-odd{% endif %}{% if report.review or review_saved == d or review_deleted == d or review_error == d %} drv-has-review{% endif %}">
+                <td class="text-nowrap"><a href="{% url 'daily_report_detail' report.date %}">{{ report.date|japanese_date }}</a></td>
+                <td class="text-nowrap">{{ report.count }} / {{ total_locations }}</td>
+                <td class="text-nowrap"><span class="d-none d-md-inline">{{ report.latest_update|date:"Y/m/d H:i" }}</span><span class="d-md-none">{{ report.latest_update|date:"n/j H:i" }}</span></td>
+                {% if can_edit_review %}
+                <td class="text-end text-nowrap">
+                    {% if report.review_rows %}<span class="d-none d-md-inline small text-muted text-nowrap me-2">出来事{{ report.review_rows|length }}</span>{% endif %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap drv-act" data-bs-toggle="modal" data-bs-target="#drv-modal"
+                            data-drv-date="{{ d }}" data-drv-label="{{ report.date|japanese_date }}" data-drv-action="{% url 'daily_report_review_save' d %}"
+                            aria-label="{% if report.review %}編集{% else %}登録{% endif %} {{ report.date|japanese_date }} の振り返り">{% if report.review %}編集{% else %}登録{% endif %}</button>
+                </td>
+                {% endif %}
             </tr>
+            {% if report.review or review_saved == d or review_deleted == d or review_error == d %}
+            <tr class="drv-review{% if not forloop.counter|divisibleby:2 %} drv-day-odd{% endif %}">
+                <td colspan="{% if can_edit_review %}4{% else %}3{% endif %}">
+                    <div class="d-flex align-items-start gap-2">
+                        <div class="flex-grow-1">
+                            {% if report.review_rows %}
+                            <ul class="list-unstyled drv-events mb-0">
+                                {% for ev in report.review_rows %}
+                                <li class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="badge bg-{{ ev.tone }}-subtle text-{{ ev.tone }}-emphasis border border-{{ ev.tone }}-subtle fw-normal text-nowrap">{{ ev.label }}</span>
+                                    <span>{% if ev.all %}全店{% else %}{% for n in ev.names %}<span class="text-nowrap">{{ n }}</span>{% if not forloop.last %}・{% endif %}{% endfor %}{% endif %}</span>
+                                    {% if ev.exclude %}<span class="text-nowrap"><span class="badge text-bg-light border fw-normal text-muted">予測除外</span>{% if ev.tip %}{% include "includes/info_tip.html" with id="drv-excl" key=d label="予測除外" text="影響した店のこの日の販売データは、食数予測の計算に使わない" %}{% endif %}</span>{% endif %}
+                                    {% if ev.note %}<span class="small text-muted">{{ ev.note }}</span>{% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% if report.review.comment %}<p class="drv-comment">{{ report.review.comment }}</p>{% endif %}
+                            {% if review_error == d %}<div class="small text-danger" role="alert">保存失敗：{{ review_error_list|join:"・" }}</div>{% endif %}
+                        </div>
+                        {% if review_saved == d %}<span class="small text-success text-nowrap ms-auto" role="status">✓ 保存済み</span>{% endif %}
+                        {% if review_deleted == d %}<span class="small text-success text-nowrap ms-auto" role="status">✓ 削除済み</span>{% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+            {% endwith %}
             {% empty %}
             <tr>
-                <td colspan="3" class="text-center">データがありません</td>
+                <td colspan="{% if can_edit_review %}4{% else %}3{% endif %}" class="text-center">データがありません</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% include "includes/daily_report_review_modal.html" %}
     {% endif %}
     <!-- CSV ダウンロードボタン -->
     <a href="{% url 'download_csv_allreport' %}?search_date_start={{ search_date_start }}&search_date_end={{ search_date_end }}&search_location={{ search_location|urlencode }}&search_person={{ search_person|urlencode }}" class="btn btn-secondary">CSVダウンロード</a>
@@ -141,4 +188,10 @@
     }
 </style>
 
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/help.js' %}" defer></script>
+{% if can_edit_review and not is_filtered %}<script src="{% static 'js/daily_report_review.js' %}" defer></script>{% endif %}
 {% endblock %}

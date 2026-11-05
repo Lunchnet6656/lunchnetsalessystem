@@ -328,6 +328,58 @@ class StoreEvent(models.Model):
         return f"{self.target_date} {self.location} {self.note}"
 
 
+class DayReview(models.Model):
+    """その日の振り返り（全店ぶん・1日1件）。全体のコメントと、その日の出来事（DayReviewEvent）を持つ。"""
+    date = models.DateField(unique=True, verbose_name="日付")
+    comment = models.TextField(blank=True, default="", verbose_name="振り返り")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="更新した人")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+
+    class Meta:
+        ordering = ["-date"]
+        verbose_name = "その日の振り返り"
+        verbose_name_plural = "その日の振り返り"
+
+    def __str__(self):
+        return str(self.date)
+
+
+class DayReviewEvent(models.Model):
+    """その日の出来事（商品の販売中止・欠勤で販売中止・持参数の振り分けなど）。
+    予測から外す出来事は、影響した店のその日を食数予測の計算に使わない（売る物・売る場所が変わった日で、需要の変化ではないため）。"""
+    KIND_CHOICES = [("stop", "商品の販売中止"), ("production", "製造の遅れ"), ("delivery", "配送の遅れ"),
+                    ("absence", "販売員の欠勤で販売中止"), ("reallocation", "持参数の振り分け"), ("other", "その他")]
+
+    review = models.ForeignKey(DayReview, on_delete=models.CASCADE, related_name="events")
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, verbose_name="種類")
+    all_locations = models.BooleanField(default=False, verbose_name="全店")
+    # 店を選んだときだけ使う。予測は店名で数えるので、読むときは name で突き合わせる
+    locations = models.ManyToManyField(SalesLocation, blank=True, related_name="day_review_events", verbose_name="影響した店")
+    exclude = models.BooleanField(default=True, verbose_name="予測から外す")
+    note = models.CharField(max_length=100, blank=True, default="", verbose_name="メモ")
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "その日の出来事"
+        verbose_name_plural = "その日の出来事"
+
+    def __str__(self):
+        return f"{self.review.date} {self.get_kind_display()}"
+
+
+def forecast_exclusions(since, until):
+    """食数予測から外す (日付, 店名)。全店のときは店名 None。"""
+    out = set()
+    events = (DayReviewEvent.objects.filter(review__date__gte=since, review__date__lt=until, exclude=True)
+              .select_related("review").prefetch_related("locations"))
+    for e in events:
+        if e.all_locations:
+            out.add((e.review.date, None))
+        else:
+            out |= {(e.review.date, loc.name.strip()) for loc in e.locations.all()}
+    return out
+
+
 class DailyReportQuestionSetting(models.Model):
     """日計表で「いつもと違った日」に聞く基準と選択肢（設定画面で変える・1行だけ）。"""
     low_one_in = models.PositiveSmallIntegerField(default=10)   # その店で「N回に1回」しかない少なさで聞く

@@ -12,13 +12,15 @@
 - 雨の補正＝形態ごとの値 × その店の倍率（rain_multiplier）。1年分の答え合わせで雨の日の誤差が約6%減った（2026-10）。
 - 飛び石（前の日も次の日も休み）の日は全店 ×0.90、昼の風6m以上はテーブル・行商 ×0.95（2026-11検証）。
   給料日・月末・五十日は効かなかったので入れない（research/topics/2026-11-04-食数予測-外れ要素の探索）。
+- その日の振り返りで「予測から外す」出来事（商品の販売中止・欠勤で販売中止・持参数の振り分けなど）があった日は、
+  影響した店のその日を計算に一切使わない。需要ではなく売る物・売る場所が変わった日なので、水準・曜日の癖・雨の倍率のどれにも入れると予測が下がる（2026-09-07 バジルスパ）。
 """
 from datetime import timedelta
 
 import jpholiday
 from django.conf import settings
 
-from sales.models import DailyReport, Holiday, SalesLocation
+from sales.models import DailyReport, Holiday, SalesLocation, forecast_exclusions
 from sales.daily_questions import ONE_OFF_REASONS
 from sales.weather import rain_factor, rain_level, wind_factor
 
@@ -99,10 +101,14 @@ def load_history(since, until):
         .order_by("date")
     )
     bridges = bridge_days({r[0] for r in rows})
+    excluded_days = forecast_exclusions(since, until)
     hist = {}
     for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, wind, qty, rev, reasons in rows:
+        name = name.strip()
+        if (d, None) in excluded_days or (d, name) in excluded_days:
+            continue
         sold, rem = int(sold or 0), int(rem or 0)
-        hist.setdefault(name.strip(), []).append({
+        hist.setdefault(name, []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
             "demand": estimated_demand(sold, rem, so_t, op_t, cl_t, lost), "sold_out": rem <= 0,
             "lost": lost if rem <= 0 else None,

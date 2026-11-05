@@ -1,0 +1,47 @@
+/* 日計表一覧：その日の振り返り（接頭辞 drv-）。設計＝lunchnetsale-日計表-その日の振り返り-画面設計.md */
+
+/* table-striped は行単位で縞が付き、振り返り行が入るとずれる。日付単位で付け直す（Bootstrap 5.3 の table-striped と同じ指定） */
+.drv-day-odd > * {
+    --bs-table-bg-type: var(--bs-table-striped-bg);
+    --bs-table-color-type: var(--bs-table-striped-color);
+}
+tr.drv-has-review > td { border-bottom-width: 0; }
+tr.drv-review > td { padding-top: 0; }
+.drv-events li + li { margin-top: 2px; }
+.drv-comment {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    margin: 4px 0 0;
+    color: var(--ln-color-text-strong);
+}
+/* 固定ナビ（60px）に保存後の行が隠れないように */
+tr[id^="day-"] { scroll-margin-top: 72px; }
+
+/* 一覧の小ボタンの押せる範囲を上下に広げて44px相当に */
+.drv-act { position: relative; }
+.drv-act::before { content: ""; position: absolute; inset: -7px 0; }
+
+.drv-ev-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    color: inherit;
+}
+.drv-ev.is-deleted .drv-ev-sum {
+    text-decoration: line-through;
+    color: var(--ln-color-text-muted);
+}
+.drv-loc-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.drv-loc-list .dr-choice { min-width: 64px; }
+.drv-locs .invalid-feedback, .drv-ev-body .invalid-feedback { margin-top: 4px; }
+/* iOS で入力時に拡大されないように */
+.drv-modal textarea,
+.drv-modal input[type="text"],
+.drv-modal select { font-size: 16px; }
