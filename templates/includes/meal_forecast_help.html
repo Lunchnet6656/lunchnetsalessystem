@@ -15,6 +15,7 @@
   <li>さらに店ごとの倍率：雨の日の実績から。{{ method.rain_store_clip }}倍・日数が少ない店は1倍寄り（参考列「雨の日」）</li>
   {% for r in method.wind_rows %}<li>強風：{{ method.wind_strong }}m/s以上で{{ r.types }} ×{{ r.factor }}</li>{% endfor %}
   <li>飛び石（前後の日が休み）：全店 ×{{ method.bridge_factor }}</li>
+  <li>雨の翌日（前の営業日の昼が雨・当日は雨なし）：{{ method.after_rain_types }} ×{{ method.after_rain_factor }}</li>
   <li>予測食数の下の「補正」：上の補正をまとめた増減。内訳は参考列「補正」</li>
 </ul>
 

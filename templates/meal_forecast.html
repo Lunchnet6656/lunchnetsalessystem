@@ -69,6 +69,7 @@
                 {% if day.rainy %}<span class="badge bg-warning text-dark"><i class="fas fa-cloud-showers-heavy" aria-hidden="true"></i> 雨補正</span>{% endif %}
                 {% if day.windy %}<span class="badge bg-secondary"><i class="fas fa-wind" aria-hidden="true"></i> 強風補正</span>{% endif %}
                 {% if day.bridge %}<span class="badge bg-danger"><i class="fas fa-calendar-minus" aria-hidden="true"></i> 飛び石{% if day.bridge_pct < 0 %}−{{ day.bridge_pct|stringformat:'d'|cut:'-' }}{% else %}+{{ day.bridge_pct }}{% endif %}%</span>{% endif %}
+                {% if day.after_rain %}<span class="badge bg-secondary"><i class="fas fa-cloud-sun" aria-hidden="true"></i> 雨の翌日−{{ day.after_rain_pct|stringformat:'d'|cut:'-' }}%</span>{% endif %}
             </span>
             <span class="d-flex flex-wrap align-items-baseline column-gap-2 text-muted">
                 <span class="text-nowrap">予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong>食</span>
@@ -148,7 +149,7 @@
                             </td>
                             <td class="text-end text-nowrap">
                                 <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
-                                {% if l.rain_pct or l.wind_pct or l.bridge_pct %}<div class="small text-nowrap mf-adj {% if l.adj_pct > 0 %}text-success{% elif l.adj_pct < 0 %}text-danger{% else %}text-muted{% endif %}">補正 {% if l.adj_pct > 0 %}+{{ l.adj_pct }}{% elif l.adj_pct < 0 %}−{{ l.adj_pct|stringformat:'d'|cut:'-' }}{% else %}±0{% endif %}%</div>{% endif %}
+                                {% if l.rain_pct or l.wind_pct or l.bridge_pct or l.after_rain_pct %}<div class="small text-nowrap mf-adj {% if l.adj_pct > 0 %}text-success{% elif l.adj_pct < 0 %}text-danger{% else %}text-muted{% endif %}">補正 {% if l.adj_pct > 0 %}+{{ l.adj_pct }}{% elif l.adj_pct < 0 %}−{{ l.adj_pct|stringformat:'d'|cut:'-' }}{% else %}±0{% endif %}%</div>{% endif %}
                             </td>
                             {% if l.plans %}
                             {% for key in plan_keys_store %}{% with v=l.plans|get_item:key %}
@@ -198,7 +199,7 @@
                             {% endif %}
                             {% endif %}
                             <td class="text-end text-muted mf-ref-col">{{ l.base }}</td>
-                            <td class="small text-nowrap mf-ref-col">{% if l.rain_pct or l.wind_pct or l.bridge_pct %}{% if l.rain_pct %}<span class="{% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{{ l.rain_pct }}{% else %}−{{ l.rain_pct|stringformat:'d'|cut:'-' }}{% endif %}</span> {% endif %}{% if l.wind_pct %}<span class="text-danger">風−{{ l.wind_pct|stringformat:'d'|cut:'-' }}</span> {% endif %}{% if l.bridge_pct %}<span class="text-danger">飛−{{ l.bridge_pct|stringformat:'d'|cut:'-' }}</span>{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                            <td class="small text-nowrap mf-ref-col">{% if l.rain_pct or l.wind_pct or l.bridge_pct or l.after_rain_pct %}{% if l.rain_pct %}<span class="{% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{{ l.rain_pct }}{% else %}−{{ l.rain_pct|stringformat:'d'|cut:'-' }}{% endif %}</span> {% endif %}{% if l.wind_pct %}<span class="text-danger">風−{{ l.wind_pct|stringformat:'d'|cut:'-' }}</span> {% endif %}{% if l.bridge_pct %}<span class="text-danger">飛−{{ l.bridge_pct|stringformat:'d'|cut:'-' }}</span> {% endif %}{% if l.after_rain_pct %}<span class="text-danger">翌−{{ l.after_rain_pct|stringformat:'d'|cut:'-' }}</span>{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
                             <td class="text-end small text-nowrap mf-ref-col">{% if l.rain_store_note %}<span class="{% if l.rain_store_pct > 0 %}text-success{% elif l.rain_store_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.rain_store_pct > 0 %}+{% endif %}{{ l.rain_store_pct }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                             <td class="text-end text-muted mf-ref-col">{{ l.recent }}</td>
                             <td class="text-end small mf-ref-col {% if l.weekday_pct > 0 %}text-success{% elif l.weekday_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.weekday_pct > 0 %}+{% endif %}{{ l.weekday_pct }}%</td>

@@ -102,7 +102,9 @@ class SaveForecastCommandTests(TestCase):
         self.assertEqual(WeatherForecastSnapshot.objects.count(), 0)
 
 
-class MealForecastRainTests(TestCase):
+class RainForecastFixture(TestCase):
+    """3つの店が直近4週の平日すべて100食売れた状態で、天気予報だけ差し替えて食数予測を見る。"""
+
     def setUp(self):
         cache.clear()
         user = get_user_model().objects.create_user("viewer", password="pw-viewer-123456")
@@ -131,6 +133,9 @@ class MealForecastRainTests(TestCase):
 
     def monday(self, res):
         return {l["name"]: l for l in res.context["fc"]["days"][0]["locs"]}
+
+
+class MealForecastRainTests(RainForecastFixture):
 
     def test_heavy_rain_is_built_into_prediction_only_outdoor(self):
         res = self.get({"tokyo": {"2026-10-05": self.wx(9.0, "大雨")}, "yokohama": {"2026-10-05": self.wx(0.0, None)}})
@@ -243,3 +248,41 @@ class FillReportWeatherSinceTest(TestCase):
         arc.assert_called()
         r = DailyReport.objects.get(date=old)
         self.assertEqual((r.auto_lunch_precip, r.auto_lunch_wind), (4.0, 2.0))
+
+
+class AfterRainTests(RainForecastFixture):
+    """室内の店は、前の営業日の昼が雨で当日が雨でない日に ×0.97。"""
+
+    def test_indoor_store_drops_the_day_after_rain(self):
+        # 金曜（今日）が雨 → 月曜は雨なし。月曜が雨 → 火曜は雨なし
+        res = self.get({"tokyo": {"2026-10-02": self.wx(4.0, "雨"), "2026-10-05": self.wx(4.0, "雨"),
+                                  "2026-10-06": self.wx(0.0, None)}})
+        tue = {l["name"]: l for l in res.context["fc"]["days"][1]["locs"]}
+        self.assertEqual(tue["ビルの店"]["pred"], 97)
+        self.assertEqual(tue["ビルの店"]["after_rain_pct"], -3)
+        self.assertEqual(tue["テーブルの店"]["pred"], 100)        # 外の店は対象外
+        self.assertTrue(res.context["fc"]["days"][1]["after_rain"])
+        mon = self.monday(res)
+        self.assertEqual(mon["ビルの店"]["after_rain_pct"], 0)    # 当日も雨なら対象外
+        self.assertContains(res, "雨の翌日−3%")
+        self.assertContains(res, "翌−3")
+
+    def test_no_mark_when_previous_day_dry(self):
+        res = self.get({"tokyo": {"2026-10-02": self.wx(0.0, None), "2026-10-05": self.wx(0.0, None)}})
+        self.assertEqual(self.monday(res)["ビルの店"]["pred"], 100)
+        self.assertNotContains(res, "雨の翌日−")
+
+    def test_past_previous_day_uses_the_store_record(self):
+        from lunchnetsale.views import _prev_lunch_level
+        rows = [{"date": TODAY - timedelta(days=1), "level": "小雨"}]
+        # 予測する日の前の営業日が過去なら、その店の日計表の天気を見る
+        self.assertEqual(_prev_lunch_level(TODAY, TODAY + timedelta(days=1), "tokyo", {}, rows), "小雨")
+        self.assertIsNone(_prev_lunch_level(TODAY, TODAY + timedelta(days=1), "tokyo", {}, []))
+
+    def test_history_rows_carry_previous_level(self):
+        from sales.meal_forecast import load_history
+        d1, d2 = TODAY - timedelta(days=2), TODAY - timedelta(days=1)
+        DailyReport.objects.filter(location="ビルの店", date=d1).update(auto_lunch_precip=4.0)
+        rows = {r["date"]: r for r in load_history(TODAY - timedelta(days=30), TODAY)["ビルの店"]}
+        self.assertEqual(rows[d2]["prev_level"], "雨")
+        self.assertEqual(rows[d1]["level"], "雨")

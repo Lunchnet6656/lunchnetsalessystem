@@ -11,6 +11,8 @@
   （2026-10検証）ので、はっきりしている店に目印を出すだけにする。
 - 雨の補正＝形態ごとの値 × その店の倍率（rain_multiplier）。1年分の答え合わせで雨の日の誤差が約6%減った（2026-10）。
 - 飛び石（前の日も次の日も休み）の日は全店 ×0.90、昼の風6m以上はテーブル・行商 ×0.95（2026-11検証）。
+- 室内の店は、前の営業日の昼が雨で当日が雨でない日に ×0.97（2026-11検証：完売日も含めた答え合わせで誤差 4.91→4.80食。
+  晴れ続きの日に同じ数を掛けると悪化するので、測り方の偏りではない）。雨が続いた2日目は件数不足で入れない。
   給料日・月末・五十日は効かなかったので入れない（research/topics/2026-11-04-食数予測-外れ要素の探索）。
 - その日の振り返りで「予測から外す」出来事（商品の販売中止・欠勤で販売中止・持参数の振り分けなど）があった日は、
   影響した店のその日を計算に一切使わない。需要ではなく売る物・売る場所が変わった日なので、水準・曜日の癖・雨の倍率のどれにも入れると予測が下がる（2026-09-07 バジルスパ）。
@@ -37,6 +39,9 @@ MIN_HISTORY = 5
 RAIN_STORE_K = 8               # 店ごとの雨の倍率：雨の日の実績が少ない店ほど1.0（形態の値のまま）に寄せる強さ
 RAIN_STORE_CLIP = (0.6, 1.4)   # 2026-10検証：雨の日の誤差 6.71→6.31食（research/topics/2026-10-23-食数予測-雨補正の店別化…）
 BRIDGE_FACTOR = 0.90           # 飛び石の日：過去3回 −14%・−16%・−6%。答え合わせで誤差 6.27→2.13食
+AFTER_RAIN_FACTOR = 0.97       # 室内の「雨の翌日（晴れ）」。research/topics/2026-11-04-食数予測-外れ要素の探索（11/05追記）
+AFTER_RAIN_TYPES = ("室内",)
+AFTER_RAIN_GAP_DAYS = 4        # 前の営業日とみなす間隔（週末・祝日をまたいでも前の営業日）
 BACKTEST_DAYS = 28             # 画面の「精度」：直近何日を答え合わせするか
 
 
@@ -76,9 +81,17 @@ def bridge_days(dates):
     return {d for d in dates if not off(d) and off(d - one) and off(d + one)}
 
 
-def day_factor(level, wind, bridge, sales_type, rain_mult=1.0):
-    """雨（形態×店の倍率）・強風・飛び石をまとめた掛け率。"""
-    f = rain_factor(level, sales_type) * (rain_mult if level else 1.0) * wind_factor(wind, sales_type)
+def after_rain_factor(level, prev_level, sales_type):
+    """前の営業日の昼が雨で、当日は雨でない日の掛け率。"""
+    if prev_level and not level and sales_type in AFTER_RAIN_TYPES:
+        return AFTER_RAIN_FACTOR
+    return 1.0
+
+
+def day_factor(level, wind, bridge, sales_type, rain_mult=1.0, prev_level=None):
+    """雨（形態×店の倍率）・強風・飛び石・雨の翌日をまとめた掛け率。"""
+    f = (rain_factor(level, sales_type) * (rain_mult if level else 1.0) * wind_factor(wind, sales_type)
+         * after_rain_factor(level, prev_level, sales_type))
     return f * BRIDGE_FACTOR if bridge else f
 
 
@@ -89,7 +102,7 @@ def _excluded_names():
 
 
 def load_history(since, until, keep_excluded=False):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, wind, bridge, qty, rev, one_off)。
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, wind, bridge, prev_level, qty, rev, one_off)。
     keep_excluded=True は画面の表示用で、予測から外した日も excluded（出来事の種類）付きで残す。計算には使わないこと。"""
     excluded = _excluded_names()
     rows = (
@@ -108,8 +121,6 @@ def load_history(since, until, keep_excluded=False):
     for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, wind, qty, rev, reasons in rows:
         name = name.strip()
         excluded = excluded_days.get((d, name)) or excluded_days.get((d, None))
-        if excluded and not keep_excluded:
-            continue
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name, []).append({
             "date": d, "wd": d.weekday(), "sold": sold, "rem": rem,
@@ -123,6 +134,15 @@ def load_history(since, until, keep_excluded=False):
             "one_off": bool(set(reasons or []) & ONE_OFF_REASONS),
             "excluded": excluded,
         })
+    # 前の営業日の昼の雨。予測から外した日も天気は事実なので、外す前に付ける
+    for rows_ in hist.values():
+        prev = None
+        for r in rows_:
+            r["prev_level"] = prev["level"] if prev and (r["date"] - prev["date"]).days <= AFTER_RAIN_GAP_DAYS else None
+            prev = r
+    if not keep_excluded:
+        hist = {n: [r for r in rs if not r["excluded"]] for n, rs in hist.items()}
+        hist = {n: rs for n, rs in hist.items() if rs}
     return hist
 
 
@@ -171,7 +191,8 @@ def rain_multiplier(rows, sales_type):
         p = predict(rows[:i], r["wd"])
         if not p or p["pred"] <= 0:
             continue
-        obs.append(r["demand"] / (p["pred"] * day_factor(r["level"], r.get("wind"), r.get("bridge"), sales_type)))
+        obs.append(r["demand"] / (p["pred"] * day_factor(r["level"], r.get("wind"), r.get("bridge"), sales_type,
+                                                         prev_level=r.get("prev_level"))))
     if not obs:
         return 1.0, 0
     obs.sort()
@@ -262,7 +283,7 @@ def demand_ratios(rows, sales_type, mult, since):
         p = predict(rows[:i], r["wd"])
         if not p or p["pred"] <= 0:
             continue
-        f = day_factor(r.get("level"), r.get("wind"), r.get("bridge"), sales_type, mult)
+        f = day_factor(r.get("level"), r.get("wind"), r.get("bridge"), sales_type, mult, r.get("prev_level"))
         out.append(r["demand"] / (p["pred"] * f))
     return out
 

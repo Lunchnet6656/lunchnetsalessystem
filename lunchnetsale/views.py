@@ -3284,6 +3284,17 @@ FORECAST_WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 # 室内は減らない。一律に減らすと室内が完売するので、販売形式ごとの目安を出す（係数は sales/weather.py）。
 
 
+def _prev_lunch_level(td, today, area, weather, rows):
+    """予測する日の前の営業日の昼の雨。今日以降は予報、過去はその店の日計表の天気。分からなければ None。"""
+    d = td - timedelta(days=1)
+    while not is_business_day(d):
+        d -= timedelta(days=1)
+    if d >= today:
+        wx = weather.get(area, {}).get(d.isoformat())
+        return wx["level"] if wx else None
+    return next((r["level"] for r in reversed(rows) if r["date"] == d), None)
+
+
 def _fetch_lunch_weather(today):
     """{地点: {日付: 昼の予報}}。取れなかった地点は入らない（＝補正なしで安全側に倒す）。日次でキャッシュ。"""
     from django.core.cache import cache
@@ -3390,7 +3401,7 @@ def _draft_comparison(draft, rows, pred):
 
 def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
-    from sales.meal_forecast import (BRIDGE_FACTOR, PLAN_MIN_SAMPLES, PLAN_SAMPLE_DAYS, THIRD_LABELS, backtest,
+    from sales.meal_forecast import (AFTER_RAIN_FACTOR, BRIDGE_FACTOR, after_rain_factor, PLAN_MIN_SAMPLES, PLAN_SAMPLE_DAYS, THIRD_LABELS, backtest,
                                      bridge_days, demand_ratios, load_history, month_third, outlook, plan_quantities,
                                      predict, rain_multiplier, store_plan_basis, third_effect)
     from sales.weather import (DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, WIND_FACTORS, WIND_STRONG, rain_factor,
@@ -3466,7 +3477,9 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             rain_f = rain_factor(level, sales_type) * (mult if level else 1.0)
             wind_f = wind_factor(wx.get("wind") if wx else None, sales_type)
             bridge_f = BRIDGE_FACTOR if td in bridges else 1.0
-            factor = rain_f * wind_f * bridge_f
+            after_f = after_rain_factor(level, _prev_lunch_level(td, today, area, weather, hist_all.get(name, [])),
+                                        sales_type)
+            factor = rain_f * wind_f * bridge_f * after_f
             same = [r for r in rows if r["wd"] == wd]
             recent10 = rows[-SOLD_OUT_RATE_DAYS:]
             eff = third_effect(rows, third)
@@ -3494,6 +3507,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "pred": int(p["pred"] * factor + 0.5),        # 補正込み（これを見る）
                 "rain": level, "rain_pct": int(round((rain_f - 1) * 100)),
                 "wind_pct": int(round((wind_f - 1) * 100)), "bridge_pct": int(round((bridge_f - 1) * 100)),
+                "after_rain_pct": int(round((after_f - 1) * 100)),
                 "adj_pct": int(round((factor - 1) * 100)),   # 雨・強風・飛び石をまとめた補正（画面はこの1つだけ）
                 # 「雨」の日の補正（形態×店の倍率）。形態の値から3%以上ずれた店だけ、店名の欄に出す
                 "rain_store_pct": int(round((rain_factor("雨", sales_type) * mult - 1) * 100)),
@@ -3525,7 +3539,9 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             "total": sum(l["pred"] for l in locs), "base_total": sum(l["base"] for l in locs),
             "rainy": rainy, "windy": any(l["wind_pct"] for l in locs), "bridge": bridge,
             "bridge_pct": int(round((BRIDGE_FACTOR - 1) * 100)),
-            "adjusted": rainy or bridge or any(l["wind_pct"] for l in locs), "third_label": THIRD_LABELS[third], "show_comments": True,
+            "after_rain": any(l["after_rain_pct"] for l in locs),
+            "after_rain_pct": int(round((AFTER_RAIN_FACTOR - 1) * 100)),
+            "adjusted": rainy or bridge or any(l["wind_pct"] or l["after_rain_pct"] for l in locs), "third_label": THIRD_LABELS[third], "show_comments": True,
             "has_draft": bool(with_draft),
             "draft_total": sum(l["draft"]["draft"] for l in with_draft),
             "draft_flags": sum(1 for l in with_draft if l["draft"]["flag"]),
@@ -3575,6 +3591,8 @@ def _forecast_method():
         "wind_strong": _num(wx.WIND_STRONG),
         "wind_rows": [{"types": r["types"], "factor": _num(r["factor"])} for r in by_factor(wx.WIND_FACTORS)],
         "bridge_factor": _num(mf.BRIDGE_FACTOR),
+        "after_rain_factor": _num(mf.AFTER_RAIN_FACTOR),
+        "after_rain_types": "・".join(mf.AFTER_RAIN_TYPES),
         "plan_sample_days": mf.PLAN_SAMPLE_DAYS,
         "plan_up_of10": int(round(mf.PLAN_UP_QUANTILE * 10)),
         "plan_keep_samples": mf.PLAN_KEEP_SAMPLES,
