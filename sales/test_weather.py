@@ -216,17 +216,19 @@ class MealForecastRainTests(RainForecastFixture):
 
 class LocationWeatherAreaSettingTests(TestCase):
     def test_area_saved_from_location_settings(self):
+        # 旧シフト管理の販売場所設定は、販売場所データの［シフト・便］へ移行した
+        from sales.permissions_testing import grant
+        from sales.test_location_settings import _row
         staff = get_user_model().objects.create_user("boss", password="pw-boss-123456", is_staff=True)
+        grant(staff, "can_view_location_list")
         self.client.force_login(staff)
         loc = SalesLocation.objects.create(no=1, name="新横浜", type="室内", price_type="A", service_name="")
-        res = self.client.post(reverse("shifts:admin_location_settings"),
-                               {f"priority_{loc.id}": "A", f"weather_area_{loc.id}": "shinyokohama"})
+        res = self.client.post(reverse("location_list"), _row(0, loc, priority="A", weather_area="shinyokohama"))
         self.assertEqual(res.status_code, 302)
         loc.refresh_from_db()
         self.assertEqual(loc.weather_area, "shinyokohama")
         # 知らない値は無視して元のまま
-        self.client.post(reverse("shifts:admin_location_settings"),
-                         {f"priority_{loc.id}": "A", f"weather_area_{loc.id}": "osaka"})
+        self.client.post(reverse("location_list"), _row(0, loc, priority="A", weather_area="osaka"))
         loc.refresh_from_db()
         self.assertEqual(loc.weather_area, "shinyokohama")
 

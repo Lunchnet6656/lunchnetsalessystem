@@ -5,6 +5,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+{% load static %}<link href="{% static 'css/help.css' %}" rel="stylesheet">
 <style>
     .location-table th, .location-table td {
         vertical-align: middle;
@@ -30,6 +31,15 @@
         color: var(--ln-color-text-muted);
         user-select: none;
     }
+    /* base.html の本文枠は幅100%＋左余白で右がはみ出す（全画面共通）。この画面は右端に削除・保存があるので収める */
+    .container-fluid, .container-fluid.expanded { width: auto; }
+    .container-fluid > .row > .col-md-10 { flex: 1 1 auto; width: 100%; max-width: 100%; }
+    .container-fluid.loc-page { margin: 0; padding-top: 0; width: auto; }
+    .location-table .form-select.fit { min-width: 0; width: auto; }
+    .location-table .form-select.location-input.fit { min-width: 130px; }
+    .loc-tabs .nav-link { white-space: nowrap; }
+    .loc-off td { color: var(--ln-color-text-dim); background: var(--ln-color-surface-muted); }
+    .route-table .form-control { min-width: 0; }
     .location-placeholder {
         height: 48px;
         background: var(--ln-color-surface-muted);
@@ -40,19 +50,22 @@
 {% block content %}
 {% load custom_filters %}
 
-<div class="container-fluid mt-4 mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h1 class="h3 mb-0">販売場所リスト</h1>
-        <span class="text-muted small">全 {{ locations|length }} 件</span>
+<div class="container-fluid loc-page mt-2 mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+        <h1 class="h3 mb-0 text-nowrap">販売場所リスト</h1>
+        {% include "includes/help_button.html" with id="locations" title="販売場所リスト" body="includes/help/location_list.html" %}
+        <span class="text-muted small text-nowrap ms-auto">全 {{ locations|length }} 件</span>
     </div>
-    <p class="text-muted small mb-3">
-        行の左端 <i class="material-icons align-middle" style="font-size:1rem;">menu</i> をドラッグすると並べ替えできます（NOは自動で振り直されます）。
-    </p>
-    <hr class="mb-4">
+    <ul class="nav nav-tabs loc-tabs mb-3" role="tablist">
+        <li class="nav-item"><button type="button" class="nav-link" data-tab="basic" role="tab">基本</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-tab="shift" role="tab">シフト・便</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-tab="routes" role="tab">便の一覧</button></li>
+    </ul>
 
     <form id="locationForm" method="POST">
         {% csrf_token %}
-        <div class="table-responsive">
+        <input type="hidden" name="tab" id="tabField" value="basic">
+        <div class="table-responsive" data-pane="basic">
             <table class="table table-sm table-striped align-middle location-table">
                 <thead>
                     <tr>
@@ -84,7 +97,7 @@
                         <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][name]" value="{{ location.name }}"></td>
                         <td><input type="text" class="form-control form-control-sm location-input" name="location[{{ forloop.counter0 }}][type]" value="{{ location.type }}"></td>
                         <td>
-                            <select class="form-select form-select-sm location-input" name="location[{{ forloop.counter0 }}][price_type]">
+                            <select class="form-select form-select-sm location-input fit" name="location[{{ forloop.counter0 }}][price_type]">
                                 {% if location.price_type not in pattern_codes %}<option value="{{ location.price_type }}" selected>{{ location.price_type|default:"（未設定）" }}</option>{% endif %}
                                 {% for p in patterns %}<option value="{{ p.code }}" {% if p.code == location.price_type %}selected{% endif %}>{{ p.label }}</option>{% endfor %}
                             </select>
@@ -111,13 +124,84 @@
             </table>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 mt-3">
-            <button type="button" class="btn btn-success" id="addRowButton">
+        <div class="table-responsive" data-pane="shift" hidden>
+            <table class="table table-sm align-middle location-table">
+                <thead>
+                    <tr>
+                        <th class="col-no">NO</th>
+                        <th>販売場所</th>
+                        <th>便</th>
+                        <th class="text-center">優先度</th>
+                        <th class="text-center">運転必須</th>
+                        <th class="text-center">シフト対象外</th>
+                        <th>天気の地点</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for location in locations %}
+                    <tr class="{% if location.excluded_from_shift %}loc-off{% endif %}">
+                        <td class="col-no">{{ location.no }}<input type="hidden" name="location[{{ forloop.counter0 }}][shift]" value="1"></td>
+                        <td>{{ location.name }}</td>
+                        <td>
+                            <select class="form-select form-select-sm fit" name="location[{{ forloop.counter0 }}][carpool_route]" aria-label="{{ location.name }}の便">
+                                <option value="">なし</option>
+                                {% for r in routes %}<option value="{{ r.id }}" {% if r.id == location.carpool_route_id %}selected{% endif %}>{{ r.name }}（{{ r.departure_time|time:"G:i" }}）</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td class="text-center">
+                            <select class="form-select form-select-sm fit d-inline-block" name="location[{{ forloop.counter0 }}][priority]" aria-label="{{ location.name }}の優先度">
+                                {% for p in priorities %}<option value="{{ p }}" {% if p == location.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td class="text-center"><input type="checkbox" class="form-check-input" name="location[{{ forloop.counter0 }}][requires_drive]" value="1" {% if location.requires_drive %}checked{% endif %} aria-label="{{ location.name }}は運転必須"></td>
+                        <td class="text-center"><input type="checkbox" class="form-check-input shift-off" name="location[{{ forloop.counter0 }}][excluded_from_shift]" value="1" {% if location.excluded_from_shift %}checked{% endif %} aria-label="{{ location.name }}はシフト対象外"></td>
+                        <td>
+                            <select class="form-select form-select-sm fit" name="location[{{ forloop.counter0 }}][weather_area]" aria-label="{{ location.name }}の天気の地点">
+                                {% for value, label in weather_areas %}<option value="{{ value }}" {% if location.weather_area == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3" data-pane="basic shift">
+            <button type="button" class="btn btn-success" id="addRowButton" data-pane="basic">
                 <i class="material-icons align-middle" style="font-size:1.1rem;">add</i> 新規追加
             </button>
-            <button type="submit" name="delete" class="btn btn-outline-danger" id="deleteButton">選択した項目を削除</button>
+            <button type="submit" name="delete" class="btn btn-outline-danger" id="deleteButton" data-pane="basic">選択した項目を削除</button>
             <button type="submit" class="btn btn-primary ms-auto">上書き保存</button>
         </div>
+    </form>
+
+    <form method="POST" action="{% url 'location_routes' %}" data-pane="routes" hidden id="routeForm">
+        {% csrf_token %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle route-table">
+                <thead>
+                    <tr><th>便名</th><th>出発時刻</th><th>表示順</th><th class="text-end">店数</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for r in routes %}
+                    <tr>
+                        <td><input type="text" class="form-control form-control-sm" name="route_{{ r.id }}_name" value="{{ r.name }}" aria-label="便名" style="min-width:8rem"></td>
+                        <td><input type="time" class="form-control form-control-sm" name="route_{{ r.id }}_time" value="{{ r.departure_time|time:'H:i' }}" aria-label="出発時刻" style="width:7.5rem"></td>
+                        <td><input type="number" class="form-control form-control-sm" name="route_{{ r.id }}_order" value="{{ r.display_order }}" aria-label="表示順" style="width:5rem"></td>
+                        <td class="text-end">{{ r.location_count }}</td>
+                        <td class="text-end"><button type="submit" name="delete_route" value="{{ r.id }}" class="btn btn-sm btn-outline-danger text-nowrap route-delete" data-name="{{ r.name }}" data-count="{{ r.location_count }}">削除</button></td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td><input type="text" class="form-control form-control-sm" name="new_name" placeholder="新しい便" aria-label="新しい便名" style="min-width:8rem"></td>
+                        <td><input type="time" class="form-control form-control-sm" name="new_time" aria-label="新しい便の出発時刻" style="width:7.5rem"></td>
+                        <td><input type="number" class="form-control form-control-sm" name="new_order" value="0" aria-label="新しい便の表示順" style="width:5rem"></td>
+                        <td></td><td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex mt-3"><button type="submit" class="btn btn-primary ms-auto" id="routeSave">保存</button></div>
     </form>
 </div>
 
@@ -127,6 +211,37 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const tableBody = document.getElementById('locationTableBody');
+
+        // タブ：同じフォームの欄を見せ分ける（基本／シフト・便）。便の一覧は別フォーム
+        function showTab(tab) {
+            document.querySelectorAll('.loc-tabs .nav-link').forEach(b => {
+                b.classList.toggle('active', b.dataset.tab === tab);
+                b.setAttribute('aria-selected', b.dataset.tab === tab);
+            });
+            // hidden 属性は Bootstrap の d-flex（!important）に負けるので d-none で切り替える
+            document.querySelectorAll('[data-pane]').forEach(el => {
+                el.hidden = false;
+                el.classList.toggle('d-none', !el.dataset.pane.split(' ').includes(tab));
+            });
+            document.getElementById('tabField').value = tab;
+        }
+        document.querySelectorAll('.loc-tabs .nav-link').forEach(b => b.addEventListener('click', () => {
+            showTab(b.dataset.tab);
+            history.replaceState(null, '', '?tab=' + b.dataset.tab);
+        }));
+        const initial = new URLSearchParams(location.search).get('tab');
+        showTab(['basic', 'shift', 'routes'].includes(initial) ? initial : 'basic');
+
+        document.querySelectorAll('.shift-off').forEach(cb => cb.addEventListener('change', () => {
+            cb.closest('tr').classList.toggle('loc-off', cb.checked);
+        }));
+        // Enter で先頭の［削除］が押されないように、便の欄の Enter は［保存］にする
+        document.getElementById('routeForm').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); document.getElementById('routeSave').click(); }
+        });
+        document.querySelectorAll('.route-delete').forEach(b => b.addEventListener('click', e => {
+            if (!confirm('便「' + b.dataset.name + '」を削除（' + b.dataset.count + '店の便は「なし」）')) e.preventDefault();
+        }));
 
         // 全選択
         const selectAll = document.getElementById('selectAll');
@@ -203,4 +318,5 @@
         });
     });
 </script>
+<script src="{% static 'js/help.js' %}"></script>
 {% endblock %}

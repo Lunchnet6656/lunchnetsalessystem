@@ -120,6 +120,7 @@ urlpatterns = [
     path('products/delete/<str:week>/', views.delete_product_view, name='delete_product'),
 
     path('location_list', views.location_list_view, name='location_list'),
+    path('location_list/routes/', views.location_routes_view, name='location_routes'),
 
     path('item_quantity_list/', views.item_quantity_list_view, name='item_quantity_list'),
     path('item_quantity_list/<str:date>/', views.item_quantity_detail_view, name='item_quantity_detail'),

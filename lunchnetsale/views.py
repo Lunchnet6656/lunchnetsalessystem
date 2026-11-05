@@ -18,11 +18,11 @@ from sales import daily_questions_form as dqf
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
 from django.utils.http import url_has_allowed_host_and_scheme
 from sales.models import DiscountItem
-from sales.models import SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
+from sales.models import CarpoolRoute, SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_time
 from django.utils.dateformat import format
 from django.utils import timezone
 from collections import defaultdict
@@ -1632,7 +1632,7 @@ def location_list_view(request):
             selected_ids = request.POST.getlist('selected_ids')
             SalesLocation.objects.filter(id__in=selected_ids).delete()
             messages.success(request, '選択した販売場所データを削除しました。')
-            return HttpResponseRedirect(reverse('location_list'))
+            return _location_list_redirect(request)
 
         # 上書き保存のリクエスト
         # 旧実装は while ループで「NOが空の行が来たら break」していたため、途中行の
@@ -1649,6 +1649,7 @@ def location_list_view(request):
         skipped_rows = 0
         allowed_patterns = {p.code for p in assignable_patterns(timezone.localdate())}
         kept_patterns = []
+        route_ids = set(CarpoolRoute.objects.values_list('id', flat=True))
         for i in row_indexes:
             # 既存行は隠しフィールドの id をキーに更新する（並べ替え・NO変更でも
             # 同一レコードを保つ。ItemQuantity が SalesLocation を id でFK参照しているため、
@@ -1677,6 +1678,9 @@ def location_list_view(request):
                 'accepts_digital_payment': location_data.get(f'location[{i}][accepts_digital_payment]') == '1',
                 'expects_cash': location_data.get(f'location[{i}][expects_cash]') == '1',
             }
+            # シフト・便のタブの欄（旧シフト管理の販売場所設定・ルート設定）。欄が描かれた行だけ更新する
+            if location_data.get(f'location[{i}][shift]') == '1':
+                fields.update(_shift_fields(location_data, i, route_ids))
             # 価格表に値段がない価格パターンにはできない（日計表の値段が0円になるため）。今の設定は変えない
             existing = SalesLocation.objects.filter(id=row_id).first() if row_id else None
             if fields['price_type'] not in allowed_patterns and (existing is None or fields['price_type'] != existing.price_type):
@@ -1695,17 +1699,84 @@ def location_list_view(request):
         if kept_patterns:
             messages.warning(request, f'価格表に値段がない価格タイプは設定できないため、{"・".join(kept_patterns)}の価格タイプは変更しませんでした。')
         messages.success(request, '販売場所データを更新しました。')
-        return HttpResponseRedirect(reverse('location_list'))
+        return _location_list_redirect(request)
 
     # データを取得して表示
-    locations = SalesLocation.objects.all().order_by('no')
+    locations = SalesLocation.objects.select_related('carpool_route').order_by('no')
     patterns = assignable_patterns(timezone.localdate())
     return render(request, 'location_list.html', {
         'locations': locations,
+        'routes': CarpoolRoute.objects.annotate(location_count=Count('locations')),
+        'weather_areas': SalesLocation.WEATHER_AREA_CHOICES,
+        'priorities': [c for c, _ in SalesLocation._meta.get_field('priority').choices],
         'patterns': patterns,
         'pattern_codes': [p.code for p in patterns],
         'pattern_options': [{'code': p.code, 'name': p.label} for p in patterns],
     })
+
+LOCATION_LIST_TABS = ('basic', 'shift', 'routes')
+
+
+def _location_list_redirect(request):
+    tab = request.POST.get('tab')
+    url = reverse('location_list')
+    return HttpResponseRedirect(f'{url}?tab={tab}' if tab in LOCATION_LIST_TABS else url)
+
+
+def _shift_fields(data, i, route_ids):
+    route_id = (data.get(f'location[{i}][carpool_route]') or '').strip()
+    fields = {
+        'carpool_route_id': int(route_id) if route_id.isdigit() and int(route_id) in route_ids else None,
+        'requires_drive': data.get(f'location[{i}][requires_drive]') == '1',
+        'excluded_from_shift': data.get(f'location[{i}][excluded_from_shift]') == '1',
+    }
+    priority = data.get(f'location[{i}][priority]')
+    if priority in dict(SalesLocation._meta.get_field('priority').choices):
+        fields['priority'] = priority
+    area = data.get(f'location[{i}][weather_area]')
+    if area in dict(SalesLocation.WEATHER_AREA_CHOICES):
+        fields['weather_area'] = area
+    return fields
+
+
+@menu_permission_required('can_view_location_list')
+@require_POST
+def location_routes_view(request):
+    """便（同乗ルート）の追加・編集・削除。持参数の並びの区切りとシフトの同乗表示に使う。"""
+    delete_id = request.POST.get('delete_route')
+    if delete_id:
+        route = CarpoolRoute.objects.filter(id=delete_id).first()
+        if route:
+            route.delete()  # 店の便は未設定に戻る（SET_NULL）
+            messages.success(request, f'便「{route.name}」を削除しました。')
+        return HttpResponseRedirect(reverse('location_list') + '?tab=routes')
+
+    errors = []
+    for route in CarpoolRoute.objects.all():
+        name = (request.POST.get(f'route_{route.id}_name') or '').strip()
+        time = parse_time(request.POST.get(f'route_{route.id}_time') or '')
+        order = request.POST.get(f'route_{route.id}_order', '')
+        if not name or time is None:
+            errors.append(route.name)
+            continue
+        route.name, route.departure_time = name, time
+        if order.lstrip('-').isdigit():
+            route.display_order = int(order)
+        route.save()
+    name = (request.POST.get('new_name') or '').strip()
+    time = parse_time(request.POST.get('new_time') or '')
+    order = request.POST.get('new_order', '')
+    if name or request.POST.get('new_time'):
+        if name and time is not None:
+            CarpoolRoute.objects.create(name=name, departure_time=time,
+                                        display_order=int(order) if order.lstrip('-').isdigit() else 0)
+        else:
+            errors.append('新規')
+    if errors:
+        messages.warning(request, f'便名・出発時刻が空の行は保存なし：{"・".join(errors)}')
+    messages.success(request, '便を保存しました。')
+    return HttpResponseRedirect(reverse('location_list') + '?tab=routes')
+
 
 @menu_permission_required('can_view_others_item')
 def others_list_view(request):
@@ -1731,6 +1802,7 @@ def others_list_view(request):
         skipped_rows = 0
         allowed_patterns = {p.code for p in assignable_patterns(timezone.localdate())}
         kept_patterns = []
+        route_ids = set(CarpoolRoute.objects.values_list('id', flat=True))
         for i in row_indexes:
             # 既存行は隠しフィールドの id をキーに更新する。
             # NOをキーにすると、並べ替え（NO振り直し）やNO手動変更のときに

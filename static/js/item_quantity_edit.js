@@ -11,6 +11,14 @@
   var products = D.products, locations = D.locations;
   var offIds = {}, activeCount = 0;
   locations.forEach(function (l) { if (l.off) offIds[l.id] = true; else activeCount++; });
+  // 便の区切り：No.順に並べ、便が変わる所で切る。便なしの店は1店で1区切り
+  var segments = [], segStart = {};
+  locations.forEach(function (l) {
+    var last = segments[segments.length - 1];
+    if (last && l.route && last.route === l.route) { last.locs.push(l); return; }
+    segments.push({ route: l.route, name: l.route ? l.routeName : '', time: l.routeTime, locs: [l] });
+    segStart[l.id] = true;
+  });
 
   var dirty = {};          // key → 未保存の数
   var sel = null;          // {p, l}（l=null はメニュー行だけ選択）
@@ -21,6 +29,7 @@
   var unsent = {};         // 送信に失敗して再送待ちの key
   var timer = null, retryDelay = 1000;
   var leaving = false;
+  var lastAction = null;   // 直前の✓操作 [{p, l, prev}]（［戻す］用・1回分）
 
   function key(p, l) { return p + ':' + l; }
   function cell(p, l) { return D.cells[key(p, l)] || (D.cells[key(p, l)] = { cur: 0, plan: 0, ck: false }); }
@@ -48,9 +57,13 @@
 
   /* ── 修正の表 ── */
   function renderGrid() {
-    var h = '<thead><tr><th class="c-name">メニュー</th><th class="c-tot">合計</th>';
+    var h = '<thead><tr class="iq-route-row"><th class="c-name"></th><th class="c-tot"></th>';
+    segments.forEach(function (sg) {
+      h += '<th colspan="' + sg.locs.length + '" class="iq-rs">' + (sg.route ? esc(sg.name) + '<span class="iq-rtime">' + esc(sg.time) + '</span>' : '') + '</th>';
+    });
+    h += '</tr><tr class="iq-loc-row"><th class="c-name">メニュー</th><th class="c-tot">合計</th>';
     locations.forEach(function (l) {
-      var cls = 'iq-loc' + (l.off ? ' iq-off' : '') + (sel && sel.l === l.id ? ' iq-colfocus' : '');
+      var cls = 'iq-loc' + (segStart[l.id] ? ' iq-rs' : '') + (l.off ? ' iq-off' : '') + (sel && sel.l === l.id ? ' iq-colfocus' : '');
       var badge = l.off ? '<span class="badge text-bg-secondary iq-colbadge">中止</span>'
         : l.submitted ? '<span class="badge text-bg-secondary iq-colbadge iq-submitted">提出済</span>' : '';
       h += '<th class="' + cls + '">' + badge + '<span class="iq-vname">' + esc(l.name) + '</span></th>';
@@ -67,6 +80,7 @@
         var c = cell(p.id, l.id), v = val(p.id, l.id), k = key(p.id, l.id);
         colNow[l.id] = (colNow[l.id] || 0) + v; colPlan[l.id] = (colPlan[l.id] || 0) + c.plan;
         var cls = ['iq-cell'];
+        if (segStart[l.id]) cls.push('iq-rs');
         if (l.off) cls.push('iq-cell--off');
         if (v === 0) cls.push('iq-cell--zero');
         if (v !== c.plan) cls.push('iq-cell--diff');
@@ -84,7 +98,7 @@
       (gNow !== gPlan ? '<div class="iq-ftp">予定' + fmt(gPlan) + '</div>' : '') + '</td>';
     locations.forEach(function (l) {
       var n = colNow[l.id] || 0, pl = colPlan[l.id] || 0;
-      h += '<td class="iq-col-total"><div class="iq-ft">' + n + '</div>' + (n !== pl ? '<div class="iq-ftp">予定' + pl + '</div>' : '') + '</td>';
+      h += '<td class="iq-col-total' + (segStart[l.id] ? ' iq-rs' : '') + '"><div class="iq-ft">' + n + '</div>' + (n !== pl ? '<div class="iq-ftp">予定' + pl + '</div>' : '') + '</td>';
     });
     h += '</tr></tfoot>';
     var box = $('iq-gridbox'), sx = box.scrollLeft, sy = box.scrollTop;
@@ -108,9 +122,10 @@
     kh.classList.toggle('done', done);
     kh.innerHTML = '<span class="iq-km">' + esc(productOf(p).name) + '</span>' +
       '<span class="iq-kp">' + (done ? '消し込み完了' : '消し込み <b>' + dc + '</b>／' + activeCount + '店') + '</span>' +
-      '<span class="iq-kp">合計 ' + fmt(t.now) + '</span><span class="iq-spacer"></span>' +
+      '<span class="iq-kp iq-kp-total">合計 ' + fmt(t.now) + '</span><span class="iq-spacer"></span>' +
+      '<button type="button" class="btn btn-outline-secondary iq-h" id="iq-undo"' + (lastAction ? '' : ' disabled') + '>戻す</button>' +
       (idx < products.length - 1 ? '<button type="button" class="btn btn-primary iq-h" id="iq-next">次のメニュー</button>' : '');
-    $('iq-tiles').innerHTML = locations.map(function (l) {
+    function tile(l) {
       var c = cell(p, l.id), v = val(p, l.id), k = key(p, l.id), cls = ['iq-tile'];
       if (l.off) cls.push('iq-tile--off');
       if (v === 0) cls.push('iq-tile--zero');
@@ -123,7 +138,17 @@
         '<span class="iq-tl">' + esc(l.name) + '</span><span class="iq-tn">' + (l.off ? '中止' : v) + '</span>' +
         (v !== c.plan && !l.off ? '<span class="iq-tp">予定' + c.plan + '</span>' : '') +
         (unsent[k] ? '<span class="iq-unsent">未送信</span>' : '') + '</div>';
+    }
+    $('iq-tiles').innerHTML = segments.map(function (sg) {
+      var act = sg.locs.filter(function (l) { return !l.off; });
+      var dn = act.filter(function (l) { return isDone(p, l.id); }).length, ok = act.length && dn === act.length;
+      var name = sg.route ? sg.name : sg.locs[0].name;
+      var sub = !act.length ? '中止' : ok ? '<span class="iq-rok">済</span>' : '✓' + dn + '/' + act.length;
+      return '<section class="iq-rsec"><div class="iq-rhd' + (ok ? ' ok' : '') + '"><span class="iq-rn">' + esc(name) + '</span>' +
+        '<span class="iq-rsub">' + (sg.route ? esc(sg.time) + '発 ・ ' : '') + sub + '</span></div>' +
+        '<div class="iq-tcol">' + sg.locs.map(tile).join('') + '</div></section>';
     }).join('');
+    fitTiles();
     var on = $('iq-chips').querySelector('.on');
     if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
@@ -339,10 +364,15 @@
       h = window.innerHeight - (nav ? nav.offsetHeight : 0) - bar.offsetHeight - 8;
     }
     target.style.height = Math.max(220, h) + 'px';
-    if (mode === 'check') {
-      var tiles = $('iq-tiles');
-      tiles.classList.toggle('iq-scrolls', tiles.scrollHeight > tiles.clientHeight + 1);
-    }
+    if (mode === 'check') fitTiles();
+  }
+  // 便の列は縦になぞるので縦スクロールさせない。一番長い便の列が高さに収まるようにタイルを縮める
+  var longest = Math.max.apply(null, segments.map(function (sg) { return sg.locs.length; }));
+  function fitTiles() {
+    var box = $('iq-tiles');
+    if (!box.clientHeight) return;
+    var h = Math.floor((box.clientHeight - 24 - 66 - 8 * (longest - 1)) / longest);
+    box.style.setProperty('--iq-tile-h', Math.max(56, Math.min(84, h)) + 'px');
   }
   window.addEventListener('resize', fit);
 
@@ -408,46 +438,71 @@
     render(); $('iq-tiles').scrollTop = 0;
   });
 
-  // 押す＝✓の付け外し。押したままなぞると、最初の店の状態に合わせて通過した店をまとめて付ける／外す
-  var drag = null;
-  function applyTile(el) {
-    if (!el || !drag) return;
-    var l = +el.dataset.l;
-    if (offIds[l] || isZeroDone(sel.p, l) || drag.seen[l]) return;
-    drag.seen[l] = true;
-    if (cell(sel.p, l).ck !== drag.to) setCheck(sel.p, l, drag.to);
+  // ✓は指を離した時に確定。指が動いたら（スクロール）✓しない。縦になぞって別の店に入ったら、
+  // 最初の店の状態に合わせて通過した店をまとめて付ける／外す
+  var MOVE = 10;
+  var touch = null;
+  function tileAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    return el && el.closest('#iq-tiles .iq-tile');
+  }
+  function checkable(l) { return !offIds[l] && !isZeroDone(sel.p, l); }
+  function applyTo(l) {
+    if (touch.seen[l] || !checkable(l)) return;
+    touch.seen[l] = true;
+    var prev = cell(sel.p, l).ck;
+    if (prev !== touch.to) { touch.changes.push({ p: sel.p, l: l, prev: prev }); setCheck(sel.p, l, touch.to); }
     sel = { p: sel.p, l: l };
+  }
+  function finish(changes) {
+    if (changes.length) lastAction = changes;
     render();
+    if (changes.length && doneCount(sel.p) === activeCount) toast(productOf(sel.p).name + ' 消し込み完了');
   }
   $('iq-tiles').addEventListener('pointerdown', function (e) {
     var el = e.target.closest('.iq-tile');
-    if (!el) return;
-    if (el.classList.contains('iq-tile--off')) { toast('中止の店', true); return; }
-    if (isZeroDone(sel.p, +el.dataset.l)) return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    drag = { to: !cell(sel.p, +el.dataset.l).ck, seen: {} };
-    applyTile(el);
+    if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    var l = +el.dataset.l;
+    if (offIds[l]) { toast('中止の店', true); return; }
+    if (isZeroDone(sel.p, l)) return;
+    touch = { x: e.clientX, y: e.clientY, l: l, moved: false, drag: false, to: !cell(sel.p, l).ck, seen: {}, changes: [] };
   });
   window.addEventListener('pointermove', function (e) {
-    if (!drag) return;
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    applyTile(el && el.closest('#iq-tiles .iq-tile'));
+    if (!touch) return;
+    var dx = Math.abs(e.clientX - touch.x), dy = Math.abs(e.clientY - touch.y);
+    if (!touch.drag && dx > MOVE && dx > dy) { touch = null; return; }  // 横＝スクロール
+    if (dx > MOVE || dy > MOVE) touch.moved = true;
+    var el = tileAt(e.clientX, e.clientY);
+    if (!el) return;
+    var l = +el.dataset.l;
+    if (!touch.drag && l !== touch.l) { touch.drag = true; applyTo(touch.l); }
+    if (touch.drag) { applyTo(l); render(); }
   });
-  function endDrag() {
-    if (!drag) return;
-    drag = null;
-    if (doneCount(sel.p) === activeCount) toast(productOf(sel.p).name + ' 消し込み完了');
-  }
-  window.addEventListener('pointerup', endDrag);
-  window.addEventListener('pointercancel', function () { drag = null; });
+  window.addEventListener('pointerup', function () {
+    if (!touch) return;
+    var t = touch;
+    touch = null;
+    if (!t.drag && t.moved) return;
+    if (!t.drag) { touch = t; applyTo(t.l); touch = null; }
+    finish(t.changes);
+  });
+  window.addEventListener('pointercancel', function () { touch = null; });
   $('iq-tiles').addEventListener('keydown', function (e) {
     var el = e.target.closest('.iq-tile');
     if (!el || (e.key !== 'Enter' && e.key !== ' ') || isZeroDone(sel.p, +el.dataset.l)) return;
     e.preventDefault();
-    drag = { to: !cell(sel.p, +el.dataset.l).ck, seen: {} };
-    applyTile(el); endDrag();
+    touch = { to: !cell(sel.p, +el.dataset.l).ck, seen: {}, changes: [] };
+    applyTo(+el.dataset.l);
+    var t = touch; touch = null;
+    finish(t.changes);
     var again = $('iq-tiles').querySelector('[data-l="' + el.dataset.l + '"]');
     if (again) again.focus();
+  });
+  $('iq-khead').addEventListener('click', function (e) {
+    if (!e.target.closest('#iq-undo') || !lastAction) return;
+    lastAction.forEach(function (a) { setCheck(a.p, a.l, a.prev); });
+    lastAction = null;
+    render();
   });
 
   // 未保存のまま日付を変えない（保存か取消を先に）

@@ -13,6 +13,7 @@ from django.db import models
 from django.db.models import Count, F, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -1116,24 +1117,11 @@ def admin_notification_settings(request):
     return render(request, 'shifts/admin_notification_settings.html', context)
 
 
-# ---------- 販売場所設定 ----------
+# ---------- 販売場所設定・ルート設定（販売場所データへ移行） ----------
 
-@staff_member_required
 def admin_location_settings(request):
-    locations = SalesLocation.objects.all().order_by('no')
-    if request.method == 'POST':
-        for loc in locations:
-            loc.requires_drive = request.POST.get(f'requires_drive_{loc.id}') == 'on'
-            loc.priority = request.POST.get(f'priority_{loc.id}', 'A')
-            loc.excluded_from_shift = request.POST.get(f'excluded_from_shift_{loc.id}') == 'on'
-            area = request.POST.get(f'weather_area_{loc.id}', loc.weather_area)
-            if area in dict(SalesLocation.WEATHER_AREA_CHOICES):
-                loc.weather_area = area
-            loc.save()
-        messages.success(request, '販売場所設定を更新しました。')
-        return redirect('shifts:admin_location_settings')
-    context = {'locations': locations, 'weather_areas': SalesLocation.WEATHER_AREA_CHOICES}
-    return render(request, 'shifts/admin_location_settings.html', context)
+    # 販売場所データ（sales）の［シフト・便］へ一本化した。古いブックマーク用に転送だけ残す
+    return redirect(reverse('location_list') + '?tab=shift')
 
 
 # ---------- ユーザー設定（LINE連携・通知設定） ----------
@@ -1894,53 +1882,7 @@ def admin_external_availability(request, period_id):
     return render(request, 'shifts/admin_external_availability.html', context)
 
 
-# ---------- 同乗ルート管理 ----------
+# ---------- 同乗ルート管理（販売場所データへ移行） ----------
 
-@staff_member_required
 def admin_carpool_routes(request):
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        if action == 'create':
-            name = request.POST.get('name', '').strip()
-            departure_time = request.POST.get('departure_time', '')
-            display_order = int(request.POST.get('display_order', 0))
-            if name and departure_time:
-                CarpoolRoute.objects.create(
-                    name=name,
-                    departure_time=departure_time,
-                    display_order=display_order,
-                )
-                messages.success(request, f'ルート「{name}」を作成しました。')
-        elif action == 'update':
-            route_id = request.POST.get('route_id')
-            if route_id:
-                route = get_object_or_404(CarpoolRoute, pk=route_id)
-                route.name = request.POST.get('name', route.name).strip()
-                departure_time = request.POST.get('departure_time', '')
-                if departure_time:
-                    route.departure_time = departure_time
-                route.display_order = int(request.POST.get('display_order', route.display_order))
-                route.save()
-                messages.success(request, f'ルート「{route.name}」を更新しました。')
-        elif action == 'delete':
-            route_id = request.POST.get('route_id')
-            if route_id:
-                route = get_object_or_404(CarpoolRoute, pk=route_id)
-                route.delete()
-                messages.success(request, 'ルートを削除しました。')
-        elif action == 'assign_locations':
-            locations = SalesLocation.objects.filter(excluded_from_shift=False)
-            for loc in locations:
-                route_id = request.POST.get(f'loc_route_{loc.id}', '')
-                loc.carpool_route_id = int(route_id) if route_id else None
-                loc.save()
-            messages.success(request, '販売場所のルート割当を更新しました。')
-        return redirect('shifts:admin_carpool_routes')
-
-    routes = CarpoolRoute.objects.all()
-    locations = SalesLocation.objects.filter(excluded_from_shift=False).order_by('no')
-    context = {
-        'routes': routes,
-        'locations': locations,
-    }
-    return render(request, 'shifts/admin_carpool_routes.html', context)
+    return redirect(reverse('location_list') + '?tab=routes')

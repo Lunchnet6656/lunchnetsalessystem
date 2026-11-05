@@ -22,6 +22,10 @@
 #iq-grid { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
 #iq-grid th, #iq-grid td { border-right: 1px solid var(--ln-color-border); border-bottom: 1px solid var(--ln-color-border); padding: 0; background: var(--ln-color-white); }
 #iq-grid thead th { position: sticky; top: 0; z-index: 2; background: var(--ln-color-surface-muted); vertical-align: bottom; padding: 6px 0; font-weight: 500; }
+#iq-grid thead tr.iq-route-row th { top: 0; height: 30px; padding: 0 6px; font-size: 12px; font-weight: 700; text-align: left; white-space: nowrap; vertical-align: middle; background: var(--ln-color-surface-disabled); }
+#iq-grid thead tr.iq-loc-row th { top: 30px; }
+.iq-rtime { font-weight: 400; color: var(--ln-color-text-muted); margin-left: 6px; }
+#iq-grid .iq-rs { border-left: 3px solid var(--ln-color-dark); }
 #iq-grid thead th.iq-loc { width: var(--iq-cell-w); min-width: var(--iq-cell-w); text-align: center; }
 .iq-vname { writing-mode: vertical-rl; white-space: nowrap; margin: 0 auto; letter-spacing: .05em; }
 .iq-colbadge { display: block; margin: 0 auto 6px; width: max-content; font-size: 10px; writing-mode: horizontal-tb; }
@@ -79,12 +83,20 @@ td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim
 .iq-khead.done .iq-km { color: var(--ln-color-success); }
 .iq-kp { font-size: 15px; font-variant-numeric: tabular-nums; }
 .iq-kp b { font-size: 20px; }
-.iq-tiles { overflow-y: auto; padding: 12px 2px; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; align-content: start; touch-action: none; user-select: none; -webkit-user-select: none; }
-/* はみ出す時だけ縦スクロールを指に戻す（横になぞる✓は効く） */
-.iq-tiles.iq-scrolls { touch-action: pan-y; }
-.iq-tile { height: 92px; border: 2px solid var(--ln-color-border); border-radius: 10px; background: var(--ln-color-white); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; position: relative; }
+/* 便ごとの縦の列を横に並べる。横の指の動きはスクロール、縦はなぞり✓ */
+.iq-tiles { --iq-tile-h: 84px; overflow-x: auto; overflow-y: hidden; padding: 12px 2px; display: flex; align-items: flex-start; touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+.iq-rsec { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 112px; padding: 0 6px; border-left: 3px solid var(--ln-color-dark); }
+.iq-rsec:first-child { border-left: 0; padding-left: 0; }
+.iq-rhd { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 58px; margin-bottom: 8px; padding: 0 8px; border-radius: 6px; background: var(--ln-color-surface-muted); white-space: nowrap; }
+.iq-rhd.ok { background: var(--ln-color-success-bg); }
+.iq-rn { font-size: 16px; font-weight: 700; }
+.iq-rhd.ok .iq-rn, .iq-rok { color: var(--ln-color-success); }
+.iq-rok { font-weight: 700; }
+.iq-rsub { font-size: 13px; color: var(--ln-color-text-muted); font-variant-numeric: tabular-nums; }
+.iq-tcol { display: flex; flex-direction: column; gap: 8px; }
+.iq-tile { height: var(--iq-tile-h); padding: 0 12px; border: 2px solid var(--ln-color-border); border-radius: 10px; background: var(--ln-color-white); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; position: relative; }
 .iq-tile .iq-tl { font-size: 14px; font-weight: 500; white-space: nowrap; }
-.iq-tile .iq-tn { font-size: 30px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.iq-tile .iq-tn { font-size: calc(var(--iq-tile-h) * .34); font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .iq-tile .iq-tp { font-size: 11px; color: var(--bs-warning-text-emphasis); white-space: nowrap; }
 .iq-tile--diff { background: var(--bs-warning-bg-subtle); }
 .iq-tile--dirty .iq-tn { color: var(--bs-primary); }
@@ -143,8 +155,10 @@ td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim
   .iq-num { width: 60px; height: 52px; }
   .iq-save { min-width: 72px; height: 52px; }
   .iq-h { padding-left: 8px; padding-right: 8px; }
-  .iq-tiles { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-  .iq-tile .iq-tl { font-size: 11px; }
+  .iq-rsec { min-width: 96px; }
+  .iq-khead { gap: 4px 8px; padding: 8px 10px; }
+  .iq-khead .iq-km { flex: 1 0 100%; }
+  .iq-khead .iq-kp-total { display: none; }
   .iq-km { font-size: 20px; }
   /* 1件を2行に（時刻・店・数／メニュー・担当） */
   .iq-history-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 10px; border-bottom: 1px solid var(--ln-color-border); }

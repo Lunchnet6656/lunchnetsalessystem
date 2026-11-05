@@ -35,6 +35,10 @@ def user_label(user):
     return f"{user.last_name} {user.first_name}".strip() or user.username
 
 
+def _hm(t):
+    return f"{t.hour}:{t.minute:02d}"
+
+
 def _key(product_id, location_id):
     return f"{product_id}:{location_id}"
 
@@ -44,7 +48,8 @@ class Day:
 
     def __init__(self, d, lock=False):
         self.date = d
-        qs = ItemQuantity.objects.filter(target_date=d.isoformat()).select_related("product", "sales_location")
+        qs = ItemQuantity.objects.filter(target_date=d.isoformat()).select_related(
+            "product", "sales_location", "sales_location__carpool_route")
         if lock:
             qs = qs.select_for_update(of=("self",))
         self.rows = list(qs)
@@ -109,8 +114,11 @@ def screen(d, today, user):
         "editable": editable,
         "uploadId": upload.id if upload else None,
         "products": [{"id": p.id, "name": p.name} for p in day.products],
+        # 並びは販売場所No.順（振分の箱の並び）。便の区切りは画面側で、便が変わる所に入れる
         "locations": [
-            {"id": loc.id, "name": loc.name, "off": loc.id in off, "submitted": loc.name in submitted}
+            {"id": loc.id, "name": loc.name, "off": loc.id in off, "submitted": loc.name in submitted,
+             "route": loc.carpool_route_id, "routeName": loc.carpool_route.name if loc.carpool_route else "",
+             "routeTime": _hm(loc.carpool_route.departure_time) if loc.carpool_route else ""}
             for loc in day.locations
         ],
         "cells": {
