@@ -1,5 +1,5 @@
 from django import forms
-from sales.models import Product, ItemQuantity, DailyReport, DailyReportEntry, ShiftRequest
+from sales.models import Product, DailyReport, DailyReportEntry, ShiftRequest
 from datetime import date, timedelta, datetime
 import calendar
 
@@ -17,11 +17,6 @@ class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = ['name', 'price_A', 'price_B', 'price_C',  'container_type']
-
-class ItemQuantityForm(forms.ModelForm):
-    class Meta:
-        model = ItemQuantity
-        fields = ['target_date', 'target_week', 'product', 'sales_location', 'quantity']
 
 class ProductUpdateForm(forms.ModelForm):
     class Meta:

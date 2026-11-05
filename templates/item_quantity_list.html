@@ -1,29 +1,31 @@
-<!DOCTYPE html>
 {% extends 'base.html' %}
 
 {% block title %}持参数データリスト{% endblock %}
 
 {% block content %}
 {% load custom_filters %}
-{% load humanize %}
 <div class="container mt-4">
-<h1 class="mb-1">持参数データリスト</h1>
+<div class="d-flex align-items-center gap-3 flex-wrap">
+  <h1 class="mb-1 text-nowrap">持参数データリスト</h1>
+  {% if today_edit %}<a href="{% url 'item_quantity_edit' today_edit %}" class="btn btn-primary text-nowrap">今日の修正</a>{% endif %}
+</div>
 <hr class="my-4">
-<table class="table">
+<table class="table align-middle">
     <thead>
         <tr>
-            <th>日付</th>
-            <th>week</th>
-            <th>Actions</th>
+            <th class="text-nowrap">日付</th>
+            <th class="text-nowrap">週</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
+        {% for target_date in item_date %}
         <tr>
-          {% for target_date in item_date %}
-          <td>{{ target_date.target_date|japanese_date }}</td>
-          <td>{{ target_date.target_week|japanese_date }}</td>
-          <td>
-            <a href="{% url 'item_quantity_detail' target_date.target_date %}" class="btn btn-primary">詳細</a>
+          <td class="text-nowrap">{{ target_date.target_date|japanese_date }}</td>
+          <td class="text-nowrap">{{ target_date.target_week|japanese_date }}</td>
+          <td class="text-nowrap">
+            <a href="{% url 'item_quantity_detail' target_date.target_date %}" class="btn btn-outline-secondary">詳細</a>
+            {% if target_date.editable %}<a href="{% url 'item_quantity_edit' target_date.iso %}" class="btn btn-outline-secondary ms-1">修正</a>{% endif %}
           </td>
         </tr>
         {% endfor %}

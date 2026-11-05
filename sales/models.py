@@ -185,11 +185,38 @@ class ItemQuantity(models.Model):
     target_week =  models.CharField(max_length=10, default='00000000')  # 対象週（yyyymmdd形式）
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     sales_location = models.ForeignKey(SalesLocation, on_delete=models.CASCADE)
-    quantity = models.IntegerField()
+    quantity = models.IntegerField()  # 現在の数（振分の現場で直した後）。日計表・分析はこちらを使う
+    # 振分表から届いた数。アプリでの修正では変えず、再送で上書きする
+    planned_quantity = models.IntegerField(default=0)
+    # 消し込み（振り分けた印）。振分表の再送で数が変わったら外す
+    checked_at = models.DateTimeField(null=True, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
 
     def __str__(self):
         return f"{self.target_date} - {self.sales_location} - {self.product} - {self.quantity}"
-    
+
+
+class ItemQuantityChange(models.Model):
+    """持参数の修正履歴。ItemQuantity は再送で上書きされるので、店・メニューを直接持つ。"""
+    target_date = models.DateField(db_index=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    sales_location = models.ForeignKey(SalesLocation, on_delete=models.CASCADE)
+    before = models.IntegerField()
+    after = models.IntegerField()
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-changed_at", "-id"]
+
+    def __str__(self):
+        return f"{self.target_date} {self.sales_location} {self.product} {self.before}→{self.after}"
+
+
 class ItemQuantityUpload(models.Model):
     """持参数の受信記録。19:30の未受信通知と、画面の「最終受信」表示に使う。"""
     SOURCE_CHOICES = [("api", "振分表の確定ボタン"), ("screen", "画面アップロード")]

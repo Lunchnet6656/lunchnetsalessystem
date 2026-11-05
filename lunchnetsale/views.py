@@ -6,8 +6,9 @@ from django.contrib import messages
 from django.core.management import call_command
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
-from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, ItemQuantityForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm
+from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm
 import pandas as pd
+from sales.item_quantity_edit import editable_dates as iq_editable_dates
 from sales.item_quantity_import import is_business_day, next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, known_codes, pattern_of
@@ -1767,14 +1768,19 @@ def others_list_view(request):
 def item_quantity_list_view(request):
 
     item_dates = ItemQuantity.objects.order_by('-target_date').values('target_date','target_week').distinct()  # target_date のみを取得
+    editable = {d.isoformat() for d in iq_editable_dates(timezone.localdate())}
     item_date = []
     for item in item_dates:
         item_date.append({
             'target_date': datetime.strptime(item['target_date'], '%Y-%m-%d') , # 適切なフォーマットを指定
-            'target_week': datetime.strptime(item['target_week'], '%Y-%m-%d')
+            'target_week': datetime.strptime(item['target_week'], '%Y-%m-%d'),
+            'iso': item['target_date'],
+            'editable': item['target_date'] in editable,
         })
+    today_iso = timezone.localdate().isoformat()
     context = {
-        'item_date': item_date
+        'item_date': item_date,
+        'today_edit': today_iso if any(i['iso'] == today_iso for i in item_date) else None,
     }
     return render(request, 'item_quantity_list.html', context)
 
@@ -1836,23 +1842,10 @@ def item_quantity_detail_view(request, date):
         'sales_locations': sales_locations,  # 販売場所名のリスト
         'selected_date': date_str,  # 選択された日付
         'location_totals': location_totals,  # 販売場所ごとの合計
+        'editable': date_only in iq_editable_dates(timezone.localdate()),
     }
 
     return render(request, 'item_quantity_detail.html', context)
-
-
-@menu_permission_required('can_view_item_quantity')
-def item_quantity_update_view(request, pk):
-    item_quantity = get_object_or_404(ItemQuantity, pk=pk)
-    if request.method == 'POST':
-        form = ItemQuantityForm(request.POST, instance=item_quantity)
-        if form.is_valid():
-            form.save()
-            return redirect('item_quantity_list')
-    else:
-        form = ItemQuantityForm(instance=item_quantity)
-    return render(request, 'item_quantity_form.html', {'form': form})
-
 
 
 def _aggregate_daily_performance(current_date, daily_reports, daily_orders):

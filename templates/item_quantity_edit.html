@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}持参数の修正{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'css/help.css' %}" rel="stylesheet">
+<link href="{% static 'css/item_quantity_edit.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="iq" id="iq"
+     data-save-url="{% url 'item_quantity_edit_save' grid_data.date %}"
+     data-checks-url="{% url 'item_quantity_checks' grid_data.date %}">
+  {% csrf_token %}
+  <div class="iq-head">
+    <h4 class="mb-0">持参数の修正</h4>
+    {% include "includes/help_button.html" with id="iq-edit" title="持参数の修正" body="includes/help/iq_edit.html" %}
+    {% if has_data and editable %}
+    <div class="btn-group iq-modes" role="group">
+      <button type="button" class="btn btn-primary" id="iq-mode-edit" aria-pressed="true">修正</button>
+      <button type="button" class="btn btn-outline-secondary" id="iq-mode-check" aria-pressed="false">消し込み</button>
+    </div>
+    {% endif %}
+    <span class="iq-spacer"></span>
+    <span class="iq-who">ログイン {{ login_name }}</span>
+  </div>
+
+  <div class="iq-ops">
+    <div class="btn-group iq-dates" role="group">
+      {% for x in dates %}
+      <a href="{% url 'item_quantity_edit' x.date|date:'Y-m-d' %}" class="btn {% if x.date == date %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ x.label }}{% if x.suffix %} {{ x.suffix }}{% endif %}</a>
+      {% endfor %}
+    </div>
+    {% if not editable %}<span class="badge text-bg-secondary iq-readonly">{{ date_label }} 閲覧のみ</span>{% endif %}
+    {% if has_data %}
+    <div class="iq-ops-row">
+      <div class="iq-sum">合計 <b id="iq-sum-now"></b> <span class="iq-muted" id="iq-sum-plan"></span></div>
+      {% if last_upload %}<div class="iq-muted iq-received">受信 {{ last_upload.received_at|date:"n/j G:i" }}</div>{% endif %}
+      <span class="iq-spacer"></span>
+      <button type="button" class="btn btn-outline-secondary" id="iq-history-open" data-hp-open="iq-history" aria-haspopup="dialog">履歴 <span class="badge text-bg-secondary">{{ change_count }}</span></button>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if has_data %}
+  <div id="iq-alert" class="iq-alert" role="alert" hidden></div>
+  <div class="iq-gridbox" id="iq-gridbox"><table id="iq-grid"></table></div>
+  <div class="iq-kview" id="iq-kview" hidden>
+    <div class="iq-chips" id="iq-chips"></div>
+    <div class="iq-khead" id="iq-khead"></div>
+    <div class="iq-tiles" id="iq-tiles"></div>
+  </div>
+
+  <div class="iq-bar" id="iq-bar">
+    <div class="iq-target" id="iq-target"></div>
+    <div class="iq-stepper">
+      <button type="button" class="btn btn-outline-secondary iq-sq" id="iq-minus" aria-label="1減らす">−</button>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" class="form-control iq-num" id="iq-input" aria-label="持参数" autocomplete="off">
+      <button type="button" class="btn btn-outline-secondary iq-sq" id="iq-plus" aria-label="1増やす">＋</button>
+      <button type="button" class="btn btn-outline-secondary iq-h" id="iq-reset">予定に戻す</button>
+    </div>
+    <span class="iq-spacer"></span>
+    <div class="iq-act" id="iq-act">
+      <span class="iq-dirty" id="iq-dirty-count" hidden></span>
+      <button type="button" class="btn btn-outline-secondary iq-h" id="iq-cancel">取消</button>
+      <button type="button" class="btn btn-primary iq-save" id="iq-save">保存</button>
+    </div>
+    <div class="iq-act" id="iq-confirm" hidden>
+      <span class="iq-confirm-text" id="iq-confirm-text"></span>
+      <button type="button" class="btn btn-outline-secondary iq-h" id="iq-confirm-no">戻る</button>
+      <button type="button" class="btn btn-outline-danger iq-h" id="iq-confirm-yes">取消</button>
+    </div>
+  </div>
+  {{ grid_data|json_script:"iq-data" }}
+  {% else %}
+  <p class="text-muted mt-3">{{ date_label }} の持参数 未受信</p>
+  {% endif %}
+</div>
+
+<dialog id="iq-history" class="hp-dialog iq-history" aria-labelledby="iq-history-t">
+  <div class="hp-dialog-head">
+    <h2 id="iq-history-t">修正履歴 {{ date_label }}</h2>
+    <form method="dialog"><button class="hp-close" aria-label="閉じる">×</button></form>
+  </div>
+  <div class="hp-dialog-body">
+    {% if change_count == 0 %}<p class="text-muted mb-2">修正なし</p>{% endif %}
+    {% if history %}
+    <table class="table table-sm mb-0">
+      <tbody>
+      {% for h in history %}
+        {% if h.kind == "upload" %}
+        <tr class="iq-history-upload"><td colspan="5">{{ h.at|date:"n/j G:i" }} 振分表から受信</td></tr>
+        {% else %}
+        <tr class="iq-history-row{% if h.stale %} text-muted{% endif %}">
+          <td class="iq-h-time">{% if h.at|date:"Y-m-d" == grid_data.date %}{{ h.at|date:"G:i" }}{% else %}{{ h.at|date:"n/j G:i" }}{% endif %}</td>
+          <td class="iq-h-loc">{{ h.location }}</td>
+          <td class="iq-h-menu">{{ h.product }}</td>
+          <td class="iq-h-num">{{ h.before }} → {{ h.after }}</td>
+          <td class="iq-h-by">{{ h.by }}</td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/help.js' %}"></script>
+{% if has_data %}<script src="{% static 'js/item_quantity_edit.js' %}"></script>{% endif %}
+{% endblock %}

@@ -24,6 +24,7 @@ from sales import qr_views as sales_qr_views
 from sales import api_views as sales_api_views
 from sales import price_admin_views
 from sales import menu_list_views
+from sales import item_quantity_edit_views
 from sales import direct_return_views
 from sales import user_admin_views
 from stamps import views as stamp_views
@@ -122,7 +123,9 @@ urlpatterns = [
 
     path('item_quantity_list/', views.item_quantity_list_view, name='item_quantity_list'),
     path('item_quantity_list/<str:date>/', views.item_quantity_detail_view, name='item_quantity_detail'),
-    path('item_quantity_list/update/<int:pk>/', views.item_quantity_update_view, name='item_quantity_update'),
+    path('item_quantity_list/<str:date>/edit/', item_quantity_edit_views.item_quantity_edit, name='item_quantity_edit'),
+    path('item_quantity_list/<str:date>/edit/save/', item_quantity_edit_views.item_quantity_edit_save, name='item_quantity_edit_save'),
+    path('item_quantity_list/<str:date>/edit/checks/', item_quantity_edit_views.item_quantity_checks, name='item_quantity_checks'),
 
     path('performance_data/', views.performance_data_view, name='performance_data'),
     path('performance_data/<int:year>/<int:month>/<int:day>/', views.menu_sales_performance_view, name='menu_sales_performance'),

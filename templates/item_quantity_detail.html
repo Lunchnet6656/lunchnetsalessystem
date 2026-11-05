@@ -8,7 +8,10 @@
 {% load humanize %}
 <div class="container mt-4">
   <!-- templates/item_quantity_detail.html -->
-  <h2 class="mb-1">販売場所別　持参数データ</h2>
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <h2 class="mb-1 text-nowrap">販売場所別　持参数データ</h2>
+    {% if editable %}<a href="{% url 'item_quantity_edit' selected_date %}" class="btn btn-outline-secondary text-nowrap">修正</a>{% endif %}
+  </div>
   <hr class="my-4">
   <p>選択された日付: {{ selected_date }}</p>
   <table id="item-table" class="table"><!---->

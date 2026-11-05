@@ -1,0 +1,154 @@
+/* item_quantity_edit.css — 持参数の修正（修正の表・消し込み・下の編集バー）。
+ * 色は tokens.css（--ln-*）と Bootstrap 5.3 の変数だけを使う。新しいトークンは作らない。 */
+.iq { --iq-cell-w: 56px; --iq-name-w: 200px; container-type: inline-size; }
+/* base.html の本文枠は「幅100%＋左の余白」で右が画面外にはみ出す（全画面共通）。
+   この画面は右端に履歴・保存を置くので、枠を画面内に収め、列も全幅にする */
+.container-fluid, .container-fluid.expanded { width: auto; }
+.container-fluid > .row > .col-md-10 { flex: 1 1 auto; width: 100%; max-width: 100%; }
+.iq-head, .iq-ops, .iq-ops-row { display: flex; align-items: center; gap: 8px 12px; white-space: nowrap; }
+.iq-head { padding: 4px 0 6px; flex-wrap: wrap; }
+.iq-ops { flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--ln-color-border); }
+.iq-ops-row { flex: 1 1 auto; }
+.iq-spacer { flex: 1 1 auto; }
+.iq-who { font-size: 12px; color: var(--ln-color-text-muted); }
+.iq-muted { font-size: 12px; color: var(--ln-color-text-muted); }
+.iq-modes .btn, .iq-dates .btn, #iq-history-open, .iq-h { height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+.iq-sum { font-variant-numeric: tabular-nums; }
+.iq-sum b { font-size: 18px; color: var(--ln-color-text-strong); }
+.iq-readonly { font-size: 13px; }
+
+/* ── 修正の表：上（店名）・左（メニュー名・合計）・下（店の合計）を固定 ── */
+.iq-gridbox { overflow: auto; position: relative; background: var(--ln-color-white); margin-top: 6px; }
+#iq-grid { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+#iq-grid th, #iq-grid td { border-right: 1px solid var(--ln-color-border); border-bottom: 1px solid var(--ln-color-border); padding: 0; background: var(--ln-color-white); }
+#iq-grid thead th { position: sticky; top: 0; z-index: 2; background: var(--ln-color-surface-muted); vertical-align: bottom; padding: 6px 0; font-weight: 500; }
+#iq-grid thead th.iq-loc { width: var(--iq-cell-w); min-width: var(--iq-cell-w); text-align: center; }
+.iq-vname { writing-mode: vertical-rl; white-space: nowrap; margin: 0 auto; letter-spacing: .05em; }
+.iq-colbadge { display: block; margin: 0 auto 6px; width: max-content; font-size: 10px; writing-mode: horizontal-tb; }
+#iq-grid .c-name, #iq-grid .c-tot { position: sticky; z-index: 1; }
+#iq-grid .c-name { left: 0; min-width: var(--iq-name-w); padding: 0 12px; white-space: nowrap; }
+#iq-grid .c-tot { left: var(--iq-name-w); min-width: 76px; text-align: right; padding: 0 10px; box-shadow: var(--ln-shadow-col); }
+#iq-grid thead .c-name, #iq-grid thead .c-tot { z-index: 3; text-align: left; }
+#iq-grid thead .c-tot { text-align: right; }
+.iq-tot-now { font-weight: 700; font-size: 16px; line-height: 1.1; }
+.iq-tot-plan { font-size: 11px; color: var(--ln-color-text-muted); white-space: nowrap; }
+
+.iq-menu { all: unset; box-sizing: border-box; display: flex; align-items: center; height: 52px; width: 100%; cursor: pointer; white-space: nowrap; font-weight: 500; }
+.iq-menu:focus-visible { outline: 3px solid var(--bs-primary-border-subtle); outline-offset: -3px; }
+.iq-ckcount { font-size: 11px; color: var(--ln-color-success); margin-left: 8px; font-weight: 500; }
+
+td.iq-cell > button { width: var(--iq-cell-w); height: 52px; border: 0; padding: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; color: inherit; }
+td.iq-cell > button:focus-visible { outline: 3px solid var(--bs-primary-border-subtle); outline-offset: -3px; }
+.iq-n { font-size: 18px; font-weight: 700; line-height: 1; }
+.iq-plan { font-size: 11px; color: var(--bs-warning-text-emphasis); margin-top: 3px; white-space: nowrap; }
+.iq-tick { position: absolute; top: 2px; left: 3px; font-size: 11px; color: var(--ln-color-success); font-weight: 700; line-height: 1; }
+td.iq-cell.iq-cell--zero .iq-n { color: var(--ln-color-text-dim); font-weight: 400; }
+#iq-grid td.iq-cell--diff { background: var(--bs-warning-bg-subtle); }
+td.iq-cell--dirty > button { box-shadow: inset 0 0 0 2px var(--bs-primary); border-radius: 2px; }
+td.iq-cell--dirty .iq-n { color: var(--bs-primary); }
+td.iq-cell--selected > button { box-shadow: inset 0 0 0 3px var(--bs-primary); }
+#iq-grid td.iq-cell--off, .iq-tile--off { background: repeating-linear-gradient(45deg, var(--ln-color-surface-disabled) 0 6px, var(--ln-color-surface-muted) 6px 12px); }
+td.iq-cell--off > button { cursor: not-allowed; }
+td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim); }
+
+/* 選んだメニュー行を強く（隣の行との見間違い対策） */
+#iq-grid tr.iq-focus > td, #iq-grid tr.iq-focus > td.c-name, #iq-grid tr.iq-focus > td.c-tot { background: var(--bs-primary-bg-subtle); border-top: 2px solid var(--bs-primary); border-bottom: 2px solid var(--bs-primary); }
+#iq-grid tr.iq-focus > td.iq-cell--diff { background: var(--bs-warning-border-subtle); }
+#iq-grid tr.iq-focus .c-name { box-shadow: inset 5px 0 0 var(--bs-primary); }
+#iq-grid tr.iq-focus .iq-menu { font-weight: 700; }
+#iq-grid thead th.iq-colfocus { background: var(--bs-primary-bg-subtle); }
+
+#iq-grid tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--ln-color-surface-muted); border-top: 3px double var(--ln-color-dark); text-align: center; height: 48px; }
+#iq-grid tfoot .c-name, #iq-grid tfoot .c-tot { z-index: 3; }
+.iq-ft { font-weight: 700; }
+.iq-ftp { font-size: 11px; color: var(--ln-color-text-muted); white-space: nowrap; }
+
+/* ── 消し込み：1メニューに集中 ── */
+.iq-kview { display: flex; flex-direction: column; margin-top: 6px; background: var(--ln-color-white); }
+.iq-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 10px; flex: none; }
+.iq-chip { flex: none; height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--ln-color-border); background: var(--ln-color-white); white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; color: inherit; }
+.iq-chip .iq-pg { font-size: 12px; color: var(--ln-color-text-muted); font-variant-numeric: tabular-nums; }
+.iq-chip.on { background: var(--bs-primary); border-color: var(--bs-primary); color: var(--ln-color-white); }
+.iq-chip.on .iq-pg { color: var(--bs-primary-bg-subtle); }
+.iq-chip.done { border-color: var(--ln-color-success); color: var(--ln-color-success); background: var(--ln-color-success-bg); }
+.iq-chip.done.on { background: var(--ln-color-success); color: var(--ln-color-white); }
+.iq-chip.done .iq-pg { color: inherit; }
+.iq-khead { display: flex; align-items: center; gap: 8px 14px; padding: 10px 12px; flex-wrap: wrap; white-space: nowrap; background: var(--bs-primary-bg-subtle); border-bottom: 2px solid var(--bs-primary); flex: none; }
+.iq-khead.done { background: var(--ln-color-success-bg); border-bottom-color: var(--ln-color-success); }
+.iq-km { font-size: 24px; font-weight: 700; color: var(--bs-primary); }
+.iq-khead.done .iq-km { color: var(--ln-color-success); }
+.iq-kp { font-size: 15px; font-variant-numeric: tabular-nums; }
+.iq-kp b { font-size: 20px; }
+.iq-tiles { overflow-y: auto; padding: 12px 2px; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; align-content: start; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* はみ出す時だけ縦スクロールを指に戻す（横になぞる✓は効く） */
+.iq-tiles.iq-scrolls { touch-action: pan-y; }
+.iq-tile { height: 92px; border: 2px solid var(--ln-color-border); border-radius: 10px; background: var(--ln-color-white); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; position: relative; }
+.iq-tile .iq-tl { font-size: 14px; font-weight: 500; white-space: nowrap; }
+.iq-tile .iq-tn { font-size: 30px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.iq-tile .iq-tp { font-size: 11px; color: var(--bs-warning-text-emphasis); white-space: nowrap; }
+.iq-tile--diff { background: var(--bs-warning-bg-subtle); }
+.iq-tile--dirty .iq-tn { color: var(--bs-primary); }
+.iq-tile--selected { border-color: var(--bs-primary); box-shadow: 0 0 0 2px var(--bs-primary); }
+.iq-tile--done { background: var(--ln-color-success-bg); border-color: var(--ln-color-success); }
+.iq-tile--done .iq-tn, .iq-tile--done .iq-tl { color: var(--ln-color-success); }
+.iq-tile--done::after { content: "✓"; position: absolute; bottom: 2px; right: 8px; font-size: 20px; line-height: 1.2; font-weight: 700; color: var(--ln-color-success); }
+.iq-tile--zero .iq-tn { color: var(--ln-color-text-dim); }
+.iq-tile--off { border-style: dashed; cursor: not-allowed; }
+.iq-tile--off .iq-tn, .iq-tile--off .iq-tl { color: var(--ln-color-text-dim); }
+.iq-unsent { position: absolute; left: 6px; bottom: 4px; font-size: 10px; color: var(--ln-color-danger); white-space: nowrap; }
+
+/* ── 編集バー（表の下。画面の一番下に来るよう表の高さを JS で合わせる） ── */
+.iq-alert { margin: 6px 0 0; padding: 8px 12px; display: flex; align-items: center; gap: 12px; white-space: nowrap; flex-wrap: wrap; }
+.iq-bar { position: sticky; bottom: 0; z-index: 5; background: var(--ln-color-white); box-shadow: var(--ln-shadow-nav); padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); margin: 0 -12px; display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+.iq-target { min-width: 0; white-space: nowrap; }
+.iq-bar-menu { font-size: 20px; font-weight: 700; color: var(--bs-primary); }
+.iq-bar-loc { font-size: 16px; font-weight: 700; }
+.iq-bar-x { color: var(--ln-color-text-muted); margin: 0 4px; }
+.iq-bar-none { font-size: 15px; color: var(--ln-color-text-muted); }
+.iq-line2 { font-size: 12px; color: var(--ln-color-text-muted); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#iq-row-diff { font-weight: 700; color: var(--ln-color-danger); }
+#iq-row-diff.ok { color: var(--ln-color-success); }
+.iq-stepper, .iq-act { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.iq-act { gap: 10px; }
+.iq-sq { width: 56px; height: 56px; font-size: 26px; line-height: 1; padding: 0; border-radius: 8px; }
+.iq-num { width: 72px; height: 56px; text-align: center; font-size: 20px; font-weight: 700; border-radius: 8px; }
+.iq-save { height: 56px; min-width: 104px; font-size: 16px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.iq-dirty { font-size: 12px; color: var(--bs-primary); }
+.iq-confirm-text { font-size: 13px; }
+
+.iq-toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 10px); background: var(--ln-color-success-bg); color: var(--ln-color-success); border: 1px solid var(--bs-success-border-subtle); padding: 8px 14px; border-radius: 6px; white-space: nowrap; font-weight: 500; }
+.iq-toast.warn { background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); border-color: var(--bs-warning-border-subtle); }
+
+.iq-history .table td { white-space: nowrap; }
+.iq-history-upload td { text-align: center; font-size: 12px; color: var(--ln-color-text-muted); background: var(--ln-color-surface-muted); }
+
+/* サイドバーの開閉で使える幅が変わるので、画面幅ではなく本文の幅で2段にする */
+.iq-act { margin-left: auto; }
+@container (max-width: 899px) {
+  .iq-bar .iq-target { flex: 1 0 100%; }
+  .iq-bar .iq-spacer { display: none; }
+}
+@media (max-width: 575px) {
+  .iq { --iq-name-w: 150px; }
+  #iq-grid .c-name { font-size: 13px; padding: 0 8px; }
+  /* 合計の列は横に固定しない（店が2列しか見えなくなる）。見出し・合計行の上下固定は残す */
+  #iq-grid .c-tot { left: auto; box-shadow: none; }
+  #iq-grid tbody .c-tot { position: static; }
+  #iq-grid .c-name { box-shadow: var(--ln-shadow-col); }
+  .iq-received { display: none; }
+  .iq-ops-row { flex-basis: 100%; }
+  .iq-bar-menu { font-size: 17px; }
+  .iq-bar { gap: 8px; padding-left: 8px; padding-right: 8px; margin: 0 -5px; }
+  .iq-sq { width: 48px; height: 52px; }
+  .iq-num { width: 60px; height: 52px; }
+  .iq-save { min-width: 72px; height: 52px; }
+  .iq-h { padding-left: 8px; padding-right: 8px; }
+  .iq-tiles { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .iq-tile .iq-tl { font-size: 11px; }
+  .iq-km { font-size: 20px; }
+  /* 1件を2行に（時刻・店・数／メニュー・担当） */
+  .iq-history-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 10px; border-bottom: 1px solid var(--ln-color-border); }
+  .iq-history-row td { border: 0; padding: 4px 2px; }
+  .iq-h-time { grid-area: 1 / 1; } .iq-h-loc { grid-area: 1 / 2; } .iq-h-num { grid-area: 1 / 3; }
+  .iq-h-menu { grid-area: 2 / 1 / 2 / 3; } .iq-h-by { grid-area: 2 / 3; }
+}

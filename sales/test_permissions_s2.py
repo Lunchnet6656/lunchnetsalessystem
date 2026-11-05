@@ -21,7 +21,7 @@ def screens(location_id):
         ("/location_list", "can_view_location_list"),
         ("/item_quantity_list/", "can_view_item_quantity"),
         ("/item_quantity_list/2026-10-01%2000:00:00/", "can_view_item_quantity"),
-        ("/item_quantity_list/update/999999/", "can_view_item_quantity"),
+        ("/item_quantity_list/2026-10-01/edit/", "can_view_item_quantity"),
         ("/performance_data/", "can_view_performance_data"),
         ("/performance_data/2026/10/1/", "can_view_performance_data"),
         ("/performance_by_location/", "can_view_performance_by_location"),

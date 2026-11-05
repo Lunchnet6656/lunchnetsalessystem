@@ -118,19 +118,30 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
 
 
 def save_item_quantities(parsed: ParsedItemQuantity) -> int:
-    """同じ 対象日×対象wk×メニュー×店 は上書き。保存件数を返す。"""
+    """同じ 対象日×対象wk×メニュー×店 は上書き（予定・現在とも振分表の数に）。保存件数を返す。"""
     # ItemQuantity の日付は文字列カラムに date を渡して "YYYY-MM-DD" で保存してきた（既存データと揃える）
     target_date = parsed.target_date.isoformat()
     target_week = parsed.target_week.isoformat()
     with transaction.atomic():
+        existing = {
+            (iq.product_id, iq.sales_location_id): iq
+            for iq in ItemQuantity.objects.filter(target_date=target_date, target_week=target_week)
+        }
         for product, loc, quantity in parsed.entries:
-            ItemQuantity.objects.update_or_create(
-                target_date=target_date,
-                target_week=target_week,
-                product=product,
-                sales_location=loc,
-                defaults={"quantity": quantity},
-            )
+            iq = existing.get((product.id, loc.id))
+            if iq is None:
+                ItemQuantity.objects.create(
+                    target_date=target_date, target_week=target_week, product=product,
+                    sales_location=loc, quantity=quantity, planned_quantity=quantity,
+                )
+                continue
+            # 振り分けた数と違う数が届いたら、その消し込みはやり直し
+            if iq.quantity != quantity:
+                iq.checked_at = None
+                iq.checked_by = None
+            iq.quantity = quantity
+            iq.planned_quantity = quantity
+            iq.save(update_fields=["quantity", "planned_quantity", "checked_at", "checked_by"])
     return len(parsed.entries)
 
 
