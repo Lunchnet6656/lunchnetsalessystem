@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 WEEKDAYS = "月火水木金土日"
 
+# 大盛りごはん（No.11）は弁当ではない。振分・消し込みの対象外で、合計にも入れない（日計表の total_quantity と同じ扱い）
+EXTRA_PRODUCT_NO = 11
+
 
 def editable_dates(today):
     # 「明日」は次の営業日（金曜の電話番が月曜分を直せるように）
@@ -76,7 +79,9 @@ class Day:
     def off_location_ids(self):
         """全メニュー0の店＝その日は中止。直して0にした店は戻せるよう、予定も0の店だけ。"""
         now, plan = {}, {}
-        for (_, lid), iq in self.cells.items():
+        for (pid, lid), iq in self.cells.items():
+            if iq.product.no == EXTRA_PRODUCT_NO:
+                continue
             now[lid] = now.get(lid, 0) + iq.quantity
             plan[lid] = plan.get(lid, 0) + iq.planned_quantity
         return {loc.id for loc in self.locations if not now.get(loc.id) and not plan.get(loc.id)}
@@ -113,7 +118,7 @@ def screen(d, today, user):
         "date": d.isoformat(),
         "editable": editable,
         "uploadId": upload.id if upload else None,
-        "products": [{"id": p.id, "name": p.name} for p in day.products],
+        "products": [{"id": p.id, "name": p.name, "extra": p.no == EXTRA_PRODUCT_NO} for p in day.products],
         # 並びは販売場所No.順（振分の箱の並び）。便の区切りは画面側で、便が変わる所に入れる
         "locations": [
             {"id": loc.id, "name": loc.name, "off": loc.id in off, "submitted": loc.name in submitted,

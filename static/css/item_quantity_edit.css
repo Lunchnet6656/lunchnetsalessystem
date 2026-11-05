@@ -84,7 +84,7 @@ td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim
 .iq-kp { font-size: 15px; font-variant-numeric: tabular-nums; }
 .iq-kp b { font-size: 20px; }
 /* 便ごとの縦の列を横に並べる。横の指の動きはスクロール、縦はなぞり✓ */
-.iq-tiles { --iq-tile-h: 84px; overflow-x: auto; overflow-y: hidden; padding: 12px 2px; display: flex; align-items: flex-start; touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+.iq-tiles { --iq-tile-h: 84px; overflow-x: auto; overflow-y: hidden; padding: 12px 2px; display: flex; align-items: flex-start; touch-action: pan-x; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .iq-rsec { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 112px; padding: 0 6px; border-left: 3px solid var(--ln-color-dark); }
 .iq-rsec:first-child { border-left: 0; padding-left: 0; }
 .iq-rhd { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 58px; margin-bottom: 8px; padding: 0 8px; border-radius: 6px; background: var(--ln-color-surface-muted); white-space: nowrap; }
@@ -166,3 +166,8 @@ td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim
   .iq-h-time { grid-area: 1 / 1; } .iq-h-loc { grid-area: 1 / 2; } .iq-h-num { grid-area: 1 / 3; }
   .iq-h-menu { grid-area: 2 / 1 / 2 / 3; } .iq-h-by { grid-area: 2 / 3; }
 }
+
+/* 大盛りごはん：合計外の行は控えめに */
+#iq-grid tr.iq-extra td { color: var(--ln-color-text-muted); }
+#iq-grid tr.iq-extra td.c-name, #iq-grid tr.iq-extra td.c-tot { background: var(--ln-color-surface-muted); }
+.iq-extra-badge { margin-left: 8px; font-size: 11px; font-weight: 500; border: 1px solid var(--ln-color-border); white-space: nowrap; }

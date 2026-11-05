@@ -9,6 +9,7 @@
   var STORE_KEY = 'iq-edit-restore';
 
   var products = D.products, locations = D.locations;
+  var bentos = products.filter(function (p) { return !p.extra; });
   var offIds = {}, activeCount = 0;
   locations.forEach(function (l) { if (l.off) offIds[l.id] = true; else activeCount++; });
   // 便の区切り：No.順に並べ、便が変わる所で切る。便なしの店は1店で1区切り
@@ -71,14 +72,18 @@
     h += '</tr></thead><tbody>';
     var colNow = {}, colPlan = {}, gNow = 0, gPlan = 0;
     products.forEach(function (p) {
-      var t = rowTotals(p.id), dc = doneCount(p.id);
-      h += '<tr' + (sel && sel.p === p.id ? ' class="iq-focus"' : '') + '><td class="c-name"><button type="button" class="iq-menu" data-menu="' + p.id + '">' +
-        esc(p.name) + (dc ? '<span class="iq-ckcount">✓' + dc + '/' + activeCount + '</span>' : '') + '</button></td>' +
+      var t = rowTotals(p.id), dc = p.extra ? 0 : doneCount(p.id);
+      var rc = [];
+      if (sel && sel.p === p.id) rc.push('iq-focus');
+      if (p.extra) rc.push('iq-extra');
+      h += '<tr' + (rc.length ? ' class="' + rc.join(' ') + '"' : '') + '><td class="c-name"><button type="button" class="iq-menu" data-menu="' + p.id + '">' +
+        esc(p.name) + (p.extra ? '<span class="badge text-bg-light iq-extra-badge">合計外</span>' : '') +
+        (dc ? '<span class="iq-ckcount">✓' + dc + '/' + activeCount + '</span>' : '') + '</button></td>' +
         '<td class="c-tot iq-row-total"><div class="iq-tot-now">' + fmt(t.now) + '</div>' +
         (t.now !== t.plan ? '<div class="iq-tot-plan">予定' + fmt(t.plan) + '</div>' : '') + '</td>';
       locations.forEach(function (l) {
         var c = cell(p.id, l.id), v = val(p.id, l.id), k = key(p.id, l.id);
-        colNow[l.id] = (colNow[l.id] || 0) + v; colPlan[l.id] = (colPlan[l.id] || 0) + c.plan;
+        if (!p.extra) { colNow[l.id] = (colNow[l.id] || 0) + v; colPlan[l.id] = (colPlan[l.id] || 0) + c.plan; }
         var cls = ['iq-cell'];
         if (segStart[l.id]) cls.push('iq-rs');
         if (l.off) cls.push('iq-cell--off');
@@ -88,7 +93,7 @@
         if (sel && sel.p === p.id && sel.l === l.id) cls.push('iq-cell--selected');
         h += '<td class="' + cls.join(' ') + '"><button type="button" data-product="' + p.id + '" data-location="' + l.id +
           '" data-plan="' + c.plan + '" data-current="' + v + '" aria-label="' + esc(p.name + ' ' + l.name + ' 現在' + v + ' 予定' + c.plan) + '">' +
-          (isDone(p.id, l.id) ? '<span class="iq-tick" aria-hidden="true">✓</span>' : '') + '<span class="iq-n">' + v + '</span>' +
+          (!p.extra && isDone(p.id, l.id) ? '<span class="iq-tick" aria-hidden="true">✓</span>' : '') + '<span class="iq-n">' + v + '</span>' +
           (v !== c.plan ? '<span class="iq-plan">予定' + c.plan + '</span>' : '') + '</button></td>';
       });
       h += '</tr>';
@@ -110,9 +115,9 @@
 
   /* ── 消し込み（1メニューに集中） ── */
   function renderCheck() {
-    if (!sel) sel = { p: products[0].id, l: null };
-    var p = sel.p, idx = products.indexOf(productOf(p));
-    $('iq-chips').innerHTML = products.map(function (x) {
+    if (!sel || productOf(sel.p).extra) sel = { p: bentos[0].id, l: null };
+    var p = sel.p, idx = bentos.indexOf(productOf(p));
+    $('iq-chips').innerHTML = bentos.map(function (x) {
       var dc = doneCount(x.id);
       return '<button type="button" class="iq-chip' + (x.id === p ? ' on' : '') + (dc === activeCount ? ' done' : '') + '" data-chip="' + x.id + '">' +
         esc(x.name) + '<span class="iq-pg">' + dc + '/' + activeCount + '</span></button>';
@@ -124,7 +129,7 @@
       '<span class="iq-kp">' + (done ? '消し込み完了' : '消し込み <b>' + dc + '</b>／' + activeCount + '店') + '</span>' +
       '<span class="iq-kp iq-kp-total">合計 ' + fmt(t.now) + '</span><span class="iq-spacer"></span>' +
       '<button type="button" class="btn btn-outline-secondary iq-h" id="iq-undo"' + (lastAction ? '' : ' disabled') + '>戻す</button>' +
-      (idx < products.length - 1 ? '<button type="button" class="btn btn-primary iq-h" id="iq-next">次のメニュー</button>' : '');
+      (idx < bentos.length - 1 ? '<button type="button" class="btn btn-primary iq-h" id="iq-next">次のメニュー</button>' : '');
     function tile(l) {
       var c = cell(p, l.id), v = val(p, l.id), k = key(p, l.id), cls = ['iq-tile'];
       if (l.off) cls.push('iq-tile--off');
@@ -433,8 +438,8 @@
   });
   $('iq-khead').addEventListener('click', function (e) {
     if (!e.target.closest('#iq-next')) return;
-    var idx = products.indexOf(productOf(sel.p));
-    sel = { p: products[idx + 1].id, l: null };
+    var idx = bentos.indexOf(productOf(sel.p));
+    sel = { p: bentos[idx + 1].id, l: null };
     render(); $('iq-tiles').scrollTop = 0;
   });
 
@@ -465,8 +470,15 @@
     var l = +el.dataset.l;
     if (offIds[l]) { toast('中止の店', true); return; }
     if (isZeroDone(sel.p, l)) return;
+    // タッチは押した要素に自動で捕まえられ、指の下のタイルが取れなくなるので外す
+    if (el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     touch = { x: e.clientX, y: e.clientY, l: l, moved: false, drag: false, to: !cell(sel.p, l).ck, seen: {}, changes: [] };
   });
+  // なぞり中は描き直さず印だけ付ける（指を置いた要素を消すと iPad は以後の指の動きを送らなくなる）
+  function markTile(l) {
+    var t = $('iq-tiles').querySelector('.iq-tile[data-l="' + l + '"]');
+    if (t) t.classList.toggle('iq-tile--done', !!cell(sel.p, l).ck);
+  }
   window.addEventListener('pointermove', function (e) {
     if (!touch) return;
     var dx = Math.abs(e.clientX - touch.x), dy = Math.abs(e.clientY - touch.y);
@@ -475,8 +487,9 @@
     var el = tileAt(e.clientX, e.clientY);
     if (!el) return;
     var l = +el.dataset.l;
-    if (!touch.drag && l !== touch.l) { touch.drag = true; applyTo(touch.l); }
-    if (touch.drag) { applyTo(l); render(); }
+    if (!touch.drag && l !== touch.l) { touch.drag = true; applyTo(touch.l); markTile(touch.l); }
+    if (touch.drag) { applyTo(l); markTile(l); }
+    if (touch.drag && e.cancelable) e.preventDefault();
   });
   window.addEventListener('pointerup', function () {
     if (!touch) return;
@@ -486,7 +499,10 @@
     if (!t.drag) { touch = t; applyTo(t.l); touch = null; }
     finish(t.changes);
   });
-  window.addEventListener('pointercancel', function () { touch = null; });
+  window.addEventListener('pointercancel', function () {
+    if (touch && touch.drag) { var t = touch; touch = null; finish(t.changes); return; }
+    touch = null;
+  });
   $('iq-tiles').addEventListener('keydown', function (e) {
     var el = e.target.closest('.iq-tile');
     if (!el || (e.key !== 'Enter' && e.key !== ' ') || isZeroDone(sel.p, +el.dataset.l)) return;
