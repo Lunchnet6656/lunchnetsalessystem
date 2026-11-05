@@ -203,7 +203,7 @@ class UserEditForm(BootstrapMixin, forms.Form):
     direct_return = forms.BooleanField(label="直行直帰", required=False)
     shin_yokohama = forms.BooleanField(label="新横浜担当", required=False)
 
-    def __init__(self, *args, target, lock_permissions=False, **kwargs):
+    def __init__(self, *args, target, lock_role=False, lock_permissions=False, **kwargs):
         perm = target.menu_permission
         initial = {"last_name": target.last_name, "first_name": target.first_name, "username": target.username,
                    "role": "admin" if target.is_staff else "general",
@@ -213,9 +213,10 @@ class UserEditForm(BootstrapMixin, forms.Form):
         self.target = target
         for f in PERM_FIELDS:
             self.fields[f] = forms.BooleanField(label=PERM_LABELS[f], required=False)
-        if lock_permissions:
-            # disabled のフィールドは POST を無視して initial を使う（画面を書き換えて送られても変わらない）
+        # disabled のフィールドは POST を無視して initial を使う（画面を書き換えて送られても変わらない）
+        if lock_role:
             self.fields["role"].disabled = True
+        if lock_permissions:
             for f in PERM_FIELDS:
                 self.fields[f].disabled = True
         self.apply_bootstrap()

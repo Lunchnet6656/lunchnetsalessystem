@@ -36,7 +36,7 @@
     {% endif %}
 
     {% if is_self %}
-    <div class="alert alert-secondary">自分の区分・権限・有効は変更できません。ほかの管理者に依頼してください。</div>
+    <div class="alert alert-secondary">{% if self_perms_editable %}自分の区分・有効は変更できません。{% else %}自分の区分・権限・有効は変更できません。ほかの管理者に依頼してください。{% endif %}</div>
     {% endif %}
 
     {% if form.errors %}<div class="alert alert-danger">入力内容を確認してください。</div>{% endif %}

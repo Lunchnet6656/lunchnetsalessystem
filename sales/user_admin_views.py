@@ -113,13 +113,19 @@ def _target_or_refuse(request, user_id):
     return target, None
 
 
+def _locks(request, target):
+    # 自分の区分は変えられない（外すと戻せない）。権限も本人は変えられないが、スーパーユーザーは
+    # 本人以外が触れないので、本人まで止めると誰も権限を直せなくなる
+    is_self = target.pk == request.user.pk
+    return {"lock_role": is_self, "lock_permissions": is_self and not target.is_superuser}
+
+
 @user_admin_required
 def user_edit(request, user_id):
     target, refused = _target_or_refuse(request, user_id)
     if refused:
         return refused
-    is_self = target.pk == request.user.pk
-    form = ua.UserEditForm(request.POST or None, target=target, lock_permissions=is_self)
+    form = ua.UserEditForm(request.POST or None, target=target, **_locks(request, target))
     if request.method == "POST" and form.is_valid():
         changed = ua.save_edit(form, request.user)
         _ok(request, f"{ua.full_name(target)} さんを保存しました。" if changed else "変更はありませんでした。")
@@ -135,6 +141,7 @@ def _render_edit(request, target, form, password_form=None, status=200):
         "password_form": password_form or ua.PasswordSetForm(user=target),
         "password_rules": ua.PASSWORD_RULES,
         "is_self": target.pk == request.user.pk,
+        "self_perms_editable": target.pk == request.user.pk and target.is_superuser,
         "created": request.GET.get("created") == "1",
         "login_url": request.build_absolute_uri(reverse("login")),
         "locked": ua.is_locked(target),
@@ -152,7 +159,7 @@ def user_password(request, user_id):
         return refused
     form = ua.PasswordSetForm(request.POST, user=target)
     if not form.is_valid():
-        edit_form = ua.UserEditForm(target=target, lock_permissions=target.pk == request.user.pk)
+        edit_form = ua.UserEditForm(target=target, **_locks(request, target))
         return _render_edit(request, target, edit_form, password_form=form, status=400)
     target.set_password(form.cleaned_data["new_password"])
     target.save()

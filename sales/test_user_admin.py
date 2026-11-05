@@ -162,6 +162,27 @@ class EditTest(Base):
         self.assertIn("disabled", tag)
         self.assertIn("checked", tag)
 
+    def test_superuser_can_change_own_permissions_but_not_role(self):
+        boss = self.staff("boss", can_view_user_list=True)
+        boss.is_staff = boss.is_superuser = True
+        boss.save()
+        self.client.force_login(boss)
+        perm = boss.menu_permission
+        data = {"last_name": boss.last_name, "first_name": boss.first_name, "username": boss.username,
+                "role": "general", "can_view_mypage": "on"}
+        data.update({f: "on" for f in ua.PERM_FIELDS if getattr(perm, f)})
+        self.client.post(f"/user/edit/{boss.pk}/", data)
+        boss.refresh_from_db()
+        self.assertTrue(boss.menu_permission.can_view_mypage)
+        self.assertTrue(boss.is_staff)  # 区分は変わらない
+
+    def test_others_still_cannot_edit_superuser(self):
+        boss = self.staff("boss2")
+        boss.is_superuser = True
+        boss.save()
+        res = self.client.get(f"/user/edit/{boss.pk}/")
+        self.assertRedirects(res, "/users/", fetch_redirect_response=False)
+
     def test_password_set_without_current(self):
         res = self.client.post(f"/user/{self.target.pk}/password/",
                                {"new_password": PASSWORD, "confirm_password": PASSWORD})
