@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}持参数の修正{% endblock %}
+{% block title %}持参数{% endblock %}
 
 {% block extra_css %}
 <link href="{% static 'css/help.css' %}" rel="stylesheet">
@@ -14,8 +14,8 @@
      data-checks-url="{% url 'item_quantity_checks' grid_data.date %}">
   {% csrf_token %}
   <div class="iq-head">
-    <h4 class="mb-0">持参数の修正</h4>
-    {% include "includes/help_button.html" with id="iq-edit" title="持参数の修正" body="includes/help/iq_edit.html" %}
+    <h4 class="mb-0">持参数</h4>
+    {% include "includes/help_button.html" with id="iq-edit" title="持参数" body="includes/help/iq_edit.html" %}
     {% if has_data and editable %}
     <div class="btn-group iq-modes" role="group">
       <button type="button" class="btn btn-primary" id="iq-mode-edit" aria-pressed="true">修正</button>
