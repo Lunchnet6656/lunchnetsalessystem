@@ -129,3 +129,85 @@ class DayReviewTests(TestCase):
         self.assertEqual(res.context["filtered_reports"][0].review_mark, "event")
         res = self.client.get(reverse("daily_report_list"), {"search_location": "A店"})
         self.assertIsNone(res.context["filtered_reports"][0].review_mark)
+
+
+class ReflectionTests(TestCase):
+    """振り返りを食数予測（同じ曜日の実績の印）と実績分析（特記事項）に出す。"""
+
+    def setUp(self):
+        self.a = SalesLocation.objects.create(no=1, name="A店", type="車", price_type="A", service_name="")
+        self.b = SalesLocation.objects.create(no=2, name="B店", type="室内", price_type="A", service_name="")
+
+    def test_stop_notes_only_stop_kinds_in_period(self):
+        from sales.day_review import stop_notes
+        r = DayReview.objects.create(date=DAY, comment="バジルスパが傷んでいた")
+        r.events.create(kind="stop", all_locations=True)
+        r.events.create(kind="reallocation").locations.add(self.a)
+        r2 = DayReview.objects.create(date=date(2026, 9, 9), comment="")
+        r2.events.create(kind="absence", note="ドタキャン").locations.add(self.b)
+        DayReview.objects.create(date=date(2026, 10, 1)).events.create(kind="stop", all_locations=True)
+        r.events.create(kind="absence").locations.add(self.a)
+        notes = stop_notes(date(2026, 9, 1), date(2026, 9, 30))
+        self.assertEqual(notes["count"], 3)
+        self.assertEqual([d["date"] for d in notes["days"]], [DAY, date(2026, 9, 9)])
+        self.assertEqual([e["label"] for e in notes["days"][0]["events"]], ["商品の販売中止", "販売員の欠勤で販売中止"])
+        self.assertEqual(notes["days"][0]["comment"], "バジルスパが傷んでいた")
+        self.assertEqual(notes["days"][1]["events"][0]["names"], ["B店"])
+        self.assertEqual(notes["more"], [])
+
+    def test_stop_notes_fold_after_20_at_day_boundary(self):
+        from datetime import timedelta
+        from sales.day_review import stop_notes
+        for i in range(8):
+            r = DayReview.objects.create(date=date(2026, 9, 1) + timedelta(days=i))
+            for _ in range(3):
+                r.events.create(kind="stop", all_locations=True)
+        notes = stop_notes(date(2026, 9, 1), date(2026, 9, 30))
+        self.assertEqual((len(notes["days"]), len(notes["more"]), notes["more_count"]), (7, 1, 3))
+
+    def test_analysis_page_shows_notes(self):
+        r = DayReview.objects.create(date=DAY, comment="バジルスパが傷んでいた")
+        r.events.create(kind="stop", all_locations=True)
+        r.events.create(kind="delivery", note="配送メモ", all_locations=True)
+        user = get_user_model().objects.create_user("boss", password="pw-boss-123456")
+        grant(user, "can_view_dashboard")
+        self.client.force_login(user)
+        res = self.client.get(reverse("performance_analysis"), {"start": "2026-09-01", "end": "2026-09-30"})
+        self.assertContains(res, 'id="sec-notes"')
+        self.assertContains(res, "販売中止 1件")
+        self.assertContains(res, "バジルスパが傷んでいた")
+        self.assertNotContains(res, "配送メモ")
+        self.assertNotContains(res, "daily_report_list/?search_date_start=2026-09-07")  # 日計表一覧の権限なし
+        grant(user, "can_view_daily_report_list")
+        res = self.client.get(reverse("performance_analysis"), {"start": "2026-09-01", "end": "2026-09-30"})
+        self.assertContains(res, "daily_report_list/?search_date_start=2026-09-07")
+        res = self.client.get(reverse("performance_analysis"), {"start": "2026-10-01", "end": "2026-10-31"})
+        self.assertContains(res, "販売中止 0件")
+
+    def test_forecast_keeps_excluded_day_with_label_but_not_in_calc(self):
+        from datetime import timedelta
+        from unittest.mock import patch
+        from sales.meal_forecast import load_history
+        today = date(2026, 10, 2)
+        d = today - timedelta(days=1)
+        days = []
+        while len(days) < 30:
+            if d.weekday() < 5:
+                days.append(d)
+            d -= timedelta(days=1)
+        for x in days:
+            report(x, "A店", 1)
+        mon = max(x for x in days if x.weekday() == 0)
+        DayReview.objects.create(date=mon).events.create(kind="stop", all_locations=True)
+        self.assertNotIn(mon, {r["date"] for r in load_history(today - timedelta(days=60), today)["A店"]})
+        user = get_user_model().objects.create_user("fc", password="pw-fc-123456")
+        grant(user, "can_view_performance_by_location")
+        self.client.force_login(user)
+        with patch("lunchnetsale.views.timezone.localdate", return_value=today), \
+             patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):
+            res = self.client.get(reverse("meal_forecast"))
+        monday = next(dd for dd in res.context["fc"]["days"] if dd["date"].weekday() == 0)
+        last3 = next(l for l in monday["locs"] if l["name"] == "A店")["last3"]
+        self.assertEqual((last3[0]["date"], last3[0]["excluded"]), (mon, "商品の販売中止"))
+        self.assertIsNone(last3[1]["excluded"])
+        self.assertContains(res, 'aria-label="除外：商品の販売中止"')

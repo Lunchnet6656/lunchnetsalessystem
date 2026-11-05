@@ -7,3 +7,6 @@
 .mf-plan-summary { max-width: 560px; }
 .mf-tiny { font-size: .75rem; }
 .mf-comment-col { max-width: 16rem; }
+
+/* 同じ曜日の実績：予測から外した日の「除外」。押せる範囲を24px以上に（中身は Popover で種類名） */
+.mf-ex { display: inline-flex; align-items: center; min-height: 24px; }

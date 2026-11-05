@@ -368,16 +368,17 @@ class DayReviewEvent(models.Model):
 
 
 def forecast_exclusions(since, until):
-    """食数予測から外す (日付, 店名)。全店のときは店名 None。"""
-    out = set()
+    """食数予測から外す {(日付, 店名): 出来事の種類}。全店のときは店名 None。"""
+    out = {}
     events = (DayReviewEvent.objects.filter(review__date__gte=since, review__date__lt=until, exclude=True)
               .select_related("review").prefetch_related("locations"))
     for e in events:
-        if e.all_locations:
-            out.add((e.review.date, None))
-        else:
-            out |= {(e.review.date, loc.name.strip()) for loc in e.locations.all()}
-    return out
+        keys = [(e.review.date, None)] if e.all_locations else [(e.review.date, loc.name.strip()) for loc in e.locations.all()]
+        for k in keys:
+            labels = out.setdefault(k, [])
+            if e.get_kind_display() not in labels:
+                labels.append(e.get_kind_display())
+    return {k: "・".join(v) for k, v in out.items()}
 
 
 class DailyReportQuestionSetting(models.Model):

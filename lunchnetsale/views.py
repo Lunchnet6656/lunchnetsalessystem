@@ -3050,6 +3050,11 @@ def performance_analysis_view(request):
             context['rule_colors'] = RULE_COLOR_CHOICES
             context['rule_limits'] = {'max': RULE_MAX, 'cond_max': RULE_COND_MAX, 'label_max': RULE_LABEL_MAX,
                                       'other': OTHER_RULE_LABEL}
+        from sales.day_review import stop_notes
+        from sales.permissions import has_menu_permission
+        context['stop_notes'] = stop_notes(start, end)
+        context['notes_link'] = has_menu_permission(request.user, 'can_view_daily_report_list')
+        context['notes_year'] = start.year != end.year
         context['saved'] = request.GET.get('saved', '')
         context['basis_error'] = request.GET.get('basis_error', '')
         # 保存できなかった理由（画面の確かめをすり抜けたときだけ。1回出したら消す）
@@ -3451,9 +3456,11 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     from sales.weather import (DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, WIND_FACTORS, WIND_STRONG, rain_factor,
                                wind_factor)
 
-    hist = load_history(today - timedelta(days=FORECAST_HISTORY_DAYS), today)
+    # 予測から外した日は計算に使わないが、「同じ曜日の実績」には印付きで出す
+    hist_all = load_history(today - timedelta(days=FORECAST_HISTORY_DAYS), today, keep_excluded=True)
+    hist = {name: [r for r in rows if not r["excluded"]] for name, rows in hist_all.items()}
     active_since = today - timedelta(days=FORECAST_ACTIVE_DAYS)
-    active = {name: rows for name, rows in hist.items() if rows and rows[-1]["date"] >= active_since}
+    active = {name: rows for name, rows in hist.items() if rows and hist_all[name][-1]["date"] >= active_since}
 
     target_dates = []
     d = today + timedelta(days=1)
@@ -3555,8 +3562,9 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "trend_pct": None if p["trend"] is None else int(round(p["trend"] * 100)),
                 "third_pct": None if eff is None else int(round(eff * 100)),
                 "third_label": THIRD_LABELS[third],
-                "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"], "lost": r.get("lost")}
-                          for r in same[-3:]][::-1],
+                "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"], "lost": r.get("lost"),
+                           "excluded": r["excluded"]}
+                          for r in [r for r in hist_all[name] if r["wd"] == wd][-3:]][::-1],
                 "avg_rem": round(sum(r["rem"] for r in same[-4:]) / len(same[-4:]), 1) if same else 0,
                 "sold_out_pct": int(round(sum(r["sold_out"] for r in recent10) / len(recent10) * 100)),
                 "comment": _plan_comment(plans.get(name, {}).get(td)) or (

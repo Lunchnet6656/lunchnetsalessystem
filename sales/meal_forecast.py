@@ -87,8 +87,9 @@ def _excluded_names():
     return names
 
 
-def load_history(since, until):
-    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, wind, bridge, qty, rev, one_off)。"""
+def load_history(since, until, keep_excluded=False):
+    """{店名: [行(日付順)]}。行は dict(date, wd, sold, rem, demand, sold_out, lost, level, wind, bridge, qty, rev, one_off)。
+    keep_excluded=True は画面の表示用で、予測から外した日も excluded（出来事の種類）付きで残す。計算には使わないこと。"""
     excluded = _excluded_names()
     rows = (
         DailyReport.objects
@@ -105,7 +106,8 @@ def load_history(since, until):
     hist = {}
     for d, name, sold, rem, so_t, op_t, cl_t, lost, precip, snow, wind, qty, rev, reasons in rows:
         name = name.strip()
-        if (d, None) in excluded_days or (d, name) in excluded_days:
+        excluded = excluded_days.get((d, name)) or excluded_days.get((d, None))
+        if excluded and not keep_excluded:
             continue
         sold, rem = int(sold or 0), int(rem or 0)
         hist.setdefault(name, []).append({
@@ -118,6 +120,7 @@ def load_history(since, until):
             "qty": int(qty or 0), "rev": float(rev or 0),
             # その日だけの理由（出張・ビルの休み・イベント等）の日は、直近の水準に入れない
             "one_off": bool(set(reasons or []) & ONE_OFF_REASONS),
+            "excluded": excluded,
         })
     return hist
 

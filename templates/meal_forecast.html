@@ -198,7 +198,7 @@
                             </td>
                             {% endif %}
                             <td class="text-muted small text-nowrap">
-                                {% for x in l.last3 %}<div>{{ x.date|date:'n/j' }}：{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% if x.lost %}<span class="small ms-1">買えず{{ x.lost }}</span>{% endif %}{% endif %}</div>{% endfor %}
+                                {% for x in l.last3 %}<div>{{ x.date|date:'n/j' }}：{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% if x.lost %}<span class="small ms-1">買えず{{ x.lost }}</span>{% endif %}{% endif %}{% if x.excluded %}<a tabindex="0" role="button" class="badge text-bg-light border fw-normal text-decoration-none ms-1 mf-ex" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-content="予測から除外：{{ x.excluded }}" aria-label="除外：{{ x.excluded }}">除外</a>{% endif %}</div>{% endfor %}
                             </td>
                             {% if day.has_draft %}
                             {% if l.draft %}

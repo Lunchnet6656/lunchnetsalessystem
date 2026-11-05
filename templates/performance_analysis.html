@@ -44,6 +44,8 @@
     }
     /* 廃棄率の色の「オレンジ」。Bootstrap に文字用のオレンジが無いため。--bs-orange は白地の小さい文字で薄すぎるので一段濃く */
     .text-orange { color: #e8590c !important; }
+    .pa-note-comment { white-space: pre-line; overflow-wrap: anywhere; }
+    .pa-notes-btn[aria-expanded="true"] .pa-closed, .pa-notes-btn[aria-expanded="false"] .pa-open { display: none; }
 </style>
 {% endblock %}
 
@@ -78,6 +80,7 @@
     {% if a %}
     <div class="d-flex flex-wrap gap-2 mb-3">
         <a href="#sec-summary" class="btn btn-sm btn-outline-secondary text-nowrap">サマリー</a>
+        <a href="#sec-notes" class="btn btn-sm btn-outline-secondary text-nowrap">特記事項</a>
         <a href="#sec-locations" class="btn btn-sm btn-outline-secondary text-nowrap">売り場</a>
         <a href="#sec-menus" class="btn btn-sm btn-outline-secondary text-nowrap">メニュー</a>
         <a href="#sec-trend" class="btn btn-sm btn-outline-secondary text-nowrap">推移</a>
@@ -136,6 +139,59 @@
                 </div></div>
             </div>
         </div>
+    </section>
+    {% endwith %}
+
+    {# ===== 特記事項（販売中止関連。日計表一覧の振り返りから） ===== #}
+    {% with n=stop_notes %}
+    <section class="card mb-3 pa-section" id="sec-notes">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center column-gap-3 row-gap-1">
+            <h2 class="h6 mb-0 fw-bold">特記事項</h2>
+            <span class="small text-muted text-nowrap">販売中止 {{ n.count }}件</span>
+            <a tabindex="0" role="button" class="text-muted pa-info" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-html="true"
+               data-bs-content="対象：商品の販売中止・販売員の欠勤で販売中止<br>日計表一覧の振り返りで登録した出来事<br>期間内を日付順" aria-label="補足"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+        </div>
+        {% if n.count %}
+        <ul class="list-group list-group-flush">
+            {% with days=n.days %}{% for day in days %}
+            <li class="list-group-item">
+                <div class="fw-bold text-nowrap">{% if notes_link %}<a href="{% url 'daily_report_list' %}?search_date_start={{ day.date|date:'Y-m-d' }}&amp;search_date_end={{ day.date|date:'Y-m-d' }}#day-{{ day.date|date:'Y-m-d' }}">{% endif %}{% if notes_year %}{{ day.label_year }}{% else %}{{ day.label }}{% endif %}{% if notes_link %}</a>{% endif %}</div>
+                {% for ev in day.events %}
+                <div class="d-flex flex-wrap align-items-center column-gap-2">
+                    <span class="badge bg-{{ ev.tone }}-subtle text-{{ ev.tone }}-emphasis border border-{{ ev.tone }}-subtle fw-normal text-nowrap">{{ ev.label }}</span>
+                    <span>{% if ev.all %}全店{% else %}{% for n in ev.names %}<span class="text-nowrap">{{ n }}</span>{% if not forloop.last %}・{% endif %}{% endfor %}{% endif %}</span>
+                    {% if ev.note %}<span class="small text-muted">{{ ev.note }}</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% if day.comment %}<p class="small text-muted mb-0 pa-note-comment">{{ day.comment }}</p>{% endif %}
+            </li>
+            {% endfor %}{% endwith %}
+        </ul>
+        {% if n.more %}
+        <div class="collapse" id="pa-notes-more">
+            <ul class="list-group list-group-flush border-top">
+                {% with days=n.more %}{% for day in days %}
+            <li class="list-group-item">
+                <div class="fw-bold text-nowrap">{% if notes_link %}<a href="{% url 'daily_report_list' %}?search_date_start={{ day.date|date:'Y-m-d' }}&amp;search_date_end={{ day.date|date:'Y-m-d' }}#day-{{ day.date|date:'Y-m-d' }}">{% endif %}{% if notes_year %}{{ day.label_year }}{% else %}{{ day.label }}{% endif %}{% if notes_link %}</a>{% endif %}</div>
+                {% for ev in day.events %}
+                <div class="d-flex flex-wrap align-items-center column-gap-2">
+                    <span class="badge bg-{{ ev.tone }}-subtle text-{{ ev.tone }}-emphasis border border-{{ ev.tone }}-subtle fw-normal text-nowrap">{{ ev.label }}</span>
+                    <span>{% if ev.all %}全店{% else %}{% for n in ev.names %}<span class="text-nowrap">{{ n }}</span>{% if not forloop.last %}・{% endif %}{% endfor %}{% endif %}</span>
+                    {% if ev.note %}<span class="small text-muted">{{ ev.note }}</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% if day.comment %}<p class="small text-muted mb-0 pa-note-comment">{{ day.comment }}</p>{% endif %}
+            </li>
+            {% endfor %}{% endwith %}
+            </ul>
+        </div>
+        <div class="card-body py-2 border-top">
+            <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap pa-notes-btn" data-bs-toggle="collapse" data-bs-target="#pa-notes-more" aria-expanded="false" aria-controls="pa-notes-more"><span class="pa-closed">すべて表示（残り{{ n.more_count }}件）</span><span class="pa-open">閉じる</span></button>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="card-body py-2"><span class="small text-muted">なし</span></div>
+        {% endif %}
     </section>
     {% endwith %}
 

@@ -116,3 +116,33 @@ def save_review(day, post, user):
             if e["locations"]:
                 ev.locations.set(e["locations"])
     return []
+
+
+STOP_KINDS = ("stop", "absence")   # 実績分析の特記事項に出す販売中止関連（オーナー決定 2026-11-05）
+
+
+NOTES_SHOWN = 20   # 特記事項でまず見せる出来事の数。超えた分の日は折りたたむ（下の「売り場別」まで遠くしない）
+
+
+def stop_notes(start, end):
+    """期間内の販売中止関連の出来事を1日1項目にまとめる（日付の古い順）。実績分析の特記事項。
+    戻り値＝{"days": [{date, events, comment}], "more": [...折りたたむ日], "count": 出来事の数}"""
+    from sales.models import DayReviewEvent
+    events = (DayReviewEvent.objects.filter(review__date__gte=start, review__date__lte=end, kind__in=STOP_KINDS)
+              .select_related("review").prefetch_related("locations").order_by("review__date", "id"))
+    days = {}
+    for e in events:
+        d = e.review.date
+        wd = "月火水木金土日"[d.weekday()]
+        day = days.setdefault(d, {"date": d, "events": [], "comment": e.review.comment,
+                                  "label": f"{d.month}/{d.day} ({wd})", "label_year": f"{d.year}/{d.month}/{d.day} ({wd})"})
+        day["events"].append({"label": KIND_LABELS[e.kind], "tone": KIND_TONE[e.kind], "all": e.all_locations,
+                              "names": [] if e.all_locations else [l.name for l in sorted(e.locations.all(), key=lambda l: l.no)],
+                              "note": e.note})
+    count = sum(len(d["events"]) for d in days.values())
+    shown, more, n = [], [], 0
+    for d in days.values():
+        # 1日の途中では切らない
+        (more if count > NOTES_SHOWN and n >= NOTES_SHOWN else shown).append(d)
+        n += len(d["events"])
+    return {"days": shown, "more": more, "count": count, "more_count": sum(len(d["events"]) for d in more)}
