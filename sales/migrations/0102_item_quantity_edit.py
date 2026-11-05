@@ -14,7 +14,7 @@ def fill_planned(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sales', '0100_forecast_wind_bridge'),
+        ('sales', '0101_day_review'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
