@@ -3284,6 +3284,21 @@ FORECAST_WEEKDAY_JA = ["月", "火", "水", "木", "金", "土", "日"]
 # 室内は減らない。一律に減らすと室内が完売するので、販売形式ごとの目安を出す（係数は sales/weather.py）。
 
 
+def _sort_vals(l):
+    """画面の列の並べ替えに使う生の値（表示用の加工なし・無い値は空）。"""
+    plans, draft = l["plans"] or {}, l["draft"] or {}
+
+    def blank(v):
+        return "" if v is None else v
+    return {
+        "pred": l["pred"], "base": l["base"], "recent": l["recent"], "wd": l["weekday_pct"],
+        "trend": blank(l["trend_pct"]), "soldout": l["sold_out_pct"], "rem": l["avg_rem"],
+        "rain": l["rain_store_pct"] if l["rain_store_note"] else "",
+        **{k: (plans.get(k) or {}).get("qty", "") for k in ("up", "keep", "waste")},
+        **{k: blank(draft.get(k)) for k in ("draft", "diff", "buffer", "mid")},
+    }
+
+
 def _prev_lunch_level(td, today, area, weather, rows):
     """予測する日の前の営業日の昼の雨。今日以降は予報、過去はその店の日計表の天気。分からなければ None。"""
     d = td - timedelta(days=1)
@@ -3422,6 +3437,8 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     bridges = bridge_days(target_dates)
 
     weather = _fetch_lunch_weather(today)            # {地点: {日付: 昼の予報}}（取れない地点は無い）
+    # 並びの基本は販売場所No.順（画面で列の見出しを押すと並べ替え）
+    loc_no = {name.strip(): no for name, no in SalesLocation.objects.values_list("name", "no")}
     loc_info = {name.strip(): (t, area) for name, t, area in
                 SalesLocation.objects.values_list("name", "type", "weather_area")}
     comments = _latest_comments(list(active), today)
@@ -3502,7 +3519,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                     w in comment[1] for w in ("増", "減", "追加", "足し", "プラス", "マイナス", "＋", "+")):
                 num = None
             locs.append({
-                "name": name, "type": sales_type, "area": WEATHER_AREAS.get(area, WEATHER_AREAS[DEFAULT_AREA])[0],
+                "name": name, "no": loc_no.get(name), "type": sales_type, "area": WEATHER_AREAS.get(area, WEATHER_AREAS[DEFAULT_AREA])[0],
                 "base": int(p["pred"] + 0.5),                 # 雨・強風・飛び石の補正がない場合
                 "pred": int(p["pred"] * factor + 0.5),        # 補正込み（これを見る）
                 "rain": level, "rain_pct": int(round((rain_f - 1) * 100)),
@@ -3528,7 +3545,9 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "draft": draft_info,
                 "plans": plans, "thin": thin,
             })
-        locs.sort(key=lambda x: -x["pred"])
+        locs.sort(key=lambda x: (x["no"] is None, x["no"] or 0, x["name"]))
+        for l in locs:
+            l["sort_vals"] = _sort_vals(l)
         rainy = any(l["rain_pct"] for l in locs)
         bridge = td in bridges
         with_draft = [l for l in locs if l["draft"]]

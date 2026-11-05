@@ -339,3 +339,36 @@ class PageLayoutTests(TestCase):
         self.assertContains(res, 'popovertarget="hp-tip-mf-sum-1"')
         self.assertContains(res, "飛び石−10%")
         self.assertContains(res, "補正 −10%")
+
+
+class StoreOrderTests(TestCase):
+    """店の並びの基本は販売場所No.順（予測食数の多い順ではない）。"""
+
+    def test_locations_are_in_number_order(self):
+        from lunchnetsale.views import _meal_forecast
+        for no, name, sold in ((3, "C店", 90), (1, "A店", 30), (2, "B店", 60)):
+            SalesLocation.objects.create(no=no, name=name, type="車", price_type="A", service_name="")
+            for d in weekdays_before(TODAY, 20):
+                report(d, name, no, sold)
+        with patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):
+            fc = _meal_forecast(TODAY)
+        self.assertEqual([(l["no"], l["name"]) for l in fc["days"][0]["locs"]], [(1, "A店"), (2, "B店"), (3, "C店")])
+
+    def test_rows_carry_raw_values_for_sorting(self):
+        from django.contrib.auth import get_user_model
+        for no, name, sold in ((2, "B店", 60), (1, "A店", 30)):
+            SalesLocation.objects.create(no=no, name=name, type="車", price_type="A", service_name="")
+            for d in weekdays_before(TODAY, 20):
+                report(d, name, no, sold)
+        user = get_user_model().objects.create_user("sorter", password="pw-sorter-123456")
+        grant(user, "can_view_performance_by_location")
+        self.client.force_login(user)
+        with patch("lunchnetsale.views.timezone.localdate", return_value=TODAY), \
+             patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):
+            res = self.client.get(reverse("meal_forecast"))
+        html = res.content.decode()
+        self.assertIn('data-i="0" data-no="1" data-pred="30"', html)
+        self.assertIn('data-i="1" data-no="2" data-pred="60"', html)
+        self.assertIn('data-draft=""', html)                     # 無い値（下書きなし）は空
+        self.assertIn('aria-sort="ascending"><button type="button" class="btn btn-link btn-sm p-0 text-reset fw-bold text-decoration-none text-nowrap mf-sort" data-key="no">店舗', html)
+        self.assertIn('data-key="pred">予測食数', html)

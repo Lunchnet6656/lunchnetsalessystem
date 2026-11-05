@@ -115,34 +115,34 @@
                 <table class="table table-hover table-striped mb-0 align-middle mf-table">
                     <thead class="table-light">
                         <tr>
-                            <th rowspan="2" class="text-nowrap mf-store">店舗</th>
+                            <th rowspan="2" class="text-nowrap mf-store" aria-sort="ascending">{% include "includes/mf_sort_btn.html" with key="no" label="店舗" %}</th>
                             <th class="text-end text-nowrap">需要</th>
                             <th colspan="3" class="text-center text-nowrap mf-plan-group mf-plan-first mf-plan-last">持たせる数{% include "includes/info_tip.html" with id="mf-plan" key=forloop.counter label="持たせる数" text=plan_tip %}</th>
-                            {% if day.has_draft %}<th rowspan="2" class="text-end text-nowrap">下書き</th>{% endif %}
+                            {% if day.has_draft %}<th rowspan="2" class="text-end text-nowrap" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="draft" label="下書き" %}</th>{% endif %}
                             {% if day.show_comments %}<th rowspan="2" class="text-nowrap">現場のひと言</th>{% endif %}
                             <th rowspan="2" class="text-nowrap">同じ曜日の実績</th>
                             <th colspan="{% if day.has_draft %}12{% else %}9{% endif %}" class="text-center text-nowrap mf-ref-col">参考</th>
                         </tr>
                         <tr>
-                            <th class="text-end text-nowrap">予測食数</th>
-                            <th class="text-end text-nowrap mf-plan-first">売上UP</th>
-                            <th class="text-end text-nowrap">現状維持</th>
-                            <th class="text-end text-nowrap mf-plan-last">廃棄率重視</th>
-                            {% if day.has_draft %}<th class="text-end text-nowrap mf-ref-col">差</th><th class="text-end text-nowrap mf-ref-col">余裕分</th><th class="text-end text-nowrap mf-ref-col">半々の目安</th>{% endif %}
-                            <th class="text-end text-nowrap mf-ref-col">補正なし</th>
+                            <th class="text-end text-nowrap" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="pred" label="予測食数" %}</th>
+                            <th class="text-end text-nowrap mf-plan-first" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="up" label="売上UP" %}</th>
+                            <th class="text-end text-nowrap" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="keep" label="現状維持" %}</th>
+                            <th class="text-end text-nowrap mf-plan-last" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="waste" label="廃棄率重視" %}</th>
+                            {% if day.has_draft %}<th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="diff" label="差" %}</th><th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="buffer" label="余裕分" %}</th><th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="mid" label="半々の目安" %}</th>{% endif %}
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="base" label="補正なし" %}</th>
                             <th class="text-nowrap mf-ref-col">補正</th>
-                            <th class="text-end text-nowrap mf-ref-col">雨の日</th>
-                            <th class="text-end text-nowrap mf-ref-col">直近の水準</th>
-                            <th class="text-end text-nowrap mf-ref-col">曜日の癖</th>
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="rain" label="雨の日" %}</th>
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="recent" label="直近の水準" %}</th>
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="wd" label="曜日の癖" %}</th>
                             <th class="text-center text-nowrap mf-ref-col">月内のクセ</th>
-                            <th class="text-end text-nowrap mf-ref-col">直近の流れ</th>
-                            <th class="text-end text-nowrap mf-ref-col">完売率</th>
-                            <th class="text-end text-nowrap mf-ref-col">平均残</th>
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="trend" label="直近の流れ" %}</th>
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="soldout" label="完売率" %}</th>
+                            <th class="text-end text-nowrap mf-ref-col" aria-sort="none">{% include "includes/mf_sort_btn.html" with key="rem" label="平均残" %}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for l in day.locs %}
-                        <tr>
+                        <tr data-i="{{ forloop.counter0 }}" data-no="{{ l.no|default_if_none:'' }}"{% for k, v in l.sort_vals.items %} data-{{ k }}="{{ v|stringformat:'s' }}"{% endfor %}>
                             <td class="text-nowrap mf-store"><strong>{{ l.name }}</strong>
                                 <div class="small text-muted">{{ l.type }}{% if l.area != '東京' %}・{{ l.area }}{% endif %}{% if l.thin %} <span class="badge text-bg-light border fw-normal mf-thin-data">実績少</span>{% endif %}</div>
                                 {% for note in l.events %}<div class="small text-muted"><i class="fas fa-calendar-day me-1" aria-hidden="true"></i>予定：{{ note }}</div>{% endfor %}
@@ -242,6 +242,42 @@
         var on = !box.classList.contains('mf-show-ref');
         apply(on);
         try { localStorage.setItem('mf_show_ref', on ? '1' : '0'); } catch (e) {}
+        // 見えない列で並んだままだと並びの理由が消えるので、No.順に戻す
+        var cur = document.querySelector('.mf-sort[data-key="' + sortKey + '"]');
+        if (!on && cur && cur.closest('.mf-ref-col')) { sortKey = 'no'; sortDesc = false; sortAll(); }
+    });
+
+    // 列の見出しで並べ替え（3日分そろえる・覚えない。開き直すと No.順）
+    var sortKey = 'no', sortDesc = false;
+    function sortAll() {
+        document.querySelectorAll('.mf-table').forEach(function(table) {
+            var key = table.querySelector('.mf-sort[data-key="' + sortKey + '"]') ? sortKey : 'no';
+            var desc = key === sortKey && sortDesc;
+            var attr = key === 'no' ? 'i' : key;
+            var body = table.tBodies[0];
+            var rows = Array.prototype.slice.call(body.rows);
+            rows.sort(function(a, b) {
+                var va = a.dataset[attr], vb = b.dataset[attr], ia = Number(a.dataset.i), ib = Number(b.dataset.i);
+                // 空の値は向きに関係なく最後。同じ値どうしは No.順
+                if (va === '' || vb === '') return (va === '') - (vb === '') || ia - ib;
+                var d = Number(va) - Number(vb);
+                return (desc ? -d : d) || ia - ib;
+            });
+            rows.forEach(function(r) { body.appendChild(r); });
+            table.querySelectorAll('.mf-sort').forEach(function(b) {
+                var on = b.dataset.key === key && (key !== 'no' || sortKey === 'no');
+                var mark = b.querySelector('.mf-sort-mark');
+                b.closest('th').setAttribute('aria-sort', on ? (desc ? 'descending' : 'ascending') : 'none');
+                mark.className = 'fas ms-1 mf-sort-mark ' + (on ? (desc ? 'fa-sort-down' : 'fa-sort-up') + ' text-primary' : 'fa-sort text-body-tertiary');
+            });
+        });
+    }
+    document.querySelectorAll('.mf-sort').forEach(function(b) {
+        b.addEventListener('click', function() {
+            var key = b.dataset.key;
+            if (key === sortKey) { sortDesc = !sortDesc; } else { sortKey = key; sortDesc = key !== 'no'; }
+            sortAll();
+        });
     });
 
     // 見込み（全店）の表：スマホだけ畳める（PCは常に表示・CSS側で切り替え）

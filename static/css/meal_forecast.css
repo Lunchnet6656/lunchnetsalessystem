@@ -36,3 +36,7 @@
     box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg))), var(--ln-shadow-col);
   }
 }
+
+/* 列の見出しの並べ替え。アイコンは3種とも同じ幅にして、押したときに列幅が動かないように */
+.mf-sort { min-height: 24px; display: inline-flex; align-items: center; }
+.mf-sort-mark { width: .75em; text-align: center; }
