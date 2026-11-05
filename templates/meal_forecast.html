@@ -3,28 +3,27 @@
 {% block title %}食数予測（仕込みの目安）{% endblock %}
 
 
+{% block extra_css %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+<link rel="stylesheet" href="{% static 'css/meal_forecast.css' %}">
+{% endblock %}
+
 {% block content %}
 {% load static %}
-<link href="{% static 'css/meal_forecast.css' %}" rel="stylesheet">
 {% load humanize %}
 {% load custom_filters %}
 
 <div class="container mt-4">
-    <h1 class="mb-1">食数予測（仕込みの目安）</h1>
-    <p class="text-muted mb-2">
-        直近{{ fc.days|length }}営業日ぶんの<strong>需要（売れそうな数）を店舗別に予測</strong>します。
-        計算は「<strong>直近の水準 × その店の曜日の癖 × 昼の雨・強風の補正</strong>」（飛び石の日は全店 −10%）。直近の水準は、新しい日ほど重く見た直近5営業日に直近20営業日を3割混ぜた数です（出張・ビルの休みなど、日計表で「その日だけの理由」が選ばれた日は除きます）。
-        雨の補正は、その店の地点の天気予報を使い、<strong>売場の形態ごとの値にその店の雨の日の実績</strong>を掛けます（室内でも雨の日に売れる店は増やします）。
-        完売した日は、完売時刻が早いほど少し上乗せして数えています。
-    </p>
-    {% if fc.backtest %}
-    <span class="badge bg-success fs-6 mb-3">
-        精度：直近28日・完売しなかった日で平均誤差 ±{{ fc.backtest.mae }}食（{{ fc.backtest.mape }}％）・{{ fc.backtest.n }}件で検証
-    </span>
-    {% endif %}
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+        <h1 class="mb-0">食数予測（仕込みの目安）</h1>
+        {% include "includes/help_button.html" with id="mf" title="計算方法" body="includes/meal_forecast_help.html" %}
+    </div>
+    {% if fc.backtest %}<p class="small text-muted text-nowrap mb-3">精度 ±{{ fc.backtest.mae }}食（{{ fc.backtest.mape }}%）</p>{% else %}<div class="mb-3"></div>{% endif %}
 
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header"><strong>昼（11〜13時）の天気予報</strong> <span class="text-muted small ms-2">Open-Meteo</span></div>
+    {# スマホは天気を畳む（雨・強風の日は日のカードのバッジで気づける）。PCは常に開いたまま #}
+    <details class="card mb-4 shadow-sm mf-wx" open>
+        <summary class="card-header text-nowrap"><strong>昼（11〜13時）の天気予報</strong> <span class="text-muted small ms-2">Open-Meteo</span></summary>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table mb-0 align-middle text-center">
@@ -41,15 +40,14 @@
                             {% for w in row.days %}
                             <td>
                                 {% if w %}
-                                    {% if w.level == '大雨' %}<span class="badge bg-danger">大雨</span>
+                                    <div class="small text-nowrap">{% if w.level == '大雨' %}<span class="badge bg-danger">大雨</span>
                                     {% elif w.level == '雨' %}<span class="badge bg-warning text-dark">雨</span>
                                     {% elif w.level == '小雨' %}<span class="badge bg-info text-dark">小雨</span>
-                                    {% else %}<span class="badge bg-light text-dark border">降らない</span>{% endif %}
-                                    <div class="small mt-1">{{ w.precip }}mm{% if w.snow %}・雪{{ w.snow }}cm{% endif %}</div>
-                                    <div class="small text-muted">{{ w.temp|floatformat:0 }}℃（体感{{ w.feels|floatformat:0 }}℃）</div>
-                                    {% if w.wind is not None %}<div class="small text-nowrap">{% if w.wind >= fc.wind_strong %}<span class="badge bg-secondary">強風</span> {% endif %}風 {{ w.wind|floatformat:1 }}m</div>{% endif %}
+                                    {% else %}<span class="text-muted">なし</span>{% endif %} {{ w.precip }}mm{% if w.snow %}・雪{{ w.snow }}cm{% endif %}</div>
+                                    <div class="small text-muted text-nowrap">{{ w.temp|floatformat:0 }}℃（体感{{ w.feels|floatformat:0 }}℃）</div>
+                                    {% if w.wind is not None %}<div class="small text-nowrap">{% if w.wind >= fc.wind_strong %}<span class="badge bg-secondary">強風</span> {% endif %}風{{ w.wind|floatformat:1 }}m</div>{% endif %}
                                 {% else %}
-                                    <span class="text-muted small">取得できませんでした</span>
+                                    <span class="text-muted small text-nowrap">取得失敗</span>
                                 {% endif %}
                             </td>
                             {% endfor %}
@@ -58,33 +56,24 @@
                     </tbody>
                 </table>
             </div>
-            <p class="small text-muted px-3 py-2 mb-0">
-                雨の段階：小雨 1mm〜／雨 3mm〜／大雨 8mm〜または雪。
-                外の売場の減らし方：テーブル・行商 小雨{{ fc.rain_factors.小雨.テーブル|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.テーブル|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.テーブル|floatformat:2 }}倍／
-                車 小雨{{ fc.rain_factors.小雨.車|floatformat:2 }}倍・雨{{ fc.rain_factors.雨.車|floatformat:2 }}倍・大雨{{ fc.rain_factors.大雨.車|floatformat:2 }}倍。
-                強風：{{ fc.wind_strong|floatformat:0 }}m/s以上でテーブル・行商 {{ fc.wind_factor|floatformat:2 }}倍
-            </p>
         </div>
-    </div>
+    </details>
 
     <div class="mf-days">
     {% for day in fc.days %}
     <div class="card mb-4 shadow-sm" id="mf-day-{{ forloop.counter }}">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap {% if day.rainy %}bg-warning-subtle{% endif %}">
-            <span>
-                <strong class="fs-5">{{ day.date|date:'n月j日' }}（{{ day.weekday }}）</strong>
-                <span class="text-muted ms-2">
-                    {{ day.when }}
-                    ・{{ day.third_label }}
-                </span>
-                {% if day.rainy %}<span class="badge bg-warning text-dark ms-2"><i class="fas fa-cloud-showers-heavy"></i> 雨の補正あり</span>{% endif %}
-                {% if day.windy %}<span class="badge bg-secondary ms-2"><i class="fas fa-wind"></i> 強風の補正あり</span>{% endif %}
-                {% if day.bridge %}<span class="badge bg-danger ms-2" title="前の日も次の日も休み"><i class="fas fa-calendar-minus"></i> 飛び石 {{ day.bridge_pct }}%</span>{% endif %}
+            <span class="d-flex flex-wrap align-items-center column-gap-2">
+                <strong class="fs-5 text-nowrap">{{ day.date|date:'n月j日' }}（{{ day.weekday }}）</strong>
+                <span class="text-muted text-nowrap">{{ day.when }}</span>
+                {% if day.rainy %}<span class="badge bg-warning text-dark"><i class="fas fa-cloud-showers-heavy" aria-hidden="true"></i> 雨補正</span>{% endif %}
+                {% if day.windy %}<span class="badge bg-secondary"><i class="fas fa-wind" aria-hidden="true"></i> 強風補正</span>{% endif %}
+                {% if day.bridge %}<span class="badge bg-danger"><i class="fas fa-calendar-minus" aria-hidden="true"></i> 飛び石{% if day.bridge_pct < 0 %}−{{ day.bridge_pct|stringformat:'d'|cut:'-' }}{% else %}+{{ day.bridge_pct }}{% endif %}%</span>{% endif %}
             </span>
-            <span class="text-muted">
-                需要予測 合計 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong>食
-                {% if day.adjusted %}<span class="small ms-2">（補正がなければ {{ day.base_total|intcomma }} 食）</span>{% endif %}
-                {% if day.has_draft %}<span class="small ms-2">／下書き {{ day.draft_total|intcomma }} 食{% if day.draft_flags %}・<span class="text-danger fw-bold">要確認 {{ day.draft_flags }}店</span>{% endif %}</span>{% endif %}
+            <span class="d-flex flex-wrap align-items-baseline column-gap-2 text-muted">
+                <span class="text-nowrap">予測 <strong class="fs-4 text-primary">{{ day.total|intcomma }}</strong>食</span>
+                {% if day.adjusted %}<span class="small text-nowrap">（補正がなければ {{ day.base_total|intcomma }} 食）</span>{% endif %}
+                {% if day.has_draft %}<span class="small text-nowrap">下書き {{ day.draft_total|intcomma }}食</span>{% if day.draft_flags %}<span class="small text-nowrap text-danger fw-bold">要確認 {{ day.draft_flags }}店</span>{% endif %}{% endif %}
             </span>
         </div>
         <div class="card-body p-0">
@@ -93,15 +82,12 @@
                 {% if day.plan_error %}
                 <p class="text-muted small mb-0 mf-plan-error">3パターンを計算できません</p>
                 {% elif day.plan_totals %}
-                <div>
-                    <div class="small fw-bold mb-1 text-nowrap">この日の見込み（全店）
-                        <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-bs-toggle="popover" data-bs-trigger="focus"
-                                data-bs-content="売れる数・廃棄率：過去の需要の散らばりからの見込み。粗利：売上−持参数×原価（原価率50%・店の直近の平均単価）{% if day.plan_totals.up.profit_partial %}。*単価の無い店を除く{% endif %}"
-                                aria-label="見込みの計算"><i class="fas fa-info-circle" aria-hidden="true"></i></button>
-                    </div>
+                <div class="mf-plan-box">
+                    <div class="small fw-bold mb-1 text-nowrap">この日の見込み（全店）{% include "includes/info_tip.html" with id="mf-sum" key=forloop.counter label="この日の見込み" text=day.summary_tip %}</div>
+                    <div class="table-responsive">
                     <table class="table table-sm table-bordered mb-0 mf-plan-summary">
                         <thead class="table-light">
-                            <tr><th></th><th class="text-end">売上UP</th><th class="text-end">現状維持{% if day.plan_totals.keep.skipped %}<div class="fw-normal text-muted small">—の店を除く</div>{% endif %}</th><th class="text-end">廃棄率重視</th>{% if day.plan_totals.draft %}<th class="text-end">下書き</th>{% endif %}</tr>
+                            <tr><th></th><th class="text-end text-nowrap">売上UP</th><th class="text-end text-nowrap">現状維持{% if day.plan_totals.keep.skipped %}*{% endif %}</th><th class="text-end text-nowrap">廃棄率重視</th>{% if day.plan_totals.draft %}<th class="text-end text-nowrap">下書き</th>{% endif %}</tr>
                         </thead>
                         <tbody>
                             {% for metric, label in plan_metrics %}
@@ -114,34 +100,37 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    </div>
                 </div>
                 {% else %}<div></div>{% endif %}
                 {% if forloop.first %}
-                <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" id="mf-ref-toggle" aria-pressed="false">参考列 表示</button>
+                <div class="d-flex gap-2">
+                    {% if day.plan_totals %}<button type="button" class="btn btn-sm btn-outline-secondary text-nowrap d-md-none" id="mf-plan-toggle" aria-pressed="false">見込み 表示</button>{% endif %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" id="mf-ref-toggle" aria-pressed="false">参考列 表示</button>
+                </div>
                 {% endif %}
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-striped mb-0 align-middle mf-table">
                     <thead class="table-light">
                         <tr>
-                            <th rowspan="2" class="text-nowrap">店舗</th>
+                            <th rowspan="2" class="text-nowrap mf-store">店舗</th>
                             <th class="text-end text-nowrap">需要</th>
-                            <th colspan="3" class="text-center text-nowrap mf-plan-group mf-plan-first mf-plan-last">持たせる数
-                                {% if forloop.first %}<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="mf-plan-help" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true"
-                                        data-bs-content="売上UP：10回中8回は売り切れない数<br>現状維持：いつもの持参÷需要の倍率<br>廃棄率重視：見込み廃棄率3%以下の最大数<br>粗利＝売上−持参数×原価（原価率50%）"
-                                        aria-label="3パターンの計算"><i class="fas fa-info-circle" aria-hidden="true"></i></button>{% endif %}
-                            </th>
+                            <th colspan="3" class="text-center text-nowrap mf-plan-group mf-plan-first mf-plan-last">持たせる数{% include "includes/info_tip.html" with id="mf-plan" key=forloop.counter label="持たせる数" text=plan_tip %}</th>
                             {% if day.has_draft %}<th rowspan="2" class="text-end text-nowrap">下書き</th>{% endif %}
                             {% if day.show_comments %}<th rowspan="2" class="text-nowrap">現場のひと言</th>{% endif %}
                             <th rowspan="2" class="text-nowrap">同じ曜日の実績</th>
-                            <th colspan="{% if day.has_draft %}8{% else %}6{% endif %}" class="text-center text-nowrap mf-ref-col">参考</th>
+                            <th colspan="{% if day.has_draft %}12{% else %}9{% endif %}" class="text-center text-nowrap mf-ref-col">参考</th>
                         </tr>
                         <tr>
                             <th class="text-end text-nowrap">予測食数</th>
                             <th class="text-end text-nowrap mf-plan-first">売上UP</th>
                             <th class="text-end text-nowrap">現状維持</th>
                             <th class="text-end text-nowrap mf-plan-last">廃棄率重視</th>
-                            {% if day.has_draft %}<th class="text-end text-nowrap mf-ref-col">差</th><th class="text-end text-nowrap mf-ref-col">半々の目安</th>{% endif %}
+                            {% if day.has_draft %}<th class="text-end text-nowrap mf-ref-col">差</th><th class="text-end text-nowrap mf-ref-col">余裕分</th><th class="text-end text-nowrap mf-ref-col">半々の目安</th>{% endif %}
+                            <th class="text-end text-nowrap mf-ref-col">補正なし</th>
+                            <th class="text-nowrap mf-ref-col">補正</th>
+                            <th class="text-end text-nowrap mf-ref-col">雨の日</th>
                             <th class="text-end text-nowrap mf-ref-col">直近の水準</th>
                             <th class="text-end text-nowrap mf-ref-col">曜日の癖</th>
                             <th class="text-center text-nowrap mf-ref-col">月内のクセ</th>
@@ -153,14 +142,13 @@
                     <tbody>
                         {% for l in day.locs %}
                         <tr>
-                            <td class="text-nowrap"><strong>{{ l.name }}</strong>
-                                <div class="small text-muted">{{ l.type }}{% if l.area != '東京' %}・{{ l.area }}{% endif %}{% if l.rain_store_note %}<span title="この店の雨の日の補正（これまでの雨の日の実績から）">・雨の日 {% if l.rain_store_pct > 0 %}+{% endif %}{{ l.rain_store_pct }}%</span>{% endif %}</div>
-                                {% if l.thin %}<div class="small text-muted mf-thin-data">実績少・全店の幅</div>{% endif %}
+                            <td class="text-nowrap mf-store"><strong>{{ l.name }}</strong>
+                                <div class="small text-muted">{{ l.type }}{% if l.area != '東京' %}・{{ l.area }}{% endif %}{% if l.thin %} <span class="badge text-bg-light border fw-normal mf-thin-data">実績少</span>{% endif %}</div>
                                 {% for note in l.events %}<div class="small text-muted"><i class="fas fa-calendar-day me-1" aria-hidden="true"></i>予定：{{ note }}</div>{% endfor %}
                             </td>
                             <td class="text-end text-nowrap">
                                 <span class="fs-5 fw-bold text-primary">{{ l.pred }}</span>
-                                {% if l.rain_pct or l.wind_pct or l.bridge_pct %}<div class="small text-nowrap">{% if l.rain_pct %}<span class="{% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{% endif %}{{ l.rain_pct }}%</span>{% endif %}{% if l.wind_pct %}{% if l.rain_pct %}・{% endif %}<span class="text-danger">風{{ l.wind_pct }}%</span>{% endif %}{% if l.bridge_pct %}{% if l.rain_pct or l.wind_pct %}・{% endif %}<span class="text-danger">飛び石{{ l.bridge_pct }}%</span>{% endif %}<span class="text-muted">（なし{{ l.base }}）</span></div>{% endif %}
+                                {% if l.rain_pct or l.wind_pct or l.bridge_pct %}<div class="small text-nowrap mf-adj {% if l.adj_pct > 0 %}text-success{% elif l.adj_pct < 0 %}text-danger{% else %}text-muted{% endif %}">補正 {% if l.adj_pct > 0 %}+{{ l.adj_pct }}{% elif l.adj_pct < 0 %}−{{ l.adj_pct|stringformat:'d'|cut:'-' }}{% else %}±0{% endif %}%</div>{% endif %}
                             </td>
                             {% if l.plans %}
                             {% for key in plan_keys_store %}{% with v=l.plans|get_item:key %}
@@ -193,50 +181,44 @@
                                         {% else %}<div class="text-muted">雨なら{{ l.comment.rain_num }}</div>{% endif %}
                                     {% endif %}
                                     {% if l.comment.text %}<div class="text-muted">{{ l.comment.text|truncatechars:40 }}</div>{% endif %}
-                                    <div class="text-muted mf-tiny">{{ l.comment.date|date:'n/j' }}の日計表</div>
+                                    <div class="text-muted mf-tiny">{{ l.comment.date|date:'n/j' }}</div>
                                 {% else %}<span class="text-muted">—</span>{% endif %}
                             </td>
                             {% endif %}
                             <td class="text-muted small text-nowrap">
-                                {% for x in l.last3 %}<div>{{ x.date|date:'n/j' }}：{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% if x.lost %}<span class="small ms-1">買えず{{ x.lost }}</span>{% endif %}{% endif %}{% if x.excluded %}<a tabindex="0" role="button" class="badge text-bg-light border fw-normal text-decoration-none ms-1 mf-ex" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-content="予測から除外：{{ x.excluded }}" aria-label="除外：{{ x.excluded }}">除外</a>{% endif %}</div>{% endfor %}
+                                {% for x in l.last3 %}<div>{{ x.date|date:'n/j' }}：{{ x.sold }}{% if x.sold_out %}<span class="badge bg-secondary ms-1">完</span>{% if x.lost %}<span class="small ms-1">買えず{{ x.lost }}</span>{% endif %}{% endif %}{% if x.excluded %}<button type="button" class="hp-tip-btn mf-ex ms-1" popovertarget="hp-tip-mfex-{{ forloop.parentloop.parentloop.counter }}-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" aria-label="予測除外：{{ x.excluded }}">除外</button><span id="hp-tip-mfex-{{ forloop.parentloop.parentloop.counter }}-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" class="hp-tip" popover><span class="hp-tip-text">予測除外：{{ x.excluded }}</span><button type="button" class="hp-close" popovertarget="hp-tip-mfex-{{ forloop.parentloop.parentloop.counter }}-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" popovertargetaction="hide" aria-label="閉じる">×</button></span>{% endif %}</div>{% endfor %}
                             </td>
                             {% if day.has_draft %}
                             {% if l.draft %}
-                            <td class="text-end small text-nowrap mf-ref-col">
-                                <span class="text-muted">{% if l.draft.diff > 0 %}+{% endif %}{{ l.draft.diff }}</span>
-                                <div class="text-muted mf-tiny">余裕分{{ l.draft.buffer }}を引いて比較</div>
-                            </td>
+                            <td class="text-end small text-nowrap text-muted mf-ref-col">{% if l.draft.diff > 0 %}+{% endif %}{{ l.draft.diff }}</td>
+                            <td class="text-end small text-muted mf-ref-col">{{ l.draft.buffer }}</td>
                             <td class="text-end mf-ref-col">{{ l.draft.mid }}</td>
                             {% else %}
-                            <td class="mf-ref-col"></td><td class="mf-ref-col"></td>
+                            <td class="mf-ref-col"></td><td class="mf-ref-col"></td><td class="mf-ref-col"></td>
                             {% endif %}
                             {% endif %}
+                            <td class="text-end text-muted mf-ref-col">{{ l.base }}</td>
+                            <td class="small text-nowrap mf-ref-col">{% if l.rain_pct or l.wind_pct or l.bridge_pct %}{% if l.rain_pct %}<span class="{% if l.rain_pct > 0 %}text-success{% else %}text-danger{% endif %}">雨{% if l.rain_pct > 0 %}+{{ l.rain_pct }}{% else %}−{{ l.rain_pct|stringformat:'d'|cut:'-' }}{% endif %}</span> {% endif %}{% if l.wind_pct %}<span class="text-danger">風−{{ l.wind_pct|stringformat:'d'|cut:'-' }}</span> {% endif %}{% if l.bridge_pct %}<span class="text-danger">飛−{{ l.bridge_pct|stringformat:'d'|cut:'-' }}</span>{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                            <td class="text-end small text-nowrap mf-ref-col">{% if l.rain_store_note %}<span class="{% if l.rain_store_pct > 0 %}text-success{% elif l.rain_store_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.rain_store_pct > 0 %}+{% endif %}{{ l.rain_store_pct }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                             <td class="text-end text-muted mf-ref-col">{{ l.recent }}</td>
                             <td class="text-end small mf-ref-col {% if l.weekday_pct > 0 %}text-success{% elif l.weekday_pct < 0 %}text-danger{% else %}text-muted{% endif %}">{% if l.weekday_pct > 0 %}+{% endif %}{{ l.weekday_pct }}%</td>
                             <td class="text-center small mf-ref-col">{% if l.third_pct is not None %}<span class="badge {% if l.third_pct > 0 %}bg-success{% else %}bg-secondary{% endif %}">{{ l.third_label }}{% if l.third_pct > 0 %}+{% endif %}{{ l.third_pct }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                             <td class="text-end small text-nowrap mf-ref-col">{% if l.trend_pct is None %}<span class="text-muted">—</span>{% elif l.trend_pct >= 5 %}<span class="text-success">↑+{{ l.trend_pct }}%</span>{% elif l.trend_pct <= -5 %}<span class="text-danger">↓{{ l.trend_pct }}%</span>{% else %}<span class="text-muted">→{% if l.trend_pct > 0 %}+{% endif %}{{ l.trend_pct }}%</span>{% endif %}</td>
-                            <td class="text-end small mf-ref-col {% if l.sold_out_pct >= 60 %}text-primary fw-bold{% else %}text-muted{% endif %}">{{ l.sold_out_pct }}%</td>
-                            <td class="text-end text-nowrap mf-ref-col {% if l.avg_rem >= 6 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ l.avg_rem }}食</td>
+                            <td class="text-end small mf-ref-col {% if l.sold_out_pct >= method.sold_out_strong_pct %}text-primary fw-bold{% else %}text-muted{% endif %}">{{ l.sold_out_pct }}%</td>
+                            <td class="text-end text-nowrap mf-ref-col {% if l.avg_rem >= method.avg_rem_high %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ l.avg_rem }}食</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% else %}
-            <p class="text-muted p-3 mb-0">予測できる店舗がありません（直近の実績が足りません）。</p>
+            <p class="text-muted p-3 mb-0">予測できる店舗なし（直近の実績不足）</p>
             {% endif %}
         </div>
     </div>
     {% endfor %}
     </div>
 
-    <div class="alert alert-warning small">
-        ⚠️ 予測は「売れそうな数（需要）」です。<span class="text-primary fw-bold">完売率が高い店（60%以上）</span>は需要がさらに上のことも（＝もう少し積める余地）、
-        残りがちな店は予測どおりかやや下で。「直近の流れ」と「月内のクセ」は参考表示です（予測には入れていません。入れても当たりが良くならなかったため）。
-        「店」・配達・お試しは対象外。給料日・月初は実績上ほぼ影響なし。最後は現場判断で。
-        <br>「下書き」は振分表の[下書き記録]で送った36行目の数です。いつもの余裕分（完売しなかった日の残数の中央値）を引いてから予測と比べ、
-        15%以上かつ5食以上違う店に「要確認」を出します。「半々の目安」は、予測と下書きを半々で合わせた数（過去の検証で、どちらか単独より当たった）。
-    </div>
 </div>
 {% endblock %}
 
@@ -260,9 +242,31 @@
         apply(on);
         try { localStorage.setItem('mf_show_ref', on ? '1' : '0'); } catch (e) {}
     });
-    document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function(el) {
-        if (window.bootstrap) new bootstrap.Popover(el);
+
+    // 見込み（全店）の表：スマホだけ畳める（PCは常に表示・CSS側で切り替え）
+    var planBtn = document.getElementById('mf-plan-toggle');
+    function applyPlan(on) {
+        if (!box || !planBtn) return;
+        box.classList.toggle('mf-show-plan', on);
+        planBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        planBtn.textContent = on ? '見込み 非表示' : '見込み 表示';
+    }
+    var savedPlan = false;
+    try { savedPlan = localStorage.getItem('mf_show_plan') === '1'; } catch (e) {}
+    applyPlan(savedPlan);
+    if (planBtn) planBtn.addEventListener('click', function() {
+        var on = !box.classList.contains('mf-show-plan');
+        applyPlan(on);
+        try { localStorage.setItem('mf_show_plan', on ? '1' : '0'); } catch (e) {}
     });
+
+    // 天気：スマホは畳んで開始、PCは開いたまま（幅が変わったら合わせ直す）
+    var wx = document.querySelector('.mf-wx');
+    var narrow = window.matchMedia('(max-width: 767.98px)');
+    function fitWeather() { if (wx) wx.open = !narrow.matches; }
+    fitWeather();
+    if (narrow.addEventListener) narrow.addEventListener('change', fitWeather);
 })();
 </script>
+<script src="{% static 'js/help.js' %}" defer></script>
 {% endblock %}

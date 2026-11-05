@@ -3428,6 +3428,11 @@ def _plan_totals(locs):
 
 DRAFT_FLAG_PCT = 0.15   # 下書きと予測がこれ以上違えば「要確認」
 DRAFT_FLAG_MIN = 5      # かつ、これ以上の食数の差
+DRAFT_BUFFER_SAMPLES = 20   # いつもの余裕分：直近何回の「完売しなかった日の残数」の中央値
+SOLD_OUT_RATE_DAYS = 10     # 参考列「完売率」：直近何回
+AVG_REM_SAMPLES = 4         # 参考列「平均残」：同じ曜日の直近何回
+SOLD_OUT_STRONG_PCT = 60    # 完売率がこれ以上の店は強調（需要がさらに上の余地）
+AVG_REM_HIGH = 6            # 平均残がこれ以上の店は強調
 
 
 def _draft_comparison(draft, rows, pred):
@@ -3435,7 +3440,7 @@ def _draft_comparison(draft, rows, pred):
     店ごとの「いつもの余裕分」（直近20回の、完売しなかった日の残数の中央値）を引いてから比べる。"""
     if draft is None:
         return None
-    recent = [r["rem"] for r in rows if not r["sold_out"]][-20:]
+    recent = [r["rem"] for r in rows if not r["sold_out"]][-DRAFT_BUFFER_SAMPLES:]
     buffer = sorted(recent)[len(recent) // 2] if recent else 0
     compare = draft - buffer
     diff = compare - pred
@@ -3528,7 +3533,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             bridge_f = BRIDGE_FACTOR if td in bridges else 1.0
             factor = rain_f * wind_f * bridge_f
             same = [r for r in rows if r["wd"] == wd]
-            recent10 = rows[-10:]
+            recent10 = rows[-SOLD_OUT_RATE_DAYS:]
             eff = third_effect(rows, third)
             draft_info = _draft_comparison(drafts.get((td, name)), rows, p["pred"] * factor)
             plans, thin = None, False
@@ -3554,6 +3559,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "pred": int(p["pred"] * factor + 0.5),        # 補正込み（これを見る）
                 "rain": level, "rain_pct": int(round((rain_f - 1) * 100)),
                 "wind_pct": int(round((wind_f - 1) * 100)), "bridge_pct": int(round((bridge_f - 1) * 100)),
+                "adj_pct": int(round((factor - 1) * 100)),   # 雨・強風・飛び石をまとめた補正（画面はこの1つだけ）
                 # 「雨」の日の補正（形態×店の倍率）。形態の値から3%以上ずれた店だけ、店名の欄に出す
                 "rain_store_pct": int(round((rain_factor("雨", sales_type) * mult - 1) * 100)),
                 "rain_store_note": abs(mult - 1) >= 0.03,
@@ -3565,7 +3571,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                 "last3": [{"date": r["date"], "sold": r["sold"], "sold_out": r["sold_out"], "lost": r.get("lost"),
                            "excluded": r["excluded"]}
                           for r in [r for r in hist_all[name] if r["wd"] == wd][-3:]][::-1],
-                "avg_rem": round(sum(r["rem"] for r in same[-4:]) / len(same[-4:]), 1) if same else 0,
+                "avg_rem": round(sum(r["rem"] for r in same[-AVG_REM_SAMPLES:]) / len(same[-AVG_REM_SAMPLES:]), 1) if same else 0,
                 "sold_out_pct": int(round(sum(r["sold_out"] for r in recent10) / len(recent10) * 100)),
                 "comment": _plan_comment(plans.get(name, {}).get(td)) or (
                     None if not comment else {"date": comment[0], "text": comment[1], "num": num}),
@@ -3596,13 +3602,82 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
             "wind_factor": WIND_FACTORS.get("テーブル", 1.0)}
 
 
+def _num(x):
+    """0.90→「0.9」・6.0→「6」。ヘルプの係数を定数のまま見せる。"""
+    return f"{x:.2f}".rstrip("0").rstrip(".")
+
+
+def _forecast_method():
+    """？ヘルプ「計算方法」に出す数字。画面の説明が計算とずれないよう、すべて定数から作る。"""
+    from django.conf import settings
+
+    import sales.meal_forecast as mf
+    import sales.weather as wx
+
+    def by_factor(table):
+        # 同じ係数の形態はまとめて「テーブル・行商」のように出す
+        groups = {}
+        for sales_type, f in table.items():
+            groups.setdefault(f, []).append(sales_type)
+        return [{"types": "・".join(types), "factor": f} for f, types in groups.items()]
+
+    levels = [lv for _, lv in sorted(wx.RAIN_LEVELS)]
+    rain_types = {}
+    for lv in levels:
+        for sales_type, f in wx.RAIN_FACTORS[lv].items():
+            rain_types.setdefault(sales_type, []).append(_num(f))
+    rain_rows = by_factor({t: "／".join(f"{lv}×{f}" for lv, f in zip(levels, fs)) for t, fs in rain_types.items()})
+    excluded = list(getattr(settings, "MENU_HISTORY_EXCLUDED_LOCATIONS", [])) + ["配達"]
+    return {
+        "recent_days": mf.RECENT_DAYS, "recent_long_days": mf.RECENT_LONG_DAYS,
+        "recent_short_share": _num(1 - mf.RECENT_LONG_SHARE), "recent_long_share": _num(mf.RECENT_LONG_SHARE),
+        "weekday_samples": mf.WEEKDAY_SAMPLES, "level_days": mf.LEVEL_DAYS, "weekday_min": mf.WEEKDAY_MIN,
+        "weekday_clip": "〜".join(_num(x) for x in mf.WEEKDAY_CLIP),
+        "sold_out_uplift": _num(mf.SOLD_OUT_UPLIFT),
+        "rain_levels": "／".join(f"{lv}{_num(mm)}mm〜" for mm, lv in sorted(wx.RAIN_LEVELS)),
+        "rain_rows": [{"types": r["types"], "factors": r["factor"]} for r in rain_rows],
+        "rain_store_clip": "〜".join(_num(x) for x in mf.RAIN_STORE_CLIP),
+        "wind_strong": _num(wx.WIND_STRONG),
+        "wind_rows": [{"types": r["types"], "factor": _num(r["factor"])} for r in by_factor(wx.WIND_FACTORS)],
+        "bridge_factor": _num(mf.BRIDGE_FACTOR),
+        "plan_sample_days": mf.PLAN_SAMPLE_DAYS,
+        "plan_up_of10": int(round(mf.PLAN_UP_QUANTILE * 10)),
+        "plan_keep_samples": mf.PLAN_KEEP_SAMPLES,
+        "plan_waste_pct": _num(mf.PLAN_WASTE_TARGET * 100),
+        "plan_min_samples": mf.PLAN_MIN_SAMPLES,
+        "cost_rate_pct": _num(mf.COST_RATE * 100),
+        "draft_buffer_samples": DRAFT_BUFFER_SAMPLES,
+        "draft_flag_pct": _num(DRAFT_FLAG_PCT * 100), "draft_flag_min": DRAFT_FLAG_MIN,
+        "trend_days": mf.TREND_DAYS,
+        "sold_out_rate_days": SOLD_OUT_RATE_DAYS, "avg_rem_samples": AVG_REM_SAMPLES,
+        "sold_out_strong_pct": SOLD_OUT_STRONG_PCT, "avg_rem_high": AVG_REM_HIGH,
+        "active_days": FORECAST_ACTIVE_DAYS, "excluded_locations": "・".join(f"「{x}」" for x in excluded),
+        "backtest_days": mf.BACKTEST_DAYS,
+    }
+
+
+def _summary_tip(totals):
+    """「この日の見込み（全店）」のⓘ。除いた店があるときだけ一言足す。"""
+    parts = ["全店の合計。計算はヘルプ"]
+    if totals["up"]["profit_partial"]:
+        parts.append("粗利*：単価の無い店を除く")
+    if totals["keep"]["skipped"]:
+        parts.append("現状維持*：—の店を除く")
+    return "／".join(parts)
+
+
 @menu_permission_required('can_view_performance_by_location')
 def meal_forecast_view(request):
     """食数予測：直近の営業日ぶんの需要を店舗別に予測（仕込み量の目安・廃棄削減）。"""
     today = timezone.localdate()
     fc = _meal_forecast(today)
+    method = _forecast_method()
+    for day in fc["days"]:
+        day["summary_tip"] = _summary_tip(day["plan_totals"]) if day["plan_totals"] else ""
+    plan_tip = (f"売上UP＝10回中{method['plan_up_of10']}回売り切れない数／現状維持＝いつもの持参の倍率／"
+                f"廃棄率重視＝廃棄率{method['plan_waste_pct']}%以下")
     return render(request, "meal_forecast.html", {
-        "today": today, "fc": fc,
+        "today": today, "fc": fc, "method": method, "plan_tip": plan_tip,
         "plan_keys": ["up", "keep", "waste", "draft"], "plan_keys_store": ["up", "keep", "waste"],
         "plan_metrics": [("qty", "持参数"), ("sold", "売れる数"), ("waste_rate", "廃棄率"), ("profit", "粗利")],
     })

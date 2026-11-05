@@ -141,7 +141,7 @@ class MealForecastRainTests(TestCase):
         day = res.context["fc"]["days"][0]
         self.assertEqual(day["total"], 260)       # 60 + 100 + 横浜は晴れで100
         self.assertEqual(day["base_total"], 300)
-        self.assertContains(res, "雨の補正あり")
+        self.assertContains(res, "雨補正")
 
     def test_each_store_uses_its_area_forecast(self):
         res = self.get({"tokyo": {"2026-10-05": self.wx(0.0, None)}, "yokohama": {"2026-10-05": self.wx(4.0, "雨")}})
@@ -166,7 +166,7 @@ class MealForecastRainTests(TestCase):
         self.assertEqual(locs["横浜の店"]["pred"], 95)
         self.assertEqual(locs["ビルの店"]["pred"], 100)
         self.assertEqual(locs["ビルの店"]["wind_pct"], 0)
-        self.assertContains(res, "強風の補正あり")
+        self.assertContains(res, "強風補正")
         self.assertContains(res, "補正がなければ 300 食")
 
     def test_rain_and_wind_together(self):
@@ -179,9 +179,9 @@ class MealForecastRainTests(TestCase):
     def test_calm_day_has_no_wind_mark(self):
         res = self.get({"tokyo": {"2026-10-05": self.wx(0.0, None, wind=3.0)}})
         self.assertEqual(self.monday(res)["テーブルの店"]["pred"], 100)
-        self.assertNotContains(res, "強風の補正あり")
+        self.assertNotContains(res, "強風補正")
         self.assertNotContains(res, "補正がなければ")
-        self.assertContains(res, "取得できませんでした")
+        self.assertContains(res, "取得失敗")
 
     def test_weather_unavailable(self):
         res = self.get({})

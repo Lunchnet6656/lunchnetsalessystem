@@ -210,4 +210,4 @@ class ReflectionTests(TestCase):
         last3 = next(l for l in monday["locs"] if l["name"] == "A店")["last3"]
         self.assertEqual((last3[0]["date"], last3[0]["excluded"]), (mon, "商品の販売中止"))
         self.assertIsNone(last3[1]["excluded"])
-        self.assertContains(res, 'aria-label="除外：商品の販売中止"')
+        self.assertContains(res, 'aria-label="予測除外：商品の販売中止"')

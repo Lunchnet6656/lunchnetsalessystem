@@ -1,0 +1,68 @@
+<div class="mf-help">
+<h3>■ 予測食数（需要）</h3>
+<p class="mb-1">予測＝直近の水準 × 曜日の癖 × 天気・飛び石の補正</p>
+<ul>
+  <li>直近の水準：直近{{ method.recent_days }}営業日の加重平均（新しい日ほど重い）×{{ method.recent_short_share }}＋直近{{ method.recent_long_days }}営業日の平均×{{ method.recent_long_share }}。「その日だけの理由」の日・飛び石の日は除く</li>
+  <li>曜日の癖：同じ曜日の直近{{ method.weekday_samples }}回の平均 ÷ 直近{{ method.level_days }}営業日の平均。{{ method.weekday_min }}回未満は1倍。{{ method.weekday_clip }}倍の範囲</li>
+  <li>完売した日：販売数 ×（1＋{{ method.sold_out_uplift }}×閉店までの残り時間の割合）。「買えなかった人数」がある日は 販売数＋人数</li>
+</ul>
+
+<h3>■ 補正</h3>
+<ul>
+  <li>雨（昼11〜13時の予報）：{{ method.rain_levels }}（雪は大雨）</li>
+  {% for r in method.rain_rows %}<li>{{ r.types }}：{{ r.factors }}</li>{% endfor %}
+  <li>その他の形態（室内など）は補正なし</li>
+  <li>さらに店ごとの倍率：雨の日の実績から。{{ method.rain_store_clip }}倍・日数が少ない店は1倍寄り（参考列「雨の日」）</li>
+  {% for r in method.wind_rows %}<li>強風：{{ method.wind_strong }}m/s以上で{{ r.types }} ×{{ r.factor }}</li>{% endfor %}
+  <li>飛び石（前後の日が休み）：全店 ×{{ method.bridge_factor }}</li>
+  <li>予測食数の下の「補正」：上の補正をまとめた増減。内訳は参考列「補正」</li>
+</ul>
+
+<h3>■ 予測から外す日</h3>
+<ul>
+  <li>振り返りで「予測から外す」出来事があった店・日は計算に使わない</li>
+  <li>「同じ曜日の実績」に「除外」と表示。タップで出来事の種類</li>
+</ul>
+
+<h3>■ 持たせる数（3パターン）</h3>
+<p class="mb-1">需要の散らばり＝直近{{ method.plan_sample_days }}日の「実際の需要÷予測」</p>
+<ul>
+  <li>売上UP：10回中{{ method.plan_up_of10 }}回は売り切れない数</li>
+  <li>現状維持：予測 × 直近{{ method.plan_keep_samples }}回の「持参数÷需要」の中央値</li>
+  <li>廃棄率重視：見込み廃棄率{{ method.plan_waste_pct }}%以下の最大の数</li>
+  <li>実績少：散らばりが{{ method.plan_min_samples }}件未満の店。全店の散らばりを足して計算</li>
+  <li>粗利：売れる数×単価 − 持参数×単価×{{ method.cost_rate_pct }}%（単価＝店の直近の平均）</li>
+</ul>
+
+<h3>■ 下書き・要確認</h3>
+<ul>
+  <li>下書き：振分表［下書き記録］の36行目</li>
+  <li>余裕分：直近{{ method.draft_buffer_samples }}回の完売しなかった日の残数の中央値</li>
+  <li>要確認：（下書き−余裕分）と予測の差が{{ method.draft_flag_pct }}%以上かつ{{ method.draft_flag_min }}食以上</li>
+  <li>差：（下書き−余裕分）−予測</li>
+  <li>半々の目安：予測と（下書き−余裕分）の平均＋余裕分</li>
+</ul>
+
+<h3>■ 参考列（予測には入れない列あり）</h3>
+<ul>
+  <li>直近の水準・曜日の癖・補正なし・補正・雨の日：予測の材料</li>
+  <li>月内のクセ・直近の流れ：表示のみ（予測に入れても当たらなかった）</li>
+  <li>直近の流れ：直近{{ method.trend_days }}営業日とその前の{{ method.trend_days }}営業日の比</li>
+  <li>完売率：直近{{ method.sold_out_rate_days }}回／平均残：同じ曜日の直近{{ method.avg_rem_samples }}回</li>
+</ul>
+
+<h3>■ 対象</h3>
+<ul>
+  <li>直近{{ method.active_days }}日に売った店。{{ method.excluded_locations }}は除く</li>
+  <li>精度：直近{{ method.backtest_days }}日・完売しなかった日の予測と実績の平均の差{% if fc.backtest %}（{{ fc.backtest.n }}件）{% endif %}</li>
+  <li>給料日・月初：実績上ほぼ影響なし（入れない）</li>
+</ul>
+
+<h3>■ 読み方</h3>
+<ul>
+  <li>予測は「売れそうな数（需要）」</li>
+  <li>完売率が高い店（{{ method.sold_out_strong_pct }}%以上・青字）は需要がさらに上のことも</li>
+  <li>残りがちな店（平均残{{ method.avg_rem_high }}食以上・赤字）は予測どおりかやや下で</li>
+  <li>最後は現場判断で</li>
+</ul>
+</div>

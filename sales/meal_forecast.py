@@ -37,6 +37,7 @@ MIN_HISTORY = 5
 RAIN_STORE_K = 8               # 店ごとの雨の倍率：雨の日の実績が少ない店ほど1.0（形態の値のまま）に寄せる強さ
 RAIN_STORE_CLIP = (0.6, 1.4)   # 2026-10検証：雨の日の誤差 6.71→6.31食（research/topics/2026-10-23-食数予測-雨補正の店別化…）
 BRIDGE_FACTOR = 0.90           # 飛び石の日：過去3回 −14%・−16%・−6%。答え合わせで誤差 6.27→2.13食
+BACKTEST_DAYS = 28             # 画面の「精度」：直近何日を答え合わせするか
 
 
 def _minutes(t):
@@ -180,7 +181,7 @@ def rain_multiplier(rows, sales_type):
     return min(max((n * median + RAIN_STORE_K) / (n + RAIN_STORE_K), lo), hi), n
 
 
-def backtest(hist, today, days=28):
+def backtest(hist, today, days=BACKTEST_DAYS):
     """直近 days 日を、その日より前のデータだけで予測して答え合わせ。
     需要が正確に分かる「完売しなかった日」だけで誤差を測る。"""
     cut = today - timedelta(days=days)

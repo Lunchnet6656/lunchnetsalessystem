@@ -273,3 +273,69 @@ class BridgeDayTests(TestCase):
         self.assertEqual({l["name"]: (l["pred"], l["base"], l["bridge_pct"]) for l in day["locs"]},
                          {"外の店": (90, 100, -10), "ビルの店": (90, 100, -10)})
         self.assertFalse(fc["days"][1]["bridge"])        # 11/4（水）
+
+
+@override_settings(MENU_HISTORY_EXCLUDED_LOCATIONS=["店"])
+class PageLayoutTests(TestCase):
+    """画面は数字・状態・操作だけ。計算の説明は ？ヘルプ「計算方法」1か所に、定数から出す。"""
+
+    def setUp(self):
+        import re
+        self.re = re
+        cache.clear()
+        SalesLocation.objects.create(no=1, name="外の店", type="テーブル", price_type="A", service_name="")
+        for d in weekdays_before(date(2026, 10, 30), 40):
+            report(d, "外の店", 1, 100)
+        user = get_user_model().objects.create_user("viewer", password="pw-viewer-123456")
+        grant(user, "can_view_performance_by_location")
+        self.client.force_login(user)
+
+    def get(self):
+        # 10/30（金）の次は 11/2（飛び石）
+        with patch("lunchnetsale.views.timezone.localdate", return_value=date(2026, 10, 30)), \
+             patch("lunchnetsale.views._fetch_lunch_weather", return_value={}):
+            return self.client.get(reverse("meal_forecast"))
+
+    def help_body(self, res):
+        html = res.content.decode()
+        m = self.re.search(r'<dialog id="hp-help-mf".*?</dialog>', html, self.re.S)
+        self.assertIsNotNone(m)
+        return m.group(0)
+
+    def test_help_has_every_topic(self):
+        body = self.help_body(self.get())
+        self.assertIn(">計算方法</h2>", body)
+        for word in ("直近の水準", "曜日の癖", "完売", "雨", "強風", "飛び石", "予測から外す", "売上UP", "現状維持",
+                     "廃棄率重視", "要確認", "余裕分", "読み方", "最後は現場判断で"):
+            self.assertIn(word, body)
+
+    def test_help_numbers_follow_constants(self):
+        self.assertIn("全店 ×0.9<", self.help_body(self.get()))
+        with patch("sales.meal_forecast.BRIDGE_FACTOR", 0.85), patch("sales.meal_forecast.PLAN_WASTE_TARGET", 0.05), \
+             patch("sales.weather.WIND_STRONG", 7.0), patch("lunchnetsale.views.DRAFT_FLAG_MIN", 8):
+            res = self.get()
+        body = self.help_body(res)
+        self.assertIn("全店 ×0.85<", body)
+        self.assertIn("見込み廃棄率5%以下", body)
+        self.assertIn("7m/s以上", body)
+        self.assertIn("8食以上", body)
+        self.assertContains(res, "廃棄率重視＝廃棄率5%以下")      # ⓘ も同じ定数から
+
+    def test_no_explanations_on_screen(self):
+        res = self.get()
+        html = res.content.decode()
+        self.assertNotIn('data-bs-toggle="popover"', html)
+        self.assertNotIn('class="alert', html)
+        main = html[html.index('<div class="container mt-4">'):]
+        main = self.re.sub(r'<dialog .*?</dialog>', "", main, flags=self.re.S)
+        main = self.re.sub(r'<span id="hp-tip-[^"]*" class="hp-tip" popover>.*?</span><button[^>]*>×</button></span>',
+                           "", main, flags=self.re.S)
+        main = self.re.sub(r"<script.*?</script>", "", main, flags=self.re.S)
+        self.assertNotIn("。", main)
+
+    def test_tips_use_shared_parts(self):
+        res = self.get()
+        self.assertContains(res, 'popovertarget="hp-tip-mf-plan-1"')
+        self.assertContains(res, 'popovertarget="hp-tip-mf-sum-1"')
+        self.assertContains(res, "飛び石−10%")
+        self.assertContains(res, "補正 −10%")

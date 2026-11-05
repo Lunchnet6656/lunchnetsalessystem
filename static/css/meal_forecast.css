@@ -8,5 +8,31 @@
 .mf-tiny { font-size: .75rem; }
 .mf-comment-col { max-width: 16rem; }
 
-/* 同じ曜日の実績：予測から外した日の「除外」。押せる範囲を24px以上に（中身は Popover で種類名） */
-.mf-ex { display: inline-flex; align-items: center; min-height: 24px; }
+/* 同じ曜日の実績：予測から外した日の「除外」。共通部品の ⓘ（hp-tip-btn）を文字のボタンにする。押せる範囲は24pxのまま */
+.hp-tip-btn.mf-ex {
+  width: auto; padding: 0 6px; border: 1px solid var(--ln-color-border);
+  border-radius: var(--bs-border-radius); font-size: .75em; color: var(--ln-color-text-muted);
+  background: var(--bs-light); white-space: nowrap;
+}
+
+/* ？ヘルプ「計算方法」の見出し（Bootstrap の h3 は大きすぎる） */
+.mf-help h3 { margin: 14px 0 4px; font-size: 13px; font-weight: 700; }
+.mf-help h3:first-child { margin-top: 0; }
+.mf-help ul { margin: 0; padding-left: 1.2em; }
+
+/* 天気：PCは常に開いたまま（開閉させない）。スマホだけ見出しで開閉 */
+.mf-wx > summary { cursor: pointer; }
+@media (min-width: 768px) {
+  .mf-wx > summary { list-style: none; pointer-events: none; cursor: default; }
+  .mf-wx > summary::-webkit-details-marker { display: none; }
+}
+
+@media (max-width: 767.98px) {
+  /* 見込み（全店）の表はスマホだけ畳める */
+  .mf-days:not(.mf-show-plan) .mf-plan-box { display: none; }
+  /* 横に送っても店名が見えるよう店舗の列を固定。縞・ホバーは Bootstrap が inset の影で塗るので、その影を残して固定列の影を足す */
+  .mf-table .mf-store {
+    position: sticky; left: 0; z-index: 1;
+    box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg))), var(--ln-shadow-col);
+  }
+}
