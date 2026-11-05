@@ -37,9 +37,12 @@
     locations.forEach(function (l) { now += val(p, l.id); plan += cell(p, l.id).plan; });
     return { now: now, plan: plan };
   }
+  // 持っていく数が0のマスは配るものが無いので、✓しなくても済み
+  function isZeroDone(p, l) { return !offIds[l] && val(p, l) === 0; }
+  function isDone(p, l) { return !offIds[l] && (val(p, l) === 0 || cell(p, l).ck); }
   function doneCount(p) {
     var n = 0;
-    locations.forEach(function (l) { if (!l.off && cell(p, l.id).ck) n++; });
+    locations.forEach(function (l) { if (isDone(p, l.id)) n++; });
     return n;
   }
 
@@ -71,7 +74,7 @@
         if (sel && sel.p === p.id && sel.l === l.id) cls.push('iq-cell--selected');
         h += '<td class="' + cls.join(' ') + '"><button type="button" data-product="' + p.id + '" data-location="' + l.id +
           '" data-plan="' + c.plan + '" data-current="' + v + '" aria-label="' + esc(p.name + ' ' + l.name + ' 現在' + v + ' 予定' + c.plan) + '">' +
-          (c.ck ? '<span class="iq-tick" aria-hidden="true">✓</span>' : '') + '<span class="iq-n">' + v + '</span>' +
+          (isDone(p.id, l.id) ? '<span class="iq-tick" aria-hidden="true">✓</span>' : '') + '<span class="iq-n">' + v + '</span>' +
           (v !== c.plan ? '<span class="iq-plan">予定' + c.plan + '</span>' : '') + '</button></td>';
       });
       h += '</tr>';
@@ -113,10 +116,10 @@
       if (v === 0) cls.push('iq-tile--zero');
       if (v !== c.plan && !l.off) cls.push('iq-tile--diff');
       if (k in dirty) cls.push('iq-tile--dirty');
-      if (c.ck) cls.push('iq-tile--done');
+      if (isDone(p, l.id)) cls.push('iq-tile--done');
       if (sel.l === l.id) cls.push('iq-tile--selected');
-      return '<div class="' + cls.join(' ') + '" data-l="' + l.id + '" role="button" tabindex="' + (l.off ? -1 : 0) +
-        '" aria-pressed="' + c.ck + '" aria-label="' + esc(l.name + ' ' + (l.off ? '中止' : v)) + '">' +
+      return '<div class="' + cls.join(' ') + '" data-l="' + l.id + '" role="button" tabindex="' + (l.off || isZeroDone(p, l.id) ? -1 : 0) +
+        '" aria-pressed="' + isDone(p, l.id) + '" aria-label="' + esc(l.name + ' ' + (l.off ? '中止' : v)) + '">' +
         '<span class="iq-tl">' + esc(l.name) + '</span><span class="iq-tn">' + (l.off ? '中止' : v) + '</span>' +
         (v !== c.plan && !l.off ? '<span class="iq-tp">予定' + c.plan + '</span>' : '') +
         (unsent[k] ? '<span class="iq-unsent">未送信</span>' : '') + '</div>';
@@ -410,7 +413,7 @@
   function applyTile(el) {
     if (!el || !drag) return;
     var l = +el.dataset.l;
-    if (offIds[l] || drag.seen[l]) return;
+    if (offIds[l] || isZeroDone(sel.p, l) || drag.seen[l]) return;
     drag.seen[l] = true;
     if (cell(sel.p, l).ck !== drag.to) setCheck(sel.p, l, drag.to);
     sel = { p: sel.p, l: l };
@@ -420,6 +423,7 @@
     var el = e.target.closest('.iq-tile');
     if (!el) return;
     if (el.classList.contains('iq-tile--off')) { toast('中止の店', true); return; }
+    if (isZeroDone(sel.p, +el.dataset.l)) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     drag = { to: !cell(sel.p, +el.dataset.l).ck, seen: {} };
     applyTile(el);
@@ -438,7 +442,7 @@
   window.addEventListener('pointercancel', function () { drag = null; });
   $('iq-tiles').addEventListener('keydown', function (e) {
     var el = e.target.closest('.iq-tile');
-    if (!el || (e.key !== 'Enter' && e.key !== ' ')) return;
+    if (!el || (e.key !== 'Enter' && e.key !== ' ') || isZeroDone(sel.p, +el.dataset.l)) return;
     e.preventDefault();
     drag = { to: !cell(sel.p, +el.dataset.l).ck, seen: {} };
     applyTile(el); endDrag();

@@ -260,9 +260,10 @@ def save_checks(d, user, raw, today):
         now = timezone.now()
         saved = 0
         for (pid, lid), checked in items.items():
-            if pid not in product_ids or lid not in open_ids:
+            # 0のマスは✓しなくても済み扱い（画面でも押せない）。記録も作らない
+            if pid not in product_ids or lid not in open_ids or day.value(pid, lid) == 0:
                 continue
-            iq = day.get_or_create(pid, lid)
+            iq = day.cells[(pid, lid)]
             if checked and iq.checked_at is None:
                 iq.checked_at, iq.checked_by = now, user
             elif not checked:

@@ -233,17 +233,27 @@ class ItemQuantityEditTest(TestCase):
     # 11・12
     def test_checks_saved_and_listed(self, _):
         res = self.checks([(self.tonkatsu, self.shinkawa, True), (self.tonkatsu, self.ningyo, True),
-                           (self.saba, self.ningyo, True)])
+                           (self.saba, self.shinkawa, True)])
         self.assertEqual(res.json()["saved"], 3)
         iq = self.iq(self.tonkatsu, self.shinkawa)
         self.assertEqual(iq.checked_by, self.user)
-        self.assertEqual(self.iq(self.saba, self.ningyo).planned_quantity, 0)  # 送っていないマスも✓は残せる
         self.checks([(self.tonkatsu, self.ningyo, False)])
         got = self.client.get(reverse("item_quantity_checks", args=[TODAY.isoformat()])).json()["checked"]
-        self.assertEqual(sorted(got), sorted([f"{self.tonkatsu.id}:{self.shinkawa.id}", f"{self.saba.id}:{self.ningyo.id}"]))
+        self.assertEqual(sorted(got), sorted([f"{self.tonkatsu.id}:{self.shinkawa.id}", f"{self.saba.id}:{self.shinkawa.id}"]))
         # 別の端末（別ブラウザ）で開いても✓が出る
         data = self.client.get(reverse("item_quantity_edit", args=[TODAY.isoformat()])).context["grid_data"]
         self.assertTrue(data["cells"][f"{self.tonkatsu.id}:{self.shinkawa.id}"]["ck"])
+
+    def test_zero_cells_are_done_without_check(self, _):
+        # 0のマスは✓不要（画面は済み扱いで押せない）。送られても記録しない・送っていないマスに行を作らない
+        self.save([(self.tonkatsu, self.ningyo, 0, 6)])
+        res = self.checks([(self.tonkatsu, self.ningyo, True), (self.saba, self.ningyo, True)])
+        self.assertEqual(res.json()["saved"], 0)
+        self.assertIsNone(self.iq(self.tonkatsu, self.ningyo).checked_at)
+        self.assertFalse(ItemQuantity.objects.filter(product=self.saba, sales_location=self.ningyo).exists())
+        # 1以上に戻したら通常どおり✓できる
+        self.save([(self.tonkatsu, self.ningyo, 2, 0)])
+        self.assertEqual(self.checks([(self.tonkatsu, self.ningyo, True)]).json()["saved"], 1)
 
     def test_check_time_kept_when_checked_again(self, _):
         self.checks([(self.tonkatsu, self.shinkawa, True)])
