@@ -1786,66 +1786,8 @@ def item_quantity_list_view(request):
 
 @menu_permission_required('can_view_item_quantity')
 def item_quantity_detail_view(request, date):
-    # date_strをそのまま使用（str型）
-    # 日付の形式を確認する（オプション）
-    # date_strの形式をそのまま使用して、表示用や他の処理に使用可能
-    # ここでは単純にdate_strを表示に使ったり、他の処理を行う
-    date_obj = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')  # フォーマットに合わせて変換
-    date_only = date_obj.date()  # datetimeオブジェクトからdateオブジェクトを取得
-    date_str = date_only.strftime('%Y-%m-%d')  # dateオブジェクトを文字列に変換
-    logger.debug("Selected date: %s", date_str)
-
-    # 商品ごとの数量を取得
-    item_quantities = ItemQuantity.objects.filter(target_date=date_str) \
-                                          .values('product__name') \
-                                          .annotate(total_quantity=Sum('quantity')) \
-                                          .order_by('product__no')
-
-    # 各商品ごとに、販売場所ごとの数量を取得
-    item_details = {}
-    sales_locations = []  # 販売場所を格納するリスト
-
-    # 合計を格納する辞書
-    location_totals = {}
-
-    # すべての販売場所を取得し、番号でソート
-    all_sales_locations = SalesLocation.objects.order_by('no')  # sales_location_noでソート
-
-    for item in item_quantities:
-        product_name = item['product__name']
-        # 販売場所別の数量を集約
-        sales_location_quantities = ItemQuantity.objects.filter(
-            product__name=product_name,
-            target_date=date_str
-        ).values('sales_location__name', 'sales_location__no').annotate(
-            location_quantity=Sum('quantity')
-        ).order_by('sales_location__no')
-
-        # 各商品ごとのデータを準備
-        item_details[product_name] = {location['sales_location__name']: location['location_quantity'] for location in sales_location_quantities}
-
-        # 販売場所をセットに追加し、合計を計算
-        for location in sales_location_quantities:
-            location_name = location['sales_location__name']
-            quantity = location['location_quantity']
-            if location_name not in location_totals:
-                location_totals[location_name] = 0
-            location_totals[location_name] += quantity
-
-    # sales_locationsをall_sales_locationsに基づいてリストに整形
-    sales_locations = [location.name for location in all_sales_locations]
-
-    # テンプレートに渡すデータを準備
-    context = {
-        'item_quantities': item_quantities,  # 集計した商品の数量データ
-        'item_details': item_details,  # 商品ごとに販売場所別の数量を集約
-        'sales_locations': sales_locations,  # 販売場所名のリスト
-        'selected_date': date_str,  # 選択された日付
-        'location_totals': location_totals,  # 販売場所ごとの合計
-        'editable': date_only in iq_editable_dates(timezone.localdate()),
-    }
-
-    return render(request, 'item_quantity_detail.html', context)
+    # 詳細画面は修正画面に一本化。旧URL（"YYYY-MM-DD HH:MM:SS" 形式）のブックマークを生かすため転送だけ残す
+    return redirect('item_quantity_edit', date[:10])
 
 
 def _aggregate_daily_performance(current_date, daily_reports, daily_orders):

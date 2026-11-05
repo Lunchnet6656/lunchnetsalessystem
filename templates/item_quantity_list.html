@@ -24,8 +24,7 @@
           <td class="text-nowrap">{{ target_date.target_date|japanese_date }}</td>
           <td class="text-nowrap">{{ target_date.target_week|japanese_date }}</td>
           <td class="text-nowrap">
-            <a href="{% url 'item_quantity_detail' target_date.target_date %}" class="btn btn-outline-secondary">詳細</a>
-            {% if target_date.editable %}<a href="{% url 'item_quantity_edit' target_date.iso %}" class="btn btn-outline-secondary ms-1">修正</a>{% endif %}
+            <a href="{% url 'item_quantity_edit' target_date.iso %}" class="btn btn-outline-secondary">{% if target_date.editable %}修正{% else %}詳細{% endif %}</a>
           </td>
         </tr>
         {% endfor %}

@@ -273,12 +273,16 @@ class ItemQuantityEditTest(TestCase):
         res = self.client.get(reverse("item_quantity_list"))
         self.assertContains(res, "今日の修正")
         self.assertContains(res, reverse("item_quantity_edit", args=["2026-11-05"]))
-        self.assertNotContains(res, reverse("item_quantity_edit", args=["2026-11-04"]))
         self.assertNotContains(res, "Actions")
 
-    def test_detail_entry_button(self, _):
+    def test_old_detail_url_redirects_to_edit(self, _):
         res = self.client.get(reverse("item_quantity_detail", args=["2026-11-05 00:00:00"]))
-        self.assertContains(res, reverse("item_quantity_edit", args=["2026-11-05"]))
+        self.assertRedirects(res, reverse("item_quantity_edit", args=["2026-11-05"]), fetch_redirect_response=False)
+
+    def test_list_past_date_links_to_same_screen(self, _):
+        _receive(datetime.date(2026, 11, 4), self.base)
+        res = self.client.get(reverse("item_quantity_list"))
+        self.assertContains(res, f'href="{reverse("item_quantity_edit", args=["2026-11-04"])}" class="btn btn-outline-secondary">詳細')
 
     def test_old_one_row_edit_removed(self, _):
         with self.assertRaises(NoReverseMatch):
