@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from sales.models import (DailyReport, DailyReportDiscountLine, DailyReportEntry, Holiday, IssuerSettings,
                           SalesLocation)
@@ -283,8 +284,28 @@ class IssueTests(Base):
         self.assertEqual(FeeStatement.objects.count(), 0)
 
     def test_default_pay_date(self):
-        self.assertEqual(default_pay_date(OCT), datetime.date(2026, 11, 10))
-        self.assertEqual(default_pay_date(datetime.date(2026, 12, 1)), datetime.date(2027, 1, 10))
+        # 発行日より後の、いちばん近い10日
+        self.assertEqual(default_pay_date(datetime.date(2026, 11, 12)), datetime.date(2026, 12, 10))
+        self.assertEqual(default_pay_date(datetime.date(2026, 11, 5)), datetime.date(2026, 11, 10))
+        self.assertEqual(default_pay_date(datetime.date(2026, 11, 10)), datetime.date(2026, 12, 10))
+        self.assertEqual(default_pay_date(datetime.date(2026, 12, 20)), datetime.date(2027, 1, 10))
+
+    def test_future_month_is_not_issued(self):
+        make_report(self.loc, 1, (0, 5, 0, 0, 0), month=datetime.date(2099, 1, 1))
+        with self.assertRaises(services.FeeIssueError):
+            self.issue(month=datetime.date(2099, 1, 1))
+        self.assertEqual(FeeStatement.objects.count(), 0)
+
+    def test_service_name_is_snapshotted(self):
+        r = make_report(self.loc, 1, (0, 10, 0, 0, 0))
+        DailyReportDiscountLine.objects.create(report=r, group="service", label="サービス700円",
+                                               base_price=700, unit_amount=-200, quantity=3, amount=-600)
+        st, = self.issue()
+        self.loc.service_name = "別の名前"
+        self.loc.save()
+        st.refresh_from_db()
+        self.assertIn("社員割<br>（金額）", pdf.render_html(st))
+        self.assertIn("社員割の内訳", pdf.table_context(st.detail)["service_lines"][0])
 
 
 class PdfTests(Base):
@@ -388,7 +409,8 @@ class ViewTests(Base):
         page = self.client.get(reverse("fees:issue") + "?month=2026-10")
         self.assertContains(page, "2026年10月分")
         self.assertContains(page, "¥76,851")
-        self.assertContains(page, 'value="2026-11-10"')
+        today = timezone.localdate()
+        self.assertContains(page, f'value="{default_pay_date(today):%Y-%m-%d}"')
         resp = self.client.post(reverse("fees:issue") + "?month=2026-10", {
             "month": "2026-10", "issue_date": "2026-11-12", "pay_date": "2026-11-12", "location": [self.loc.pk]})
         self.assertRedirects(resp, reverse("fees:list") + "?month=2026-10", fetch_redirect_response=False)
@@ -409,6 +431,43 @@ class ViewTests(Base):
         self.assertContains(resp, 'value="2026-11-10"')
         self.assertContains(resp, f'value="{self.loc.pk}"\n                           aria-label="○○ビル を選択" checked')
         self.assertEqual(FeeStatement.objects.count(), 0)
+
+    def test_issue_with_default_dates_passes(self):
+        load_sample(self.loc)
+        self.client.force_login(self.user)
+        for issue_date in (datetime.date(2026, 11, 12), datetime.date(2026, 11, 5)):
+            FeeStatement.objects.all().delete()
+            resp = self.client.post(reverse("fees:issue"), {
+                "month": "2026-10", "issue_date": f"{issue_date:%Y-%m-%d}",
+                "pay_date": f"{default_pay_date(issue_date):%Y-%m-%d}", "location": [self.loc.pk]})
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(FeeStatement.objects.get().pay_date, default_pay_date(issue_date))
+
+    def test_future_month_post_is_rejected(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("fees:issue"), {
+            "month": "2099-01", "issue_date": "2026-11-12", "pay_date": "2026-12-10", "location": [self.loc.pk]})
+        self.assertContains(resp, "対象月が未来")
+        self.assertEqual(FeeStatement.objects.count(), 0)
+
+    def test_all_issued_only_when_every_row_issued(self):
+        load_sample(self.loc)
+        loc2 = SalesLocation.objects.create(no=15, name="△△工場", type="車", price_type="A", service_name="なし")
+        FeeDestination.objects.create(location=loc2, enabled=True, addressee="")   # 発行できない行
+        self.issue()
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("fees:issue") + "?month=2026-10").content.decode()
+        self.assertNotIn('<span class="text-muted">発行済み</span>', page)
+        loc2.fee_destination.delete()
+        page = self.client.get(reverse("fees:issue") + "?month=2026-10").content.decode()
+        self.assertIn('<span class="text-muted">発行済み</span>', page)
+
+    def test_combined_pdf_next_must_be_same_host(self):
+        self.client.force_login(self.viewer)
+        resp = self.client.post(reverse("fees:pdf_combined"), {"statement": [], "next": "//evil.example.com/"})
+        self.assertRedirects(resp, reverse("fees:list"), fetch_redirect_response=False)
+        resp = self.client.post(reverse("fees:pdf_combined"), {"statement": [], "next": "/fees/?month=2026-10"})
+        self.assertRedirects(resp, "/fees/?month=2026-10", fetch_redirect_response=False)
 
     def test_future_month(self):
         self.client.force_login(self.user)
@@ -495,6 +554,9 @@ class DestinationViewTests(Base):
                             "率は0〜100")
         self.assertContains(self.client.post(url, {"action": "add_rate", "start_month": "2026-12", "rate": "8.25"}),
                             "小数は1桁まで")
+        for bad in ("NaN", "Infinity", "-Infinity", "abc"):
+            self.assertContains(self.client.post(url, {"action": "add_rate", "start_month": "2027-01", "rate": bad}),
+                                "率は0〜100")
         self.client.post(url, {"action": "add_rate", "start_month": "2099-12", "rate": "8.5"})
         future = FeeRate.objects.get(start_month=datetime.date(2099, 12, 1))
         self.assertEqual(future.rate, Decimal("8.5"))

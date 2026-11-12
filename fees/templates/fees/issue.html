@@ -238,8 +238,24 @@
             a.href = a.dataset.base + '&issue_date=' + encodeURIComponent(issueDate.value) + '&pay_date=' + encodeURIComponent(payDate.value);
         });
     }
-    issueDate.addEventListener('change', previewLinks);
-    payDate.addEventListener('change', previewLinks);
+    // 支払日の初期値＝発行日より後の、いちばん近い10日（fees.models.default_pay_date と同じ）。
+    // 支払日を手で変えたあとは、発行日を変えても上書きしない
+    function defaultPay(v) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+        if (!m) return '';
+        var y = +m[1], mo = +m[2], d = +m[3];
+        if (d >= 10) { mo += 1; if (mo > 12) { mo = 1; y += 1; } }
+        return y + '-' + String(mo).padStart(2, '0') + '-10';
+    }
+    var payTouched = payDate.value !== '' && payDate.value !== defaultPay(issueDate.value);
+    issueDate.addEventListener('change', function () {
+        if (!payTouched) payDate.value = defaultPay(issueDate.value);
+        previewLinks();
+    });
+    payDate.addEventListener('change', function () {
+        payTouched = payDate.value !== defaultPay(issueDate.value);
+        previewLinks();
+    });
     previewLinks();
     refresh();
 

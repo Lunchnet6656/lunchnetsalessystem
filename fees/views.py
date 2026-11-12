@@ -9,6 +9,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from sales.models import IssuerSettings, SalesLocation
@@ -190,7 +191,7 @@ def _issue_page(request, month, form, selected=None, error=""):
         "month": month, "month_value": f"{month:%Y-%m}", "month_label": _jp_month(month),
         "future": future, "rows": rows, "issuable": issuable, "form": form, "error": error,
         "chips": _month_chips(today), "can_view_reports": can_view_reports,
-        "all_issued": bool(rows) and not issuable and all(r.statement or r.blocks for r in rows),
+        "all_issued": bool(rows) and all(r.statement for r in rows),
     })
 
 
@@ -205,6 +206,8 @@ def issue(request):
             return _issue_page(request, month, form, selected)
         if not selected:
             return _issue_page(request, month, form, selected, error="選択なし")
+        if month > month_start(today):
+            return _issue_page(request, month, form, selected)
         try:
             created = services.issue_statements(month, selected, form.cleaned_data["issue_date"],
                                                 form.cleaned_data["pay_date"], request.user)
@@ -212,7 +215,7 @@ def issue(request):
             return _issue_page(request, month, form, selected, error=f"発行できなかった：{e}")
         messages.success(request, f"{_jp_month(month)} {len(created)}件を発行")
         return redirect(f"{reverse('fees:list')}?month={month:%Y-%m}")
-    form = IssueForm(initial={"issue_date": today, "pay_date": default_pay_date(month)})
+    form = IssueForm(initial={"issue_date": today, "pay_date": default_pay_date(today)})
     return _issue_page(request, month, form)
 
 
@@ -310,8 +313,9 @@ def statement_pdf_combined(request):
     # 取消した計算書はまとめてダウンロードに入れない
     sts = list(FeeStatement.objects.filter(pk__in=ids, status=FeeStatement.STATUS_ISSUED)
                .select_related("location").order_by("month", "location__no", "number"))
-    back = request.POST.get("next") or reverse("fees:list")
-    if not back.startswith("/"):
+    back = request.POST.get("next") or ""
+    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
         back = reverse("fees:list")
     if not sts:
         messages.error(request, "選択なし")

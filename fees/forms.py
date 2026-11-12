@@ -55,6 +55,8 @@ class RateForm(forms.Form):
             rate = Decimal(self.cleaned_data["rate"].strip())
         except InvalidOperation:
             raise forms.ValidationError("率は0〜100")
+        if not rate.is_finite():
+            raise forms.ValidationError("率は0〜100")
         if not (Decimal(0) <= rate <= Decimal(100)):
             raise forms.ValidationError("率は0〜100")
         if rate != rate.quantize(Decimal("0.1")):

@@ -132,8 +132,10 @@ class FeeStatement(models.Model):
         return f"{prefix}{seq:04d}"
 
 
-def default_pay_date(month):
-    """支払日の既定：対象月の翌月10日（見本 10/30発行→11/10支払）。"""
-    m = month_start(month)
-    nxt = (m + datetime.timedelta(days=32)).replace(day=1)
+def default_pay_date(issue_date):
+    """支払日の既定：発行日より後の、いちばん近い10日（1〜9日発行→その月の10日、10日以降→翌月10日）。
+    2026-11-12 しょうへい決定。「対象月の翌月10日」だと11日以降の発行で支払日が発行日より前になるため。"""
+    if issue_date.day < 10:
+        return issue_date.replace(day=10)
+    nxt = (issue_date.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
     return nxt.replace(day=10)

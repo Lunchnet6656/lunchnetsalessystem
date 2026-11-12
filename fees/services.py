@@ -161,6 +161,9 @@ def _new_statement(row, number, issue_date, pay_date, user):
 def issue_statements(month, location_ids, issue_date, pay_date, user):
     """選んだ売り場の計算書をまとめて発行する。1件でも発行できなければ全部やめる。"""
     month_ctx = MonthContext.load(month)
+    if month_ctx.month > month_start(month_ctx.today):
+        # 画面では表を出さないが、POSTを直接送られても未来の月は発行しない
+        raise FeeIssueError("対象月が未来")
     ids = {int(i) for i in location_ids}
     dests = {d.location_id: d for d in FeeDestination.objects.filter(location_id__in=ids, enabled=True)
              .select_related("location").prefetch_related("rates")}
