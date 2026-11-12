@@ -99,6 +99,33 @@ class ItemQuantityApiTests(TestCase):
         self.assertIsNotNone(x2.checked_at)
         self.assertEqual(AllocationExtraQuantity.objects.count(), 2)
 
+    def test_temp_column_saved_for_that_day_only(self):
+        # 店舗名変換に無い列はマクロが「臨時:」を付けて送る。登録なしで受け、空白は0
+        res = self.post(build_xlsx(headers=("新木場", "臨時:学園1", "臨時:コネクト"),
+                                   rows=[[1, 3, 2, None], [2, 4, None, 1]]))
+        self.assertEqual(res.status_code, 200, res.json())
+        temps = AllocationExtra.objects.filter(temp_date=MONDAY).order_by("allocation_order")
+        self.assertEqual([x.name for x in temps], ["学園1", "コネクト"])
+        got = {(x.extra.name, x.product.no): x.quantity for x in AllocationExtraQuantity.objects.select_related("extra", "product")}
+        self.assertEqual(got, {("学園1", 1): 2, ("学園1", 2): 0, ("コネクト", 1): 0, ("コネクト", 2): 1})
+        # 別の日も同じ名前で送れる（日ごとに別の列）
+        res = self.post(build_xlsx(target_date=MONDAY + timedelta(days=1), headers=("新木場", "臨時:学園1"), rows=[[1, 3, 1], [2, 4, 1]]))
+        self.assertEqual(res.status_code, 200, res.json())
+        self.assertEqual(AllocationExtra.objects.filter(name="学園1").count(), 2)
+
+    def test_temp_column_removed_on_resend(self):
+        self.post(build_xlsx(headers=("新木場", "臨時:学園1", "臨時:コネクト"), rows=[[1, 3, 2, 1], [2, 4, 1, 1]]))
+        self.post(build_xlsx(headers=("新木場", "臨時:学園1"), rows=[[1, 3, 5], [2, 4, 1]]))
+        self.assertEqual(list(AllocationExtra.objects.filter(temp_date=MONDAY).values_list("name", flat=True)), ["学園1"])
+        self.assertEqual(AllocationExtraQuantity.objects.get(extra__name="学園1", product__no=1).quantity, 5)
+        self.assertEqual(AllocationExtraQuantity.objects.count(), 2)
+
+    def test_unmarked_unknown_name_still_rejected(self):
+        res = self.post(build_xlsx(headers=("新木場", "学園1"), rows=[[1, 3, 2], [2, 4, 1]]))
+        self.assertEqual(res.status_code, 422)
+        self.assertIn("学園1", res.json()["errors"][0])
+        self.assertFalse(AllocationExtra.objects.exists())
+
     def test_location_blank_still_rejected_with_extra(self):
         AllocationExtra.objects.create(name="なだや")
         res = self.post(build_xlsx(headers=("新木場", "なだや"), rows=[[1, None, 2], [2, 4, 1]]))

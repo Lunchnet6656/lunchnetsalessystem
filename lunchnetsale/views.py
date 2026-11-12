@@ -1765,7 +1765,9 @@ def _save_allocation(data):
     """並び（画面の行の順に1から）・消し込み不要・振分だけの項目の追加/名前/削除。"""
     deleted = set(data.getlist('alloc_delete'))
     with transaction.atomic():
-        AllocationExtra.objects.filter(id__in=[int(k[1:]) for k in deleted if re.fullmatch(r'X\d+', k)]).delete()
+        # 臨時の列（その日だけ・temp_date あり）はこのタブで扱わない
+        registered = AllocationExtra.objects.filter(temp_date__isnull=True)
+        registered.filter(id__in=[int(k[1:]) for k in deleted if re.fullmatch(r'X\d+', k)]).delete()
         order = 0
         for key in _allocation_rows(data):
             if key in deleted:
@@ -1777,7 +1779,7 @@ def _save_allocation(data):
                 continue
             name = data.get(f'alloc_name_{key}', '').strip()
             if key[0] == 'X':
-                AllocationExtra.objects.filter(id=int(key[1:])).update(name=name, allocation_order=order, check_skip=skip)
+                registered.filter(id=int(key[1:])).update(name=name, allocation_order=order, check_skip=skip)
             else:
                 AllocationExtra.objects.create(name=name, allocation_order=order, check_skip=skip)
 

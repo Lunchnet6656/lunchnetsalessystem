@@ -6,6 +6,7 @@
 振分表マクロは空白セルを詰めて書き出すため、空白が1つあるとそれ以降の数字が隣の店へズレる。
 ズレた数字を黙って登録しないよう、「1つでもおかしければ1件も保存しない」。
 1行目の名前は 販売場所 → 振分だけの項目（なだや等・振分の消し込みにだけ使う）の順で引く。
+「臨時:」で始まる名前は振分表の店舗名変換に無い列（学園1等・その日だけの列）。登録なしで受け、その日の画面にだけ出す。
 """
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -17,6 +18,14 @@ from django.db import transaction
 from sales.models import AllocationExtra, AllocationExtraQuantity, Holiday, ItemQuantity, Product, SalesLocation
 
 MAX_PRODUCT_ROW = 12  # 2〜12行目＝商品No.1〜11（11=大盛りご飯）
+TEMP_PREFIX = "臨時:"  # 振分表マクロが店舗名変換に無い列に付ける印
+
+
+@dataclass(frozen=True)
+class TempColumn:
+    """臨時の列（その日だけ）。保存のときに AllocationExtra(temp_date=その日) にする。"""
+    name: str
+    order: int  # 振分表の列の順
 
 
 @dataclass
@@ -25,7 +34,7 @@ class ParsedItemQuantity:
     target_week: date | None = None
     # (product, sales_location, quantity)
     entries: list = field(default_factory=list)
-    # (product, allocation_extra, quantity)。持参数(ItemQuantity)とは別に保存する
+    # (product, AllocationExtra or TempColumn, quantity)。持参数(ItemQuantity)とは別に保存する
     extra_entries: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     # 止めずに知らせるだけのもの
@@ -57,13 +66,16 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
         return result
 
     locations = {loc.name: loc for loc in SalesLocation.objects.all()}
-    extras = {x.name: x for x in AllocationExtra.objects.all()}
-    headers = []  # (列番号, 店名, SalesLocation or AllocationExtra or None)
+    extras = {x.name: x for x in AllocationExtra.objects.filter(temp_date__isnull=True)}
+    headers = []  # (列番号, 店名, SalesLocation or AllocationExtra or TempColumn or None)
     for col in range(3, sheet.max_column + 1):
         name = sheet.cell(row=1, column=col).value
         if name is None or str(name).strip() == "":
             continue
         name = str(name).strip()
+        if name.startswith(TEMP_PREFIX) and name[len(TEMP_PREFIX):].strip():
+            headers.append((col, name, TempColumn(name[len(TEMP_PREFIX):].strip(), col)))
+            continue
         headers.append((col, name, locations.get(name) or extras.get(name)))
     if not headers:
         result.errors.append("1行目に店名がありません")
@@ -94,8 +106,8 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
             continue
         for col, name, loc in headers:
             value = sheet.cell(row=row, column=col).value
-            # 振分だけの列（学園1等）は振分表で空白＝0の書き方なので止めない
-            if isinstance(loc, AllocationExtra) and (value is None or str(value).strip() == ""):
+            # 振分だけの列・臨時の列は振分表で空白＝0の書き方なので止めない
+            if isinstance(loc, (AllocationExtra, TempColumn)) and (value is None or str(value).strip() == ""):
                 value = 0
             if value is None or str(value).strip() == "":
                 result.errors.append(
@@ -111,7 +123,7 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
                 result.errors.append(f"No.{product_no}の「{name}」が正しい個数ではありません：{value}")
                 continue
             quantity = int(as_float)
-            if isinstance(loc, AllocationExtra):
+            if isinstance(loc, (AllocationExtra, TempColumn)):
                 result.extra_entries.append((product, loc, quantity))
             elif loc is not None:
                 result.entries.append((product, loc, quantity))
@@ -150,8 +162,22 @@ def save_item_quantities(parsed: ParsedItemQuantity) -> int:
     return len(parsed.entries) + len(parsed.extra_entries)
 
 
+def _resolve_temp_columns(parsed):
+    """臨時の列をその日の AllocationExtra に。再送で無くなった臨時の列は消す（数・履歴ごと）。"""
+    temps = {x: None for _, x, _ in parsed.extra_entries if isinstance(x, TempColumn)}
+    current = AllocationExtra.objects.filter(temp_date=parsed.target_date)
+    current.exclude(name__in=[t.name for t in temps]).delete()
+    for t in temps:
+        extra, _ = AllocationExtra.objects.update_or_create(
+            name=t.name, temp_date=parsed.target_date, defaults={"allocation_order": t.order})
+        temps[t] = extra
+    parsed.extra_entries = [(p, temps.get(x, x) if isinstance(x, TempColumn) else x, q)
+                            for p, x, q in parsed.extra_entries]
+
+
 def _save_extra_quantities(parsed):
     """振分だけの項目も持参数と同じ上書きのしかた（予定・現在とも振分表の数に・数が変わった✓は外す）。"""
+    _resolve_temp_columns(parsed)
     existing = {
         (x.product_id, x.extra_id): x
         for x in AllocationExtraQuantity.objects.filter(target_date=parsed.target_date)

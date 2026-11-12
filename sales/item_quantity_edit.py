@@ -70,21 +70,23 @@ def location_column(loc):
     return Column(
         key=f"L{loc.id}", name=loc.name, location=loc, check_skip=loc.allocation_check_skip,
         # 振分の並びが空の販売場所（新しく足した店）は末尾に販売場所No.順
-        order=(loc.allocation_order is None, loc.allocation_order or 0, 0, loc.no, loc.id),
+        order=(int(loc.allocation_order is None), loc.allocation_order or 0, 0, loc.no, loc.id),
     )
 
 
 def extra_column(extra):
-    return Column(
-        key=f"X{extra.id}", name=extra.name, extra=extra, check_skip=extra.check_skip,
-        order=(extra.allocation_order is None, extra.allocation_order or 0, 1, 0, extra.id),
-    )
+    if extra.temp_date:
+        # 臨時の列（その日だけ）は振分設定の並びの後ろに、振分表の列の順で
+        order = (2, extra.allocation_order or 0, 1, 0, extra.id)
+    else:
+        order = (int(extra.allocation_order is None), extra.allocation_order or 0, 1, 0, extra.id)
+    return Column(key=f"X{extra.id}", name=extra.name, extra=extra, check_skip=extra.check_skip, order=order)
 
 
 def allocation_columns():
     """振分設定の並び（全販売場所＋全振分だけの項目）。販売場所データの［振分設定］タブで使う。"""
     cols = [location_column(loc) for loc in SalesLocation.objects.select_related("carpool_route")]
-    cols += [extra_column(x) for x in AllocationExtra.objects.all()]
+    cols += [extra_column(x) for x in AllocationExtra.objects.filter(temp_date__isnull=True)]
     return sorted(cols, key=lambda c: c.order)
 
 

@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import NoReverseMatch, reverse
 
+from sales.item_quantity_edit import allocation_columns
 from sales.item_quantity_import import ParsedItemQuantity, save_item_quantities
 from sales.models import (
     AllocationExtra, AllocationExtraQuantity, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, Product, SalesLocation, UserMenuPermission,
@@ -362,6 +363,16 @@ class AllocationSettingsEditTest(_EditBase):
                                json.dumps(body), content_type="application/json")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(self.iq(self.tonkatsu, self.shinkawa).quantity, 11)
+
+    def test_temp_column_last_and_editable_not_in_settings(self, _):
+        temp = AllocationExtra.objects.create(name="学園1", temp_date=TODAY, allocation_order=40)
+        AllocationExtra.objects.create(name="学園2", temp_date=TOMORROW, allocation_order=41)
+        AllocationExtraQuantity.objects.create(target_date=TODAY, product=self.tonkatsu, extra=temp, quantity=2, planned_quantity=2)
+        self.assertEqual([l["name"] for l in self.grid()["locations"]], ["本町", "なだや", "新川", "人形町", "学園1"])
+        self.assertEqual(self.save([(self.tonkatsu, temp, 3, 2)]).status_code, 200)
+        self.assertEqual(self.checks([(self.tonkatsu, temp, True)]).json()["saved"], 1)
+        names = [c.name for c in allocation_columns()]
+        self.assertNotIn("学園1", names)
 
     def test_unknown_column_rejected(self, _):
         body = {"upload_id": self.upload.id, "changes": [

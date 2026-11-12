@@ -12,6 +12,7 @@ Private Const TOKEN_FILE As String = "lss_token.txt"
 Private Const OMORI_ROW As Long = 41
 Private Const OMORI_NO As Long = 11
 Private Const MSG_TITLE As String = "持参数の確定"
+Private Const TEMP_PREFIX As String = "臨時:"  '店舗名変換に無い列（その日だけの列）の印。アプリはその日の画面にだけ出す
 
 'エラーが出たときに「どこで止まったか」を表示するため
 Private stepName As String
@@ -169,7 +170,7 @@ NetError:
 End Function
 
 '販売場所の列（店舗名変換にある店）で、メニュー行・大盛り行に空白がないか
-'振分だけの列（学園1・コネクト等。店舗名変換に無い列）は空白＝0なので見ない
+'臨時の列（学園1・コネクト等。店舗名変換に無い列）は空白＝0なので見ない
 Private Function 空白チェック(ws As Worksheet) As String
     Dim conv As Object
     Dim cols As Collection
@@ -237,7 +238,7 @@ Private Function 送信ファイル作成(ws As Worksheet, ByVal targetDate As Date) As 
         outCol = 3
         For Each c In cols
             If Not conv.Exists(CStr(ws.Cells(7, c).Value)) And Trim(CStr(ws.Cells(r, c).Value)) = "" Then
-                sh.Cells(outRow, outCol).Value = 0  '振分だけの列の空白は0
+                sh.Cells(outRow, outCol).Value = 0  '臨時の列の空白は0
             Else
                 sh.Cells(outRow, outCol).Value = ws.Cells(r, c).Value
             End If
@@ -259,20 +260,20 @@ Private Function 送信ファイル作成(ws As Worksheet, ByVal targetDate As Date) As 
     送信ファイル作成 = outPath
 End Function
 
-'店舗名変換にある店は変換先の名前、無い列（振分だけの列）は7行目の名前のまま送る
+'店舗名変換にある店は変換先の名前、無い列（臨時の列）は「臨時:」＋7行目の名前で送る
 Private Function 送る名前(ws As Worksheet, ByVal c As Long, conv As Object) As String
     Dim storeName As String
     storeName = CStr(ws.Cells(7, c).Value)
     If conv.Exists(storeName) Then
         送る名前 = conv(storeName)
     Else
-        送る名前 = storeName
+        送る名前 = TEMP_PREFIX & storeName
     End If
 End Function
 
 '7行目の名前を左から見て、名前のある列すべて。「店」の列で終わり
-'店舗名変換に無い列（学園1・コネクト等）は振分だけの列としてアプリの［振分設定］の項目に入る。
-'アプリに無い名前が届くと1件も保存されないので、列を足したらアプリにも同じ名前の項目を登録する
+'店舗名変換に無い列（学園1・コネクト等）は臨時の列として送る（アプリに登録不要・その日の画面にだけ出る）。
+'店舗名変換にある列は、アプリの販売場所か［振分設定］の項目に同じ名前が無いと1件も保存されない
 Private Function 送信列(ws As Worksheet, conv As Object) As Collection
     Dim cols As New Collection
     Dim lastCol As Long

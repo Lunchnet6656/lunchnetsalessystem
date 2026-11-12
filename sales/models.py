@@ -172,14 +172,23 @@ class SalesLocation(models.Model):
 
 class AllocationExtra(models.Model):
     """振分表にあるが販売場所ではない列（なだや等）。振分の修正・消し込みだけに使い、
-    日計表・食数予測・出店状況には入れない。"""
-    name = models.CharField(max_length=255, unique=True)
+    日計表・食数予測・出店状況には入れない。
+    temp_date があるものは臨時の列（振分表の店舗名変換に無い列・学園1等）。その日の画面にだけ出し、
+    振分設定には出さない。allocation_order は振分表の列の順。"""
+    name = models.CharField(max_length=255)
     allocation_order = models.IntegerField(null=True, blank=True, verbose_name="振分の並び")
     check_skip = models.BooleanField(default=False, verbose_name="消し込み不要")
+    temp_date = models.DateField(null=True, blank=True, db_index=True, verbose_name="臨時の日")
 
     class Meta:
         verbose_name = "振分だけの項目"
         verbose_name_plural = "振分だけの項目"
+        constraints = [
+            models.UniqueConstraint(fields=["name"], condition=models.Q(temp_date__isnull=True),
+                                    name="uniq_allocation_extra_name"),
+            models.UniqueConstraint(fields=["name", "temp_date"], condition=models.Q(temp_date__isnull=False),
+                                    name="uniq_allocation_extra_temp_name"),
+        ]
 
     def __str__(self):
         return self.name
