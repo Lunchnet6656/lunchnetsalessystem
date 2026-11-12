@@ -202,23 +202,45 @@ def rain_multiplier(rows, sales_type):
     return min(max((n * median + RAIN_STORE_K) / (n + RAIN_STORE_K), lo), hi), n
 
 
+def _backtest_errors(rows, cut):
+    """1店の、cut より後の「完売しなかった日」の (誤差の食数, 誤差の割合) の並び。"""
+    out = []
+    for i, r in enumerate(rows):
+        if r["date"] <= cut or r["sold_out"] or r["sold"] <= 0:
+            continue
+        p = predict(rows[:i], r["wd"])
+        if not p:
+            continue
+        out.append((abs(p["pred"] - r["sold"]), abs(p["pred"] - r["sold"]) / r["sold"]))
+    return out
+
+
 def backtest(hist, today, days=BACKTEST_DAYS):
     """直近 days 日を、その日より前のデータだけで予測して答え合わせ。
     需要が正確に分かる「完売しなかった日」だけで誤差を測る。"""
     cut = today - timedelta(days=days)
-    errors, pcts = [], []
-    for rows in hist.values():
-        for i, r in enumerate(rows):
-            if r["date"] <= cut or r["sold_out"] or r["sold"] <= 0:
-                continue
-            p = predict(rows[:i], r["wd"])
-            if not p:
-                continue
-            errors.append(abs(p["pred"] - r["sold"]))
-            pcts.append(abs(p["pred"] - r["sold"]) / r["sold"])
-    if not errors:
+    errs = [e for rows in hist.values() for e in _backtest_errors(rows, cut)]
+    if not errs:
         return None
-    return {"n": len(errors), "mae": round(_mean(errors), 1), "mape": round(_mean(pcts) * 100)}
+    return {"n": len(errs), "mae": round(_mean([e for e, _ in errs]), 1),
+            "mape": round(_mean([p for _, p in errs]) * 100)}
+
+
+# 店ごとの精度の目安（ズレ率がこれ以下なら その記号）。2026-11検証：30店の直近1か月で 5%〜31%
+ACCURACY_MARKS = ((8, "◎", "good"), (12, "○", "fair"), (16, "△", "weak"))
+ACCURACY_LOW = ("×", "poor")
+ACCURACY_MIN_DAYS = 5    # 答え合わせできた日がこれより少ない店は目安を出さない
+
+
+def store_accuracy(rows, today, days=BACKTEST_DAYS):
+    """1店の直近 days 日の精度と目安の記号。答え合わせの日が足りなければ None。"""
+    errs = _backtest_errors(rows, today - timedelta(days=days))
+    if len(errs) < ACCURACY_MIN_DAYS:
+        return None
+    mape = round(_mean([p for _, p in errs]) * 100)
+    mark, level = next(((m, lv) for limit, m, lv in ACCURACY_MARKS if mape <= limit), ACCURACY_LOW)
+    return {"n": len(errs), "mae": round(_mean([e for e, _ in errs]), 1), "mape": mape,
+            "mark": mark, "level": level}
 
 
 THIRD_LABELS = ("上旬", "中旬", "下旬")

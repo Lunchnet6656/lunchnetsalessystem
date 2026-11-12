@@ -178,6 +178,31 @@ class MonthThirdTests(TestCase):
         self.assertIsNone(third_effect(rows, 2))
 
 
+class StoreAccuracyTests(TestCase):
+    """店名の横の精度の目安：直近の答え合わせのズレ率で ◎○△×。"""
+
+    def rows(self, sold_of):
+        return [{"date": d, "wd": d.weekday(), "sold": sold_of(i), "rem": 5, "demand": float(sold_of(i)),
+                 "sold_out": False} for i, d in enumerate(weekdays_before(TODAY, 60))]
+
+    def test_steady_store_is_good(self):
+        from sales.meal_forecast import store_accuracy
+        acc = store_accuracy(self.rows(lambda i: 50), TODAY)
+        self.assertEqual((acc["mark"], acc["level"], acc["mape"]), ("◎", "good", 0))
+
+    def test_swinging_store_is_poor(self):
+        from sales.meal_forecast import store_accuracy
+        acc = store_accuracy(self.rows(lambda i: 30 if i % 2 else 70), TODAY)
+        self.assertEqual(acc["mark"], "×")
+
+    def test_too_few_days_shows_nothing(self):
+        from sales.meal_forecast import store_accuracy
+        rows = self.rows(lambda i: 50)
+        for r in rows[-20:]:
+            r["sold_out"], r["rem"] = True, 0   # 完売した日は答え合わせに使えない
+        self.assertIsNone(store_accuracy(rows, TODAY))
+
+
 class RainMultiplierTest(TestCase):
     """店ごとの雨の倍率：雨の日の実績から、形態ごとの雨の補正をどれだけ強める・弱めるか。"""
 

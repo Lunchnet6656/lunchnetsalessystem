@@ -40,3 +40,9 @@
 /* 列の見出しの並べ替え。アイコンは3種とも同じ幅にして、押したときに列幅が動かないように */
 .mf-sort { min-height: 24px; display: inline-flex; align-items: center; }
 .mf-sort-mark { width: .75em; text-align: center; }
+
+/* 店の精度の目安（◎○△×）。数字は濃い文字、色は記号だけ（緑・赤の小さい文字はコントラストが足りない）。色は既存トークンだけ */
+.mf-acc { font-weight: 700; white-space: nowrap; color: var(--ln-color-text-strong); }
+.mf-acc-mark { display: inline-block; width: 1.1em; text-align: center; }  /* ◎△×で字の幅が違うのでそろえる */
+.mf-acc-good { color: var(--ln-color-success); }
+.mf-acc-poor { color: var(--ln-color-danger); }

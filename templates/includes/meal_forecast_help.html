@@ -56,6 +56,7 @@
 <ul>
   <li>直近{{ method.active_days }}日に売った店。{{ method.excluded_locations }}は除く</li>
   <li>精度：直近{{ method.backtest_days }}日・完売しなかった日の予測と実績の平均の差{% if fc.backtest %}（{{ fc.backtest.n }}件）{% endif %}</li>
+  <li>店の精度（◎○△×）：その店の同じ答え合わせのズレ率。{% for m in method.accuracy_marks %}{{ m.mark }}{{ m.limit }}%以下・{% endfor %}{{ method.accuracy_low }}{{ method.accuracy_low_limit }}%超。答え合わせが{{ method.accuracy_min_days }}日未満の店は出さない</li>
   <li>給料日・月初：実績上ほぼ影響なし（入れない）</li>
 </ul>
 

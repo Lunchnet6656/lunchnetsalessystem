@@ -3490,7 +3490,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     """直近の営業日ぶんの需要を店舗別に予測。直近28日の答え合わせの誤差も同梱。"""
     from sales.meal_forecast import (AFTER_RAIN_FACTOR, BRIDGE_FACTOR, after_rain_factor, PLAN_MIN_SAMPLES, PLAN_SAMPLE_DAYS, THIRD_LABELS, backtest,
                                      bridge_days, demand_ratios, load_history, month_third, outlook, plan_quantities,
-                                     predict, rain_multiplier, store_plan_basis, third_effect)
+                                     predict, rain_multiplier, store_accuracy, store_plan_basis, third_effect)
     from sales.weather import (DEFAULT_AREA, RAIN_FACTORS, WEATHER_AREAS, WIND_FACTORS, WIND_STRONG, rain_factor,
                                wind_factor)
 
@@ -3532,6 +3532,8 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
     # 店ごとの雨の強さ・弱さ（形態の補正に掛ける倍率）。日にちによらないので先に1回だけ計算する
     rain_mult = {name: rain_multiplier(rows, loc_info.get(name, ("", DEFAULT_AREA))[0])
                  for name, rows in active.items()}
+    # 店ごとの精度の目安（直近の答え合わせ）。これも日にちによらない
+    accuracy = {name: store_accuracy(rows, today) for name, rows in active.items()}
 
     # 3パターンの持参数の材料（店ごとの需要の散らばり・現状維持の倍率・単価）。失敗しても予測は出す
     plan_basis, plan_error = {}, False
@@ -3615,7 +3617,7 @@ def _meal_forecast(today, days_ahead=FORECAST_DAYS_AHEAD):
                     None if not comment else {"date": comment[0], "text": comment[1], "num": num}),
                 "events": events.get((td, name), []),
                 "draft": draft_info,
-                "plans": plans, "thin": thin,
+                "plans": plans, "thin": thin, "accuracy": accuracy[name],
             })
         locs.sort(key=lambda x: (x["no"] is None, x["no"] or 0, x["name"]))
         for l in locs:
@@ -3697,6 +3699,9 @@ def _forecast_method():
         "sold_out_strong_pct": SOLD_OUT_STRONG_PCT, "avg_rem_high": AVG_REM_HIGH,
         "active_days": FORECAST_ACTIVE_DAYS, "excluded_locations": "・".join(f"「{x}」" for x in excluded),
         "backtest_days": mf.BACKTEST_DAYS,
+        "accuracy_marks": [{"mark": m, "limit": limit} for limit, m, _ in mf.ACCURACY_MARKS],
+        "accuracy_low": mf.ACCURACY_LOW[0], "accuracy_low_limit": mf.ACCURACY_MARKS[-1][0],
+        "accuracy_min_days": mf.ACCURACY_MIN_DAYS,
     }
 
 
@@ -3720,8 +3725,11 @@ def meal_forecast_view(request):
         day["summary_tip"] = _summary_tip(day["plan_totals"]) if day["plan_totals"] else ""
     plan_tip = (f"売上UP＝10回中{method['plan_up_of10']}回売り切れない数／現状維持＝いつもの持参の倍率／"
                 f"廃棄率重視＝廃棄率{method['plan_waste_pct']}%以下")
+    accuracy_tip = (f"店の精度＝直近{method['backtest_days']}日のズレ率（小さいほど正確）／"
+                    + "・".join(f"{m['mark']}{m['limit']}%以下" for m in method["accuracy_marks"])
+                    + f"・{method['accuracy_low']}{method['accuracy_low_limit']}%超")
     return render(request, "meal_forecast.html", {
-        "today": today, "fc": fc, "method": method, "plan_tip": plan_tip,
+        "today": today, "fc": fc, "method": method, "plan_tip": plan_tip, "accuracy_tip": accuracy_tip,
         "plan_keys": ["up", "keep", "waste", "draft"], "plan_keys_store": ["up", "keep", "waste"],
         "plan_metrics": [("qty", "持参数"), ("sold", "売れる数"), ("waste_rate", "廃棄率"), ("profit", "粗利")],
     })
