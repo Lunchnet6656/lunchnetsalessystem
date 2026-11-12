@@ -4,7 +4,7 @@
 {% block extra_css %}{% include "fees/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4" style="max-width:960px">
-    <a href="{% url 'fees:list' %}?month={{ st.month|date:'Y-m' }}" class="small text-decoration-none">← 計算書一覧</a>
+    <a href="{% url 'fees:list' %}?month={{ st.month|date:'Y-m' }}" class="small text-decoration-none">← 計算書</a>
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3 mt-1">
         <h1 class="h3 mb-0 fee-nowrap">計算書の詳細</h1>
         <span class="flex-grow-1"></span>
@@ -20,7 +20,7 @@
             {% if reissue %}<div class="small">再発行：<a href="{% url 'fees:detail' reissue.pk %}">{{ reissue.number }}</a></div>{% endif %}
         </div>
         <span class="flex-grow-1"></span>
-        {% if not reissue and can_issue %}<a href="{% url 'fees:issue' %}?month={{ st.month|date:'Y-m' }}" class="btn btn-primary">再発行</a>{% endif %}
+        {% if not reissue and can_issue %}<a href="{% url 'fees:list' %}?month={{ st.month|date:'Y-m' }}" class="btn btn-primary">再発行</a>{% endif %}
     </div>
     {% endif %}
 

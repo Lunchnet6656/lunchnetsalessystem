@@ -4,7 +4,8 @@
 {% block extra_css %}{% include "fees/_styles.html" %}{% endblock %}
 {% block content %}
 <div class="container mt-4" style="max-width:560px">
-    <a href="{% url 'fees:detail' st.pk %}" class="small text-decoration-none">← 計算書の詳細</a>
+    {% if from_month %}<a href="{% url 'fees:list' %}?month={{ st.month|date:'Y-m' }}" class="small text-decoration-none">← 計算書</a>
+    {% else %}<a href="{% url 'fees:detail' st.pk %}" class="small text-decoration-none">← 計算書の詳細</a>{% endif %}
     <div class="card mt-2">
         <div class="card-header fw-bold"><span class="hp-lbl">計算書の取消{% include "includes/info_tip.html" with id="fee-void" label="取消" text="記録は残る。同じ月・売り場で再発行できる。番号は使い回さない。" %}</span></div>
         <div class="card-body">
@@ -15,7 +16,7 @@
                 <label for="fee-void-reason" class="form-label small text-muted">取消理由（任意）</label>
                 <textarea id="fee-void-reason" name="void_reason" rows="2" maxlength="200" class="form-control fee-input mb-3" placeholder="日計表の修正"></textarea>
                 <div class="d-flex justify-content-end gap-2">
-                    <a href="{% url 'fees:detail' st.pk %}" class="btn btn-outline-secondary">戻る</a>
+                    <a href="{% if from_month %}{% url 'fees:list' %}?month={{ st.month|date:'Y-m' }}{% else %}{% url 'fees:detail' st.pk %}{% endif %}" class="btn btn-outline-secondary">戻る</a>
                     <button type="submit" class="btn btn-danger" data-busy="取消中…">取消</button>
                 </div>
             </form>

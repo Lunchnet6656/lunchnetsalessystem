@@ -3,6 +3,7 @@ import datetime
 from dataclasses import dataclass, field
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from sales.models import IssuerSettings
@@ -87,7 +88,9 @@ class IssueRow:
 
     @property
     def has_attention(self):
-        return bool(self.blocks or self.warns or self.diff_total is not None)
+        if self.statement is not None:
+            return self.diff_total is not None
+        return bool(self.blocks or self.warns)
 
 
 def build_row(destination, month_ctx, statement=None):
@@ -98,6 +101,11 @@ def build_row(destination, month_ctx, statement=None):
                         calc.load_off_days(location, month_ctx.month))
     total = detail["totals"]["amount"]
     amounts = calc.fee_amounts(total, rate) if rate is not None else {"total_sales": total}
+    if statement is not None:
+        # 発行済みの行は発行時の数字（スナップショット）を出す
+        rate = statement.rate
+        amounts = {k: getattr(statement, k) for k in
+                   ("total_sales", "tax_excluded", "tax_amount", "fee_excluded", "fee_tax", "pay_amount")}
     row = IssueRow(destination, rate, detail, amounts, check, statement)
     if check["missing_price"]:
         row.blocks.append(("missing_price", f"単価なし {len(check['missing_price'])}日", check["missing_price"]))
@@ -128,8 +136,9 @@ def issue_rows(month, today=None):
     month_ctx = MonthContext.load(month, today)
     issued = {s.location_id: s for s in FeeStatement.objects.filter(month=month_ctx.month,
                                                                    status=FeeStatement.STATUS_ISSUED)}
-    dests = (FeeDestination.objects.filter(enabled=True).select_related("location")
-             .prefetch_related("rates").order_by("location__no", "location__name"))
+    # 「出す」をOFFにした売り場でも、その月に発行済みがあれば行に残す（PDF・取消をこの画面でできるように）
+    dests = (FeeDestination.objects.filter(Q(enabled=True) | Q(location_id__in=list(issued)))
+             .select_related("location").prefetch_related("rates").order_by("location__no", "location__name"))
     return [build_row(d, month_ctx, issued.get(d.location_id)) for d in dests], month_ctx
 
 

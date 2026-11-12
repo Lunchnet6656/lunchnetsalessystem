@@ -12,10 +12,12 @@
     .fee-badge-none { color: var(--ln-color-text-muted); border-color: var(--ln-color-border); }
     .fee-badge-warn { color: var(--ln-color-danger); border-color: var(--ln-color-danger); background-color: var(--ln-color-white); }
     .fee-badge-block { color: var(--ln-color-white); background-color: var(--ln-color-danger); }
-    .fee-badges { display: grid; gap: 3px; justify-items: start; }
+    .fee-badges { display: grid; gap: 3px; justify-items: start; min-width: 0; }
+    .fee-badges > details { max-width: 100%; min-width: 0; }
     .fee-badges details summary { list-style: none; cursor: pointer; }
     .fee-badges details summary::-webkit-details-marker { display: none; }
-    .fee-days { font-size: .75rem; color: var(--ln-color-text-muted); white-space: nowrap; padding: 2px 2px 0; }
+    .fee-days { font-size: .75rem; color: var(--ln-color-text-muted); padding: 2px 2px 0; max-width: 22rem; white-space: normal; }
+    .fee-days a, .fee-days span { white-space: nowrap; }
     .fee-row-void td, .fee-row-void { color: var(--ln-color-text-muted); }
     .fee-row-attention td:first-child { box-shadow: inset 4px 0 0 var(--ln-color-danger); }
     div.fee-row-attention { box-shadow: inset 4px 0 0 var(--ln-color-danger); }

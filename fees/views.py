@@ -5,16 +5,13 @@ from urllib.parse import quote
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
 
 from sales.models import IssuerSettings, SalesLocation
-from sales.permissions import has_menu_permission, menu_permission_required
+from sales.permissions import NO_PERMISSION_MESSAGE, has_menu_permission, menu_permission_required
 
 from . import pdf, services
 from .forms import DestinationForm, IssueForm, IssuerForm, RateForm, normalize_addressee, parse_month
@@ -189,52 +186,73 @@ def issuer(request):
     return render(request, "fees/issuer.html", {"form": form, "obj": obj, "tab": "issuer"})
 
 
-# ===== 一括発行 =====
+# ===== 計算書（月ごとの1画面：発行・PDF・取消をここで） =====
 
-def _issue_page(request, month, form, selected=None, error=""):
+def _month_page(request, month, form=None, selected=None, error=""):
     today = timezone.localdate()
+    can_issue = _can_issue(request.user)
     future = month > month_start(today)
-    rows, month_ctx = ([], None) if future else services.issue_rows(month, today)
+    rows = [] if future else services.issue_rows(month, today)[0]
     if selected is None:
         selected = {r.location.pk for r in rows if r.default_checked}
-    can_view_reports = has_menu_permission(request.user, "can_view_daily_report_list")
     for r in rows:
-        r.checked = r.selectable and r.location.pk in selected
-    issuable = [r for r in rows if r.selectable]
+        r.pickable = can_issue and r.selectable
+        r.checked = r.pickable and r.location.pk in selected
+    issuable = [r for r in rows if r.selectable] if can_issue else []
     checked = [r for r in issuable if r.checked]
     sums = {k: sum(r.amounts[k] for r in checked)
             for k in ("total_sales", "fee_excluded", "fee_tax", "pay_amount")}
-    return render(request, "fees/issue.html", {
-        "checked_count": len(checked), "sums": sums,
+    issued = [r for r in rows if r.statement]
+    if form is None:
+        form = IssueForm(initial={"issue_date": today, "pay_date": default_pay_date(today)})
+    voided = (FeeStatement.objects.filter(month=month, status=FeeStatement.STATUS_VOID)
+              .order_by("location__no", "number"))
+    return render(request, "fees/list.html", {
         "month": month, "month_value": f"{month:%Y-%m}", "month_label": _jp_month(month),
         "future": future, "rows": rows, "issuable": issuable, "form": form, "error": error,
-        "chips": _month_chips(today), "can_view_reports": can_view_reports,
-        "all_issued": bool(rows) and all(r.statement for r in rows),
+        "checked_count": len(checked), "sums": sums, "can_issue": can_issue,
+        "issued_count": len(issued), "issued_total": sum(r.statement.pay_amount for r in issued),
+        "unissued_count": len(rows) - len(issued), "voided": voided,
+        "chips": _month_chips(today),
+        "can_view_reports": has_menu_permission(request.user, "can_view_daily_report_list"),
     })
 
 
-@menu_permission_required(ISSUE)
-def issue(request):
+def _list_url(month):
+    return f"{reverse('fees:list')}?month={month:%Y-%m}"
+
+
+@menu_permission_required(VIEW)
+def statement_list(request):
     today = timezone.localdate()
     month = parse_month(request.GET.get("month") or request.POST.get("month")) or _prev_month(today)
-    if request.method == "POST":
-        form = IssueForm(request.POST)
-        selected = {int(v) for v in request.POST.getlist("location") if v.isdigit()}
-        if not form.is_valid():
-            return _issue_page(request, month, form, selected)
-        if not selected:
-            return _issue_page(request, month, form, selected, error="選択なし")
-        if month > month_start(today):
-            return _issue_page(request, month, form, selected)
-        try:
-            created = services.issue_statements(month, selected, form.cleaned_data["issue_date"],
-                                                form.cleaned_data["pay_date"], request.user)
-        except services.FeeIssueError as e:
-            return _issue_page(request, month, form, selected, error=f"発行できなかった：{e}")
-        messages.success(request, f"{_jp_month(month)} {len(created)}件を発行")
-        return redirect(f"{reverse('fees:list')}?month={month:%Y-%m}")
-    form = IssueForm(initial={"issue_date": today, "pay_date": default_pay_date(today)})
-    return _issue_page(request, month, form)
+    if request.method != "POST":
+        return _month_page(request, month)
+    if not _can_issue(request.user):
+        messages.error(request, NO_PERMISSION_MESSAGE, extra_tags="alert alert-danger")
+        return redirect("dashboard")
+    form = IssueForm(request.POST)
+    selected = {int(v) for v in request.POST.getlist("location") if v.isdigit()}
+    if not form.is_valid():
+        return _month_page(request, month, form, selected)
+    if not selected:
+        return _month_page(request, month, form, selected, error="選択なし")
+    if month > month_start(today):
+        return _month_page(request, month, form, selected)
+    try:
+        created = services.issue_statements(month, selected, form.cleaned_data["issue_date"],
+                                            form.cleaned_data["pay_date"], request.user)
+    except services.FeeIssueError as e:
+        return _month_page(request, month, form, selected, error=f"発行できなかった：{e}")
+    messages.success(request, f"{_jp_month(month)} {len(created)}件を発行")
+    return redirect(_list_url(month))
+
+
+@menu_permission_required(VIEW)
+def issue(request):
+    """旧・一括発行のURL（ブックマーク対策）。月ごとの計算書画面へ。"""
+    month = parse_month(request.GET.get("month")) or _prev_month(timezone.localdate())
+    return redirect(_list_url(month))
 
 
 @menu_permission_required(ISSUE)
@@ -258,37 +276,7 @@ def issue_preview(request):
     return _pdf_response(pdf.generate(st, preview=True), f"プレビュー_{month:%Y%m}_{dest.location.name}.pdf")
 
 
-# ===== 一覧・詳細 =====
-
-@menu_permission_required(VIEW)
-def statement_list(request):
-    today = timezone.localdate()
-    qs = FeeStatement.objects.select_related("location")
-    if "month" in request.GET:
-        month = parse_month(request.GET.get("month"))
-    else:
-        latest = qs.order_by("-month").values_list("month", flat=True).first()
-        month = latest or _prev_month(today)
-    location_id = request.GET.get("location", "")
-    status = request.GET.get("status", "")
-    filtered = qs
-    if month:
-        filtered = filtered.filter(month=month)
-    if location_id.isdigit():
-        filtered = filtered.filter(location_id=int(location_id))
-    if status in (FeeStatement.STATUS_ISSUED, FeeStatement.STATUS_VOID):
-        filtered = filtered.filter(status=status)
-    filtered = filtered.order_by("-month", "location__no", "number")
-    live = filtered.filter(status=FeeStatement.STATUS_ISSUED)
-    locations = SalesLocation.objects.filter(fee_statements__isnull=False).distinct().order_by("no", "name")
-    return render(request, "fees/list.html", {
-        "statements": filtered, "month_value": f"{month:%Y-%m}" if month else "",
-        "location_id": location_id, "status": status, "locations": locations,
-        "pay_total": live.aggregate(s=Sum("pay_amount"))["s"] or 0, "live_count": live.count(),
-        "any_statement": qs.exists(), "can_issue": _can_issue(request.user), "chips": _month_chips(today),
-        "issue_month": f"{month:%Y-%m}" if month else _month_chips(today)["prev"],
-    })
-
+# ===== 詳細・取消・PDF =====
 
 @menu_permission_required(VIEW)
 def statement_detail(request, pk):
@@ -314,8 +302,9 @@ def statement_void(request, pk):
     if request.method == "POST":
         services.void_statement(st, request.user, request.POST.get("void_reason", ""))
         messages.success(request, f"{st.number} を取消")
-        return redirect("fees:detail", pk=st.pk)
-    return render(request, "fees/void.html", {"st": st})
+        # 同じ月の計算書画面へ戻す（その行は未発行に戻り、そのまま再発行できる）
+        return redirect(_list_url(st.month))
+    return render(request, "fees/void.html", {"st": st, "from_month": request.GET.get("from") == "month"})
 
 
 @menu_permission_required(VIEW)
@@ -324,25 +313,20 @@ def statement_pdf(request, pk):
     return _pdf_response(pdf.generate(st), f"{st.number}.pdf", attachment=bool(request.GET.get("dl")))
 
 
-@require_POST
 @menu_permission_required(VIEW)
-def statement_pdf_combined(request):
-    ids = [int(v) for v in request.POST.getlist("statement") if v.isdigit()]
-    # 取消した計算書はまとめてダウンロードに入れない
-    sts = list(FeeStatement.objects.filter(pk__in=ids, status=FeeStatement.STATUS_ISSUED)
-               .select_related("location").order_by("month", "location__no", "number"))
-    back = request.POST.get("next") or ""
-    if not url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
-                                           require_https=request.is_secure()):
-        back = reverse("fees:list")
+def statement_pdf_month(request):
+    """その月の発行済み全件を1つのPDF（1社1ページ）に。取消は入れない。"""
+    month = parse_month(request.GET.get("month"))
+    if month is None:
+        raise Http404
+    sts = list(FeeStatement.objects.filter(month=month, status=FeeStatement.STATUS_ISSUED)
+               .select_related("location").order_by("location__no", "number"))
     if not sts:
-        messages.error(request, "選択なし")
-        return redirect(back)
+        messages.error(request, "発行済みなし")
+        return redirect(_list_url(month))
     try:
         content = pdf.generate_combined(sts)
     except Exception:
         messages.error(request, "PDFを作成できなかった")
-        return redirect(back)
-    months = sorted({f"{s.month:%Y%m}" for s in sts})
-    name = f"計算書_{months[0]}.pdf" if len(months) == 1 else f"計算書_{months[0]}-{months[-1]}.pdf"
-    return _pdf_response(content, name, attachment=True)
+        return redirect(_list_url(month))
+    return _pdf_response(content, f"計算書_{month:%Y%m}.pdf", attachment=True)

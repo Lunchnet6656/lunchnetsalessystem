@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase, TransactionTestCase
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
 from sales.models import (DailyReport, DailyReportDiscountLine, DailyReportEntry, Holiday, IssuerSettings,
@@ -390,23 +390,32 @@ class ViewTests(Base):
         grant(self.viewer, "can_view_fees")
         self.nobody = User.objects.create_user("nobody", password="pw")
 
+    URL = reverse_lazy("fees:list")
+
+    def page(self, month="2026-10"):
+        return self.client.get(f"{self.URL}?month={month}")
+
+    def post_issue(self, month="2026-10", issue_date="2026-11-12", pay_date="2026-12-10", locations=None):
+        return self.client.post(f"{self.URL}?month={month}", {
+            "month": month, "issue_date": issue_date, "pay_date": pay_date,
+            "location": locations if locations is not None else [self.loc.pk]})
+
     def test_sidebar_by_permission(self):
         self.client.force_login(self.viewer)
-        html = self.client.get(reverse("fees:list")).content.decode()
-        self.assertIn("計算書一覧", html)
+        html = self.page().content.decode()
+        self.assertIn('<i class="fas fa-file-alt"></i> 計算書\n', html)
         self.assertNotIn(reverse("fees:destinations"), html)
-        self.assertFalse(reverse("fees:issue") in html, "閲覧のみに［一括発行］が出ている")
         self.client.force_login(self.user)
-        html = self.client.get(reverse("fees:list")).content.decode()
+        html = self.page().content.decode()
         self.assertIn(reverse("fees:destinations"), html)
-        self.assertIn(reverse("fees:issue"), html)
 
     def test_view_only_is_blocked_from_issue_screens(self):
         load_sample(self.loc)
         st, = self.issue()
         self.client.force_login(self.viewer)
-        for url in (reverse("fees:issue"), reverse("fees:destinations"), reverse("fees:void", args=[st.pk]),
-                    reverse("fees:issuer"), reverse("fees:destination_edit", args=[self.loc.pk])):
+        for url in (reverse("fees:destinations"), reverse("fees:void", args=[st.pk]),
+                    reverse("fees:issuer"), reverse("fees:destination_edit", args=[self.loc.pk]),
+                    reverse("fees:issue_preview") + f"?month=2026-10&location={self.loc.pk}"):
             self.assertRedirects(self.client.get(url), reverse("dashboard"), fetch_redirect_response=False)
         self.assertEqual(self.client.post(reverse("fees:void", args=[st.pk])).status_code, 302)
         st.refresh_from_db()
@@ -415,6 +424,26 @@ class ViewTests(Base):
         self.assertNotIn(reverse("fees:void", args=[st.pk]), html)
         self.assertEqual(self.client.get(reverse("fees:pdf", args=[st.pk])).status_code, 200)
 
+    def test_view_only_sees_no_operations(self):
+        load_sample(self.loc)
+        loc2 = SalesLocation.objects.create(no=15, name="△△工場", type="車", price_type="A", service_name="なし")
+        FeeDestination.objects.create(location=loc2, enabled=True, addressee="")
+        loc3 = SalesLocation.objects.create(no=16, name="□□センター", type="車", price_type="A", service_name="なし")
+        d3 = FeeDestination.objects.create(location=loc3, enabled=True, addressee="C株式会社")
+        FeeRate.objects.create(destination=d3, start_month=OCT, rate=Decimal("8"))
+        make_report(loc3, 1, (0, 5, 0, 0, 0))
+        st, = self.issue()
+        self.client.force_login(self.viewer)
+        html = self.page().content.decode()
+        self.assertIn(st.number, html)
+        self.assertIn(reverse("fees:pdf", args=[st.pk]), html)
+        for absent in ('name="location"', 'name="issue_date"', "fee-issue-btn", reverse("fees:void", args=[st.pk]),
+                       "宛先を編集", reverse("fees:issue_preview"), 'id="fee-all"'):
+            self.assertNotIn(absent, html)
+        # 閲覧のみがPOSTしても発行しない
+        self.post_issue(locations=[loc3.pk])
+        self.assertEqual(FeeStatement.objects.count(), 1)
+
     def test_no_permission_is_blocked(self):
         self.client.force_login(self.nobody)
         self.assertRedirects(self.client.get(reverse("fees:list")), reverse("dashboard"),
@@ -422,30 +451,52 @@ class ViewTests(Base):
         html = self.client.get(reverse("dashboard")).content.decode()
         self.assertNotIn(reverse("fees:list"), html)
 
-    def test_issue_flow_prg(self):
+    def test_old_issue_url_redirects(self):
+        self.client.force_login(self.viewer)
+        self.assertRedirects(self.client.get(reverse("fees:issue") + "?month=2026-09"),
+                             f"{self.URL}?month=2026-09", fetch_redirect_response=False)
+
+    def test_default_month_is_previous_month(self):
+        self.client.force_login(self.viewer)
+        today = timezone.localdate()
+        prev = (today.replace(day=1) - datetime.timedelta(days=1))
+        self.assertContains(self.client.get(self.URL), f'value="{prev:%Y-%m}"')
+
+    def test_issue_on_same_screen_then_shown_as_issued(self):
         load_sample(self.loc)
         self.client.force_login(self.user)
-        page = self.client.get(reverse("fees:issue") + "?month=2026-10")
+        page = self.page()
         self.assertContains(page, "2026年10月分")
         self.assertContains(page, "¥76,851")
+        self.assertContains(page, "未発行")
         today = timezone.localdate()
         self.assertContains(page, f'value="{default_pay_date(today):%Y-%m-%d}"')
-        resp = self.client.post(reverse("fees:issue") + "?month=2026-10", {
-            "month": "2026-10", "issue_date": "2026-11-12", "pay_date": "2026-11-12", "location": [self.loc.pk]})
-        self.assertRedirects(resp, reverse("fees:list") + "?month=2026-10", fetch_redirect_response=False)
-        self.assertContains(self.client.get(resp.url), "2026年10月分 1件を発行")
+        resp = self.post_issue()
+        self.assertRedirects(resp, f"{self.URL}?month=2026-10", fetch_redirect_response=False)
+        page = self.client.get(resp.url)
+        self.assertContains(page, "2026年10月分 1件を発行")
+        self.assertContains(page, "FEE-202610-0001")
+        self.assertContains(page, '<span class="fee-badge fee-badge-issued">発行済み</span>')
+        self.assertNotContains(page, "fee-issue-btn")   # 発行できる行がない
         # 二度押し：同じ月×売り場は2件目を作らない
-        resp = self.client.post(reverse("fees:issue"), {
-            "month": "2026-10", "issue_date": "2026-11-12", "pay_date": "2026-11-12", "location": [self.loc.pk]})
+        resp = self.post_issue()
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "発行できなかった：○○ビル（発行済み）")
         self.assertEqual(FeeStatement.objects.count(), 1)
 
+    def test_issued_row_shows_snapshot_amounts(self):
+        load_sample(self.loc)
+        self.issue()
+        DailyReportEntry.objects.filter(report__date=datetime.date(2026, 10, 1), product_no=2).update(sales_quantity=52)
+        self.client.force_login(self.user)
+        page = self.page()
+        self.assertContains(page, "¥754,550")
+        self.assertContains(page, "差あり")
+
     def test_pay_date_before_issue_date(self):
         load_sample(self.loc)
         self.client.force_login(self.user)
-        resp = self.client.post(reverse("fees:issue"), {
-            "month": "2026-10", "issue_date": "2026-11-12", "pay_date": "2026-11-10", "location": [self.loc.pk]})
+        resp = self.post_issue(pay_date="2026-11-10")
         self.assertContains(resp, "支払日が発行日より前")
         self.assertContains(resp, 'value="2026-11-10"')
         self.assertContains(resp, f'value="{self.loc.pk}"\n                           aria-label="○○ビル を選択" checked')
@@ -456,55 +507,44 @@ class ViewTests(Base):
         self.client.force_login(self.user)
         for issue_date in (datetime.date(2026, 11, 12), datetime.date(2026, 11, 5)):
             FeeStatement.objects.all().delete()
-            resp = self.client.post(reverse("fees:issue"), {
-                "month": "2026-10", "issue_date": f"{issue_date:%Y-%m-%d}",
-                "pay_date": f"{default_pay_date(issue_date):%Y-%m-%d}", "location": [self.loc.pk]})
+            resp = self.post_issue(issue_date=f"{issue_date:%Y-%m-%d}",
+                                   pay_date=f"{default_pay_date(issue_date):%Y-%m-%d}")
             self.assertEqual(resp.status_code, 302)
             self.assertEqual(FeeStatement.objects.get().pay_date, default_pay_date(issue_date))
 
     def test_future_month_post_is_rejected(self):
         self.client.force_login(self.user)
-        resp = self.client.post(reverse("fees:issue"), {
-            "month": "2099-01", "issue_date": "2026-11-12", "pay_date": "2026-12-10", "location": [self.loc.pk]})
+        resp = self.post_issue(month="2099-01")
         self.assertContains(resp, "対象月が未来")
         self.assertEqual(FeeStatement.objects.count(), 0)
 
-    def test_all_issued_only_when_every_row_issued(self):
-        load_sample(self.loc)
-        loc2 = SalesLocation.objects.create(no=15, name="△△工場", type="車", price_type="A", service_name="なし")
-        FeeDestination.objects.create(location=loc2, enabled=True, addressee="")   # 発行できない行
-        self.issue()
-        self.client.force_login(self.user)
-        page = self.client.get(reverse("fees:issue") + "?month=2026-10").content.decode()
-        self.assertNotIn('<span class="text-muted">発行済み</span>', page)
-        loc2.fee_destination.delete()
-        page = self.client.get(reverse("fees:issue") + "?month=2026-10").content.decode()
-        self.assertIn('<span class="text-muted">発行済み</span>', page)
-
-    def test_combined_pdf_next_must_be_same_host(self):
-        self.client.force_login(self.viewer)
-        resp = self.client.post(reverse("fees:pdf_combined"), {"statement": [], "next": "//evil.example.com/"})
-        self.assertRedirects(resp, reverse("fees:list"), fetch_redirect_response=False)
-        resp = self.client.post(reverse("fees:pdf_combined"), {"statement": [], "next": "/fees/?month=2026-10"})
-        self.assertRedirects(resp, "/fees/?month=2026-10", fetch_redirect_response=False)
-
     def test_future_month(self):
         self.client.force_login(self.user)
-        self.assertContains(self.client.get(reverse("fees:issue") + "?month=2099-01"), "対象月が未来")
+        self.assertContains(self.page("2099-01"), "対象月が未来")
 
-    def test_void_and_reissue(self):
+    def test_void_returns_to_same_month_and_can_reissue(self):
         load_sample(self.loc)
         st, = self.issue()
         self.client.force_login(self.user)
+        page = self.page().content.decode()
+        void_url = reverse("fees:void", args=[st.pk]) + "?from=month"
+        self.assertIn(void_url, page)
+        self.assertContains(self.client.get(void_url), f'href="{self.URL}?month=2026-10" class="btn btn-outline-secondary">戻る')
         resp = self.client.post(reverse("fees:void", args=[st.pk]), {"void_reason": "日計表の修正"})
-        self.assertRedirects(resp, reverse("fees:detail", args=[st.pk]), fetch_redirect_response=False)
+        self.assertRedirects(resp, f"{self.URL}?month=2026-10", fetch_redirect_response=False)
         page = self.client.get(resp.url)
         self.assertContains(page, "FEE-202610-0001 を取消")
-        self.assertContains(page, "再発行")
-        rows = services.issue_rows(OCT, today=datetime.date(2026, 11, 12))[0]
-        self.assertTrue(rows[0].selectable)
+        self.assertContains(page, "取消した計算書（1件）")
+        self.assertContains(page, 'aria-label="○○ビル を選択"')   # 未発行に戻ってそのまま選べる
+        self.assertRedirects(self.post_issue(), f"{self.URL}?month=2026-10", fetch_redirect_response=False)
+        again = FeeStatement.objects.get(status=FeeStatement.STATUS_ISSUED)
+        self.assertEqual((again.number, again.replaces_id), ("FEE-202610-0002", st.pk))
+        # 詳細の［再発行］も同じ月の計算書画面へ
+        services.void_statement(again, self.user)
+        html = self.client.get(reverse("fees:detail", args=[again.pk])).content.decode()
+        self.assertIn(f'href="{self.URL}?month=2026-10" class="btn btn-primary">再発行', html)
 
-    def test_combined_pdf_excludes_void(self):
+    def test_month_pdf_download_excludes_void(self):
         load_sample(self.loc)
         loc2 = SalesLocation.objects.create(no=15, name="△△工場", type="車", price_type="A", service_name="なし")
         d2 = FeeDestination.objects.create(location=loc2, enabled=True, addressee="B株式会社")
@@ -513,19 +553,22 @@ class ViewTests(Base):
         a, b = self.issue(locations=[self.loc.pk, loc2.pk])
         services.void_statement(b, self.user)
         self.client.force_login(self.viewer)
-        resp = self.client.post(reverse("fees:pdf_combined"), {"statement": [a.pk, b.pk]})
+        self.assertContains(self.page(), reverse("fees:pdf_month") + "?month=2026-10")
+        resp = self.client.get(reverse("fees:pdf_month") + "?month=2026-10")
         self.assertEqual(resp["Content-Type"], "application/pdf")
         self.assertIn("filename*=UTF-8''%E8%A8%88%E7%AE%97%E6%9B%B8_202610.pdf", resp["Content-Disposition"])
         self.assertEqual(resp.content[:4], b"%PDF")
+        # 発行済みがない月は戻す
+        resp = self.client.get(reverse("fees:pdf_month") + "?month=2026-09")
+        self.assertRedirects(resp, f"{self.URL}?month=2026-09", fetch_redirect_response=False)
 
-    def test_list_defaults_to_latest_month(self):
+    def test_disabled_destination_with_issued_statement_stays_in_month(self):
         load_sample(self.loc)
-        self.issue()
-        self.client.force_login(self.viewer)
-        page = self.client.get(reverse("fees:list"))
-        self.assertContains(page, 'value="2026-10"')
-        self.assertContains(page, "FEE-202610-0001")
-        self.assertContains(self.client.get(reverse("fees:list") + "?month=2026-09"), "該当なし")
+        st, = self.issue()
+        self.dest.enabled = False
+        self.dest.save()
+        self.client.force_login(self.user)
+        self.assertContains(self.page(), st.number)
 
 
 class DestinationViewTests(Base):
