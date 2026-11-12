@@ -36,6 +36,7 @@ urlpatterns = [
     path('secure-admin/', admin.site.urls),
     path('shifts/', include('shifts.urls')),
     path('orders/', include('orders.urls')),
+    path('fees/', include('fees.urls')),
     path('quest/', include('quest.urls')),
     path('attendance/', include('attendance.urls')),
     path('reserve/', include('reservations.urls')),

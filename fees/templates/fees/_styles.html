@@ -1,0 +1,43 @@
+{# 販売フィー計算書の画面で共通の見た目。色は tokens.css のトークンだけを使う（prices/_styles.html と同じ作り） #}
+{% load static %}<link href="{% static 'css/help.css' %}" rel="stylesheet">
+<style>
+    .fee-table th, .fee-table td { white-space: nowrap; vertical-align: middle; }
+    .fee-table thead th { background-color: var(--ln-color-surface-muted); font-size: .8rem; }
+    .fee-table tfoot td { background-color: var(--ln-color-surface-muted); font-weight: bold; }
+    .fee-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .fee-badge { display: inline-block; white-space: nowrap; border-radius: 999px; padding: 0 .55rem;
+                 font-size: .75rem; line-height: 1.6; border: 1px solid transparent; }
+    .fee-badge-issued { color: var(--ln-color-success); background-color: var(--ln-color-success-bg); }
+    .fee-badge-void { color: var(--ln-color-text-muted); background-color: var(--ln-color-surface-disabled); }
+    .fee-badge-none { color: var(--ln-color-text-muted); border-color: var(--ln-color-border); }
+    .fee-badge-warn { color: var(--ln-color-danger); border-color: var(--ln-color-danger); background-color: var(--ln-color-white); }
+    .fee-badge-block { color: var(--ln-color-white); background-color: var(--ln-color-danger); }
+    .fee-badges { display: grid; gap: 3px; justify-items: start; }
+    .fee-badges details summary { list-style: none; cursor: pointer; }
+    .fee-badges details summary::-webkit-details-marker { display: none; }
+    .fee-days { font-size: .75rem; color: var(--ln-color-text-muted); white-space: nowrap; padding: 2px 2px 0; }
+    .fee-row-void td, .fee-row-void { color: var(--ln-color-text-muted); }
+    .fee-row-attention td:first-child { box-shadow: inset 4px 0 0 var(--ln-color-danger); }
+    div.fee-row-attention { box-shadow: inset 4px 0 0 var(--ln-color-danger); }
+    .fee-holiday td { background-color: var(--ln-color-surface-muted); }
+    .fee-amount-main { color: var(--ln-color-text-strong); font-weight: bold; }
+    .fee-month-title { font-size: 1.75rem; font-weight: bold; margin: .25rem 0 .75rem; white-space: nowrap; }
+    .fee-kpi .fee-kpi-v { font-size: 1.25rem; font-weight: bold; }
+    .fee-kv { display: grid; grid-template-columns: auto auto; justify-content: start; gap: .25rem 2rem; }
+    .fee-kv .fee-big { font-size: 1.25rem; font-weight: bold; }
+    .fee-nowrap { white-space: nowrap; }
+    .fee-input { font-size: 16px; }
+    .fee-input[type="month"], .fee-input[type="date"] { -webkit-appearance: none; appearance: none; min-height: 38px; }
+    .fee-addressee { max-width: 320px; }
+    .fee-rate-input { max-width: 90px; }
+    .fee-sticky-day { position: sticky; left: 0; z-index: 1; background-color: var(--ln-color-white); box-shadow: var(--ln-shadow-col); }
+    .fee-holiday .fee-sticky-day { background-color: var(--ln-color-surface-muted); }
+    .fee-seal { width: 56px; height: 56px; object-fit: contain; border: 1px solid var(--ln-color-border); border-radius: 4px; background: var(--ln-color-white); }
+    .fee-seal-none { width: 56px; height: 56px; display: inline-flex; align-items: center; justify-content: center;
+                     border: 1px dashed var(--ln-color-border); border-radius: 4px; color: var(--ln-color-text-muted); font-size: .75rem; }
+    @media (max-width: 767.98px) {
+        .fee-bottom-bar { position: sticky; bottom: 0; z-index: 5; background-color: var(--ln-color-white);
+                          border-top: 1px solid var(--ln-color-border); padding: .5rem 0; margin: 0 -12px; padding-inline: 12px; }
+        .fee-month-title { font-size: 1.4rem; }
+    }
+</style>

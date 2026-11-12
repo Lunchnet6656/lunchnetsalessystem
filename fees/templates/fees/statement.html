@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>計算書 {{ number }}</title>
+<style>
+    @font-face { font-family: "IPAexGothic"; src: url("file://{{ font_dir }}/ipaexg.ttf"); }
+    @page { size: A4 portrait; margin: 10mm 11mm; }
+    * { box-sizing: border-box; }
+    body { font-family: "IPAexGothic", sans-serif; font-size: 9pt; color: #000; margin: 0; }
+    .doc-date { text-align: right; font-size: 9pt; }
+    .title { position: relative; text-align: center; font-size: 18pt; font-weight: bold; margin: 3mm 0 6mm; }
+    .mark { position: absolute; right: 0; top: 0.5mm; border: 1.5px solid #000; font-size: 14pt; font-weight: bold;
+            letter-spacing: 0.1em; padding: 0.5mm 2.5mm; }
+    .head { display: table; width: 100%; margin-bottom: 4mm; }
+    .head-left { display: table-cell; width: 55%; vertical-align: top; }
+    .head-right { display: table-cell; width: 45%; vertical-align: top; position: relative; padding-left: 4mm; }
+    /* 社印：請求書（orders/invoice.html の .seal）と同じ画像・位置 */
+    .seal { position: absolute; top: -6.5mm; right: 0; width: 28mm; height: 28mm; opacity: 0.85; }
+    .to { font-size: {{ addressee_pt }}pt; font-weight: bold; border-bottom: 1.5px solid #000; padding-bottom: 1mm;
+          display: inline-block; min-width: 80mm; white-space: nowrap; }
+    .no { font-size: 8.5pt; margin-top: 2mm; }
+    .co { font-size: 11pt; font-weight: bold; margin-bottom: 1mm; white-space: nowrap; }
+    .info { font-size: 8.5pt; line-height: 1.6; white-space: nowrap; }
+    .pay { display: inline-block; border: 1.2px solid #000; padding: 0.8mm 3mm; font-size: 10pt; margin-top: 2mm; }
+    table.boxes { width: 100%; border-collapse: collapse; margin-bottom: 4mm; table-layout: fixed; }
+    table.boxes th { background: #e8e8e8; border: 0.6px solid #000; font-size: 9.5pt; font-weight: normal;
+                     padding: 0.8mm 1mm; text-align: center; white-space: nowrap; }
+    table.boxes td { border: 0.6px solid #000; font-size: 14pt; text-align: right; padding: 1mm 3mm; white-space: nowrap; }
+    table.boxes td.pay-v { font-size: 18pt; font-weight: bold; border: 3px double #000; }
+    table.d { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: {% if compact %}7pt{% else %}8pt{% endif %}; }
+    table.d th, table.d td { border: 0.5px solid #000; white-space: nowrap; overflow: hidden; }
+    table.d th { background: #e8e8e8; font-weight: bold; text-align: center; padding: 0.4mm 0.5mm; line-height: 1.25; }
+    table.d td { height: 4.8mm; padding: 0 1mm; text-align: right; }
+    table.d td.c { text-align: center; padding: 0; }
+    table.d tr.shade td { background: #f0f0f0; }
+    table.d td.b { font-weight: bold; }
+    table.d tr.total td { background: #e8e8e8; font-weight: bold; }
+    .foot { font-size: 8pt; margin-top: 1.2mm; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="doc-date">{{ issue_date }}</div>
+
+<div class="title">計　算　書　（{{ title_month }}）{% if mark %}<span class="mark">{{ mark }}</span>{% endif %}</div>
+
+<div class="head">
+    <div class="head-left">
+        <span class="to">{{ addressee }}　御中</span>
+        <div class="no">No. {% if number %}{{ number }}{% else %}（発行時に採番）{% endif %}</div>
+    </div>
+    <div class="head-right">
+        {% if seal %}<img class="seal" src="{{ seal }}" alt="社印">{% endif %}
+        <div class="co">{{ issuer.company_name }}</div>
+        <div class="info">
+            {% if st.staff_name %}担当　{{ st.staff_name }}<br>{% endif %}
+            {% if issuer.postal_code %}{{ issuer.postal_code }}<br>{% endif %}
+            {% if issuer.address %}{{ issuer.address }}<br>{% endif %}
+            {% if issuer.tel %}TEL:{{ issuer.tel }}{% endif %}{% if issuer.fax %}　FAX:{{ issuer.fax }}{% endif %}
+            {% if issuer.registration_number %}<br>登録番号：{{ issuer.registration_number }}{% endif %}
+        </div>
+        <div class="pay">お支払日：{{ pay_date }}</div>
+    </div>
+</div>
+
+<table class="boxes">
+    <tr><th>税抜金額</th><th>消費税額（税率8％）</th><th>当月総売上（税込）</th></tr>
+    <tr><td>{{ amounts.tax_excluded }}</td><td>{{ amounts.tax_amount }}</td><td>{{ amounts.total_sales }}</td></tr>
+    <tr><th>税抜手数料（手数料率{{ rate }}％）</th><th>手数料消費税額（税率10％）</th><th>当月お支払金額（税込）</th></tr>
+    <tr><td>{{ amounts.fee_excluded }}</td><td>{{ amounts.fee_tax }}</td><td class="pay-v">{{ amounts.pay_amount }}</td></tr>
+</table>
+
+<table class="d">
+    <colgroup>
+        <col style="width:8mm"><col style="width:8mm">
+        {% for h in price_heads %}<col>{% empty %}<col>{% endfor %}
+        {% for h in large_heads %}<col style="width:15mm">{% endfor %}
+        {% if has_others %}<col style="width:18mm">{% endif %}
+        {% for h in service_heads %}<col style="width:18mm">{% endfor %}
+        <col style="width:16mm"><col style="width:24mm"><col style="width:12mm">
+    </colgroup>
+    <thead>
+        <tr>
+            <th colspan="2" rowspan="2">日　付</th>
+            <th colspan="{{ price_heads|length|default:1 }}">＊販売価格（税込）</th>
+            {% if large_heads %}<th colspan="{{ large_heads|length }}">大盛ライス</th>{% endif %}
+            {% if has_others %}<th rowspan="2">その他<br>（金額）</th>{% endif %}
+            {% for h in service_heads %}<th rowspan="2">{{ h }}<br>（金額）</th>{% endfor %}
+            <th rowspan="2">販売数合計</th>
+            <th rowspan="2">売上金額</th>
+            <th rowspan="2">残数</th>
+        </tr>
+        <tr>
+            {% for h in price_heads %}<th>{{ h }}</th>{% empty %}<th></th>{% endfor %}
+            {% for h in large_heads %}<th>{{ h }}</th>{% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr{% if r.shade %} class="shade"{% endif %}>
+            <td class="c">{{ r.day }}</td>
+            <td class="c{% if r.bold %} b{% endif %}">{{ r.dow }}</td>
+            {% if not price_heads %}<td></td>{% endif %}
+            {% for c in r.cells %}<td>{{ c }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+        <tr class="total">
+            <td class="c" colspan="2">合　計</td>
+            {% if not price_heads %}<td></td>{% endif %}
+            {% for c in total_cells %}<td>{{ c }}</td>{% endfor %}
+        </tr>
+    </tbody>
+</table>
+<div class="foot">＊軽減税率対象</div>
+{% if others_line %}<div class="foot">{{ others_line }}</div>{% endif %}
+{% for line in service_lines %}<div class="foot">{{ line }}</div>{% endfor %}
+
+</body>
+</html>

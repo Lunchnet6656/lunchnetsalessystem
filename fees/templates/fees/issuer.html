@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}発行元{% endblock %}
+{% block extra_css %}{% include "fees/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <h1 class="h3 mb-0 fee-nowrap">計算書の宛先</h1>
+        <span class="flex-grow-1"></span>
+        {% include "includes/help_button.html" with id="fee-issuer" title="発行元" body="fees/help/issuer.html" %}
+    </div>
+    {% include "fees/_tabs.html" %}
+
+    <div class="card" style="max-width:640px">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" class="um-submit-once" novalidate>
+                {% csrf_token %}
+                {% for f in form %}{% if f.name != "show_registration_on_fee" %}
+                <div class="row g-2 align-items-start mb-2">
+                    <label for="{{ f.id_for_label }}" class="col-3 col-form-label col-form-label-sm text-muted fee-nowrap">{{ f.label }}</label>
+                    <div class="col-9">
+                        <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}"
+                               class="form-control fee-input{% if f.errors %} is-invalid{% endif %}">
+                        {% if f.errors %}<div class="invalid-feedback d-block">{{ f.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                {% endif %}{% endfor %}
+                <div class="row g-2 mb-3">
+                    <div class="col-3"></div>
+                    <div class="col-9 d-flex align-items-center">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="id_show_registration_on_fee" name="show_registration_on_fee" {% if form.show_registration_on_fee.value %}checked{% endif %}>
+                            <label class="form-check-label fee-nowrap" for="id_show_registration_on_fee">計算書に登録番号を載せる</label>
+                        </div>
+                        {% include "includes/info_tip.html" with id="fee-regno" label="登録番号" text="OFFの間は計算書に出ない。請求書には出る。" %}
+                    </div>
+                </div>
+                <div class="row g-2 align-items-start mb-3">
+                    <div class="col-3 col-form-label col-form-label-sm text-muted fee-nowrap"><span class="hp-lbl">社印{% include "includes/info_tip.html" with id="fee-seal" label="社印" text="計算書は全部に押す。請求書はメール配信の顧客だけ。背景透過PNG。" %}</span></div>
+                    <div class="col-9">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            {% if obj.seal_image_data %}<img src="{{ obj.seal_image_data }}" alt="社印" class="fee-seal">{% else %}<span class="fee-seal-none">未登録</span>{% endif %}
+                            <input type="file" name="seal_image" accept="image/*" class="form-control form-control-sm" style="max-width:260px" aria-label="社印画像">
+                        </div>
+                        {% if obj.seal_image_data %}
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="fee-remove-seal" name="remove_seal">
+                            <label class="form-check-label small text-danger fee-nowrap" for="fee-remove-seal">社印を削除</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-end"><button type="submit" class="btn btn-primary" data-busy="更新中…">更新</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}{% include "fees/_scripts.html" %}{% endblock %}

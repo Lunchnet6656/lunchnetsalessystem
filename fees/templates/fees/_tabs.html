@@ -1,0 +1,4 @@
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link{% if tab == 'dest' %} active{% endif %}" {% if tab == 'dest' %}aria-current="page"{% endif %} href="{% url 'fees:destinations' %}">宛先</a></li>
+    <li class="nav-item"><a class="nav-link{% if tab == 'issuer' %} active{% endif %}" {% if tab == 'issuer' %}aria-current="page"{% endif %} href="{% url 'fees:issuer' %}">発行元</a></li>
+</ul>

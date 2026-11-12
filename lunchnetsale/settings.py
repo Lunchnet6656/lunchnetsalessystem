@@ -134,6 +134,7 @@ INSTALLED_APPS = [
     'attendance',
     'reservations',
     'stamps',
+    'fees',
     'lunchnetsale',
     'django.contrib.humanize',
     'axes',

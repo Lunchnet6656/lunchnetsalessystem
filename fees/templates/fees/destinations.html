@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}計算書の宛先{% endblock %}
+{% block extra_css %}{% include "fees/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <h1 class="h3 mb-0 fee-nowrap">計算書の宛先</h1>
+        <span class="flex-grow-1"></span>
+        {% include "includes/help_button.html" with id="fee-dest" title="計算書の宛先" body="fees/help/destinations.html" %}
+        {% if candidates %}<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#fee-add">追加</button>{% endif %}
+    </div>
+    {% include "fees/_tabs.html" %}
+
+    {% if not has_locations %}
+    <p class="text-muted">売り場なし</p>
+    {% elif not rows %}
+    <p class="text-muted">対象の売り場なし</p>
+    {% else %}
+    <p class="text-muted small mb-2">対象 {{ rows|length }}件</p>
+    {# スマホ：1売り場＝1カード #}
+    <div class="d-md-none">
+        {% for row in rows %}
+        <div class="card mb-2{% if row.attention %} fee-row-attention{% endif %}">
+            <div class="card-body p-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold fee-nowrap">No {{ row.d.location.no }}　{{ row.d.location.name }}</span>
+                    <span class="flex-grow-1"></span>
+                    <a href="{% url 'fees:destination_edit' row.d.location.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>
+                </div>
+                <div class="fee-nowrap">{% if row.d.addressee %}{{ row.d.addressee }} 御中{% else %}<span class="text-danger">宛名 未設定</span>{% endif %}</div>
+                <div class="small fee-nowrap">率 {% if row.rate is not None %}{{ row.rate|floatformat:"-1" }}%{% else %}<span class="text-danger">未設定</span>{% endif %}
+                    {% if row.next %}<span class="text-muted ms-2">{{ row.next.start_month|date:"n" }}月から {{ row.next.rate|floatformat:"-1" }}%</span>{% endif %}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-sm align-middle fee-table bg-white">
+            <thead><tr>
+                <th class="fee-num">No</th><th>売り場</th><th>宛名</th>
+                <th class="fee-num"><span class="hp-lbl">率{% include "includes/info_tip.html" with id="fee-rate" label="率" text="対象月の1日時点の率で計算。開始月から適用。" %}</span></th>
+                <th>開始前</th><th></th>
+            </tr></thead>
+            <tbody>
+            {% for row in rows %}
+            <tr{% if row.attention %} class="fee-row-attention"{% endif %}>
+                <td class="fee-num">{{ row.d.location.no }}</td>
+                <td>{{ row.d.location.name }}</td>
+                <td>{% if row.d.addressee %}{{ row.d.addressee }} 御中{% else %}<span class="text-danger">未設定</span>{% endif %}</td>
+                <td class="fee-num">{% if row.rate is not None %}{{ row.rate|floatformat:"-1" }}%{% else %}<span class="text-danger">未設定</span>{% endif %}</td>
+                <td class="text-muted">{% if row.next %}{{ row.next.start_month|date:"n" }}月から {{ row.next.rate|floatformat:"-1" }}%{% endif %}</td>
+                <td><a href="{% url 'fees:destination_edit' row.d.location.pk %}" class="btn btn-sm btn-outline-secondary">編集</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+{% if candidates %}
+<div class="modal fade" id="fee-add" tabindex="-1" aria-labelledby="fee-add-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="get" action="{% url 'fees:destination_add' %}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fee-add-title">計算書の宛先を追加</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <label for="fee-add-location" class="form-label small text-muted">販売場所</label>
+                <select id="fee-add-location" name="location" class="form-select fee-input" required>
+                    {% for loc in candidates %}<option value="{{ loc.pk }}">{{ loc.no }}　{{ loc.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">戻る</button>
+                <button type="submit" class="btn btn-primary">追加</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}{% include "fees/_scripts.html" %}{% endblock %}

@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load fees_tags %}
+{% block title %}計算書一覧{% endblock %}
+{% block extra_css %}{% include "fees/_styles.html" %}
+<style>
+    @media (min-width: 768px) { #fee-more { display: contents; } }
+    #fee-more summary { cursor: pointer; }
+    @media (max-width: 767.98px) {
+        #fee-more { width: 100%; }
+        .fee-list-table thead { display: none; }
+        .fee-list-table, .fee-list-table tbody { display: block; }
+        .fee-list-table tr {
+            display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; column-gap: .25rem;
+            grid-template-areas: "chk no status" ". loc loc" ". pay op";
+            border: 1px solid var(--ln-color-border); border-radius: 6px; margin-bottom: .5rem; padding: .5rem;
+            background: var(--ln-color-white);
+        }
+        .fee-list-table td { display: block; border: 0; padding: 0; }
+        .fee-list-table .c-chk { grid-area: chk; }
+        .fee-list-table .c-no { grid-area: no; }
+        .fee-list-table .c-status { grid-area: status; text-align: right; }
+        .fee-list-table .c-loc { grid-area: loc; overflow: hidden; }
+        .fee-list-table .c-month { display: none; }
+        .fee-list-table .c-pay { grid-area: pay; text-align: left; font-size: 1.25rem; }
+        .fee-list-table .c-op { grid-area: op; text-align: right; }
+        .fee-list-table .c-to, .fee-list-table .c-issue, .fee-list-table .c-paydate, .fee-list-table .c-detail { display: none; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h1 class="h3 mb-0 fee-nowrap">計算書一覧</h1>
+        <span class="flex-grow-1"></span>
+        {% include "includes/help_button.html" with id="fee-list" title="計算書一覧" body="fees/help/list.html" %}
+        {% if can_issue %}<a href="{% url 'fees:issue' %}?month={{ issue_month }}" class="btn btn-primary fee-nowrap">一括発行</a>{% endif %}
+    </div>
+
+    <form method="get" class="card mb-3">
+        <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+            <label for="fee-f-month" class="small text-muted fee-nowrap">対象月</label>
+            <input type="month" id="fee-f-month" name="month" value="{{ month_value }}" class="form-control fee-input" style="width:11rem">
+            <details id="fee-more" open>
+                <summary class="d-md-none small text-muted">絞り込み</summary>
+                <span class="d-inline-flex flex-wrap align-items-center gap-2">
+                    <label for="fee-f-loc" class="small text-muted fee-nowrap">売り場</label>
+                    <select id="fee-f-loc" name="location" class="form-select fee-input" style="width:auto">
+                        <option value="">すべて</option>
+                        {% for loc in locations %}<option value="{{ loc.pk }}" {% if location_id == loc.pk|stringformat:"s" %}selected{% endif %}>{{ loc.name }}</option>{% endfor %}
+                    </select>
+                    <label for="fee-f-status" class="small text-muted fee-nowrap">状態</label>
+                    <select id="fee-f-status" name="status" class="form-select fee-input" style="width:auto">
+                        <option value="">すべて</option>
+                        <option value="issued" {% if status == 'issued' %}selected{% endif %}>発行済み</option>
+                        <option value="void" {% if status == 'void' %}selected{% endif %}>取消</option>
+                    </select>
+                </span>
+            </details>
+            <button type="submit" class="btn btn-outline-secondary">絞り込み</button>
+            <a href="{% url 'fees:list' %}" class="btn btn-outline-secondary">クリア</a>
+            <span class="d-inline-flex gap-1">
+                <a href="?month={{ chips.prev }}" class="btn btn-sm {% if month_value == chips.prev %}btn-secondary{% else %}btn-outline-secondary{% endif %}">先月</a>
+                <a href="?month={{ chips.this }}" class="btn btn-sm {% if month_value == chips.this %}btn-secondary{% else %}btn-outline-secondary{% endif %}">今月</a>
+            </span>
+        </div>
+    </form>
+
+    {% if not any_statement %}
+    <p class="text-muted mb-2">計算書なし</p>
+    {% if can_issue %}<a href="{% url 'fees:issue' %}?month={{ issue_month }}" class="btn btn-primary">一括発行</a>{% endif %}
+    {% elif not statements %}
+    <p class="text-muted mb-2">該当なし</p>
+    <a href="{% url 'fees:list' %}" class="btn btn-outline-secondary">クリア</a>
+    {% else %}
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <div class="card fee-kpi"><div class="card-body py-2 px-3">
+            <div class="small text-muted fee-nowrap">支払額合計（取消除く）</div><div class="fee-kpi-v fee-num text-start">{{ pay_total|yen }}</div>
+        </div></div>
+        <div class="card fee-kpi"><div class="card-body py-2 px-3">
+            <div class="small text-muted fee-nowrap">件数</div><div class="fee-kpi-v">{{ live_count }}件</div>
+        </div></div>
+    </div>
+
+    <form method="post" action="{% url 'fees:pdf_combined' %}" id="fee-pdf-form">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="table-responsive">
+        <table class="table table-sm align-middle fee-table fee-list-table bg-white mb-2">
+            <thead><tr>
+                <th class="text-center"><input type="checkbox" class="form-check-input" id="fee-all" aria-label="すべて選択"></th>
+                <th>番号</th><th>対象月</th><th>売り場</th><th class="d-none d-lg-table-cell">宛名</th>
+                <th>発行日</th><th class="d-none d-lg-table-cell">支払日</th><th class="fee-num">支払額</th><th>状態</th><th></th>
+            </tr></thead>
+            <tbody>
+            {% for st in statements %}
+            <tr{% if st.is_void %} class="fee-row-void"{% endif %}>
+                <td class="c-chk text-center">{% if not st.is_void %}<input type="checkbox" class="form-check-input fee-sel" name="statement" value="{{ st.pk }}" aria-label="{{ st.number }} を選択">{% endif %}</td>
+                <td class="c-no"><a href="{% url 'fees:detail' st.pk %}" class="fee-nowrap">{{ st.number }}</a></td>
+                <td class="c-month">{{ st.month|date:"Y/m" }}</td>
+                <td class="c-loc">{{ st.location_name }}<span class="d-md-none text-muted small ms-2">{{ st.month|date:"Y/m" }}</span></td>
+                <td class="c-to d-none d-lg-table-cell">{{ st.addressee }} 御中</td>
+                <td class="c-issue">{{ st.issue_date|date:"Y/m/d" }}</td>
+                <td class="c-paydate d-none d-lg-table-cell">{{ st.pay_date|date:"Y/m/d" }}</td>
+                <td class="c-pay fee-num{% if not st.is_void %} fee-amount-main{% endif %}">{{ st.pay_amount|yen }}</td>
+                <td class="c-status">{% if st.is_void %}<span class="fee-badge fee-badge-void">取消</span>{% else %}<span class="fee-badge fee-badge-issued">発行済み</span>{% endif %}</td>
+                <td class="c-op fee-nowrap">
+                    <a href="{% url 'fees:pdf' st.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">PDF</a>
+                    <a href="{% url 'fees:detail' st.pk %}" class="c-detail ms-1">詳細</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div class="fee-bottom-bar d-flex flex-wrap align-items-center justify-content-end gap-2">
+            <span id="fee-nosel" class="text-danger fee-nowrap" hidden>選択なし</span>
+            <button type="submit" class="btn btn-outline-secondary fee-nowrap" id="fee-pdf-btn">PDFダウンロード（選択）</button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+{% include "fees/_scripts.html" %}
+<script>
+(function () {
+    'use strict';
+    var more = document.getElementById('fee-more');
+    // スマホでは売り場・状態を畳む（絞り込み中なら開いたまま）
+    if (more && window.matchMedia('(max-width: 767.98px)').matches && !{{ location_id|yesno:"true,false" }} && !"{{ status }}") more.open = false;
+    var form = document.getElementById('fee-pdf-form');
+    if (!form) return;
+    var sels = Array.prototype.slice.call(form.querySelectorAll('.fee-sel'));
+    var all = document.getElementById('fee-all');
+    function refresh() {
+        var n = sels.filter(function (c) { return c.checked; }).length;
+        all.checked = n > 0 && n === sels.length;
+        all.indeterminate = n > 0 && n < sels.length;
+        if (n) document.getElementById('fee-nosel').hidden = true;
+        return n;
+    }
+    sels.forEach(function (c) { c.addEventListener('change', refresh); });
+    all.addEventListener('change', function () { sels.forEach(function (c) { c.checked = all.checked; }); refresh(); });
+    form.addEventListener('submit', function (e) {
+        if (!refresh()) { e.preventDefault(); document.getElementById('fee-nosel').hidden = false; return; }
+        // ダウンロードは画面が移らないので、3秒で元に戻す
+        var b = document.getElementById('fee-pdf-btn'), label = b.textContent;
+        b.textContent = '作成中…';
+        setTimeout(function () { b.disabled = true; }, 0);
+        setTimeout(function () { b.disabled = false; b.textContent = label; }, 3000);
+    });
+})();
+</script>
+{% endblock %}

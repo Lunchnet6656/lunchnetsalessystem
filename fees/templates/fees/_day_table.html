@@ -1,0 +1,31 @@
+{# 日別の表（画面）。列はPDFと同じ（fees.pdf.table_context） #}
+<table class="table table-sm table-bordered align-middle fee-table mb-0">
+    <thead>
+        <tr>
+            <th colspan="2" rowspan="2" class="fee-sticky-day text-center">日付</th>
+            <th colspan="{{ t.price_heads|length|default:1 }}" class="text-center">＊販売価格（税込）</th>
+            {% if t.large_heads %}<th colspan="{{ t.large_heads|length }}" class="text-center">大盛ライス</th>{% endif %}
+            {% if t.has_others %}<th rowspan="2" class="text-center">その他</th>{% endif %}
+            {% for h in t.service_heads %}<th rowspan="2" class="text-center">{{ h }}</th>{% endfor %}
+            <th rowspan="2" class="text-center">販売数合計</th><th rowspan="2" class="text-center">売上金額</th><th rowspan="2" class="text-center">残数</th>
+        </tr>
+        <tr>
+            {% for h in t.price_heads %}<th class="text-center">{{ h }}</th>{% empty %}<th></th>{% endfor %}
+            {% for h in t.large_heads %}<th class="text-center">{{ h }}</th>{% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in t.rows %}
+        <tr{% if r.shade %} class="fee-holiday"{% endif %}>
+            <td class="fee-sticky-day text-center" colspan="2"><span class="d-inline-block" style="min-width:1.5em">{{ r.day }}</span> <span{% if r.bold %} class="fw-bold"{% endif %}>{{ r.dow }}</span></td>
+            {% if not t.price_heads %}<td></td>{% endif %}
+            {% for c in r.cells %}<td class="fee-num">{{ c }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot><tr>
+        <td class="fee-sticky-day text-center" colspan="2">合計</td>
+        {% if not t.price_heads %}<td></td>{% endif %}
+        {% for c in t.total_cells %}<td class="fee-num">{{ c }}</td>{% endfor %}
+    </tr></tfoot>
+</table>

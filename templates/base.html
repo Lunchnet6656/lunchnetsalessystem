@@ -365,6 +365,37 @@
                     </li>
                     {% endif %}
 
+                    <!-- 経理セクション（請求書＝出す書類／販売フィー計算書＝払う書類） -->
+                    {% with mp=user.menu_permission omp=user.order_menu_permission %}
+                    {% if mp.can_view_orders and not omp or mp.can_view_orders and omp.can_view_invoices or mp.can_view_fees or mp.can_issue_fees %}
+                    <li class="list-group-item p-0">
+                        <details class="sidebar-section">
+                            <summary class="sidebar-section-header">
+                                <span><i class="fas fa-calculator"></i> 経理</span>
+                                <i class="fas fa-chevron-down sidebar-chevron"></i>
+                            </summary>
+                            <div class="sidebar-section-body">
+                        {% if mp.can_view_orders and not omp or mp.can_view_orders and omp.can_view_invoices %}
+                        <a href="{% url 'orders:invoice_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-file-invoice"></i> 請求書一覧
+                        </a>
+                        {% endif %}
+                        {% if mp.can_view_fees or mp.can_issue_fees %}
+                        <a href="{% url 'fees:list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-file-alt"></i> 計算書一覧
+                        </a>
+                        {% endif %}
+                        {% if mp.can_issue_fees %}
+                        <a href="{% url 'fees:destinations' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-address-book"></i> 計算書の宛先
+                        </a>
+                        {% endif %}
+                            </div>
+                        </details>
+                    </li>
+                    {% endif %}
+                    {% endwith %}
+
                     <!-- シフトセクション -->
                     {% if user.menu_permission.can_view_shift_app %}
                     <li class="list-group-item p-0">

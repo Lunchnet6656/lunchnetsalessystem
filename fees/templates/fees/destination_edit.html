@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}{{ location.name }} の宛先{% endblock %}
+{% block extra_css %}{% include "fees/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width:720px">
+    <a href="{% url 'fees:destinations' %}" class="small text-decoration-none">← 計算書の宛先</a>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 mt-1">
+        <h1 class="h3 mb-0 fee-nowrap">{{ location.name }}（No.{{ location.no }}）</h1>
+        <span class="flex-grow-1"></span>
+        {% include "includes/help_button.html" with id="fee-dest-edit" title="計算書の宛先" body="fees/help/destinations.html" %}
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-bold">宛先</div>
+        <div class="card-body">
+            <form method="post" class="um-submit-once" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save">
+                {% if adding %}<input type="hidden" name="add" value="1">{% endif %}
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-3 col-sm-2 text-muted small fee-nowrap">計算書</div>
+                    <div class="col-9 col-sm-10">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="fee-enabled" name="enabled" {% if form.enabled.value %}checked{% endif %}>
+                            <label class="form-check-label fee-nowrap" for="fee-enabled">出す</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-2 align-items-start mb-2">
+                    <div class="col-3 col-sm-2 text-muted small fee-nowrap pt-2"><label for="fee-addressee">宛名</label></div>
+                    <div class="col-9 col-sm-10">
+                        <div class="d-flex align-items-center">
+                            <div class="input-group fee-addressee">
+                                <input type="text" id="fee-addressee" name="addressee" maxlength="100" value="{{ form.addressee.value|default:'' }}"
+                                       class="form-control fee-input{% if form.addressee.errors %} is-invalid{% endif %}" placeholder="A株式会社" aria-describedby="fee-addressee-err">
+                                <span class="input-group-text">御中</span>
+                            </div>
+                            {% include "includes/info_tip.html" with id="fee-onchu" label="宛名" text="御中は自動で付く。" %}
+                        </div>
+                        {% if form.addressee.errors %}<div id="fee-addressee-err" class="invalid-feedback d-block">{{ form.addressee.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-3 col-sm-2 text-muted small fee-nowrap">サービス</div>
+                    <div class="col-9 col-sm-10 d-flex align-items-center">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="fee-service" name="include_service" {% if form.include_service.value %}checked{% endif %}>
+                            <label class="form-check-label fee-nowrap" for="fee-service">売上に反映する</label>
+                        </div>
+                        {% include "includes/info_tip.html" with id="fee-service-tip" label="サービス" text="ON＝社員割引などのサービス販売の値引きを総売上から引く。発行時の設定が計算書に残る。" %}
+                        {% if service_label != "サービス" %}<span class="small text-muted ms-2 fee-nowrap">{{ service_label }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="text-end"><button type="submit" class="btn btn-primary" data-busy="更新中…">更新</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header fw-bold"><span class="hp-lbl">手数料率{% include "includes/info_tip.html" with id="fee-rate-head" label="手数料率" text="開始月の1日から適用。発行済みの計算書は変わらない。開始前の率だけ取消できる。" %}</span></div>
+        <div class="card-body">
+            {% if rate_rows %}
+            <div class="table-responsive">
+                <table class="table table-sm align-middle fee-table mb-2">
+                    <thead><tr><th>開始月</th><th class="fee-num">率</th><th>状態</th><th class="d-none d-sm-table-cell">登録</th><th></th></tr></thead>
+                    <tbody>
+                    {% for row in rate_rows %}
+                    <tr{% if row.state == 'ended' %} class="fee-row-void"{% endif %}>
+                        <td>{{ row.r.start_month|date:"Y/m" }}</td>
+                        <td class="fee-num">{{ row.r.rate|floatformat:"-1" }}%</td>
+                        <td>{% if row.state == 'upcoming' %}<span class="fee-badge fee-badge-none">開始前</span>{% elif row.state == 'current' %}<span class="fee-badge fee-badge-issued">適用中</span>{% else %}<span class="fee-badge fee-badge-void">終了</span>{% endif %}</td>
+                        <td class="d-none d-sm-table-cell text-muted small">{{ row.r.created_at|date:"Y/m/d" }} {{ row.r.created_by.last_name }}</td>
+                        <td>{% if row.state == 'upcoming' %}<a href="?{% if adding %}add=1&amp;{% endif %}cancel={{ row.r.pk }}" class="btn btn-sm btn-outline-danger">取消</a>{% endif %}</td>
+                    </tr>
+                    {% if row.state == 'upcoming' and cancel_id == row.r.pk|stringformat:"s" %}
+                    <tr><td colspan="5">
+                        <form method="post" class="d-flex flex-wrap align-items-center gap-2 um-submit-once">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="cancel_rate"><input type="hidden" name="rate_id" value="{{ row.r.pk }}">
+                            {% if adding %}<input type="hidden" name="add" value="1">{% endif %}
+                            <span class="fee-nowrap">{{ row.r.start_month|date:"Y/m" }} から {{ row.r.rate|floatformat:"-1" }}% を取消</span>
+                            <button type="submit" class="btn btn-sm btn-danger" data-busy="取消中…">取消</button>
+                            <a href="?{% if adding %}add=1{% endif %}" class="btn btn-sm btn-outline-secondary">戻る</a>
+                        </form>
+                    </td></tr>
+                    {% endif %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-danger mb-2">未設定</p>
+            {% endif %}
+
+            <form method="post" class="d-flex flex-wrap align-items-start gap-2 um-submit-once" novalidate>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_rate">
+                {% if adding %}<input type="hidden" name="add" value="1">{% endif %}
+                <div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="fee-start" class="small text-muted fee-nowrap">開始月</label>
+                        <input type="month" id="fee-start" name="start_month" value="{{ rate_form.start_month.value|default:'' }}"
+                               class="form-control fee-input{% if rate_form.start_month.errors %} is-invalid{% endif %}" style="width:11rem">
+                    </div>
+                    {% if rate_form.start_month.errors %}<div class="invalid-feedback d-block">{{ rate_form.start_month.errors.0 }}</div>{% endif %}
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="fee-rate" class="small text-muted fee-nowrap">率</label>
+                        <input type="number" id="fee-rate" name="rate" step="0.1" min="0" max="100" inputmode="decimal"
+                               value="{{ rate_form.rate.value|default:'' }}" class="form-control fee-input fee-rate-input{% if rate_form.rate.errors %} is-invalid{% endif %}">
+                        <span>%</span>
+                    </div>
+                    {% if rate_form.rate.errors %}<div class="invalid-feedback d-block">{{ rate_form.rate.errors.0 }}</div>{% endif %}
+                </div>
+                <button type="submit" class="btn btn-outline-secondary" data-busy="追加中…">追加</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}{% include "fees/_scripts.html" %}{% endblock %}
