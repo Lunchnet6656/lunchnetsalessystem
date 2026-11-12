@@ -284,8 +284,6 @@ LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
 
 # 振分表マクロからの持参数自動送信（Bearer トークン）。未設定ならAPIは受け付けない
 ITEM_QUANTITY_API_TOKEN = os.environ.get("ITEM_QUANTITY_API_TOKEN", "")
-# 振分表にはあるがアプリで持参数を管理しない店名（ここに無い不一致は送信を止める）
-ITEM_QUANTITY_IGNORED_LOCATIONS = csv_env("ITEM_QUANTITY_IGNORED_LOCATIONS", "なだや,武相,本町一丁目,千代田")
 # メニュー表（Excelの「Webから」）が読むメニュー実績CSVの合言葉。読むだけ・集計値だけなので登録用とは別
 MENU_HISTORY_API_KEY = os.environ.get("MENU_HISTORY_API_KEY", "")
 # メニュー実績から外す売り場（配達タイプは自動で除外）

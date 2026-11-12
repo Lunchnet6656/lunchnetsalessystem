@@ -9,13 +9,18 @@ from django.urls import NoReverseMatch, reverse
 
 from sales.item_quantity_import import ParsedItemQuantity, save_item_quantities
 from sales.models import (
-    DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, Product, SalesLocation, UserMenuPermission,
+    AllocationExtra, AllocationExtraQuantity, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, Product, SalesLocation, UserMenuPermission,
 )
 from sales.permissions_testing import grant
 
 TODAY = datetime.date(2026, 11, 5)      # 木曜
 TOMORROW = datetime.date(2026, 11, 6)   # 金曜
 WEEK = datetime.date(2026, 11, 2)
+
+
+def _col(x):
+    """画面の列のキー（販売場所＝L<id>・振分だけの項目＝X<id>）。"""
+    return f"X{x.id}" if isinstance(x, AllocationExtra) else f"L{x.id}"
 
 
 def _receive(d, quantities):
@@ -26,9 +31,9 @@ def _receive(d, quantities):
     return ItemQuantityUpload.objects.create(target_date=d, source="api", ok=True, saved_count=len(parsed.entries))
 
 
-@mock.patch("django.utils.timezone.localdate", return_value=TODAY)
-class ItemQuantityEditTest(TestCase):
+class _EditBase(TestCase):
     def setUp(self):
+        AllocationExtra.objects.all().delete()  # 移行で入る初期の項目（なだや等）は使わない
         # 出店状況の反映（GitHub への push）をテストから本当に呼ばない
         patcher = mock.patch("sales.item_quantity_edit.call_command")
         patcher.start()
@@ -53,15 +58,19 @@ class ItemQuantityEditTest(TestCase):
 
     def save(self, changes, d=TODAY, upload_id="same"):
         body = {"upload_id": self.upload.id if upload_id == "same" else upload_id, "changes": [
-            {"product_id": p.id, "location_id": loc.id, "value": v, "base": b} for p, loc, v, b in changes]}
+            {"product_id": p.id, "location_id": _col(loc), "value": v, "base": b} for p, loc, v, b in changes]}
         return self.client.post(reverse("item_quantity_edit_save", args=[d.isoformat()]),
                                 json.dumps(body), content_type="application/json")
 
     def checks(self, items, d=TODAY):
-        body = {"checks": [{"product_id": p.id, "location_id": loc.id, "checked": c} for p, loc, c in items]}
+        body = {"checks": [{"product_id": p.id, "location_id": _col(loc), "checked": c} for p, loc, c in items]}
         return self.client.post(reverse("item_quantity_checks", args=[d.isoformat()]),
                                 json.dumps(body), content_type="application/json")
 
+
+
+@mock.patch("django.utils.timezone.localdate", return_value=TODAY)
+class ItemQuantityEditTest(_EditBase):
     # 1
     def test_after_receive_plan_equals_current(self, _):
         for iq in ItemQuantity.objects.all():
@@ -96,7 +105,7 @@ class ItemQuantityEditTest(TestCase):
         data = res.context["grid_data"]
         self.assertEqual([p["name"] for p in data["products"]], ["とんかつカレーソース", "サバの竜田揚げ香味ソース"])
         self.assertEqual([l["name"] for l in data["locations"]], ["新川", "人形町", "本町"])
-        self.assertEqual(data["cells"][f"{self.tonkatsu.id}:{self.shinkawa.id}"], {"cur": 10, "plan": 12, "ck": False})
+        self.assertEqual(data["cells"][f"{self.tonkatsu.id}:L{self.shinkawa.id}"], {"cur": 10, "plan": 12, "ck": False})
         self.assertEqual([l["off"] for l in data["locations"]], [False, False, True])
         self.assertTrue(data["editable"])
         self.assertEqual(res.context["change_count"], 1)
@@ -133,7 +142,7 @@ class ItemQuantityEditTest(TestCase):
         res = self.save([(self.tonkatsu, self.ningyo, 4, 6), (self.tonkatsu, self.shinkawa, 10, 12)])
         self.assertEqual(res.status_code, 409)
         self.assertEqual(res.json()["conflicts"], [{
-            "product_id": self.tonkatsu.id, "location_id": self.shinkawa.id, "current": 11,
+            "product_id": self.tonkatsu.id, "location_id": f"L{self.shinkawa.id}", "current": 11,
             "label": "新川×とんかつカレーソース"}])
         self.assertEqual(self.iq(self.tonkatsu, self.ningyo).quantity, 6)
         self.assertEqual(ItemQuantityChange.objects.count(), 1)
@@ -239,10 +248,10 @@ class ItemQuantityEditTest(TestCase):
         self.assertEqual(iq.checked_by, self.user)
         self.checks([(self.tonkatsu, self.ningyo, False)])
         got = self.client.get(reverse("item_quantity_checks", args=[TODAY.isoformat()])).json()["checked"]
-        self.assertEqual(sorted(got), sorted([f"{self.tonkatsu.id}:{self.shinkawa.id}", f"{self.saba.id}:{self.shinkawa.id}"]))
+        self.assertEqual(sorted(got), sorted([f"{self.tonkatsu.id}:L{self.shinkawa.id}", f"{self.saba.id}:L{self.shinkawa.id}"]))
         # 別の端末（別ブラウザ）で開いても✓が出る
         data = self.client.get(reverse("item_quantity_edit", args=[TODAY.isoformat()])).context["grid_data"]
-        self.assertTrue(data["cells"][f"{self.tonkatsu.id}:{self.shinkawa.id}"]["ck"])
+        self.assertTrue(data["cells"][f"{self.tonkatsu.id}:L{self.shinkawa.id}"]["ck"])
 
     def test_zero_cells_are_done_without_check(self, _):
         # 0のマスは✓不要（画面は済み扱いで押せない）。送られても記録しない・送っていないマスに行を作らない
@@ -287,3 +296,124 @@ class ItemQuantityEditTest(TestCase):
     def test_old_one_row_edit_removed(self, _):
         with self.assertRaises(NoReverseMatch):
             reverse("item_quantity_update", args=[1])
+
+
+@mock.patch("django.utils.timezone.localdate", return_value=TODAY)
+class AllocationSettingsEditTest(_EditBase):
+    """振分設定（並び・消し込み不要・振分だけの項目）の持参数画面への効き方。#207"""
+
+    def setUp(self):
+        super().setUp()
+        self.nadaya = AllocationExtra.objects.create(name="なだや", allocation_order=2)
+        # 並び：本町 → なだや → 新川 → 人形町（販売場所No.とは別）
+        SalesLocation.objects.filter(pk=self.honcho.pk).update(allocation_order=1)
+        SalesLocation.objects.filter(pk=self.shinkawa.pk).update(allocation_order=3)
+        SalesLocation.objects.filter(pk=self.ningyo.pk).update(allocation_order=4, allocation_check_skip=True)
+        parsed = ParsedItemQuantity(target_date=TODAY, target_week=WEEK, entries=[(p, loc, q) for (p, loc), q in self.base.items()],
+                                    extra_entries=[(self.tonkatsu, self.nadaya, 3), (self.saba, self.nadaya, 0)])
+        save_item_quantities(parsed)
+
+    def xq(self, p):
+        return AllocationExtraQuantity.objects.get(target_date=TODAY, product=p, extra=self.nadaya)
+
+    def grid(self):
+        return self.client.get(reverse("item_quantity_edit", args=[TODAY.isoformat()])).context["grid_data"]
+
+    def test_columns_follow_allocation_order(self, _):
+        data = self.grid()
+        self.assertEqual([l["name"] for l in data["locations"]], ["本町", "なだや", "新川", "人形町"])
+        self.assertEqual([l["id"] for l in data["locations"]][1], f"X{self.nadaya.id}")
+        self.assertEqual([l["skip"] for l in data["locations"]], [False, False, False, True])
+        self.assertEqual(data["cells"][f"{self.tonkatsu.id}:X{self.nadaya.id}"], {"cur": 3, "plan": 3, "ck": False})
+
+    def test_location_without_order_goes_last(self, _):
+        SalesLocation.objects.filter(pk=self.shinkawa.pk).update(allocation_order=None)
+        self.assertEqual([l["name"] for l in self.grid()["locations"]], ["本町", "なだや", "人形町", "新川"])
+
+    def test_extra_edit_records_history_and_skips_item_quantity(self, _):
+        res = self.save([(self.tonkatsu, self.nadaya, 5, 3), (self.saba, self.nadaya, 1, 0)])
+        self.assertEqual(res.status_code, 200, res.json())
+        self.assertEqual((self.xq(self.tonkatsu).quantity, self.xq(self.tonkatsu).planned_quantity), (5, 3))
+        self.assertEqual(self.xq(self.saba).quantity, 1)
+        ch = ItemQuantityChange.objects.get(product=self.tonkatsu)
+        self.assertEqual((ch.extra, ch.sales_location, ch.before, ch.after), (self.nadaya, None, 3, 5))
+        self.assertFalse(ItemQuantity.objects.filter(sales_location__name="なだや").exists())
+        page = self.client.get(reverse("item_quantity_edit", args=[TODAY.isoformat()]))
+        self.assertContains(page, "なだや")
+
+    def test_extra_check_and_skip_column_not_checkable(self, _):
+        res = self.checks([(self.tonkatsu, self.nadaya, True), (self.tonkatsu, self.ningyo, True)])
+        self.assertEqual(res.json()["saved"], 1)
+        self.assertIsNotNone(self.xq(self.tonkatsu).checked_at)
+        self.assertIsNone(self.iq(self.tonkatsu, self.ningyo).checked_at)
+        got = self.client.get(reverse("item_quantity_checks", args=[TODAY.isoformat()])).json()["checked"]
+        self.assertEqual(got, [f"{self.tonkatsu.id}:X{self.nadaya.id}"])
+
+    def test_skip_column_still_editable(self, _):
+        res = self.save([(self.tonkatsu, self.ningyo, 4, 6)])
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.iq(self.tonkatsu, self.ningyo).quantity, 4)
+
+    def test_numeric_location_id_still_accepted(self, _):
+        # 振分設定より前に開いていた画面（列のidが数字）からの保存
+        body = {"upload_id": self.upload.id, "changes": [
+            {"product_id": self.tonkatsu.id, "location_id": self.shinkawa.id, "value": 11, "base": 12}]}
+        res = self.client.post(reverse("item_quantity_edit_save", args=[TODAY.isoformat()]),
+                               json.dumps(body), content_type="application/json")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.iq(self.tonkatsu, self.shinkawa).quantity, 11)
+
+    def test_unknown_column_rejected(self, _):
+        body = {"upload_id": self.upload.id, "changes": [
+            {"product_id": self.tonkatsu.id, "location_id": "X999", "value": 1, "base": 0}]}
+        res = self.client.post(reverse("item_quantity_edit_save", args=[TODAY.isoformat()]),
+                               json.dumps(body), content_type="application/json")
+        self.assertEqual(res.status_code, 400)
+
+
+class AllocationTabTest(TestCase):
+    """販売場所データの［振分設定］タブの保存。"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("jimu", password="pw-jimu-123456")
+        AllocationExtra.objects.all().delete()  # 移行で入る初期の項目（なだや等）は使わない
+        grant(self.user, "can_view_location_list")
+        self.client.force_login(self.user)
+        self.a = SalesLocation.objects.create(no=1, name="新川", type="", price_type="A", service_name="")
+        self.b = SalesLocation.objects.create(no=2, name="人形町", type="", price_type="A", service_name="")
+        self.x = AllocationExtra.objects.create(name="なだや", allocation_order=3)
+        self.y = AllocationExtra.objects.create(name="武相", allocation_order=4)
+
+    def post(self, rows, **extra):
+        data = {"tab": "allocation", "alloc": "1", "alloc_row": rows}
+        data.update(extra)
+        return self.client.post(reverse("location_list"), data)
+
+    def test_order_skip_rename_add_delete(self):
+        res = self.post([f"X{self.x.id}", f"L{self.b.id}", "N1", f"L{self.a.id}", f"X{self.y.id}"],
+                        **{f"alloc_name_X{self.x.id}": "なだや本店", "alloc_name_N1": "学園1",
+                           f"alloc_name_X{self.y.id}": "武相", f"alloc_skip_L{self.b.id}": "1",
+                           "alloc_skip_N1": "1", "alloc_delete": [f"X{self.y.id}"]})
+        self.assertRedirects(res, reverse("location_list") + "?tab=allocation", fetch_redirect_response=False)
+        self.a.refresh_from_db(); self.b.refresh_from_db(); self.x.refresh_from_db()
+        gakuen = AllocationExtra.objects.get(name="学園1")
+        self.assertEqual((self.x.name, self.x.allocation_order), ("なだや本店", 1))
+        self.assertEqual((self.b.allocation_order, self.b.allocation_check_skip), (2, True))
+        self.assertEqual((gakuen.allocation_order, gakuen.check_skip), (3, True))
+        self.assertEqual((self.a.allocation_order, self.a.allocation_check_skip), (4, False))
+        self.assertFalse(AllocationExtra.objects.filter(pk=self.y.pk).exists())
+
+    def test_bad_names_save_nothing(self):
+        for names, msg in [({"alloc_name_N1": ""}, "名前が空"), ({"alloc_name_N1": "新川"}, "販売場所と同じ名前"),
+                           ({"alloc_name_N1": "なだや"}, "名前の重複")]:
+            res = self.post([f"L{self.a.id}", f"X{self.x.id}", "N1"], **{f"alloc_name_X{self.x.id}": "なだや", **names})
+            self.assertContains(self.client.get(res.url), msg)
+            self.assertEqual(AllocationExtra.objects.count(), 2)
+            self.a.refresh_from_db()
+            self.assertIsNone(self.a.allocation_order)
+
+    def test_tab_lists_locations_and_extras_in_order(self):
+        res = self.client.get(reverse("location_list") + "?tab=allocation")
+        keys = [c.key for c in res.context["alloc_columns"]]
+        self.assertEqual(keys, [f"X{self.x.id}", f"X{self.y.id}", f"L{self.a.id}", f"L{self.b.id}"])
+        self.assertContains(res, "振分設定")

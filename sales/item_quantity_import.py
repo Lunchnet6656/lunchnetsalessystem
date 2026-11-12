@@ -5,16 +5,16 @@
 
 振分表マクロは空白セルを詰めて書き出すため、空白が1つあるとそれ以降の数字が隣の店へズレる。
 ズレた数字を黙って登録しないよう、「1つでもおかしければ1件も保存しない」。
+1行目の名前は 販売場所 → 振分だけの項目（なだや等・振分の消し込みにだけ使う）の順で引く。
 """
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 import jpholiday
 import openpyxl
-from django.conf import settings
 from django.db import transaction
 
-from sales.models import Holiday, ItemQuantity, Product, SalesLocation
+from sales.models import AllocationExtra, AllocationExtraQuantity, Holiday, ItemQuantity, Product, SalesLocation
 
 MAX_PRODUCT_ROW = 12  # 2〜12行目＝商品No.1〜11（11=大盛りご飯）
 
@@ -25,8 +25,10 @@ class ParsedItemQuantity:
     target_week: date | None = None
     # (product, sales_location, quantity)
     entries: list = field(default_factory=list)
+    # (product, allocation_extra, quantity)。持参数(ItemQuantity)とは別に保存する
+    extra_entries: list = field(default_factory=list)
     errors: list = field(default_factory=list)
-    # 止めずに知らせるだけのもの（アプリで管理しない店の読み飛ばし等）
+    # 止めずに知らせるだけのもの
     warnings: list = field(default_factory=list)
 
 
@@ -55,25 +57,22 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
         return result
 
     locations = {loc.name: loc for loc in SalesLocation.objects.all()}
-    headers = []  # (列番号, 店名, SalesLocation or None)
+    extras = {x.name: x for x in AllocationExtra.objects.all()}
+    headers = []  # (列番号, 店名, SalesLocation or AllocationExtra or None)
     for col in range(3, sheet.max_column + 1):
         name = sheet.cell(row=1, column=col).value
         if name is None or str(name).strip() == "":
             continue
         name = str(name).strip()
-        headers.append((col, name, locations.get(name)))
+        headers.append((col, name, locations.get(name) or extras.get(name)))
     if not headers:
         result.errors.append("1行目に店名がありません")
         return result
 
-    # 振分表にはあるがアプリで持参数を管理しない店（設定で明示）。それ以外の不一致は止める
-    ignored = set(getattr(settings, "ITEM_QUANTITY_IGNORED_LOCATIONS", []))
-    unknown = [name for _, name, loc in headers if loc is None and name not in ignored]
+    # 販売場所にも振分だけの項目にも無い名前は止める（販売場所データの［振分設定］で項目を足してから再送）
+    unknown = [name for _, name, loc in headers if loc is None]
     if unknown:
         result.errors.append("アプリに登録されていない店名：" + "、".join(unknown))
-    skipped = [name for _, name, loc in headers if loc is None and name in ignored]
-    if skipped:
-        result.warnings.append("アプリで管理しない店として読み飛ばし：" + "、".join(skipped))
     seen = set()
     for _, name, _ in headers:
         if name in seen:
@@ -95,6 +94,9 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
             continue
         for col, name, loc in headers:
             value = sheet.cell(row=row, column=col).value
+            # 振分だけの列（学園1等）は振分表で空白＝0の書き方なので止めない
+            if isinstance(loc, AllocationExtra) and (value is None or str(value).strip() == ""):
+                value = 0
             if value is None or str(value).strip() == "":
                 result.errors.append(
                     f"No.{product_no}（{product.name}）の「{name}」が空白です（列ズレの可能性）"
@@ -109,7 +111,9 @@ def parse_item_quantity_workbook(fileobj) -> ParsedItemQuantity:
                 result.errors.append(f"No.{product_no}の「{name}」が正しい個数ではありません：{value}")
                 continue
             quantity = int(as_float)
-            if loc is not None:
+            if isinstance(loc, AllocationExtra):
+                result.extra_entries.append((product, loc, quantity))
+            elif loc is not None:
                 result.entries.append((product, loc, quantity))
 
     if not result.entries and not result.errors:
@@ -142,7 +146,30 @@ def save_item_quantities(parsed: ParsedItemQuantity) -> int:
             iq.quantity = quantity
             iq.planned_quantity = quantity
             iq.save(update_fields=["quantity", "planned_quantity", "checked_at", "checked_by"])
-    return len(parsed.entries)
+        _save_extra_quantities(parsed)
+    return len(parsed.entries) + len(parsed.extra_entries)
+
+
+def _save_extra_quantities(parsed):
+    """振分だけの項目も持参数と同じ上書きのしかた（予定・現在とも振分表の数に・数が変わった✓は外す）。"""
+    existing = {
+        (x.product_id, x.extra_id): x
+        for x in AllocationExtraQuantity.objects.filter(target_date=parsed.target_date)
+    }
+    for product, extra, quantity in parsed.extra_entries:
+        x = existing.get((product.id, extra.id))
+        if x is None:
+            AllocationExtraQuantity.objects.create(
+                target_date=parsed.target_date, product=product, extra=extra,
+                quantity=quantity, planned_quantity=quantity,
+            )
+            continue
+        if x.quantity != quantity:
+            x.checked_at = None
+            x.checked_by = None
+        x.quantity = quantity
+        x.planned_quantity = quantity
+        x.save(update_fields=["quantity", "planned_quantity", "checked_at", "checked_by"])
 
 
 def is_business_day(d: date) -> bool:

@@ -168,7 +168,8 @@ NetError:
     文字を送る = False
 End Function
 
-'送信対象の店（店舗名変換にある店）の列で、メニュー行・大盛り行に空白がないか
+'販売場所の列（店舗名変換にある店）で、メニュー行・大盛り行に空白がないか
+'振分だけの列（学園1・コネクト等。店舗名変換に無い列）は空白＝0なので見ない
 Private Function 空白チェック(ws As Worksheet) As String
     Dim conv As Object
     Dim cols As Collection
@@ -180,7 +181,7 @@ Private Function 空白チェック(ws As Worksheet) As String
     Set cols = 送信列(ws, conv)
     For Each r In 送信行(ws)
         For Each c In cols
-            If Trim(CStr(ws.Cells(r, c).Value)) = "" Then
+            If conv.Exists(CStr(ws.Cells(7, c).Value)) And Trim(CStr(ws.Cells(r, c).Value)) = "" Then
                 result = result & "・" & 行の名前(ws, CLng(r)) & " の「" & ws.Cells(7, c).Value & "」" & vbCrLf
             End If
         Next c
@@ -221,7 +222,7 @@ Private Function 送信ファイル作成(ws As Worksheet, ByVal targetDate As Date) As 
     sh.Cells(1, 2).Value = "No."
     outCol = 3
     For Each c In cols
-        sh.Cells(1, outCol).Value = conv(CStr(ws.Cells(7, c).Value))
+        sh.Cells(1, outCol).Value = 送る名前(ws, c, conv)
         outCol = outCol + 1
     Next c
 
@@ -235,7 +236,11 @@ Private Function 送信ファイル作成(ws As Worksheet, ByVal targetDate As Date) As 
         End If
         outCol = 3
         For Each c In cols
-            sh.Cells(outRow, outCol).Value = ws.Cells(r, c).Value
+            If Not conv.Exists(CStr(ws.Cells(7, c).Value)) And Trim(CStr(ws.Cells(r, c).Value)) = "" Then
+                sh.Cells(outRow, outCol).Value = 0  '振分だけの列の空白は0
+            Else
+                sh.Cells(outRow, outCol).Value = ws.Cells(r, c).Value
+            End If
             outCol = outCol + 1
         Next c
         outRow = outRow + 1
@@ -254,7 +259,20 @@ Private Function 送信ファイル作成(ws As Worksheet, ByVal targetDate As Date) As 
     送信ファイル作成 = outPath
 End Function
 
-'7行目の店名を左から見て、店舗名変換にある店の列。「店」の列で終わり（これまでの[データ変換]と同じ）
+'店舗名変換にある店は変換先の名前、無い列（振分だけの列）は7行目の名前のまま送る
+Private Function 送る名前(ws As Worksheet, ByVal c As Long, conv As Object) As String
+    Dim storeName As String
+    storeName = CStr(ws.Cells(7, c).Value)
+    If conv.Exists(storeName) Then
+        送る名前 = conv(storeName)
+    Else
+        送る名前 = storeName
+    End If
+End Function
+
+'7行目の名前を左から見て、名前のある列すべて。「店」の列で終わり
+'店舗名変換に無い列（学園1・コネクト等）は振分だけの列としてアプリの［振分設定］の項目に入る。
+'アプリに無い名前が届くと1件も保存されないので、列を足したらアプリにも同じ名前の項目を登録する
 Private Function 送信列(ws As Worksheet, conv As Object) As Collection
     Dim cols As New Collection
     Dim lastCol As Long
@@ -265,7 +283,7 @@ Private Function 送信列(ws As Worksheet, conv As Object) As Collection
     For col = 3 To lastCol
         storeName = CStr(ws.Cells(7, col).Value)
         If storeName <> "" Then
-            If conv.Exists(storeName) Then cols.Add col
+            cols.Add col
             If InStr(storeName, "店") > 0 Then Exit For
         End If
     Next col

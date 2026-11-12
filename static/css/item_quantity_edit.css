@@ -107,6 +107,12 @@ td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim
 .iq-tile--zero .iq-tn { color: var(--ln-color-text-dim); }
 .iq-tile--off { border-style: dashed; cursor: not-allowed; }
 .iq-tile--off .iq-tn, .iq-tile--off .iq-tl { color: var(--ln-color-text-dim); }
+/* 消し込み不要（振分設定）：グレー・実線（中止の斜線・点線と分ける）・押せない */
+.iq-tile--skip { background: var(--ln-color-surface-muted); cursor: default; }
+.iq-tile--skip.iq-tile--diff { background: var(--ln-color-surface-muted); }
+.iq-tile--skip .iq-tn, .iq-tile--skip .iq-tl { color: var(--ln-color-text-muted); }
+.iq-tskip { position: absolute; bottom: 4px; right: 8px; font-size: 10px; color: var(--ln-color-text-muted); white-space: nowrap; }
+.iq-rskip { color: var(--ln-color-text-muted); }
 .iq-unsent { position: absolute; left: 6px; bottom: 4px; font-size: 10px; color: var(--ln-color-danger); white-space: nowrap; }
 
 /* ── 編集バー（表の下。画面の一番下に来るよう表の高さを JS で合わせる） ── */

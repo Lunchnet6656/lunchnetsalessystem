@@ -60,6 +60,7 @@
         <li class="nav-item"><button type="button" class="nav-link" data-tab="basic" role="tab">基本</button></li>
         <li class="nav-item"><button type="button" class="nav-link" data-tab="shift" role="tab">シフト・便</button></li>
         <li class="nav-item"><button type="button" class="nav-link" data-tab="routes" role="tab">便の一覧</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-tab="allocation" role="tab">振分設定</button></li>
     </ul>
 
     <form id="locationForm" method="POST">
@@ -166,11 +167,53 @@
             </table>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 mt-3" data-pane="basic shift">
+        <div data-pane="allocation" hidden>
+            <input type="hidden" name="alloc" value="1">
+            <div id="allocDeleted"></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle location-table">
+                    <thead>
+                        <tr>
+                            <th class="col-handle"></th>
+                            <th class="text-end">順番</th>
+                            <th>名前</th>
+                            <th>種類</th>
+                            <th>便</th>
+                            <th class="text-center"><span class="hp-lbl">消し込み不要{% include "includes/info_tip.html" with id="alloc-skip-tip" label="消し込み不要" text="持参数の画面で✓しない列。数の修正は可。" %}</span></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="allocBody">
+                        {% for c in alloc_columns %}
+                        <tr data-key="{{ c.key }}">
+                            <td class="col-handle alloc-handle drag-handle" title="ドラッグで並べ替え"><i class="material-icons">menu</i><input type="hidden" name="alloc_row" value="{{ c.key }}"></td>
+                            <td class="text-end alloc-no">{{ forloop.counter }}</td>
+                            {% if c.location %}
+                            <td>{{ c.name }}</td>
+                            <td class="text-muted">販売場所</td>
+                            <td class="text-muted">{{ c.route.name|default:"" }}</td>
+                            {% else %}
+                            <td><input type="text" class="form-control form-control-sm" name="alloc_name_{{ c.key }}" value="{{ c.name }}" aria-label="振分のみの項目名"></td>
+                            <td><span class="badge text-bg-light border">振分のみ</span></td>
+                            <td></td>
+                            {% endif %}
+                            <td class="text-center"><input type="checkbox" class="form-check-input" name="alloc_skip_{{ c.key }}" value="1" {% if c.check_skip %}checked{% endif %} aria-label="{{ c.name }}は消し込み不要"></td>
+                            <td class="text-end">{% if c.extra %}<button type="button" class="btn btn-sm btn-outline-danger text-nowrap alloc-delete" data-name="{{ c.name }}">削除</button>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3" data-pane="basic shift allocation">
             <button type="button" class="btn btn-success" id="addRowButton" data-pane="basic">
                 <i class="material-icons align-middle" style="font-size:1.1rem;">add</i> 新規追加
             </button>
             <button type="submit" name="delete" class="btn btn-outline-danger" id="deleteButton" data-pane="basic">選択した項目を削除</button>
+            <button type="button" class="btn btn-success" id="allocAdd" data-pane="allocation">
+                <i class="material-icons align-middle" style="font-size:1.1rem;">add</i> 項目を追加
+            </button>
             <button type="submit" class="btn btn-primary ms-auto">上書き保存</button>
         </div>
     </form>
@@ -230,7 +273,48 @@
             history.replaceState(null, '', '?tab=' + b.dataset.tab);
         }));
         const initial = new URLSearchParams(location.search).get('tab');
-        showTab(['basic', 'shift', 'routes'].includes(initial) ? initial : 'basic');
+        showTab(['basic', 'shift', 'routes', 'allocation'].includes(initial) ? initial : 'basic');
+
+        // 振分設定：行の順番＝持参数の画面の列の順番。保存時に上から1で振り直す
+        const allocBody = document.getElementById('allocBody');
+        function renumberAlloc() {
+            allocBody.querySelectorAll('tr').forEach((tr, i) => { tr.querySelector('.alloc-no').textContent = i + 1; });
+        }
+        $('#allocBody').sortable({ handle: '.alloc-handle', placeholder: 'location-placeholder', update: renumberAlloc });
+        let allocNew = 0;
+        document.getElementById('allocAdd').addEventListener('click', () => {
+            const key = 'N' + (++allocNew);
+            const tr = document.createElement('tr');
+            tr.dataset.key = key;
+            tr.innerHTML = `
+                <td class="col-handle alloc-handle drag-handle" title="ドラッグで並べ替え"><i class="material-icons">menu</i><input type="hidden" name="alloc_row" value="${key}"></td>
+                <td class="text-end alloc-no"></td>
+                <td><input type="text" class="form-control form-control-sm" name="alloc_name_${key}" value="" aria-label="振分のみの項目名"></td>
+                <td><span class="badge text-bg-light border">振分のみ</span></td>
+                <td></td>
+                <td class="text-center"><input type="checkbox" class="form-check-input" name="alloc_skip_${key}" value="1" aria-label="消し込み不要"></td>
+                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger text-nowrap alloc-delete" data-name="">削除</button></td>`;
+            allocBody.appendChild(tr);
+            renumberAlloc();
+            tr.querySelector('input[type=text]').focus();
+        });
+        // 項目名の Enter で先頭の［削除］が押されないように
+        allocBody.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault();
+        });
+        allocBody.addEventListener('click', e => {
+            const b = e.target.closest('.alloc-delete');
+            if (!b) return;
+            const tr = b.closest('tr'), name = tr.querySelector('input[type=text]').value || b.dataset.name;
+            if (name && !confirm('振分のみ「' + name + '」を削除')) return;
+            if (tr.dataset.key[0] === 'X') {
+                const h = document.createElement('input');
+                h.type = 'hidden'; h.name = 'alloc_delete'; h.value = tr.dataset.key;
+                document.getElementById('allocDeleted').appendChild(h);
+            }
+            tr.remove();
+            renumberAlloc();
+        });
 
         document.querySelectorAll('.shift-off').forEach(cb => cb.addEventListener('change', () => {
             cb.closest('tr').classList.toggle('loc-off', cb.checked);

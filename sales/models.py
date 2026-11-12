@@ -158,8 +158,32 @@ class SalesLocation(models.Model):
         help_text="空＝全店共通の既定（13:30）。",
     )
 
+    # --- 振分設定（持参数の画面の列の並び・消し込み）---
+    # 仕様: .company/engineering/harness/specs/lunchnetsale-振分設定-要件と画面設計.md
+    allocation_order = models.IntegerField(
+        null=True, blank=True, verbose_name="振分の並び",
+        help_text="持参数の画面の列の順番。振分だけの項目と同じ番号で並べる。空＝末尾に販売場所No.順。",
+    )
+    allocation_check_skip = models.BooleanField(default=False, verbose_name="消し込み不要")
+
     def __str__(self):
         return f"{self.name}"
+
+
+class AllocationExtra(models.Model):
+    """振分表にあるが販売場所ではない列（なだや等）。振分の修正・消し込みだけに使い、
+    日計表・食数予測・出店状況には入れない。"""
+    name = models.CharField(max_length=255, unique=True)
+    allocation_order = models.IntegerField(null=True, blank=True, verbose_name="振分の並び")
+    check_skip = models.BooleanField(default=False, verbose_name="消し込み不要")
+
+    class Meta:
+        verbose_name = "振分だけの項目"
+        verbose_name_plural = "振分だけの項目"
+
+    def __str__(self):
+        return self.name
+
 
 class Product(models.Model):
     no = models.IntegerField(default=0)
@@ -219,11 +243,34 @@ class ItemQuantity(models.Model):
         return f"{self.target_date} - {self.sales_location} - {self.product} - {self.quantity}"
 
 
-class ItemQuantityChange(models.Model):
-    """持参数の修正履歴。ItemQuantity は再送で上書きされるので、店・メニューを直接持つ。"""
+class AllocationExtraQuantity(models.Model):
+    """振分だけの項目の持参数。ItemQuantity と同じ持ち方（予定・現在・消し込み）。"""
     target_date = models.DateField(db_index=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    sales_location = models.ForeignKey(SalesLocation, on_delete=models.CASCADE)
+    extra = models.ForeignKey(AllocationExtra, on_delete=models.CASCADE, related_name="quantities")
+    quantity = models.IntegerField()
+    planned_quantity = models.IntegerField(default=0)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["target_date", "product", "extra"], name="uniq_allocation_extra_quantity"),
+        ]
+
+    def __str__(self):
+        return f"{self.target_date} - {self.extra} - {self.product} - {self.quantity}"
+
+
+class ItemQuantityChange(models.Model):
+    """持参数の修正履歴。ItemQuantity は再送で上書きされるので、店・メニューを直接持つ。
+    振分だけの項目の修正は sales_location の代わりに extra に入る。"""
+    target_date = models.DateField(db_index=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    sales_location = models.ForeignKey(SalesLocation, on_delete=models.CASCADE, null=True, blank=True)
+    extra = models.ForeignKey(AllocationExtra, on_delete=models.CASCADE, null=True, blank=True)
     before = models.IntegerField()
     after = models.IntegerField()
     changed_by = models.ForeignKey(
@@ -235,7 +282,7 @@ class ItemQuantityChange(models.Model):
         ordering = ["-changed_at", "-id"]
 
     def __str__(self):
-        return f"{self.target_date} {self.sales_location} {self.product} {self.before}→{self.after}"
+        return f"{self.target_date} {self.sales_location or self.extra} {self.product} {self.before}→{self.after}"
 
 
 class ItemQuantityUpload(models.Model):

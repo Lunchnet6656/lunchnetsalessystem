@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect
 from .forms import UploadFileForm, UploadMenuForm, UploadItemQuantityForm, ProductForm, DailyReportForm, DailyReportEntryForm, TimeForm, ShiftRequestForm
 import pandas as pd
-from sales.item_quantity_edit import editable_dates as iq_editable_dates
+from sales.item_quantity_edit import allocation_columns as iq_allocation_columns, editable_dates as iq_editable_dates
 from sales.item_quantity_import import is_business_day, next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, known_codes, pattern_of
@@ -19,7 +19,7 @@ from sales import daily_questions_form as dqf
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
 from django.utils.http import url_has_allowed_host_and_scheme
 from sales.models import DiscountItem
-from sales.models import CarpoolRoute, SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
+from sales.models import AllocationExtra, CarpoolRoute, SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
@@ -1638,6 +1638,14 @@ def location_list_view(request):
             messages.success(request, '選択した販売場所データを削除しました。')
             return _location_list_redirect(request)
 
+        # 振分設定のタブの欄。名前がおかしければ何も保存しない（他のタブの欄も）
+        if request.POST.get('alloc') == '1':
+            alloc_errors = _allocation_errors(request.POST)
+            if alloc_errors:
+                for e in alloc_errors:
+                    messages.error(request, e)
+                return _location_list_redirect(request)
+
         # 上書き保存のリクエスト
         # 旧実装は while ループで「NOが空の行が来たら break」していたため、途中行の
         # NOを空にすると以降の行が保存されない静かなデータ欠落があった。
@@ -1698,6 +1706,9 @@ def location_list_view(request):
                 messages.error(request, f'NO {no} の保存でエラーが発生しました: {str(e)}')
                 continue
 
+        if request.POST.get('alloc') == '1':
+            _save_allocation(request.POST)
+
         if skipped_rows:
             messages.warning(request, f'NOが未入力の{skipped_rows}行は保存しませんでした。')
         if kept_patterns:
@@ -1710,6 +1721,7 @@ def location_list_view(request):
     patterns = assignable_patterns(timezone.localdate())
     return render(request, 'location_list.html', {
         'locations': locations,
+        'alloc_columns': iq_allocation_columns(),
         'routes': CarpoolRoute.objects.annotate(location_count=Count('locations')),
         'weather_areas': SalesLocation.WEATHER_AREA_CHOICES,
         'priorities': [c for c, _ in SalesLocation._meta.get_field('priority').choices],
@@ -1718,7 +1730,56 @@ def location_list_view(request):
         'pattern_options': [{'code': p.code, 'name': p.label} for p in patterns],
     })
 
-LOCATION_LIST_TABS = ('basic', 'shift', 'routes')
+LOCATION_LIST_TABS = ('basic', 'shift', 'routes', 'allocation')
+
+
+def _allocation_rows(data):
+    """振分設定の行（画面の並び順）。キーは L<販売場所id> / X<項目id> / N<新しい行の番号>。"""
+    return [k for k in data.getlist('alloc_row') if re.fullmatch(r'[LXN]\d+', k)]
+
+
+def _allocation_errors(data):
+    deleted = set(data.getlist('alloc_delete'))
+    location_names = set(SalesLocation.objects.values_list('name', flat=True))
+    errors, seen, dup, same = [], set(), [], []
+    for key in _allocation_rows(data):
+        if key[0] == 'L' or key in deleted:
+            continue
+        name = (data.get(f'alloc_name_{key}') or '').strip()
+        if not name:
+            errors.append('名前が空の項目あり')
+            continue
+        if name in location_names:
+            same.append(name)
+        elif name in seen:
+            dup.append(name)
+        seen.add(name)
+    if same:
+        errors.append('販売場所と同じ名前：' + '・'.join(same))
+    if dup:
+        errors.append('名前の重複：' + '・'.join(dup))
+    return list(dict.fromkeys(errors))
+
+
+def _save_allocation(data):
+    """並び（画面の行の順に1から）・消し込み不要・振分だけの項目の追加/名前/削除。"""
+    deleted = set(data.getlist('alloc_delete'))
+    with transaction.atomic():
+        AllocationExtra.objects.filter(id__in=[int(k[1:]) for k in deleted if re.fullmatch(r'X\d+', k)]).delete()
+        order = 0
+        for key in _allocation_rows(data):
+            if key in deleted:
+                continue
+            order += 1
+            skip = data.get(f'alloc_skip_{key}') == '1'
+            if key[0] == 'L':
+                SalesLocation.objects.filter(id=int(key[1:])).update(allocation_order=order, allocation_check_skip=skip)
+                continue
+            name = data.get(f'alloc_name_{key}', '').strip()
+            if key[0] == 'X':
+                AllocationExtra.objects.filter(id=int(key[1:])).update(name=name, allocation_order=order, check_skip=skip)
+            else:
+                AllocationExtra.objects.create(name=name, allocation_order=order, check_skip=skip)
 
 
 def _location_list_redirect(request):

@@ -10,9 +10,14 @@
 
   var products = D.products, locations = D.locations;
   var bentos = products.filter(function (p) { return !p.extra; });
-  var offIds = {}, activeCount = 0;
-  locations.forEach(function (l) { if (l.off) offIds[l.id] = true; else activeCount++; });
-  // 便の区切り：No.順に並べ、便が変わる所で切る。便なしの店は1店で1区切り
+  // 列のidは "L<販売場所id>" / "X<振分だけの項目id>"（文字のまま扱う）。skip＝消し込み不要（振分設定）
+  var offIds = {}, skipIds = {}, activeCount = 0;
+  locations.forEach(function (l) {
+    if (l.off) offIds[l.id] = true;
+    else if (l.skip) skipIds[l.id] = true;
+    else activeCount++;
+  });
+  // 便の区切り：振分設定の順に並べ、便が変わる所で切る。便なしの列は1列で1区切り
   var segments = [], segStart = {};
   locations.forEach(function (l) {
     var last = segments[segments.length - 1];
@@ -48,8 +53,9 @@
     return { now: now, plan: plan };
   }
   // 持っていく数が0のマスは配るものが無いので、✓しなくても済み
-  function isZeroDone(p, l) { return !offIds[l] && val(p, l) === 0; }
-  function isDone(p, l) { return !offIds[l] && (val(p, l) === 0 || cell(p, l).ck); }
+  // 消し込み不要の列は✓の対象外（済みにも未にも数えない）
+  function isZeroDone(p, l) { return !offIds[l] && !skipIds[l] && val(p, l) === 0; }
+  function isDone(p, l) { return !offIds[l] && !skipIds[l] && (val(p, l) === 0 || cell(p, l).ck); }
   function doneCount(p) {
     var n = 0;
     locations.forEach(function (l) { if (isDone(p, l.id)) n++; });
@@ -66,7 +72,8 @@
     locations.forEach(function (l) {
       var cls = 'iq-loc' + (segStart[l.id] ? ' iq-rs' : '') + (l.off ? ' iq-off' : '') + (sel && sel.l === l.id ? ' iq-colfocus' : '');
       var badge = l.off ? '<span class="badge text-bg-secondary iq-colbadge">中止</span>'
-        : l.submitted ? '<span class="badge text-bg-secondary iq-colbadge iq-submitted">提出済</span>' : '';
+        : (l.submitted ? '<span class="badge text-bg-secondary iq-colbadge iq-submitted">提出済</span>' : '') +
+          (l.skip ? '<span class="badge text-bg-light border iq-colbadge iq-skipbadge">✓不要</span>' : '');
       h += '<th class="' + cls + '">' + badge + '<span class="iq-vname">' + esc(l.name) + '</span></th>';
     });
     h += '</tr></thead><tbody>';
@@ -133,22 +140,26 @@
     function tile(l) {
       var c = cell(p, l.id), v = val(p, l.id), k = key(p, l.id), cls = ['iq-tile'];
       if (l.off) cls.push('iq-tile--off');
+      else if (l.skip) cls.push('iq-tile--skip');
       if (v === 0) cls.push('iq-tile--zero');
       if (v !== c.plan && !l.off) cls.push('iq-tile--diff');
       if (k in dirty) cls.push('iq-tile--dirty');
       if (isDone(p, l.id)) cls.push('iq-tile--done');
       if (sel.l === l.id) cls.push('iq-tile--selected');
-      return '<div class="' + cls.join(' ') + '" data-l="' + l.id + '" role="button" tabindex="' + (l.off || isZeroDone(p, l.id) ? -1 : 0) +
-        '" aria-pressed="' + isDone(p, l.id) + '" aria-label="' + esc(l.name + ' ' + (l.off ? '中止' : v)) + '">' +
+      return '<div class="' + cls.join(' ') + '" data-l="' + l.id + '" role="button" tabindex="' + (l.off || l.skip || isZeroDone(p, l.id) ? -1 : 0) +
+        '" aria-pressed="' + isDone(p, l.id) + '" aria-label="' + esc(l.name + ' ' + (l.off ? '中止' : v) + (l.skip && !l.off ? ' 消し込み不要' : '')) + '">' +
         '<span class="iq-tl">' + esc(l.name) + '</span><span class="iq-tn">' + (l.off ? '中止' : v) + '</span>' +
         (v !== c.plan && !l.off ? '<span class="iq-tp">予定' + c.plan + '</span>' : '') +
+        (l.skip && !l.off ? '<span class="iq-tskip">✓不要</span>' : '') +
         (unsent[k] ? '<span class="iq-unsent">未送信</span>' : '') + '</div>';
     }
     $('iq-tiles').innerHTML = segments.map(function (sg) {
-      var act = sg.locs.filter(function (l) { return !l.off; });
+      var act = sg.locs.filter(function (l) { return !l.off && !l.skip; });
       var dn = act.filter(function (l) { return isDone(p, l.id); }).length, ok = act.length && dn === act.length;
       var name = sg.route ? sg.name : sg.locs[0].name;
-      var sub = !act.length ? '中止' : ok ? '<span class="iq-rok">済</span>' : '✓' + dn + '/' + act.length;
+      var allOff = sg.locs.every(function (l) { return l.off; });
+      var sub = allOff ? '中止' : !act.length ? '<span class="iq-rskip">✓不要</span>'
+        : ok ? '<span class="iq-rok">済</span>' : '✓' + dn + '/' + act.length;
       return '<section class="iq-rsec"><div class="iq-rhd' + (ok ? ' ok' : '') + '"><span class="iq-rn">' + esc(name) + '</span>' +
         '<span class="iq-rsub">' + (sg.route ? esc(sg.time) + '発 ・ ' : '') + sub + '</span></div>' +
         '<div class="iq-tcol">' + sg.locs.map(tile).join('') + '</div></section>';
@@ -250,7 +261,7 @@
     saving = true; hideAlert(); render();
     var sent = Object.keys(dirty).map(function (k) {
       var ids = k.split(':');
-      return { product_id: +ids[0], location_id: +ids[1], value: dirty[k], base: D.cells[k] ? D.cells[k].cur : 0 };
+      return { product_id: +ids[0], location_id: ids[1], value: dirty[k], base: D.cells[k] ? D.cells[k].cur : 0 };
     });
     fetch(root.dataset.saveUrl, {
       method: 'POST', credentials: 'same-origin',
@@ -300,7 +311,7 @@
     var batch = pend; pend = {}; inflight = batch;
     var body = Object.keys(batch).map(function (k) {
       var ids = k.split(':');
-      return { product_id: +ids[0], location_id: +ids[1], checked: batch[k] };
+      return { product_id: +ids[0], location_id: ids[1], checked: batch[k] };
     });
     fetch(root.dataset.checksUrl, {
       method: 'POST', credentials: 'same-origin',
@@ -352,7 +363,7 @@
         D.cells[k].ck = !!on[k];
       });
       data.checked.forEach(function (k) {
-        if (!D.cells[k]) { var ids = k.split(':'); cell(+ids[0], +ids[1]).ck = true; }
+        if (!D.cells[k]) { var ids = k.split(':'); cell(+ids[0], ids[1]).ck = true; }
       });
       render();
     }).catch(function () { /* 取れなければ手元の表示のまま */ });
@@ -401,7 +412,7 @@
     var b = e.target.closest('button[data-product]');
     if (!b) return;
     if (offIds[b.dataset.location]) { toast('中止の店は修正不可', true); return; }
-    sel = { p: +b.dataset.product, l: +b.dataset.location };
+    sel = { p: +b.dataset.product, l: b.dataset.location };
     render();
   });
   $('iq-minus').onclick = function () { setVal(val(sel.p, sel.l) - 1); };
@@ -451,7 +462,7 @@
     var el = document.elementFromPoint(x, y);
     return el && el.closest('#iq-tiles .iq-tile');
   }
-  function checkable(l) { return !offIds[l] && !isZeroDone(sel.p, l); }
+  function checkable(l) { return !offIds[l] && !skipIds[l] && !isZeroDone(sel.p, l); }
   function applyTo(l) {
     if (touch.seen[l] || !checkable(l)) return;
     touch.seen[l] = true;
@@ -467,9 +478,9 @@
   $('iq-tiles').addEventListener('pointerdown', function (e) {
     var el = e.target.closest('.iq-tile');
     if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    var l = +el.dataset.l;
+    var l = el.dataset.l;
     if (offIds[l]) { toast('中止の店', true); return; }
-    if (isZeroDone(sel.p, l)) return;
+    if (skipIds[l] || isZeroDone(sel.p, l)) return;
     // タッチは押した要素に自動で捕まえられ、指の下のタイルが取れなくなるので外す
     if (el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     touch = { x: e.clientX, y: e.clientY, l: l, moved: false, drag: false, to: !cell(sel.p, l).ck, seen: {}, changes: [] };
@@ -486,7 +497,7 @@
     if (dx > MOVE || dy > MOVE) touch.moved = true;
     var el = tileAt(e.clientX, e.clientY);
     if (!el) return;
-    var l = +el.dataset.l;
+    var l = el.dataset.l;
     if (!touch.drag && l !== touch.l) { touch.drag = true; applyTo(touch.l); markTile(touch.l); }
     if (touch.drag) { applyTo(l); markTile(l); }
     if (touch.drag && e.cancelable) e.preventDefault();
@@ -505,10 +516,10 @@
   });
   $('iq-tiles').addEventListener('keydown', function (e) {
     var el = e.target.closest('.iq-tile');
-    if (!el || (e.key !== 'Enter' && e.key !== ' ') || isZeroDone(sel.p, +el.dataset.l)) return;
+    if (!el || (e.key !== 'Enter' && e.key !== ' ') || !checkable(el.dataset.l)) return;
     e.preventDefault();
-    touch = { to: !cell(sel.p, +el.dataset.l).ck, seen: {}, changes: [] };
-    applyTo(+el.dataset.l);
+    touch = { to: !cell(sel.p, el.dataset.l).ck, seen: {}, changes: [] };
+    applyTo(el.dataset.l);
     var t = touch; touch = null;
     finish(t.changes);
     var again = $('iq-tiles').querySelector('[data-l="' + el.dataset.l + '"]');
@@ -547,7 +558,7 @@
     sessionStorage.removeItem(STORE_KEY);
   } catch (e) { restore = null; }
   if (restore && restore.date === D.date) {
-    if (restore.sel && productOf(restore.sel.p)) sel = restore.sel;
+    if (restore.sel && productOf(restore.sel.p) && (restore.sel.l === null || locationOf(restore.sel.l))) sel = restore.sel;
     if (restore.mode === 'check' && $('iq-mode-check')) {
       mode = 'check';
       $('iq-mode-edit').className = 'btn btn-outline-secondary';

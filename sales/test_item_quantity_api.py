@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from sales.item_quantity_import import next_business_day
-from sales.models import Holiday, ItemQuantity, ItemQuantityUpload, Product, SalesLocation
+from sales.models import AllocationExtra, AllocationExtraQuantity, Holiday, ItemQuantity, ItemQuantityUpload, Product, SalesLocation
 from sales.permissions_testing import grant
 
 TODAY = date(2026, 10, 2)  # 金曜
@@ -35,9 +35,10 @@ def build_xlsx(target_date=MONDAY, headers=("新木場", "シーサイド"), row
     return buf.getvalue()
 
 
-@override_settings(ITEM_QUANTITY_API_TOKEN=TOKEN, ITEM_QUANTITY_IGNORED_LOCATIONS=["なだや"])
+@override_settings(ITEM_QUANTITY_API_TOKEN=TOKEN)
 class ItemQuantityApiTests(TestCase):
     def setUp(self):
+        AllocationExtra.objects.all().delete()  # 移行で入る初期の項目（なだや等）は使わない
         Product.objects.create(no=1, week=WEEK, name="豚角煮")
         Product.objects.create(no=2, week=WEEK, name="メンチ")
         SalesLocation.objects.create(no=1, name="新木場", type="", price_type="", service_name="")
@@ -77,11 +78,32 @@ class ItemQuantityApiTests(TestCase):
         self.assertEqual(ItemQuantity.objects.count(), 0)
         self.assertFalse(ItemQuantityUpload.objects.get().ok)
 
-    def test_ignored_location_is_skipped_with_warning(self):
-        res = self.post(build_xlsx(headers=("新木場", "シーサイド", "なだや"), rows=[[1, 3, 5, 1], [2, 4, 6, 1]]))
+    def test_allocation_extra_saved_separately(self):
+        # 振分だけの項目（なだや等）は持参数(ItemQuantity)に入れず別に保存。空白は0（振分表の書き方）
+        AllocationExtra.objects.create(name="なだや")
+        res = self.post(build_xlsx(headers=("新木場", "シーサイド", "なだや"), rows=[[1, 3, 5, 2], [2, 4, 6, None]]))
         self.assertEqual(res.status_code, 200, res.json())
-        self.assertEqual(res.json()["saved_count"], 4)
-        self.assertIn("なだや", res.json()["warnings"][0])
+        self.assertEqual(res.json()["saved_count"], 6)
+        self.assertEqual(ItemQuantity.objects.count(), 4)
+        got = {x.product.no: (x.quantity, x.planned_quantity) for x in AllocationExtraQuantity.objects.all()}
+        self.assertEqual(got, {1: (2, 2), 2: (0, 0)})
+
+    def test_allocation_extra_resend_overwrites_and_unchecks(self):
+        extra = AllocationExtra.objects.create(name="なだや")
+        self.post(build_xlsx(headers=("新木場", "なだや"), rows=[[1, 3, 2], [2, 4, 1]]))
+        AllocationExtraQuantity.objects.update(checked_at="2026-10-02T09:00:00+09:00")
+        self.post(build_xlsx(headers=("新木場", "なだや"), rows=[[1, 3, 5], [2, 4, 1]]))
+        x1 = AllocationExtraQuantity.objects.get(extra=extra, product__no=1)
+        x2 = AllocationExtraQuantity.objects.get(extra=extra, product__no=2)
+        self.assertEqual((x1.quantity, x1.checked_at), (5, None))
+        self.assertIsNotNone(x2.checked_at)
+        self.assertEqual(AllocationExtraQuantity.objects.count(), 2)
+
+    def test_location_blank_still_rejected_with_extra(self):
+        AllocationExtra.objects.create(name="なだや")
+        res = self.post(build_xlsx(headers=("新木場", "なだや"), rows=[[1, None, 2], [2, 4, 1]]))
+        self.assertEqual(res.status_code, 422)
+        self.assertEqual(AllocationExtraQuantity.objects.count(), 0)
 
     def test_blank_cell_saves_nothing(self):
         # マクロは空白を詰めるので、空白があると行が短くなり最後の店が空になる
@@ -137,7 +159,6 @@ class ItemQuantityApiTests(TestCase):
         self.assertEqual(res.status_code, 422)
 
 
-@override_settings(ITEM_QUANTITY_IGNORED_LOCATIONS=[])
 class ScreenUploadValidationTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user("uploader", password="pw-uploader-123456")
