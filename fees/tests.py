@@ -546,6 +546,36 @@ class DestinationViewTests(Base):
         self.assertEqual(self.dest.rates.count(), 1)
         self.assertIn("12　○○ビル", self.client.get(reverse("fees:destinations")).content.decode())
 
+    def test_add_rate_also_saves_destination(self):
+        # 率の［追加］だけ押しても、宛名と「出す」は保存されて一覧に出る（本番で起きた取りこぼし）
+        url = reverse("fees:destination_edit", args=[self.loc2.pk]) + "?add=1"
+        self.client.post(url, {"action": "add_rate", "add": "1", "enabled": "on", "addressee": "C株式会社",
+                               "include_service": "on", "start_month": "2026-06", "rate": "7"})
+        dest = FeeDestination.objects.get(location=self.loc2)
+        self.assertTrue(dest.enabled)
+        self.assertEqual(dest.addressee, "C株式会社")
+        self.assertEqual(dest.rates.get().rate, Decimal("7"))
+        self.assertContains(self.client.get(reverse("fees:destinations")), "C株式会社 御中")
+
+    def test_save_also_adds_filled_rate(self):
+        url = reverse("fees:destination_edit", args=[self.loc2.pk])
+        resp = self.client.post(url, {"action": "save", "enabled": "on", "addressee": "C株式会社",
+                                      "start_month": "2026-06", "rate": "7"})
+        self.assertRedirects(resp, reverse("fees:destinations"), fetch_redirect_response=False)
+        self.assertEqual(FeeDestination.objects.get(location=self.loc2).rates.get().rate, Decimal("7"))
+        # 率が空なら率は足さずに宛先だけ保存（開始月は既定値が入っている）
+        self.client.post(url, {"action": "save", "enabled": "on", "addressee": "C株式会社",
+                               "start_month": "2026-12", "rate": ""})
+        self.assertEqual(FeeDestination.objects.get(location=self.loc2).rates.count(), 1)
+
+    def test_save_with_bad_rate_saves_nothing(self):
+        url = reverse("fees:destination_edit", args=[self.loc2.pk])
+        resp = self.client.post(url, {"action": "save", "enabled": "on", "addressee": "C株式会社",
+                                      "start_month": "2026-06", "rate": "101"})
+        self.assertContains(resp, "率は0〜100")
+        self.assertContains(resp, 'value="C株式会社"')
+        self.assertFalse(FeeDestination.objects.filter(location=self.loc2).exists())
+
     def test_rate_rules(self):
         url = reverse("fees:destination_edit", args=[self.loc.pk])
         self.assertContains(self.client.post(url, {"action": "add_rate", "start_month": "2026-04", "rate": "8"}),

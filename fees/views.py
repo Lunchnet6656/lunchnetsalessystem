@@ -4,6 +4,7 @@ import datetime
 from urllib.parse import quote
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -16,7 +17,7 @@ from sales.models import IssuerSettings, SalesLocation
 from sales.permissions import has_menu_permission, menu_permission_required
 
 from . import pdf, services
-from .forms import DestinationForm, IssueForm, IssuerForm, RateForm, parse_month
+from .forms import DestinationForm, IssueForm, IssuerForm, RateForm, normalize_addressee, parse_month
 from .models import FeeDestination, FeeRate, FeeStatement, default_pay_date, month_start
 
 VIEW = ("can_view_fees", "can_issue_fees")
@@ -94,6 +95,11 @@ def _rate_rows(dest, today):
     return rows
 
 
+def _add_rate(dest, rate_form, user):
+    FeeRate.objects.create(destination=dest, start_month=rate_form.cleaned_data["start_month"],
+                           rate=rate_form.cleaned_data["rate"], created_by=user)
+
+
 @menu_permission_required(ISSUE)
 def destination_edit(request, location_pk):
     location = get_object_or_404(SalesLocation, pk=location_pk)
@@ -109,25 +115,37 @@ def destination_edit(request, location_pk):
 
     if request.method == "POST":
         action = request.POST.get("action")
+        # 宛先と率は1つのフォーム。どちらのボタンでも入力済みの値を捨てない（率だけ［追加］して宛先が保存されず、一覧に出ない事故があった）
+        rate_filled = bool(request.POST.get("rate", "").strip())
         if action == "save":
             form = DestinationForm(request.POST)
-            if form.is_valid():
-                dest = dest or FeeDestination(location=location)
-                dest.enabled = form.cleaned_data["enabled"]
-                dest.addressee = form.cleaned_data["addressee"]
-                dest.include_service = form.cleaned_data["include_service"]
-                dest.updated_by = request.user
-                dest.save()
+            if rate_filled:
+                rate_form = RateForm(request.POST, destination=dest)
+            if form.is_valid() and (not rate_filled or rate_form.is_valid()):
+                with transaction.atomic():
+                    dest = dest or FeeDestination(location=location)
+                    dest.enabled = form.cleaned_data["enabled"]
+                    dest.addressee = form.cleaned_data["addressee"]
+                    dest.include_service = form.cleaned_data["include_service"]
+                    dest.updated_by = request.user
+                    dest.save()
+                    if rate_filled:
+                        _add_rate(dest, rate_form, request.user)
                 messages.success(request, f"{location.name} の宛先を更新")
                 return redirect("fees:destinations")
         elif action == "add_rate":
+            form = DestinationForm(request.POST)
             rate_form = RateForm(request.POST, destination=dest)
             if rate_form.is_valid():
-                if dest is None:
-                    # 率を先に入れたときは、宛先を「出さない」のまま作っておく（［更新］で出すにする）
-                    dest = FeeDestination.objects.create(location=location, updated_by=request.user)
-                FeeRate.objects.create(destination=dest, start_month=rate_form.cleaned_data["start_month"],
-                                       rate=rate_form.cleaned_data["rate"], created_by=request.user)
+                with transaction.atomic():
+                    # 宛名が空でも率は登録する。宛先の入力も一緒に残す（宛名なしは一覧で「未設定」と出る）
+                    dest = dest or FeeDestination(location=location)
+                    dest.enabled = bool(request.POST.get("enabled"))
+                    dest.addressee = normalize_addressee(request.POST.get("addressee"))
+                    dest.include_service = bool(request.POST.get("include_service"))
+                    dest.updated_by = request.user
+                    dest.save()
+                    _add_rate(dest, rate_form, request.user)
                 m = rate_form.cleaned_data["start_month"]
                 messages.success(request, f"{m:%Y/%m} から {pdf.rate_label(rate_form.cleaned_data['rate'])}% を追加")
                 url = reverse("fees:destination_edit", args=[location.pk])

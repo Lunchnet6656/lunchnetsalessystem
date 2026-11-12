@@ -13,9 +13,9 @@
     <div class="card mb-3">
         <div class="card-header fw-bold">宛先</div>
         <div class="card-body">
-            <form method="post" class="um-submit-once" novalidate>
+            {# 宛先と手数料率の入力は1つのフォーム。どちらのボタンを押しても入れた値を残すため #}
+            <form method="post" id="fee-dest-form" class="um-submit-once" novalidate>
                 {% csrf_token %}
-                <input type="hidden" name="action" value="save">
                 {% if adding %}<input type="hidden" name="add" value="1">{% endif %}
                 <div class="row g-2 align-items-center mb-2">
                     <div class="col-3 col-sm-2 text-muted small fee-nowrap">計算書</div>
@@ -51,7 +51,7 @@
                         {% if service_label != "サービス" %}<span class="small text-muted ms-2 fee-nowrap">{{ service_label }}</span>{% endif %}
                     </div>
                 </div>
-                <div class="text-end"><button type="submit" class="btn btn-primary" data-busy="更新中…">更新</button></div>
+                <div class="text-end"><button type="submit" name="action" value="save" class="btn btn-primary" data-busy="更新中…">更新</button></div>
             </form>
         </div>
     </div>
@@ -92,14 +92,11 @@
             <p class="text-danger mb-2">未設定</p>
             {% endif %}
 
-            <form method="post" class="d-flex flex-wrap align-items-start gap-2 um-submit-once" novalidate>
-                {% csrf_token %}
-                <input type="hidden" name="action" value="add_rate">
-                {% if adding %}<input type="hidden" name="add" value="1">{% endif %}
+            <div class="d-flex flex-wrap align-items-start gap-2">
                 <div>
                     <div class="d-flex align-items-center gap-1">
                         <label for="fee-start" class="small text-muted fee-nowrap">開始月</label>
-                        <input type="month" id="fee-start" name="start_month" value="{{ rate_form.start_month.value|default:'' }}"
+                        <input type="month" id="fee-start" name="start_month" form="fee-dest-form" value="{{ rate_form.start_month.value|default:'' }}"
                                class="form-control fee-input{% if rate_form.start_month.errors %} is-invalid{% endif %}" style="width:11rem">
                     </div>
                     {% if rate_form.start_month.errors %}<div class="invalid-feedback d-block">{{ rate_form.start_month.errors.0 }}</div>{% endif %}
@@ -107,14 +104,14 @@
                 <div>
                     <div class="d-flex align-items-center gap-1">
                         <label for="fee-rate" class="small text-muted fee-nowrap">率</label>
-                        <input type="number" id="fee-rate" name="rate" step="0.1" min="0" max="100" inputmode="decimal"
+                        <input type="number" id="fee-rate" name="rate" form="fee-dest-form" step="0.1" min="0" max="100" inputmode="decimal"
                                value="{{ rate_form.rate.value|default:'' }}" class="form-control fee-input fee-rate-input{% if rate_form.rate.errors %} is-invalid{% endif %}">
                         <span>%</span>
                     </div>
                     {% if rate_form.rate.errors %}<div class="invalid-feedback d-block">{{ rate_form.rate.errors.0 }}</div>{% endif %}
                 </div>
-                <button type="submit" class="btn btn-outline-secondary" data-busy="追加中…">追加</button>
-            </form>
+                <button type="submit" form="fee-dest-form" name="action" value="add_rate" class="btn btn-outline-secondary" data-busy="追加中…">追加</button>
+            </div>
         </div>
     </div>
 </div>

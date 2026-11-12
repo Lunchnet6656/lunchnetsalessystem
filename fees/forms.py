@@ -14,17 +14,21 @@ def parse_month(value):
         return None
 
 
+def normalize_addressee(value):
+    # 「御中」は自動で付くので、入れてしまったら外す
+    value = (value or "").strip()
+    if value.endswith("御中"):
+        value = value[:-2].rstrip("　 ")
+    return value
+
+
 class DestinationForm(forms.Form):
     enabled = forms.BooleanField(required=False)
     addressee = forms.CharField(required=False, max_length=100)
     include_service = forms.BooleanField(required=False)
 
     def clean_addressee(self):
-        # 「御中」は自動で付くので、入れてしまったら外す
-        value = self.cleaned_data["addressee"].strip()
-        if value.endswith("御中"):
-            value = value[:-2].rstrip("　 ")
-        return value
+        return normalize_addressee(self.cleaned_data["addressee"])
 
     def clean(self):
         data = super().clean()
