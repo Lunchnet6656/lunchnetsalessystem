@@ -630,6 +630,36 @@ class DestinationViewTests(Base):
                                "start_month": "2026-12", "rate": ""})
         self.assertEqual(FeeDestination.objects.get(location=self.loc2).rates.count(), 1)
 
+    def test_note_saved_shown_in_pdf_and_snapshotted(self):
+        url = reverse("fees:destination_edit", args=[self.loc.pk])
+        self.client.post(url, {"action": "save", "enabled": "on", "addressee": "A株式会社",
+                               "note": "経理部 御中\r\n振込手数料は当社負担"})
+        self.dest.refresh_from_db()
+        self.assertEqual(self.dest.note, "経理部 御中\n振込手数料は当社負担")
+        load_sample(self.loc)
+        st = self.issue()[0]
+        self.assertEqual(st.note, "経理部 御中\n振込手数料は当社負担")
+        html = pdf.render_html(st)
+        self.assertIn("経理部 御中<br>振込手数料は当社負担", html)
+        self.assertEqual(pdf.page_count(st), 1)
+        # 発行後に備考を変えても、発行済みの計算書は発行時の備考のまま
+        self.dest.note = "変更後"
+        self.dest.save()
+        st.refresh_from_db()
+        self.assertNotIn("変更後", pdf.render_html(st))
+
+    def test_note_limits_and_escape(self):
+        url = reverse("fees:destination_edit", args=[self.loc.pk])
+        resp = self.client.post(url, {"action": "save", "enabled": "on", "addressee": "A株式会社",
+                                      "note": "1\n2\n3\n4"})
+        self.assertContains(resp, "備考は3行まで")
+        self.client.post(url, {"action": "save", "enabled": "on", "addressee": "A株式会社",
+                               "note": "<script>x</script>"})
+        load_sample(self.loc)
+        html = pdf.render_html(self.issue()[0])
+        self.assertNotIn("<script>x</script>", html)
+        self.assertIn("&lt;script&gt;", html)
+
     def test_save_with_bad_rate_saves_nothing(self):
         url = reverse("fees:destination_edit", args=[self.loc2.pk])
         resp = self.client.post(url, {"action": "save", "enabled": "on", "addressee": "C株式会社",

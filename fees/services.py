@@ -162,7 +162,7 @@ def _new_statement(row, number, issue_date, pay_date, user):
     return FeeStatement(
         number=number, month=month_start(datetime.date.fromisoformat(row.detail["month"] + "-01")),
         location=d.location, issue_date=issue_date, pay_date=pay_date,
-        location_name=d.location.name, addressee=d.addressee.strip(), rate=row.rate,
+        location_name=d.location.name, addressee=d.addressee.strip(), note=d.note.strip(), rate=row.rate,
         include_service=d.include_service, detail=row.detail, issuer=issuer_snapshot(),
         staff_name=staff_name(user) if user else "", issued_by=user, **row.amounts,
     )

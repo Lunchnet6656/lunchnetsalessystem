@@ -23,6 +23,7 @@ class FeeDestination(models.Model):
     enabled = models.BooleanField(default=False, verbose_name="計算書を出す")
     addressee = models.CharField(max_length=100, blank=True, default="", verbose_name="宛名")  # 「御中」は含めない
     include_service = models.BooleanField(default=True, verbose_name="サービス販売を売上に反映する")
+    note = models.TextField(blank=True, default="", verbose_name="備考")  # PDFの宛名の下に出す
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
@@ -81,6 +82,7 @@ class FeeStatement(models.Model):
     # --- スナップショット ---
     location_name = models.CharField(max_length=255)
     addressee = models.CharField(max_length=100)
+    note = models.TextField(blank=True, default="")  # 発行時点の備考
     rate = models.DecimalField(max_digits=4, decimal_places=1)
     include_service = models.BooleanField()
     total_sales = models.BigIntegerField()      # 当月総売上（税込）

@@ -31,6 +31,7 @@
                 {% if st.is_void %}<span class="fee-badge fee-badge-void">取消</span>{% else %}<span class="fee-badge fee-badge-issued">発行済み</span>{% endif %}
             </div>
             <div>{{ st.addressee }} 御中（{{ st.location_name }}）</div>
+            {% if st.note %}<div class="small">{{ st.note|linebreaksbr }}</div>{% endif %}
             <div class="d-flex flex-wrap gap-3 text-muted small">
                 <span class="fee-nowrap">対象月 {{ st.month_label }}</span>
                 <span class="fee-nowrap">発行日 {{ st.issue_date|date:"Y/m/d" }}</span>

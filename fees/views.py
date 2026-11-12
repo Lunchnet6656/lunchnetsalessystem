@@ -105,7 +105,8 @@ def destination_edit(request, location_pk):
     today = timezone.localdate()
     initial = {"enabled": True if adding else (dest.enabled if dest else False),
                "addressee": dest.addressee if dest else "",
-               "include_service": dest.include_service if dest else True}
+               "include_service": dest.include_service if dest else True,
+               "note": dest.note if dest else ""}
     form = DestinationForm(initial=initial)
     rate_form = RateForm(initial={"start_month": f"{today:%Y-%m}"})
     cancel_id = request.GET.get("cancel", "")
@@ -124,6 +125,7 @@ def destination_edit(request, location_pk):
                     dest.enabled = form.cleaned_data["enabled"]
                     dest.addressee = form.cleaned_data["addressee"]
                     dest.include_service = form.cleaned_data["include_service"]
+                    dest.note = form.cleaned_data["note"]
                     dest.updated_by = request.user
                     dest.save()
                     if rate_filled:
@@ -140,6 +142,9 @@ def destination_edit(request, location_pk):
                     dest.enabled = bool(request.POST.get("enabled"))
                     dest.addressee = normalize_addressee(request.POST.get("addressee"))
                     dest.include_service = bool(request.POST.get("include_service"))
+                    # 備考は行数・文字数を満たすときだけ残す（満たさなければ前の値のまま。［更新］でエラーを出す）
+                    if form.is_valid() or "note" not in form.errors:
+                        dest.note = form.cleaned_data.get("note", dest.note)
                     dest.updated_by = request.user
                     dest.save()
                     _add_rate(dest, rate_form, request.user)

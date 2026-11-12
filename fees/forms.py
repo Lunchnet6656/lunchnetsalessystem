@@ -22,10 +22,26 @@ def normalize_addressee(value):
     return value
 
 
+NOTE_MAX_LINES = 3
+
+
+def normalize_note(value):
+    lines = [l.rstrip() for l in (value or "").replace("\r\n", "\n").strip().split("\n")]
+    return "\n".join(lines)
+
+
 class DestinationForm(forms.Form):
     enabled = forms.BooleanField(required=False)
     addressee = forms.CharField(required=False, max_length=100)
     include_service = forms.BooleanField(required=False)
+    note = forms.CharField(required=False, max_length=200, error_messages={"max_length": "備考は200文字まで"})
+
+    def clean_note(self):
+        # PDFの宛名の下に収めるため3行まで
+        value = normalize_note(self.cleaned_data["note"])
+        if value and len(value.split("\n")) > NOTE_MAX_LINES:
+            raise forms.ValidationError(f"備考は{NOTE_MAX_LINES}行まで")
+        return value
 
     def clean_addressee(self):
         return normalize_addressee(self.cleaned_data["addressee"])

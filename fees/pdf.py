@@ -91,6 +91,7 @@ def statement_context(st, preview=False):
         "title_month": f"{st.month.year}年{st.month.month}月分",
         "addressee": st.addressee,
         "addressee_pt": addressee_font_pt(st.addressee),
+        "note": st.note,
         "number": st.number,
         "issuer": issuer,
         "seal": issuer.get("seal", ""),

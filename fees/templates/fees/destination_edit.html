@@ -40,6 +40,17 @@
                         {% if form.addressee.errors %}<div id="fee-addressee-err" class="invalid-feedback d-block">{{ form.addressee.errors.0 }}</div>{% endif %}
                     </div>
                 </div>
+                <div class="row g-2 align-items-start mb-2">
+                    <div class="col-3 col-sm-2 text-muted small fee-nowrap pt-2"><label for="fee-note">備考</label></div>
+                    <div class="col-9 col-sm-10">
+                        <div class="d-flex align-items-start">
+                            <textarea id="fee-note" name="note" rows="3" maxlength="200"
+                                      class="form-control fee-input fee-addressee{% if form.note.errors %} is-invalid{% endif %}" aria-describedby="fee-note-err">{{ form.note.value|default:'' }}</textarea>
+                            {% include "includes/info_tip.html" with id="fee-note-tip" label="備考" text="PDFの宛名の下に出る。3行・200文字まで。発行時の内容が計算書に残る。" %}
+                        </div>
+                        {% if form.note.errors %}<div id="fee-note-err" class="invalid-feedback d-block">{{ form.note.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
                 <div class="row g-2 align-items-center mb-2">
                     <div class="col-3 col-sm-2 text-muted small fee-nowrap">サービス</div>
                     <div class="col-9 col-sm-10 d-flex align-items-center">

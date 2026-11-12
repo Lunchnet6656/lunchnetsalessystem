@@ -19,6 +19,7 @@
     .seal { position: absolute; top: -6.5mm; right: 0; width: 28mm; height: 28mm; opacity: 0.85; }
     .to { font-size: {{ addressee_pt }}pt; font-weight: bold; border-bottom: 1.5px solid #000; padding-bottom: 1mm;
           display: inline-block; min-width: 80mm; white-space: nowrap; }
+    .note { font-size: 9pt; line-height: 1.5; margin-top: 1.5mm; max-width: 100mm; word-break: break-all; }
     .no { font-size: 8.5pt; margin-top: 2mm; }
     .co { font-size: 11pt; font-weight: bold; margin-bottom: 1mm; white-space: nowrap; }
     .info { font-size: 8.5pt; line-height: 1.6; white-space: nowrap; }
@@ -48,6 +49,7 @@
 <div class="head">
     <div class="head-left">
         <span class="to">{{ addressee }}　御中</span>
+        {% if note %}<div class="note">{{ note|linebreaksbr }}</div>{% endif %}
         <div class="no">No. {% if number %}{{ number }}{% else %}（発行時に採番）{% endif %}</div>
     </div>
     <div class="head-right">
