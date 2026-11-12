@@ -1625,18 +1625,7 @@ def order_settings(request):
         else:
             form = OrderSettingsForm(request.POST, instance=settings_obj)
             if form.is_valid():
-                obj = form.save()
-                # 社印画像：アップロードは data URI（base64）にしてDB保存。Herokuでも消えない。
-                seal = request.FILES.get('seal_image')
-                if seal:
-                    import base64
-                    ctype = seal.content_type or 'image/png'
-                    b64 = base64.b64encode(seal.read()).decode('ascii')
-                    obj.seal_image_data = f'data:{ctype};base64,{b64}'
-                    obj.save(update_fields=['seal_image_data'])
-                elif request.POST.get('remove_seal'):
-                    obj.seal_image_data = ''
-                    obj.save(update_fields=['seal_image_data'])
+                form.save()
                 messages.success(request, '設定を保存しました。')
                 return redirect('orders:order_settings')
     else:
@@ -1655,6 +1644,7 @@ def order_settings(request):
         'bank_accounts': bank_accounts,
         'menu_week_assignments': menu_week_assignments,
         'user_perms': user_perms,
+        'issuer': settings_obj.issuer,
     }
     return render(request, 'orders/order_settings.html', context)
 

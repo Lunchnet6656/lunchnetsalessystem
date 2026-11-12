@@ -63,6 +63,10 @@ PERMISSION_GROUPS = [
     ("受注", [
         Perm("can_view_orders", "受注管理", "注文・配達・請求書。細かい権限は受注アプリの設定で決める"),
     ]),
+    ("経理", [
+        Perm("can_view_fees", "販売フィー計算書（閲覧）", "計算書の一覧・詳細・PDF"),
+        Perm("can_issue_fees", "販売フィー計算書（発行）", "宛先・手数料率・発行元の設定、発行・取消", honbu=True),
+    ]),
     ("シフト", [
         Perm("can_view_shift_app", "シフトアプリ", "シフト希望の提出・自分のシフト"),
     ]),

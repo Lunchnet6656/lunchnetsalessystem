@@ -17,7 +17,7 @@ PASSWORD = "Lunch-net-2026"
 
 class PermissionGroupsTest(TestCase):
     def test_every_permission_is_on_the_edit_screen_once(self):
-        fields = [f.name for f in UserMenuPermission._meta.fields if f.name.startswith("can_view_")]
+        fields = [f.name for f in UserMenuPermission._meta.fields if f.name.startswith(("can_view_", "can_issue_"))]
         self.assertCountEqual(ua.PERM_FIELDS, fields)
 
 

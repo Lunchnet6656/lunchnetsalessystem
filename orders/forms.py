@@ -87,8 +87,8 @@ class MenuWeekAssignmentForm(forms.ModelForm):
 class OrderSettingsForm(forms.ModelForm):
     class Meta:
         model = OrderSettings
-        fields = ['tax_rate', 'company_name', 'postal_code', 'address', 'tel', 'fax',
-                  'invoice_number', 'bank_info']
+        # 会社名・住所・登録番号・社印は発行元（経理 > 計算書の宛先 > 発行元）で直す
+        fields = ['tax_rate', 'bank_info']
         widgets = {
             'bank_info': forms.Textarea(attrs={'rows': 3}),
         }

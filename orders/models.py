@@ -613,30 +613,19 @@ class OrderSettings(models.Model):
         max_digits=5, decimal_places=2, default=8,
         verbose_name="消費税率（%）"
     )
-    company_name = models.CharField(
-        max_length=200, default="有限会社ランチサービスネットワーク",
-        verbose_name="会社名"
-    )
-    postal_code = models.CharField(
-        max_length=10, default="〒224-0021", verbose_name="郵便番号"
-    )
-    address = models.CharField(
-        max_length=300, default="横浜市都筑区北山田1-1-18", verbose_name="住所"
-    )
-    tel = models.CharField(
-        max_length=20, default="045-593-6656", verbose_name="電話番号"
-    )
-    fax = models.CharField(
-        max_length=20, default="045-592-8424", verbose_name="FAX番号"
-    )
-    invoice_number = models.CharField(
-        max_length=20, default="T4020002059715", verbose_name="登録番号"
-    )
     bank_info = models.TextField(
         blank=True, default="", verbose_name="デフォルト振込先"
     )
-    # 社印画像を data URI（data:image/png;base64,...）でDB保持。Herokuでも消えない・PDFに埋め込み。
-    seal_image_data = models.TextField(blank=True, default="", verbose_name="社印画像")
+
+    # 発行元の旧欄（2026-11 に sales.IssuerSettings へ移した）。使わない。
+    # 列を消すと切り戻したときに受注が開けなくなるので、次のリリースまで列だけ残す。
+    legacy_company_name = models.CharField(max_length=200, default="有限会社ランチサービスネットワーク", db_column="company_name")
+    legacy_postal_code = models.CharField(max_length=10, default="〒224-0021", db_column="postal_code")
+    legacy_address = models.CharField(max_length=300, default="横浜市都筑区北山田1-1-18", db_column="address")
+    legacy_tel = models.CharField(max_length=20, default="045-593-6656", db_column="tel")
+    legacy_fax = models.CharField(max_length=20, default="045-592-8424", db_column="fax")
+    legacy_invoice_number = models.CharField(max_length=20, default="T4020002059715", db_column="invoice_number")
+    legacy_seal_image_data = models.TextField(blank=True, default="", db_column="seal_image_data")
 
     class Meta:
         verbose_name = "受注設定"
@@ -653,6 +642,42 @@ class OrderSettings(models.Model):
 
     def __str__(self):
         return "受注設定"
+
+    # 納品書・領収書・請求書のテンプレートは settings.company_name などで読むので、発行元の設定へ取り次ぐ
+    @property
+    def issuer(self):
+        if not hasattr(self, "_issuer"):
+            from sales.models import IssuerSettings
+            self._issuer = IssuerSettings.load()
+        return self._issuer
+
+    @property
+    def company_name(self):
+        return self.issuer.company_name
+
+    @property
+    def postal_code(self):
+        return self.issuer.postal_code
+
+    @property
+    def address(self):
+        return self.issuer.address
+
+    @property
+    def tel(self):
+        return self.issuer.tel
+
+    @property
+    def fax(self):
+        return self.issuer.fax
+
+    @property
+    def invoice_number(self):
+        return self.issuer.registration_number
+
+    @property
+    def seal_image_data(self):
+        return self.issuer.seal_image_data
 
 
 class DeliveryCompletion(models.Model):

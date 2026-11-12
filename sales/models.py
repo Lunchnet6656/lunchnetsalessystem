@@ -421,6 +421,40 @@ class DailyReportQuestionSetting(models.Model):
         return obj
 
 
+class IssuerSettings(models.Model):
+    """発行元（自社）の情報。受注の請求書・納品書・領収書と販売フィー計算書で共通に使う（1行だけ）。
+    2026-11 に受注設定（OrderSettings）から切り出した。"""
+    company_name = models.CharField(max_length=200, default="有限会社ランチサービスネットワーク", verbose_name="会社名")
+    postal_code = models.CharField(max_length=10, default="〒224-0021", blank=True, verbose_name="郵便番号")
+    address = models.CharField(max_length=300, default="横浜市都筑区北山田1-1-18", blank=True, verbose_name="住所")
+    tel = models.CharField(max_length=20, default="045-593-6656", blank=True, verbose_name="TEL")
+    fax = models.CharField(max_length=20, default="045-592-8424", blank=True, verbose_name="FAX")
+    registration_number = models.CharField(max_length=20, default="T4020002059715", blank=True, verbose_name="登録番号")
+    # 請求書には必ず出す。計算書は買う側（相手）が出す書類ではないので、載せるかを選べるようにする
+    show_registration_on_fee = models.BooleanField(default=False, verbose_name="計算書に登録番号を載せる")
+    # 社印画像を data URI でDB保持（Heroku のファイルは再起動で消えるため）
+    seal_image_data = models.TextField(blank=True, default="", verbose_name="社印画像")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "発行元"
+        verbose_name_plural = "発行元"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return "発行元"
+
+
 class OthersItem(models.Model):
     no = models.IntegerField(default=0)
     name =  models.CharField(max_length=255)
@@ -608,6 +642,9 @@ class UserMenuPermission(models.Model):
     can_view_stamp = models.BooleanField(default=False, verbose_name="公式LINE（スタンプ）")
     # 価格表・割引設定・メニューデータベース。お金の設定なので、本部の担当者にだけ個別にONにする（staffでも自動ではONにしない）
     can_view_price_master = models.BooleanField(default=False, verbose_name="価格・メニュー設定")
+    # 販売フィー計算書（#206）。お金の書類なので価格設定と同じく個別にONにする。発行ONなら閲覧もできる
+    can_view_fees = models.BooleanField(default=False, verbose_name="販売フィー計算書（閲覧）")
+    can_issue_fees = models.BooleanField(default=False, verbose_name="販売フィー計算書（発行）")
     direct_return = models.BooleanField(default=False, verbose_name="直行直帰")
     shin_yokohama = models.BooleanField(default=False, verbose_name="新横浜")
 

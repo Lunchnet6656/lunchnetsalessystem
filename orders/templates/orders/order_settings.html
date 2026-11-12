@@ -25,57 +25,14 @@
             </div>
         </div>
 
-        <h3 class="text-md font-semibold text-gray-600 mt-6 mb-3">会社情報（納品書に表示）</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label for="id_company_name" class="block text-sm font-medium text-gray-700 mb-1">{{ form.company_name.label }}</label>
-                <input type="text" name="company_name" id="id_company_name" value="{{ form.company_name.value }}"
-                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                {% if form.company_name.errors %}
-                <p class="text-red-600 text-xs mt-1">{{ form.company_name.errors.0 }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label for="id_postal_code" class="block text-sm font-medium text-gray-700 mb-1">{{ form.postal_code.label }}</label>
-                <input type="text" name="postal_code" id="id_postal_code" value="{{ form.postal_code.value }}"
-                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                {% if form.postal_code.errors %}
-                <p class="text-red-600 text-xs mt-1">{{ form.postal_code.errors.0 }}</p>
-                {% endif %}
-            </div>
-            <div class="md:col-span-2">
-                <label for="id_address" class="block text-sm font-medium text-gray-700 mb-1">{{ form.address.label }}</label>
-                <input type="text" name="address" id="id_address" value="{{ form.address.value }}"
-                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                {% if form.address.errors %}
-                <p class="text-red-600 text-xs mt-1">{{ form.address.errors.0 }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label for="id_tel" class="block text-sm font-medium text-gray-700 mb-1">{{ form.tel.label }}</label>
-                <input type="text" name="tel" id="id_tel" value="{{ form.tel.value }}"
-                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                {% if form.tel.errors %}
-                <p class="text-red-600 text-xs mt-1">{{ form.tel.errors.0 }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label for="id_fax" class="block text-sm font-medium text-gray-700 mb-1">{{ form.fax.label }}</label>
-                <input type="text" name="fax" id="id_fax" value="{{ form.fax.value }}"
-                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                {% if form.fax.errors %}
-                <p class="text-red-600 text-xs mt-1">{{ form.fax.errors.0 }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label for="id_invoice_number" class="block text-sm font-medium text-gray-700 mb-1">{{ form.invoice_number.label }}</label>
-                <input type="text" name="invoice_number" id="id_invoice_number" value="{{ form.invoice_number.value }}"
-                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                <p class="text-xs text-gray-400 mt-1">適格請求書の登録番号（例 T4020002059715）。請求書に印字されます。</p>
-                {% if form.invoice_number.errors %}
-                <p class="text-red-600 text-xs mt-1">{{ form.invoice_number.errors.0 }}</p>
-                {% endif %}
-            </div>
+        {# 会社名・住所・登録番号・社印は請求書と販売フィー計算書で共通の「発行元」で直す（#206） #}
+        <h3 class="text-md font-semibold text-gray-600 mt-6 mb-3">会社情報</h3>
+        <div class="text-sm text-gray-700">
+            {{ issuer.company_name }}<br>
+            {{ issuer.postal_code }}　{{ issuer.address }}<br>
+            TEL {{ issuer.tel }}　FAX {{ issuer.fax }}<br>
+            登録番号：{{ issuer.registration_number }}<br>
+            社印：{% if issuer.seal_image_data %}登録済み{% else %}未登録{% endif %}
         </div>
 
         <div class="mt-4">
@@ -87,28 +44,6 @@
             {% if form.bank_info.errors %}
             <p class="text-red-600 text-xs mt-1">{{ form.bank_info.errors.0 }}</p>
             {% endif %}
-        </div>
-
-        <!-- 社印画像（メール配信の顧客の請求書PDFに押印） -->
-        <div class="mt-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1">社印画像</label>
-            <div class="flex items-center gap-4">
-                {% if form.instance.seal_image_data %}
-                <img src="{{ form.instance.seal_image_data }}" alt="社印" class="w-20 h-20 object-contain border border-gray-200 rounded bg-white">
-                {% else %}
-                <div class="w-20 h-20 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400">未登録</div>
-                {% endif %}
-                <div class="flex-1">
-                    <input type="file" name="seal_image" accept="image/*"
-                           class="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                    <p class="text-xs text-gray-400 mt-1">背景透過PNG推奨。<strong>メール配信</strong>に設定した顧客の請求書PDFに、発行元（社名）へ重ねて押印されます。郵送設定の顧客には押されません。</p>
-                    {% if form.instance.seal_image_data %}
-                    <label class="inline-flex items-center gap-1 text-xs text-red-600 mt-1">
-                        <input type="checkbox" name="remove_seal" class="w-3.5 h-3.5"> 社印を削除する
-                    </label>
-                    {% endif %}
-                </div>
-            </div>
         </div>
 
         <div class="mt-6">

@@ -47,6 +47,7 @@ class OrderItemAdmin(admin.ModelAdmin):
 @admin.register(OrderSettings)
 class OrderSettingsAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'tax_rate', 'company_name']
+    fields = ['tax_rate', 'bank_info']
 
 
 class InvoiceLineInline(admin.TabularInline):

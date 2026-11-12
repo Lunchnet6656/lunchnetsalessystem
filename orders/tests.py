@@ -564,9 +564,10 @@ class InvoiceTest(TestCase):
 
     def test_seal_only_for_email_delivery(self):
         from . import services
-        from .models import OrderSettings
+        from sales.models import IssuerSettings
         from .pdf import build_invoice_context
-        s = OrderSettings.load()
+        # 社印は発行元（請求書と計算書で共通）に登録する
+        s = IssuerSettings.load()
         s.seal_image_data = 'data:image/png;base64,ABC'; s.save()
         # 郵送顧客 → 社印なし
         self.customer.invoice_delivery = 'MAIL'; self.customer.save()
