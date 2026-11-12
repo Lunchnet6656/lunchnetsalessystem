@@ -183,9 +183,12 @@ def workdays(month, holidays, company_holidays, until=None):
             and (until is None or d <= until)]
 
 
-def checks(month, reports, holidays, company_holidays, today):
-    """発行前チェックの材料。日付のリストで返す（画面で日付を並べるため）。"""
-    dates = {r.date for r in reports}
+def checks(month, reports, holidays, company_holidays, today, off_days=()):
+    """発行前チェックの材料。日付のリストで返す（画面で日付を並べるため）。
+
+    off_days: シフトでその売り場を「休み」「中止」にした日。休むと決めた日は未提出にしない。
+    """
+    dates = set(r.date for r in reports) | set(off_days)
     no_reports = not reports
     return {
         "missing_price": sorted(r.date for r in reports if r.missing_price),
@@ -243,10 +246,24 @@ def load_reports(location_name, month):
 
 
 def load_holidays(month):
+    """祝日は jpholiday で決める（Holiday 表は2025年6月で止まっていて、10/12 が祝日にならなかった）。
+    Holiday 表にある日（臨時の休み等）も祝日として足す。"""
+    import jpholiday
     from sales.models import Holiday
     days = month_days(month)
-    return {h.date: (h.description or "祝日")
-            for h in Holiday.objects.filter(date__range=(days[0], days[-1]))}
+    out = {d: jpholiday.is_holiday_name(d) for d in days if jpholiday.is_holiday(d)}
+    for h in Holiday.objects.filter(date__range=(days[0], days[-1])):
+        out.setdefault(h.date, h.description or "祝日")
+    return out
+
+
+def load_off_days(location, month):
+    """シフトでその売り場を「休み」「中止」にした日。"""
+    from shifts.models import ShiftAssignment
+    days = month_days(month)
+    return set(ShiftAssignment.objects.filter(sales_location=location, date__range=(days[0], days[-1]),
+                                              special_type__in=("REST", "CANCEL"))
+               .values_list("date", flat=True))
 
 
 def load_company_holidays(month):

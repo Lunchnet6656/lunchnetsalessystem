@@ -187,6 +187,25 @@ class CheckTests(Base):
         self.assertEqual(row.check["unsubmitted"], [datetime.date(2026, 10, 20)])
         self.assertTrue(row.default_checked)   # 警告だけ・既定ON
 
+    def test_holiday_from_jpholiday_without_holiday_table(self):
+        # 本番は Holiday 表が2025年6月で止まっている。表になくても 10/12（スポーツの日）は祝日
+        Holiday.objects.all().delete()
+        load_sample(self.loc)
+        row = self.rows()[0]
+        self.assertEqual(row.check["unsubmitted"], [])
+        day12 = next(d for d in row.detail["days"] if d["day"] == 12)
+        self.assertIn("祝", day12["dow"])
+
+    def test_unsubmitted_skips_shift_rest_and_cancel(self):
+        from shifts.models import ShiftAssignment
+        load_sample(self.loc)
+        DailyReport.objects.filter(date__in=[datetime.date(2026, 10, 20), datetime.date(2026, 10, 21),
+                                             datetime.date(2026, 10, 22)]).delete()
+        ShiftAssignment.objects.create(date=datetime.date(2026, 10, 20), sales_location=self.loc, special_type="REST")
+        ShiftAssignment.objects.create(date=datetime.date(2026, 10, 21), sales_location=self.loc, special_type="CANCEL")
+        row = self.rows()[0]
+        self.assertEqual(row.check["unsubmitted"], [datetime.date(2026, 10, 22)])
+
     def test_no_reports_is_warning_and_unchecked(self):
         row = self.rows()[0]
         self.assertEqual([w[1] for w in row.warns], ["日計表なし"])

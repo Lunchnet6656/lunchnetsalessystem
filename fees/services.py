@@ -94,7 +94,8 @@ def build_row(destination, month_ctx, statement=None):
     location = destination.location
     rate = destination.rate_on(month_ctx.month)
     detail, reports = build_detail(location, month_ctx, destination.include_service)
-    check = calc.checks(month_ctx.month, reports, month_ctx.holidays, month_ctx.company_holidays, month_ctx.today)
+    check = calc.checks(month_ctx.month, reports, month_ctx.holidays, month_ctx.company_holidays, month_ctx.today,
+                        calc.load_off_days(location, month_ctx.month))
     total = detail["totals"]["amount"]
     amounts = calc.fee_amounts(total, rate) if rate is not None else {"total_sales": total}
     row = IssueRow(destination, rate, detail, amounts, check, statement)
