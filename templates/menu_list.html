@@ -29,6 +29,7 @@
     .ml-head { font-size: .72rem; color: var(--ln-color-text-muted); padding-top: 0; padding-bottom: .25rem; border-bottom: 1px solid var(--ln-color-border-strong); }
     .ml-head .ml-col-rank, .ml-head .ml-col-container { text-align: center; }
     .ml-no { font-weight: bold; color: var(--ln-color-text-muted); text-align: right; }
+    .ml-rename { display: block; font-size: .8rem; font-weight: normal; color: var(--ln-cal-blue); }
     .ml-name { font-weight: bold; color: var(--ln-color-text-strong); font-size: .9rem; line-height: 1.35; overflow-wrap: anywhere; }
     .ml-rank {
         display: block; white-space: nowrap; font-size: .72rem; font-weight: bold; text-align: center;
@@ -85,7 +86,7 @@
         {% for item in items %}
         <li class="ml-item">
             <span class="ml-no">{{ item.no }}</span>
-            <span class="ml-name">{{ item.name }}</span>
+            <span class="ml-name">{{ item.name }}{% for c in item.renames %}<span class="ml-rename">{{ c.start_date|date:"n/j" }}〜 {{ c.name }}</span>{% endfor %}</span>
             <span>{% if item.rank %}<span class="ml-rank" data-role="{{ item.rank_role }}">{{ item.rank }}</span>{% endif %}</span>
             <span class="ml-container"><span class="ml-short">{{ item.container_short }}</span><span class="ml-full">{{ item.container }}</span></span>
         </li>

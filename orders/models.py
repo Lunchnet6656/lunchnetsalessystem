@@ -337,7 +337,8 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs):
         self.quantity = self.quantity_large + self.quantity_regular + self.quantity_small
         if not self.product_name and self.product:
-            self.product_name = self.product.name
+            from sales.menu_names import name_on   # sales.models が orders を読まないよう、ここで読む
+            self.product_name = name_on(self.product, self.order.delivery_date if self.order_id else None)
         super().save(*args, **kwargs)
 
 

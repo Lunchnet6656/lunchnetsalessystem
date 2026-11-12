@@ -5,6 +5,7 @@
 import datetime
 
 from sales.menu_registry import CONTAINER_ALIASES, week_end, week_state
+from sales.menu_names import changes_of_week
 from sales.menu_week import week_products
 from sales.models import MenuWeekCheck, PriceRank, Product
 from sales.pricing import legacy_role
@@ -47,6 +48,7 @@ def week_list(week, today):
     """1品ずつ：No・メニュー名・値段の種類・容器。"""
     products = week_products(week)
     ranks_by_role = {r.role: r for r in PriceRank.objects.exclude(role="")}
+    renames = changes_of_week(products)
     items = []
     for p in products:
         # 古い登録方法の週は種類がないので、★あり→特選のように名前から決める
@@ -55,6 +57,7 @@ def week_list(week, today):
         items.append({
             "no": p.no,
             "name": p.name,
+            "renames": renames.get(p.id, []),   # 週の途中のメニュー名の変更（○/○〜 新しい名前）
             "rank": rank.name if rank else "",
             # バッジの色。種類の名前は本部が変えられるので役割で決める（役割なし＝お手頃など）
             "rank_role": (rank.role or "other") if rank else "",

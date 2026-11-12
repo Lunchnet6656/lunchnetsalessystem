@@ -119,9 +119,16 @@ def register_week(week, names, now=None):
             profile.save(update_fields=["confirmed", "updated_at"])
         if not profile.confirmed:
             needs_check.append(profile.name)
+        name = profile.name
+        current = Product.objects.filter(week=week_key, no=no).first()
+        if current and current.name_changes.exists():
+            if name == current.name or current.name_changes.filter(name=name).exists():
+                name = current.name   # 途中変更後の名前で送り直された：週の頭の名前と変更はそのまま
+            else:
+                current.name_changes.all().delete()   # 別のメニューに差し替わった：途中変更は無効
         product, _ = Product.objects.update_or_create(
             week=week_key, no=no,
-            defaults={"name": profile.name, "rank": profile.rank, "container_type": profile.container,
+            defaults={"name": name, "rank": profile.rank, "container_type": profile.container,
                       **prices_for_rank(profile.rank, week)},
         )
         products.append(product)

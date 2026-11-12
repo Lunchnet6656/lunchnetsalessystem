@@ -180,6 +180,27 @@ class Product(models.Model):
         return f"{self.name}"
 
 
+class ProductNameChange(models.Model):
+    """週の途中のメニュー名の変更。開始日からこの名前で日計表・受注に出す（番号・値段の種類・容器はそのまま）。
+    Product.name は週の頭の名前（Excelから届いた名前）のまま残す。"""
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="name_changes")
+    start_date = models.DateField(verbose_name="開始日")
+    name = models.CharField(max_length=255, verbose_name="メニュー名")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["start_date"]
+        unique_together = [("product", "start_date")]
+        verbose_name = "メニュー名の変更"
+        verbose_name_plural = "メニュー名の変更"
+
+    def __str__(self):
+        return f"No.{self.product.no} {self.start_date:%m/%d}〜 {self.name}"
+
+
 class ItemQuantity(models.Model):
     target_date =  models.CharField(max_length=10, default='00000000')  # 対象日付（yyyymmdd形式）
     target_week =  models.CharField(max_length=10, default='00000000')  # 対象週（yyyymmdd形式）

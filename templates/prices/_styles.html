@@ -24,6 +24,8 @@
     .pm-ended { background-color: var(--ln-color-surface-disabled); }
     .pm-row-attention td:first-child { box-shadow: inset 4px 0 0 var(--ln-color-danger); }
     div.pm-row-attention { box-shadow: inset 4px 0 0 var(--ln-color-danger); }
+    .pm-rename { font-size: .8rem; font-weight: normal; color: var(--ln-cal-blue); }
+    .pm-rename-form input, .pm-rename-form select { font-size: 16px; }
     .pm-confirmed { color: var(--ln-color-success); background-color: var(--ln-color-success-bg); padding: 0 .25rem; }
     /* 週のメニュー確認：スマホでは1品＝1ブロック（1行目＝No・名前、2行目＝種類・容器、3行目＝価格A/B/C） */
     @media (max-width: 767.98px) {
@@ -38,5 +40,17 @@
         .pm-week-table .pm-w-third { width: 33.33%; white-space: normal; }
         .pm-week-table .pm-w-third::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--ln-color-text-muted); }
         .pm-week-table select { font-size: 16px; }
+        .pm-week-table .pm-rename { white-space: normal; overflow-wrap: anywhere; }
+        /* メニュー名の変更の一覧：1行目＝No・開始日・［取消］、2〜3行目＝変更前・変更後（名前は長いので折り返す） */
+        .pm-rename-table thead { display: none; }
+        .pm-rename-table, .pm-rename-table tbody { display: block; }
+        .pm-rename-table tr { display: flex; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--ln-color-border); padding: .4rem 0; }
+        .pm-rename-table td { display: block; border: none; padding: .15rem .25rem; }
+        .pm-rename-table .pm-r-no { order: 1; width: 2.2rem; font-weight: bold; }
+        .pm-rename-table .pm-r-date { order: 2; flex: 1; }
+        .pm-rename-table .pm-r-act { order: 3; }
+        .pm-rename-table .pm-r-name { order: 4; width: 100%; white-space: normal; overflow-wrap: anywhere; }
+        .pm-rename-table .pm-r-name::before { content: attr(data-label); margin-right: .5rem; font-size: .75rem; font-weight: normal; color: var(--ln-color-text-muted); }
+        .pm-rename-table .pm-r-empty { width: 100%; }
     }
 </style>

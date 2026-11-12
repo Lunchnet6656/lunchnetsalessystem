@@ -15,10 +15,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from sales import menu_names
 from sales import menu_registry
 from sales import menu_week as mw
 from sales import price_admin as pa
-from sales.models import CONTAINER_CHOICES, ClassifyRule, DiscountItem, MenuProfile, PricePattern, PriceRank, PriceTable
+from sales.models import (
+    CONTAINER_CHOICES, ClassifyRule, DiscountItem, MenuProfile, PricePattern, PriceRank, PriceTable, ProductNameChange,
+)
 
 NO_PERMISSION_MESSAGE = "このページを開く権限がありません。本部の担当者に相談してください。"
 
@@ -445,6 +448,9 @@ def menu_week_detail(request, week):
         if view["state"] == "ended" or view["legacy"] or not view["rows"]:
             messages.error(request, "この週は編集できません（終了した週、または旧方式で登録された週です）。", extra_tags="alert alert-danger")
             return redirect("menu_week_detail", week=week.isoformat())
+        if request.POST.get("action") in ("rename_add", "rename_delete"):
+            _menu_rename(request, week, view, today)
+            return redirect("menu_week_detail", week=week.isoformat())
         changes, errors = mw.read_choices(request.POST, [r.product for r in view["rows"]], ranks)
         if errors:
             messages.error(request, "　".join(errors), extra_tags="alert alert-danger")
@@ -461,6 +467,48 @@ def menu_week_detail(request, week):
         **view, "ranks": ranks, "containers": CONTAINER_CHOICES,
         "prices_json": mw.prices_json(view["segments"], ranks),
     })
+
+
+def _rewritten_text(entries, orders):
+    parts = []
+    if entries:
+        parts.append(f"送信済みの日計表 {entries}件")
+    if orders:
+        parts.append(f"受注 {orders}件")
+    return f"（{'・'.join(parts)}のメニュー名も変更）" if parts else ""
+
+
+def _menu_rename(request, week, view, today):
+    """週の途中のメニュー名の変更の登録・取消。"""
+    products = {str(p.id): p for p in view["rename_products"]}
+    if request.POST.get("action") == "rename_delete":
+        change = ProductNameChange.objects.filter(
+            pk=request.POST.get("change_id"), product__in=products.values()).select_related("product").first()
+        if change is None:
+            return
+        try:
+            entries, orders = menu_names.remove_change(change, today)
+        except ValueError as e:
+            messages.error(request, str(e), extra_tags="alert alert-danger")
+            return
+        messages.success(request, f"No.{change.product.no}『{change.name}』（{change.start_date.month}/{change.start_date.day}〜）を取消しました。"
+                         f"{_rewritten_text(entries, orders)}", extra_tags="alert alert-success")
+        return
+    product = products.get(request.POST.get("product"))
+    try:
+        start = datetime.date.fromisoformat(request.POST.get("start_date") or "")
+    except ValueError:
+        start = None
+    if product is None:
+        messages.error(request, "メニューを選択してください。", extra_tags="alert alert-danger")
+        return
+    try:
+        change, entries, orders = menu_names.add_change(product, start, request.POST.get("name"), request.user, today)
+    except ValueError as e:
+        messages.error(request, str(e), extra_tags="alert alert-danger")
+        return
+    messages.success(request, f"No.{product.no}を{start.month}/{start.day}から『{change.name}』に変更しました。"
+                     f"{_rewritten_text(entries, orders)}", extra_tags="alert alert-success")
 
 
 # ===== メニュー辞書・判定ルール =====

@@ -18,6 +18,7 @@ from django.contrib.auth import get_user_model
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, OrderSettingsForm, PaymentMethodForm, ExtraProductForm, OrderExtraItemFormSet, DeliveryBinForm, OrderAdjustmentForm, BankAccountForm, MenuWeekAssignmentForm
 from . import services
 from sales.menu_registry import LARGE_RICE_NO
+from sales.menu_names import name_on, names_on
 from sales.models import PriceRank, Product
 from sales.pricing import PriceBook, is_custom
 from datetime import datetime, timedelta, date
@@ -71,18 +72,20 @@ def _get_products_data_for_date(target):
         products = Product.objects.filter(week__in=candidates).order_by('no')
     # 納品日で価格表を引く（週の途中の値上げに対応）。種類のないメニューは price_A/B/C のまま
     book = PriceBook(target)
+    products = list(products.select_related('rank'))
+    names = names_on(products, target)   # 週の途中でメニュー名が変わっていれば納品日の名前
     return [
         {
             'id': p.id,
             'no': p.no,
-            'name': p.name,
+            'name': names[p.id],
             'price_A': book.price(p, 'A'),
             'price_B': book.price(p, 'B'),
             'price_C': book.price(p, 'C'),
             'container_type': p.container_type,
             'rank': p.rank.name if p.rank_id else '',
         }
-        for p in products.select_related('rank')
+        for p in products
     ]
 
 
@@ -197,7 +200,7 @@ def order_create(request, customer_id=None):
                 if total_qty == 0:
                     continue
                 if item.product and not item.product_name:
-                    item.product_name = item.product.name
+                    item.product_name = name_on(item.product, order.delivery_date)
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -299,7 +302,7 @@ def order_edit(request, pk):
                         item.delete()
                     continue
                 if item.product and not item.product_name:
-                    item.product_name = item.product.name
+                    item.product_name = name_on(item.product, order.delivery_date)
                 item.save()
             for obj in formset.deleted_objects:
                 obj.delete()
@@ -1381,7 +1384,8 @@ def regular_order_dashboard(request):
 
     # メニュー別注文数集計（No1〜10すべて表示）
     week_candidates = [(target_date - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
-    week_products = Product.objects.filter(week__in=week_candidates, no__lte=10).order_by('no')
+    week_products = list(Product.objects.filter(week__in=week_candidates, no__lte=10).order_by('no'))
+    day_names = names_on(week_products, target_date)
 
     order_totals = {
         row['product__id']: row
@@ -1400,7 +1404,7 @@ def regular_order_dashboard(request):
         totals = order_totals.get(p.id, {})
         menu_summary.append({
             'no': p.no,
-            'product_name': p.name,
+            'product_name': day_names[p.id],
             'total_large': totals.get('total_large', 0) or 0,
             'total_regular': totals.get('total_regular', 0) or 0,
             'total_small': totals.get('total_small', 0) or 0,

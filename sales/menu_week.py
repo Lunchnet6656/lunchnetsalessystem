@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from django.db import transaction
 from django.utils import timezone
 
+from sales.menu_names import changes_of_week
 from sales.menu_registry import LARGE_RICE_NO, prices_for_rank, week_end, week_state
 from sales.models import (
     CONTAINER_CHOICES, DailyReport, MenuProfile, MenuWeekCheck, PriceRank, PriceTable, Product,
@@ -64,6 +65,7 @@ class WeekRow:
     product: Product
     needs_check: bool
     fixed: bool            # 大盛りごはん（アプリが足す行）・古い登録方法の行はプルダウンにしない
+    name_changes: list = field(default_factory=list)   # 週の途中のメニュー名の変更（開始日順）
     prices: list = field(default_factory=list)   # [{"label", "A": 値段, "B": …}]
     cols: list = field(default_factory=list)
 
@@ -82,6 +84,7 @@ def week_view(week, today=None):
     codes = [c.code for c in cols]
     unconfirmed = set(MenuProfile.objects.filter(name__in=[p.name for p in products], confirmed=False)
                       .values_list("name", flat=True))
+    name_changes = changes_of_week(products)
     rows = []
     for p in products:
         if p.rank_id:
@@ -90,7 +93,8 @@ def week_view(week, today=None):
         else:
             prices = [{"label": "", **{pt: legacy_price(p, pt) for pt in codes}}]
         rows.append(WeekRow(p, p.name in unconfirmed and p.no != LARGE_RICE_NO,
-                            fixed=p.no == LARGE_RICE_NO or not p.rank_id, prices=prices, cols=cols))
+                            fixed=p.no == LARGE_RICE_NO or not p.rank_id, prices=prices, cols=cols,
+                            name_changes=name_changes.get(p.id, [])))
     rows.sort(key=lambda r: (not r.needs_check, r.product.no))   # 要確認の行を上に寄せる
     legacy = bool(products) and not any(p.rank_id for p in products)
     return {
@@ -106,9 +110,25 @@ def week_view(week, today=None):
         "missing_price": any(v is None for r in rows if not r.fixed for pr in r.prices
                              for k, v in pr.items() if k in codes),
         "legacy": legacy,
+        # 名前変更の開始日に選べる日（週の2日目〜最終日）。週の初日からなら Excel を直して再送信する
+        "rename_first": week + datetime.timedelta(days=1),
+        "rename_last": week_end(week),
+        "rename_products": [p for p in products if p.no != LARGE_RICE_NO and p.rank_id],
+        "renames": _renames(products, name_changes),
         "prev_week": week - datetime.timedelta(days=7),
         "next_week": week + datetime.timedelta(days=7),
     }
+
+
+def _renames(products, name_changes):
+    """名前の変更の一覧（No・開始日順）：変更前の名前つき。"""
+    rows = []
+    for p in products:
+        before = p.name
+        for c in name_changes.get(p.id, []):
+            rows.append({"no": p.no, "change": c, "before": before})
+            before = c.name
+    return rows
 
 
 @dataclass

@@ -4,7 +4,9 @@ import datetime
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from sales.models import DailyReport, DailyReportEntry, ItemQuantity, PriceRank, Product, SalesLocation
+from sales.models import (
+    DailyReport, DailyReportEntry, ItemQuantity, PriceRank, Product, ProductNameChange, SalesLocation,
+)
 
 DAY = datetime.date(2026, 10, 7)
 
@@ -50,6 +52,15 @@ class DailyReportFormTest(TestCase):
         self.assertEqual([r["price"] for r in res.context["price_rows"]], [750, 700, 650, 50])
         self.assertContains(res, "50円（大盛り）")
         self.assertContains(res, 'data-unit="-750"')
+
+    def test_menu_name_changed_mid_week(self):
+        # 週の途中でメニュー名が変わったら、その日の名前で表示・保存する（実績分析で別メニューになる）
+        ProductNameChange.objects.create(product=self.menu[1], start_date=DAY, name="唐揚げ甘酢")
+        loc = self.make_location("広尾", "A")
+        res = self.post(loc, "display")
+        self.assertEqual([i["menu_name"] for i in res.context["item_data"]][:2], ["★カキフライ", "唐揚げ甘酢"])
+        self.post(loc, "send", cash="0")
+        self.assertEqual(DailyReportEntry.objects.get(report__date=DAY, product_no=2).product, "唐揚げ甘酢")
 
     def test_display_price_c(self):
         loc = self.make_location("KONO", "C")

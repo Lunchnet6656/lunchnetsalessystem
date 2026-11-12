@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ label }}のメニュー確認{% endblock %}
-{% block extra_css %}{% include "prices/_styles.html" %}{% endblock %}
+{% load static %}
+{% block extra_css %}{% include "prices/_styles.html" %}<link rel="stylesheet" href="{% static 'css/help.css' %}">{% endblock %}
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -58,7 +59,9 @@
                 {% endifchanged %}{% endif %}
                 <tr class="{% if row.needs_check %}pm-row-attention{% endif %}" data-no="{{ row.product.no }}">
                     <td class="pm-w-no">{{ row.product.no }}</td>
-                    <td class="pm-w-name">{{ row.product.name }}{% if row.needs_check %} <span class="badge bg-danger">要確認</span>{% endif %}</td>
+                    <td class="pm-w-name">{{ row.product.name }}{% if row.needs_check %} <span class="badge bg-danger">要確認</span>{% endif %}
+                        {% for c in row.name_changes %}<div class="pm-rename">{{ c.start_date|date:"n/j" }}〜 {{ c.name }}</div>{% endfor %}
+                    </td>
                     {% if row.fixed %}
                     <td class="pm-w-half">{{ row.product.rank.name|default:"—" }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
                     <td class="pm-w-half">{{ row.product.container_type }}{% if row.product.no == 11 %}（固定）{% endif %}</td>
@@ -88,7 +91,6 @@
         </table>
         </div>
         {% if multi_segment %}<p class="small text-muted mb-1">週の途中で価格表が切り替わるため、値段を2段で表示しています。</p>{% endif %}
-        <p class="small text-muted">メニュー名を変更する場合は、元のメニュー表（Excel）を修正して再送信してください。</p>
 
         {% if state != "ended" and not legacy %}
         <div class="border rounded p-3 my-4 text-center">
@@ -99,11 +101,62 @@
         </div>
         {% endif %}
     </form>
+
+    {% if not legacy and rename_products %}
+    <section class="my-4" id="rename">
+        <h2 class="h5">メニュー名の変更{% include "includes/info_tip.html" with id="rename" label="メニュー名の変更" text="開始日以降の日計表・受注（送信済みを含む）のメニュー名を変更。番号・値段の種類・容器はそのまま。週の初日からの変更はExcelを修正して再送信" %}</h2>
+        <table class="table table-sm align-middle pm-table pm-rename-table">
+            <thead><tr><th>No</th><th>開始日</th><th>変更前</th><th>変更後</th>{% if state != "ended" %}<th></th>{% endif %}</tr></thead>
+            <tbody>
+            {% for r in renames %}
+                <tr>
+                    <td class="pm-r-no">{{ r.no }}</td>
+                    <td class="pm-r-date">{{ r.change.start_date|date:"n/j" }}〜</td>
+                    <td class="pm-r-name text-muted" data-label="変更前">{{ r.before }}</td>
+                    <td class="pm-r-name fw-bold" data-label="変更後">{{ r.change.name }}</td>
+                    {% if state != "ended" %}
+                    <td class="pm-r-act text-end"><button type="submit" form="rename-delete" name="change_id" value="{{ r.change.id }}" class="btn btn-sm btn-outline-danger pm-rename-cancel" data-confirm="No.{{ r.no }}『{{ r.change.name }}』（{{ r.change.start_date|date:'n/j' }}〜）を取消しますか？">取消</button></td>
+                    {% endif %}
+                </tr>
+            {% empty %}
+                <tr><td colspan="{% if state != 'ended' %}5{% else %}4{% endif %}" class="pm-r-empty text-muted small">変更なし</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if state != "ended" %}
+        <form method="POST" id="rename-delete">{% csrf_token %}<input type="hidden" name="action" value="rename_delete"></form>
+        {# 何を→何に→いつから の順。スマホは開始日と［登録］を最後の1行に並べる #}
+        <form method="POST" class="row g-2 align-items-end pm-rename-form" id="rename-add">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="rename_add">
+            <div class="col-12 col-md-4">
+                <label class="form-label small mb-1" for="rename-product">メニュー</label>
+                <select name="product" id="rename-product" class="form-select" required>
+                    <option value="">選択</option>
+                    {% for p in rename_products %}<option value="{{ p.id }}">{{ p.no }}：{{ p.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label small mb-1" for="rename-name">新しいメニュー名</label>
+                <input type="text" name="name" id="rename-name" class="form-control" maxlength="255" required>
+            </div>
+            <div class="col-7 col-md-2">
+                <label class="form-label small mb-1" for="rename-start">開始日</label>
+                <input type="date" name="start_date" id="rename-start" class="form-control" min="{{ rename_first|date:'Y-m-d' }}" max="{{ rename_last|date:'Y-m-d' }}" required>
+            </div>
+            <div class="col-5 col-md-2">
+                <button type="submit" class="btn btn-primary w-100 text-nowrap" id="rename-add-button">登録</button>
+            </div>
+        </form>
+        {% endif %}
+    </section>
+    {% endif %}
     {% endif %}
 </div>
 {{ prices_json|json_script:"week-prices" }}
 {% endblock %}
 {% block extra_js %}
+<script src="{% static 'js/help.js' %}" defer></script>
 <script>
 (function () {
     var el = document.getElementById('week-prices');
@@ -144,6 +197,18 @@
             dirty = false;
             var b = document.getElementById('confirm-button');
             if (b) { b.disabled = true; b.textContent = '保存しています…'; }
+        });
+    }
+    // 取消は送信済みの日計表・受注の名前も戻すので、押し間違いを止める
+    document.querySelectorAll('.pm-rename-cancel').forEach(function (b) {
+        b.addEventListener('click', function (e) {
+            if (!window.confirm(b.getAttribute('data-confirm'))) e.preventDefault();
+        });
+    });
+    var renameForm = document.getElementById('rename-add');
+    if (renameForm) {
+        renameForm.addEventListener('submit', function () {
+            document.getElementById('rename-add-button').disabled = true;
         });
     }
     window.addEventListener('beforeunload', function (e) {

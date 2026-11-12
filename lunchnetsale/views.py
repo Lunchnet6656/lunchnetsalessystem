@@ -12,6 +12,7 @@ from sales.item_quantity_edit import editable_dates as iq_editable_dates
 from sales.item_quantity_import import is_business_day, next_business_day, parse_item_quantity_workbook, save_item_quantities
 from sales.models import ItemQuantityUpload
 from sales.pricing import PriceBook, is_bento, known_codes, pattern_of
+from sales.menu_names import names_on
 from sales.price_admin import assignable_patterns
 from sales import daily_report_calc as drc
 from sales import daily_questions_form as dqf
@@ -439,9 +440,10 @@ def _build_day_dashboard(target_date):
     order_items = OrderItem.objects.filter(order__in=daily_orders)
     order_menu = {}
     for row in (order_items.filter(product__isnull=False)
-                .values('product__no', 'product__name')
+                .values('product__no', 'product_name')
                 .annotate(qty=Sum('quantity'))):
-        entry = order_menu.setdefault(row['product__no'], {'name': row['product__name'], 'qty': 0})
+        # 名前は受注に残したお届け日の名前（週の途中の名前変更に合わせる）
+        entry = order_menu.setdefault(row['product__no'], {'name': row['product_name'], 'qty': 0})
         entry['qty'] += row['qty'] or 0
     large_qty = order_items.aggregate(v=Sum('quantity_large'))['v'] or 0
     entry = order_menu.setdefault(LARGE_RICE_PRODUCT_NO, {'name': '大盛りごはん', 'qty': 0})
@@ -747,6 +749,8 @@ def daily_report_view(request):
         product_data = {
             product.no: product for product in products
         }
+        # 週の途中でメニュー名が変わっていれば、その日の名前を出す（日計表にはこの名前で残る）
+        day_names = names_on(list(products), parse_date(selected_date) if selected_date else None)
 
         # 各商品の持参数を計算
         item_data = []
@@ -763,7 +767,7 @@ def daily_report_view(request):
 
                 item_data.append({
                     'menu_no': product.no,
-                    'menu_name': product.name,
+                    'menu_name': day_names.get(product.id, product.name),
                     'price': price,
                     'quantity': item.quantity,
                     'remaining': item.quantity,
