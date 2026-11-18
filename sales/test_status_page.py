@@ -27,7 +27,7 @@ class StatusPageTests(TestCase):
     def test_open_and_closed(self):
         shinjuku = _location(1, "新宿")
         shibuya = _location(2, "渋谷")
-        _location(3, "除外拠点", excluded=True)
+        _location(3, "シフト対象外", excluded=True)  # 公開ページはシフト対象外と切り離し（掲載だけで決める）
         haitatsu = _location(4, "配達", excluded_public=True)  # シフトには残すが公開ページからは消す
         product = Product.objects.create(no=1, week="20260511", name="からあげ弁当")
         ItemQuantity.objects.create(
@@ -53,7 +53,7 @@ class StatusPageTests(TestCase):
         self.assertIn(("新宿", "open"), pairs)
         self.assertIn(("渋谷", "closed"), pairs)
         names = [loc["name"] for loc in data["locations"]]
-        self.assertNotIn("除外拠点", names)
+        self.assertIn("シフト対象外", names)
         self.assertNotIn("配達", names)
 
     def test_all_unregistered_on_business_day(self):

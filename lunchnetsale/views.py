@@ -1762,17 +1762,15 @@ def _save_public_status(request):
             continue
         before = (loc.public_order, loc.excluded_from_public_status, loc.today_override, loc.today_override_date)
         loc.public_order = order
-        # シフト対象外の店は公開ページに出ないので、並び以外の欄は描いていない（今の値のまま）
-        if data.get(f'pub_edit_{lid}') == '1':
-            loc.excluded_from_public_status = data.get(f'pub_show_{lid}') != '1'
-            loc.qr_enabled = data.get(f'pub_qr_{lid}') == '1'
-            ov = data.get(f'pub_override_{lid}', '')
-            if ov in overrides:
-                current = loc.today_override if loc.today_override_date == today else ''
-                if ov != current:
-                    loc.today_override, loc.today_override_date = ov, (today if ov else None)
+        loc.excluded_from_public_status = data.get(f'pub_show_{lid}') != '1'
+        loc.qr_enabled = data.get(f'pub_qr_{lid}') == '1'
+        ov = data.get(f'pub_override_{lid}', '')
+        if ov in overrides:
+            current = loc.today_override if loc.today_override_date == today else ''
+            if ov != current:
+                loc.today_override, loc.today_override_date = ov, (today if ov else None)
         after = (loc.public_order, loc.excluded_from_public_status, loc.today_override, loc.today_override_date)
-        if not loc.excluded_from_shift and before != after:
+        if before != after:
             changed = True
         loc.save(update_fields=['public_order', 'excluded_from_public_status', 'qr_enabled',
                                 'today_override', 'today_override_date'])

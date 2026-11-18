@@ -229,17 +229,12 @@
                     </thead>
                     <tbody id="pubBody">
                         {% for r in public_rows %}{% with loc=r.loc %}
-                        <tr class="{% if loc.excluded_from_shift or loc.excluded_from_public_status %}loc-off{% endif %}">
+                        <tr class="{% if loc.excluded_from_public_status %}loc-off{% endif %}">
                             <td class="col-handle pub-handle drag-handle" title="ドラッグで並べ替え"><i class="material-icons">menu</i><input type="hidden" name="pub_row" value="{{ loc.id }}"></td>
                             <td class="col-check"><input type="checkbox" class="pub-sel" name="pub_sel" value="{{ loc.id }}" aria-label="{{ loc.name }}を選択"></td>
                             <td class="text-end pub-no">{{ forloop.counter }}</td>
-                            <td>{{ loc.name }}{% if loc.excluded_from_shift %} <span class="badge text-bg-secondary">シフト対象外</span>{% endif %}</td>
-                            {% if loc.excluded_from_shift %}
-                            <td class="text-center"><input type="checkbox" class="form-check-input" disabled aria-label="{{ loc.name }}は掲載なし"></td>
-                            <td><select class="form-select form-select-sm fit" disabled aria-label="{{ loc.name }}の本日の上書き"><option>なし</option></select></td>
-                            <td class="text-center"><input type="checkbox" class="form-check-input" {% if loc.qr_enabled %}checked{% endif %} disabled aria-label="{{ loc.name }}のQR受付"></td>
-                            {% else %}
-                            <td class="text-center"><input type="hidden" name="pub_edit_{{ loc.id }}" value="1"><input type="checkbox" class="form-check-input pub-show" name="pub_show_{{ loc.id }}" value="1" {% if not loc.excluded_from_public_status %}checked{% endif %} aria-label="{{ loc.name }}を掲載"></td>
+                            <td>{{ loc.name }}</td>
+                            <td class="text-center"><input type="checkbox" class="form-check-input pub-show" name="pub_show_{{ loc.id }}" value="1" {% if not loc.excluded_from_public_status %}checked{% endif %} aria-label="{{ loc.name }}を掲載"></td>
                             <td>
                                 <select class="form-select form-select-sm fit pub-override{% if r.override %} pub-on{% endif %}" name="pub_override_{{ loc.id }}" aria-label="{{ loc.name }}の本日の上書き">
                                     <option value="" {% if not r.override %}selected{% endif %}>なし</option>
@@ -248,7 +243,6 @@
                                 </select>
                             </td>
                             <td class="text-center"><input type="checkbox" class="form-check-input" name="pub_qr_{{ loc.id }}" value="1" {% if loc.qr_enabled %}checked{% endif %} aria-label="{{ loc.name }}のQR受付"></td>
-                            {% endif %}
                         </tr>
                         {% endwith %}{% endfor %}
                     </tbody>

@@ -40,12 +40,9 @@ def build_status(today: date | None = None) -> dict:
             "locations": [],
         }
 
-    # excluded_from_shift=社内シフトから外す ／ excluded_from_public_status=公開ページから外す
-    # （配達のように「シフト管理には残すが対外的に出店ではない」拠点を消すための別フラグ）
-    locations = list(
-        SalesLocation.objects
-        .filter(excluded_from_shift=False, excluded_from_public_status=False)
-    )
+    # 公開ページに出すかは excluded_from_public_status（［出店状況］タブの「掲載」）だけで決める。
+    # シフト対象外（excluded_from_shift）はシフト作成用で、公開ページとは関係させない（#207で分離）
+    locations = list(SalesLocation.objects.filter(excluded_from_public_status=False))
     # 並びは販売場所データの［出店状況］タブ。空（新しく足した店）は末尾に販売場所No.順
     locations.sort(key=lambda loc: (loc.public_order is None, loc.public_order or 0, loc.no, loc.id))
     target_date = today.isoformat()  # ItemQuantity.target_date は "YYYY-MM-DD" 文字列（本番DB実データで確認・2026-05-13）

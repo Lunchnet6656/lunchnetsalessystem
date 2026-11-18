@@ -178,8 +178,9 @@ class LocationStatusTabTest(TestCase):
 
     def test_saves_order_show_override_qr_and_publishes(self):
         res = self.post([self.b.id, self.off.id, self.a.id], **{
-            f"pub_edit_{self.a.id}": "1", f"pub_show_{self.a.id}": "1", f"pub_override_{self.a.id}": "sold_out",
-            f"pub_edit_{self.b.id}": "1", f"pub_override_{self.b.id}": "", f"pub_qr_{self.b.id}": "1",
+            f"pub_show_{self.a.id}": "1", f"pub_override_{self.a.id}": "sold_out",
+            f"pub_override_{self.b.id}": "", f"pub_qr_{self.b.id}": "1",
+            f"pub_show_{self.off.id}": "1", f"pub_override_{self.off.id}": "closed",
         })
         self.assertRedirects(res, reverse("location_list") + "?tab=status", fetch_redirect_response=False)
         for x in (self.a, self.b, self.off):
@@ -189,15 +190,16 @@ class LocationStatusTabTest(TestCase):
         self.assertEqual((self.a.today_override, self.a.today_override_date, self.a.excluded_from_public_status),
                          ("sold_out", today, False))
         self.assertEqual((self.b.excluded_from_public_status, self.b.qr_enabled), (True, True))
-        self.assertTrue(self.off.qr_enabled)  # シフト対象外は並び以外を変えない
+        # シフト対象外でも掲載・本日・QR受付は変えられる（公開ページはシフト対象外と切り離し）
+        self.assertEqual((self.off.excluded_from_public_status, self.off.today_override, self.off.qr_enabled),
+                         (False, "closed", False))
         self.publish.assert_called_once_with("publish_status_json")
 
     def test_no_publish_when_nothing_public_changes(self):
-        self.post([self.a.id, self.b.id, self.off.id])  # 初回で並びが入る
+        same = {f"pub_show_{self.a.id}": "1", f"pub_show_{self.b.id}": "1", f"pub_qr_{self.off.id}": "1"}
+        self.post([self.a.id, self.b.id, self.off.id], **same)  # 初回で並び・掲載が入る
         self.publish.reset_mock()
-        self.post([self.a.id, self.b.id, self.off.id], **{
-            f"pub_edit_{self.a.id}": "1", f"pub_show_{self.a.id}": "1",
-            f"pub_edit_{self.b.id}": "1", f"pub_show_{self.b.id}": "1", f"pub_qr_{self.b.id}": "1"})
+        self.post([self.a.id, self.b.id, self.off.id], **{**same, f"pub_qr_{self.b.id}": "1"})  # QR受付だけ変更
         self.publish.assert_not_called()
 
     def test_stale_override_shown_as_none_and_kept_none(self):

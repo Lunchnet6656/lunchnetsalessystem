@@ -4,8 +4,10 @@ from django.db import migrations, models
 
 
 def seed_public_order(apps, schema_editor):
-    """出店状況ページの並びを今の並び（販売場所No.順）で埋める。"""
+    """出店状況ページの並びを今の並び（販売場所No.順）で埋める。
+    公開ページはシフト対象外とは切り離すので、今シフト対象外で出ていない店は「掲載なし」にして見た目を変えない。"""
     SalesLocation = apps.get_model("sales", "SalesLocation")
+    SalesLocation.objects.filter(excluded_from_shift=True).update(excluded_from_public_status=True)
     for i, loc in enumerate(SalesLocation.objects.order_by("no", "id"), start=1):
         loc.public_order = i
         loc.save(update_fields=["public_order"])
