@@ -177,3 +177,14 @@ td.iq-cell--off .iq-n, #iq-grid thead th.iq-off { color: var(--ln-color-text-dim
 #iq-grid tr.iq-extra td { color: var(--ln-color-text-muted); }
 #iq-grid tr.iq-extra td.c-name, #iq-grid tr.iq-extra td.c-tot { background: var(--ln-color-surface-muted); }
 .iq-extra-badge { margin-left: 8px; font-size: 11px; font-weight: 500; border: 1px solid var(--ln-color-border); white-space: nowrap; }
+
+/* ── 全画面（html.iq-full）：作業に要らない所を隠し、表・タイルを大きく ── */
+.iq-full-exit { display: none !important; }
+html.iq-full .iq-full-exit { display: inline-flex !important; margin-left: auto; }
+html.iq-full .navbar, html.iq-full .sidebar, html.iq-full .iq-received,
+html.iq-full .iq-head > :not(.iq-modes) { display: none !important; }
+html.iq-full .container-fluid, html.iq-full .container-fluid.expanded { margin: 0 !important; padding-top: 8px !important; }
+/* 一覧／消し込みの切り替えだけ残し、日付・合計・履歴・全画面解除と同じ1行に並べる */
+html.iq-full .iq-head { float: left; padding: 0 12px 0 0; }
+html.iq-full .iq-ops { flex-wrap: nowrap; }
+html.iq-full .iq-gridbox, html.iq-full .iq-kview { clear: both; }

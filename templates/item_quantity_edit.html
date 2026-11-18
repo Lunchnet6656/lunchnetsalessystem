@@ -6,6 +6,8 @@
 {% block extra_css %}
 <link href="{% static 'css/help.css' %}" rel="stylesheet">
 <link href="{% static 'css/item_quantity_edit.css' %}" rel="stylesheet">
+{# 全画面（ナビ・サイドバー等を隠す）は端末ごとに覚える。描く前に付けて、ちらつかせない #}
+<script>try { if (localStorage.getItem('iq-full') === '1') document.documentElement.classList.add('iq-full'); } catch (e) {}</script>
 {% endblock %}
 
 {% block content %}
@@ -24,6 +26,7 @@
     {% endif %}
     <span class="iq-spacer"></span>
     <span class="iq-who">ログイン {{ login_name }}</span>
+    <button type="button" class="btn btn-outline-secondary iq-h iq-full-toggle" data-full="1">全画面</button>
   </div>
 
   <div class="iq-ops">
@@ -41,6 +44,7 @@
       <button type="button" class="btn btn-outline-secondary" id="iq-history-open" data-hp-open="iq-history" aria-haspopup="dialog">履歴 <span class="badge text-bg-secondary">{{ change_count }}</span></button>
     </div>
     {% endif %}
+    <button type="button" class="btn btn-outline-secondary iq-h iq-full-toggle iq-full-exit" data-full="0">全画面解除</button>
   </div>
 
   {% if has_data %}
@@ -110,5 +114,16 @@
 
 {% block extra_js %}
 <script src="{% static 'js/help.js' %}"></script>
+<script>
+  // 全画面：ナビバー・サイドバー・見出し等を隠す（ブラウザの全画面は保存後の読み直しで解除されるので使わない）
+  document.querySelectorAll('.iq-full-toggle').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var on = b.dataset.full === '1';
+      document.documentElement.classList.toggle('iq-full', on);
+      try { localStorage.setItem('iq-full', on ? '1' : '0'); } catch (e) {}
+      window.dispatchEvent(new Event('resize'));  // 表・タイルの高さを合わせ直す
+    });
+  });
+</script>
 {% if has_data %}<script src="{% static 'js/item_quantity_edit.js' %}"></script>{% endif %}
 {% endblock %}
