@@ -62,7 +62,7 @@
     return n;
   }
 
-  /* ── 修正の表 ── */
+  /* ── 一覧の表（数の修正もここ） ── */
   function renderGrid() {
     var h = '<thead><tr class="iq-route-row"><th class="c-name"></th><th class="c-tot"></th>';
     segments.forEach(function (sg) {
