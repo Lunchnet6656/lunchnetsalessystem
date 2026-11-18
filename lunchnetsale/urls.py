@@ -129,6 +129,8 @@ urlpatterns = [
     path('item_quantity_list/<str:date>/edit/', item_quantity_edit_views.item_quantity_edit, name='item_quantity_edit'),
     path('item_quantity_list/<str:date>/edit/save/', item_quantity_edit_views.item_quantity_edit_save, name='item_quantity_edit_save'),
     path('item_quantity_list/<str:date>/edit/checks/', item_quantity_edit_views.item_quantity_checks, name='item_quantity_checks'),
+    path('item_quantity_list/<str:date>/print/', item_quantity_edit_views.item_quantity_print, name='item_quantity_print'),
+    path('item_quantity_list/<str:date>/print.png', item_quantity_edit_views.item_quantity_print_png, name='item_quantity_print_png'),
 
     path('performance_data/', views.performance_data_view, name='performance_data'),
     path('performance_data/<int:year>/<int:month>/<int:day>/', views.menu_sales_performance_view, name='menu_sales_performance'),

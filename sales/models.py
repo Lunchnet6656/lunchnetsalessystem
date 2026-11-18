@@ -317,6 +317,22 @@ class ItemQuantityChange(models.Model):
         return f"{self.target_date} {self.sales_location or self.extra} {self.product} {self.before}→{self.after}"
 
 
+class PrintJob(models.Model):
+    """持参数の修正の印刷（事務所PCにUSBでつないだレシートプリンターへ）。
+    事務所PCの中継プログラムが数秒おきに取りに来て、刷れたら printed_at を付ける。
+    lines = [{"location": 売り場, "product": メニュー, "before": 前の数, "after": 今の数}, ...]"""
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    target_date = models.DateField()
+    lines = models.JSONField(default=list)
+    printed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.target_date} {len(self.lines)}件 {'印刷済' if self.printed_at else '待ち'}"
+
+
 class ItemQuantityUpload(models.Model):
     """持参数の受信記録。19:30の未受信通知と、画面の「最終受信」表示に使う。"""
     SOURCE_CHOICES = [("api", "振分表の確定ボタン"), ("screen", "画面アップロード")]

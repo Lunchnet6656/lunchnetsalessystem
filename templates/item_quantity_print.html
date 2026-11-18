@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}印刷内容{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'css/help.css' %}" rel="stylesheet">
+<style>
+    .iqp-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; white-space: nowrap; padding: 4px 0 10px; }
+    .iqp-paper { background: var(--ln-color-white); border: 1px solid var(--ln-color-border); box-shadow: var(--ln-shadow-nav);
+                 padding: 12px; display: inline-block; max-width: 100%; }
+    .iqp-paper img { display: block; width: 384px; max-width: 100%; height: auto; image-rendering: pixelated; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="iqp-head">
+    <a href="{% url 'item_quantity_edit' date|date:'Y-m-d' %}" class="btn btn-outline-secondary">持参数へ戻る</a>
+    <h4 class="mb-0">印刷内容 {{ date_label }}</h4>
+    {% include "includes/help_button.html" with id="iq-print" title="印刷内容" body="includes/help/iq_print.html" %}
+    <span class="text-muted small">修正 {{ count }}件</span>
+</div>
+<div class="iqp-paper">
+    <img src="{% url 'item_quantity_print_png' date|date:'Y-m-d' %}" alt="{{ date_label }}の持参数の修正（{{ count }}件）">
+</div>
+{% endblock %}
+
+{% block extra_js %}<script src="{% static 'js/help.js' %}"></script>{% endblock %}

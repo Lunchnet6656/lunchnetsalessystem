@@ -15,6 +15,7 @@ from django.core.management import call_command
 from django.db import transaction
 from django.utils import timezone
 
+from sales.iq_print import create_job as create_print_job
 from sales.item_quantity_import import next_business_day
 from sales.models import (
     AllocationExtra, AllocationExtraQuantity, AllocationLayout, SalesLocation, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload,
@@ -313,6 +314,8 @@ def save_changes(d, user, upload_id, raw_changes, today):
             return result
 
         before_totals = day.location_totals()
+        printed = []  # 印刷内容（保存ごとに1件）
+        column_index = {c.key: i for i, c in enumerate(day.columns)}
         for (pid, lid), (value, base) in changes.items():
             if value == base:
                 continue
@@ -324,7 +327,10 @@ def save_changes(d, user, upload_id, raw_changes, today):
                 target_date=d, product_id=pid, sales_location=col.location, extra=col.extra,
                 before=base, after=value, changed_by=user,
             )
+            printed.append(((column_index[lid], products[pid].no), (col.name, products[pid].name, base, value)))
             result.saved += 1
+        # 紙の並びは画面の列の順→メニュー順
+        create_print_job(d, [line for _, line in sorted(printed)])
         after_totals = day.location_totals()
 
     result.ok = True

@@ -41,6 +41,7 @@
       <div class="iq-sum">合計 <b id="iq-sum-now"></b> <span class="iq-muted" id="iq-sum-plan"></span></div>
       {% if last_upload %}<div class="iq-muted iq-received">受信 {{ last_upload.received_at|date:"n/j G:i" }}</div>{% endif %}
       <span class="iq-spacer"></span>
+      <a href="{% url 'item_quantity_print' grid_data.date %}" class="btn btn-outline-secondary iq-h" id="iq-print-open">印刷内容</a>
       <button type="button" class="btn btn-outline-secondary" id="iq-history-open" data-hp-open="iq-history" aria-haspopup="dialog">履歴 <span class="badge text-bg-secondary">{{ change_count }}</span></button>
     </div>
     {% endif %}

@@ -7,10 +7,11 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import NoReverseMatch, reverse
 
+from sales import iq_print
 from sales.item_quantity_edit import allocation_columns
 from sales.item_quantity_import import ParsedItemQuantity, save_item_quantities
 from sales.models import (
-    AllocationExtra, AllocationExtraQuantity, AllocationLayout, CarpoolRoute, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, Product, SalesLocation, UserMenuPermission,
+    AllocationExtra, AllocationExtraQuantity, AllocationLayout, CarpoolRoute, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, PrintJob, Product, SalesLocation, UserMenuPermission,
 )
 from sales.permissions_testing import grant
 
@@ -454,3 +455,52 @@ class AllocationTabTest(TestCase):
         keys = [c.key for c in res.context["alloc_columns"]]
         self.assertEqual(keys, [f"X{self.x.id}", f"X{self.y.id}", f"L{self.a.id}", f"L{self.b.id}", "T"])
         self.assertContains(res, "振分設定")
+
+
+@mock.patch("django.utils.timezone.localdate", return_value=TODAY)
+class PrintPreviewTest(_EditBase):
+    """印刷内容（保存ごとの修正を58mmの紙1枚にまとめる・見るだけ）。#208"""
+
+    def test_save_creates_job_in_column_then_menu_order(self, _):
+        self.save([(self.saba, self.shinkawa, 4, 5), (self.tonkatsu, self.ningyo, 7, 6), (self.tonkatsu, self.shinkawa, 12, 12)])
+        job = PrintJob.objects.get()
+        self.assertEqual(job.target_date, TODAY)
+        self.assertEqual(job.lines, [
+            {"location": "新川", "product": "サバの竜田揚げ香味ソース", "before": 5, "after": 4},
+            {"location": "人形町", "product": "とんかつカレーソース", "before": 6, "after": 7},
+        ])
+
+    def test_no_job_when_nothing_changed_or_conflict(self, _):
+        self.save([(self.tonkatsu, self.shinkawa, 12, 12)])
+        self.save([(self.tonkatsu, self.shinkawa, 10, 99)])  # 他の修正ありで取りやめ
+        self.assertFalse(PrintJob.objects.exists())
+
+    def test_page_and_image(self, _):
+        self.save([(self.tonkatsu, self.shinkawa, 10, 12)])
+        self.save([(self.saba, self.shinkawa, 3, 5)])
+        page = self.client.get(reverse("item_quantity_print", args=[TODAY.isoformat()]))
+        self.assertContains(page, "修正 2件")
+        self.assertContains(page, reverse("item_quantity_print_png", args=[TODAY.isoformat()]))
+        png = self.client.get(reverse("item_quantity_print_png", args=[TODAY.isoformat()]))
+        self.assertEqual(png["Content-Type"], "image/png")
+        self.assertTrue(png.content.startswith(b"\x89PNG"))
+        edit = self.client.get(reverse("item_quantity_edit", args=[TODAY.isoformat()]))
+        self.assertContains(edit, "印刷内容")
+
+    def test_jobs_before_resend_are_left_out(self, _):
+        self.save([(self.tonkatsu, self.shinkawa, 10, 12)])
+        PrintJob.objects.update(created_at=self.upload.received_at - datetime.timedelta(minutes=1))
+        self.assertEqual(iq_print.day_jobs(TODAY), [])
+        self.assertEqual(iq_print.day_image(TODAY).width, 384)
+
+    def test_escpos_bytes(self, _):
+        img = iq_print.render_image(TODAY, [[{"location": "新川", "product": "唐揚げ", "before": 3, "after": 1}]])
+        data = iq_print.escpos_bytes(img)
+        self.assertTrue(data.startswith(b"\x1b@\x1dv0\x00\x30\x00"))
+        self.assertTrue(data.endswith(b"\x1dV\x42\x00"))
+
+    def test_without_permission(self, _):
+        UserMenuPermission.objects.filter(user=self.user).update(can_view_item_quantity=False)
+        self.user._state.fields_cache.pop("menu_permission", None)
+        res = self.client.get(reverse("item_quantity_print_png", args=[TODAY.isoformat()]))
+        self.assertNotEqual(res.status_code, 200)

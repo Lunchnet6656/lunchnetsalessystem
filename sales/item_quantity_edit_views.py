@@ -2,12 +2,15 @@
 import json
 
 from django.contrib import messages
-from django.http import Http404, JsonResponse
+import io
+
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_http_methods, require_POST
 
+from sales import iq_print
 from sales import item_quantity_edit as iqe
 from sales.permissions import menu_permission_required
 
@@ -70,3 +73,21 @@ def item_quantity_checks(request, date):
     if saved is None:
         return JsonResponse({"ok": False}, status=400)
     return JsonResponse({"ok": True, "saved": saved})
+
+
+@menu_permission_required("can_view_item_quantity")
+def item_quantity_print(request, date):
+    """印刷内容（その日の修正を1枚の紙にまとめたもの・見るだけ）。プリンターをつなぐ前に中身を確かめる。"""
+    d = _date(date)
+    return render(request, "item_quantity_print.html", {
+        "date": d, "date_label": iqe.short_date(d), "count": sum(len(j.lines) for j in iq_print.day_jobs(d)),
+    })
+
+
+@menu_permission_required("can_view_item_quantity")
+def item_quantity_print_png(request, date):
+    buf = io.BytesIO()
+    iq_print.day_image(_date(date)).save(buf, format="PNG")
+    response = HttpResponse(buf.getvalue(), content_type="image/png")
+    response["Cache-Control"] = "no-store"
+    return response
