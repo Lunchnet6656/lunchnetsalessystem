@@ -10,7 +10,7 @@ from django.urls import NoReverseMatch, reverse
 from sales.item_quantity_edit import allocation_columns
 from sales.item_quantity_import import ParsedItemQuantity, save_item_quantities
 from sales.models import (
-    AllocationExtra, AllocationExtraQuantity, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, Product, SalesLocation, UserMenuPermission,
+    AllocationExtra, AllocationExtraQuantity, AllocationLayout, CarpoolRoute, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload, Product, SalesLocation, UserMenuPermission,
 )
 from sales.permissions_testing import grant
 
@@ -374,6 +374,14 @@ class AllocationSettingsEditTest(_EditBase):
         names = [c.name for c in allocation_columns()]
         self.assertNotIn("学園1", names)
 
+    def test_temp_columns_at_temp_slot_position(self, _):
+        # 振分設定の「臨時の列」の位置（ここでは なだや の後・新川の前）に臨時の列がまとめて入る
+        AllocationLayout.objects.create(temp_order=2)
+        SalesLocation.objects.filter(pk=self.shinkawa.pk).update(allocation_order=3)
+        temp = AllocationExtra.objects.create(name="学園1", temp_date=TODAY, allocation_order=40)
+        AllocationExtraQuantity.objects.create(target_date=TODAY, product=self.tonkatsu, extra=temp, quantity=2, planned_quantity=2)
+        self.assertEqual([l["name"] for l in self.grid()["locations"]], ["本町", "なだや", "学園1", "新川", "人形町"])
+
     def test_unknown_column_rejected(self, _):
         body = {"upload_id": self.upload.id, "changes": [
             {"product_id": self.tonkatsu.id, "location_id": "X999", "value": 1, "base": 0}]}
@@ -414,6 +422,24 @@ class AllocationTabTest(TestCase):
         self.assertEqual((self.a.allocation_order, self.a.allocation_check_skip), (4, False))
         self.assertFalse(AllocationExtra.objects.filter(pk=self.y.pk).exists())
 
+    def test_allocation_route_separate_from_shift_route(self):
+        route = CarpoolRoute.objects.create(name="新川便", departure_time=datetime.time(9, 15))
+        self.post([f"L{self.a.id}", f"X{self.x.id}", f"L{self.b.id}"],
+                  **{f"alloc_name_X{self.x.id}": "なだや", f"alloc_route_L{self.a.id}": str(route.id),
+                     f"alloc_route_X{self.x.id}": str(route.id), f"alloc_route_L{self.b.id}": "999"})
+        self.a.refresh_from_db(); self.b.refresh_from_db(); self.x.refresh_from_db()
+        self.assertEqual((self.a.allocation_route, self.a.carpool_route), (route, None))
+        self.assertEqual(self.x.allocation_route, route)
+        self.assertIsNone(self.b.allocation_route)  # 知らない便は「なし」
+
+    def test_temp_slot_position_saved(self):
+        tenpo = SalesLocation.objects.create(no=9, name="店", type="", price_type="A", service_name="")
+        self.post([f"X{self.x.id}", f"X{self.y.id}", f"L{self.a.id}", f"L{self.b.id}", "T", f"L{tenpo.id}"],
+                  **{f"alloc_name_X{self.x.id}": "なだや", f"alloc_name_X{self.y.id}": "武相"})
+        self.assertEqual(AllocationLayout.temp_order_value(), 5)
+        keys = [c.key for c in allocation_columns()]
+        self.assertEqual(keys, [f"X{self.x.id}", f"X{self.y.id}", f"L{self.a.id}", f"L{self.b.id}", "T", f"L{tenpo.id}"])
+
     def test_bad_names_save_nothing(self):
         for names, msg in [({"alloc_name_N1": ""}, "名前が空"), ({"alloc_name_N1": "新川"}, "販売場所と同じ名前"),
                            ({"alloc_name_N1": "なだや"}, "名前の重複")]:
@@ -426,5 +452,5 @@ class AllocationTabTest(TestCase):
     def test_tab_lists_locations_and_extras_in_order(self):
         res = self.client.get(reverse("location_list") + "?tab=allocation")
         keys = [c.key for c in res.context["alloc_columns"]]
-        self.assertEqual(keys, [f"X{self.x.id}", f"X{self.y.id}", f"L{self.a.id}", f"L{self.b.id}"])
+        self.assertEqual(keys, [f"X{self.x.id}", f"X{self.y.id}", f"L{self.a.id}", f"L{self.b.id}", "T"])
         self.assertContains(res, "振分設定")

@@ -173,6 +173,7 @@
         <div data-pane="allocation" hidden>
             <input type="hidden" name="alloc" value="1">
             <div id="allocDeleted"></div>
+            <template id="allocRouteTpl"><select class="form-select form-select-sm fit" name="alloc_route___KEY__" aria-label="振分の便"><option value="">なし</option>{% for r in routes %}<option value="{{ r.id }}">{{ r.name }}（{{ r.departure_time|time:"G:i" }}）</option>{% endfor %}</select></template>
             <div class="table-responsive">
                 <table class="table table-sm align-middle location-table">
                     <thead>
@@ -191,16 +192,25 @@
                         <tr data-key="{{ c.key }}">
                             <td class="col-handle alloc-handle drag-handle" title="ドラッグで並べ替え"><i class="material-icons">menu</i><input type="hidden" name="alloc_row" value="{{ c.key }}"></td>
                             <td class="text-end alloc-no">{{ forloop.counter }}</td>
+                            {% if c.temp_slot %}
+                            <td>臨時の列</td>
+                            <td><span class="badge text-bg-light border">その日だけ</span></td>
+                            <td></td>
+                            <td></td>
+                            {% else %}
                             {% if c.location %}
                             <td>{{ c.name }}</td>
                             <td class="text-muted">販売場所</td>
-                            <td class="text-muted">{{ c.route.name|default:"" }}</td>
                             {% else %}
                             <td><input type="text" class="form-control form-control-sm" name="alloc_name_{{ c.key }}" value="{{ c.name }}" aria-label="振分のみの項目名"></td>
                             <td><span class="badge text-bg-light border">振分のみ</span></td>
-                            <td></td>
                             {% endif %}
+                            <td><select class="form-select form-select-sm fit" name="alloc_route_{{ c.key }}" aria-label="{{ c.name }}の振分の便">
+                                <option value="">なし</option>
+                                {% for r in routes %}<option value="{{ r.id }}" {% if c.route and r.id == c.route.id %}selected{% endif %}>{{ r.name }}（{{ r.departure_time|time:"G:i" }}）</option>{% endfor %}
+                            </select></td>
                             <td class="text-center"><input type="checkbox" class="form-check-input" name="alloc_skip_{{ c.key }}" value="1" {% if c.check_skip %}checked{% endif %} aria-label="{{ c.name }}は消し込み不要"></td>
+                            {% endif %}
                             <td class="text-end">{% if c.extra %}<button type="button" class="btn btn-sm btn-outline-danger text-nowrap alloc-delete" data-name="{{ c.name }}">削除</button>{% endif %}</td>
                         </tr>
                         {% endfor %}
@@ -370,7 +380,7 @@
                 <td class="text-end alloc-no"></td>
                 <td><input type="text" class="form-control form-control-sm" name="alloc_name_${key}" value="" aria-label="振分のみの項目名"></td>
                 <td><span class="badge text-bg-light border">振分のみ</span></td>
-                <td></td>
+                <td>${document.getElementById('allocRouteTpl').innerHTML.replace('__KEY__', key)}</td>
                 <td class="text-center"><input type="checkbox" class="form-check-input" name="alloc_skip_${key}" value="1" aria-label="消し込み不要"></td>
                 <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger text-nowrap alloc-delete" data-name="">削除</button></td>`;
             allocBody.appendChild(tr);

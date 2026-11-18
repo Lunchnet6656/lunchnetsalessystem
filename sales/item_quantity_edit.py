@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from sales.item_quantity_import import next_business_day
 from sales.models import (
-    AllocationExtra, AllocationExtraQuantity, SalesLocation, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload,
+    AllocationExtra, AllocationExtraQuantity, AllocationLayout, SalesLocation, DailyReport, ItemQuantity, ItemQuantityChange, ItemQuantityUpload,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,10 +60,26 @@ class Column:
     check_skip: bool
     location: object = None  # SalesLocation
     extra: object = None     # AllocationExtra
+    temp_slot: bool = False  # 振分設定の「臨時の列」の行（臨時の列をまとめて入れる位置）
 
     @property
     def route(self):
-        return self.location.carpool_route if self.location else None
+        """振分の便（シフトの便とは別）。便の区切りに使う。"""
+        owner = self.location or self.extra
+        return owner.allocation_route if owner else None
+
+
+TEMP_SLOT_KEY = "T"
+
+
+def temp_slot_column(temp_order):
+    return Column(key=TEMP_SLOT_KEY, name="臨時の列", check_skip=False, temp_slot=True,
+                  order=_temp_order(temp_order, 0, 0))
+
+
+def _temp_order(temp_order, col, extra_id):
+    # 臨時の列は振分設定の「臨時の列」の行の位置に、振分表の列の順でまとめて入る。位置が未設定なら末尾
+    return (0, temp_order, 2, col, extra_id) if temp_order is not None else (2, 0, 2, col, extra_id)
 
 
 def location_column(loc):
@@ -74,10 +90,9 @@ def location_column(loc):
     )
 
 
-def extra_column(extra):
+def extra_column(extra, temp_order=None):
     if extra.temp_date:
-        # 臨時の列（その日だけ）は振分設定の並びの後ろに、振分表の列の順で
-        order = (2, extra.allocation_order or 0, 1, 0, extra.id)
+        order = _temp_order(temp_order, extra.allocation_order or 0, extra.id)
     else:
         order = (int(extra.allocation_order is None), extra.allocation_order or 0, 1, 0, extra.id)
     return Column(key=f"X{extra.id}", name=extra.name, extra=extra, check_skip=extra.check_skip, order=order)
@@ -85,8 +100,9 @@ def extra_column(extra):
 
 def allocation_columns():
     """振分設定の並び（全販売場所＋全振分だけの項目）。販売場所データの［振分設定］タブで使う。"""
-    cols = [location_column(loc) for loc in SalesLocation.objects.select_related("carpool_route")]
-    cols += [extra_column(x) for x in AllocationExtra.objects.filter(temp_date__isnull=True)]
+    cols = [location_column(loc) for loc in SalesLocation.objects.select_related("allocation_route")]
+    cols += [extra_column(x) for x in AllocationExtra.objects.filter(temp_date__isnull=True).select_related("allocation_route")]
+    cols.append(temp_slot_column(AllocationLayout.temp_order_value()))
     return sorted(cols, key=lambda c: c.order)
 
 
@@ -96,8 +112,10 @@ class Day:
     def __init__(self, d, lock=False):
         self.date = d
         qs = ItemQuantity.objects.filter(target_date=d.isoformat()).select_related(
-            "product", "sales_location", "sales_location__carpool_route")
-        xqs = AllocationExtraQuantity.objects.filter(target_date=d).select_related("product", "extra")
+            "product", "sales_location", "sales_location__allocation_route")
+        xqs = AllocationExtraQuantity.objects.filter(target_date=d).select_related(
+            "product", "extra", "extra__allocation_route")
+        temp_order = AllocationLayout.temp_order_value()
         if lock:
             qs = qs.select_for_update(of=("self",))
             xqs = xqs.select_for_update(of=("self",))
@@ -111,7 +129,7 @@ class Day:
             self.cells[(iq.product_id, col.key)] = iq
             products[iq.product_id] = iq.product
         for x in self.extra_rows:
-            col = columns.get(f"X{x.extra_id}") or extra_column(x.extra)
+            col = columns.get(f"X{x.extra_id}") or extra_column(x.extra, temp_order)
             columns[col.key] = col
             self.cells[(x.product_id, col.key)] = x
             products[x.product_id] = x.product

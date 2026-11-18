@@ -147,9 +147,10 @@ class ItemQuantityRouteOrderTest(TestCase):
         p = Product.objects.create(no=1, week=week.isoformat(), name="唐揚げ")
         shinkawa = CarpoolRoute.objects.create(name="新川", departure_time=datetime.time(9, 15))
         locs = [
-            SalesLocation.objects.create(no=3, name="京橋", type="", price_type="A", service_name="", carpool_route=shinkawa),
-            SalesLocation.objects.create(no=1, name="新川", type="", price_type="A", service_name="", carpool_route=shinkawa),
-            SalesLocation.objects.create(no=2, name="広尾", type="", price_type="A", service_name=""),
+            # 区切りは振分の便（allocation_route）。シフトの便（carpool_route）は使わない（#207）
+            SalesLocation.objects.create(no=3, name="京橋", type="", price_type="A", service_name="", allocation_route=shinkawa),
+            SalesLocation.objects.create(no=1, name="新川", type="", price_type="A", service_name="", allocation_route=shinkawa),
+            SalesLocation.objects.create(no=2, name="広尾", type="", price_type="A", service_name="", carpool_route=shinkawa),
         ]
         save_item_quantities(ParsedItemQuantity(target_date=datetime.date(2026, 11, 5), target_week=week,
                                                 entries=[(p, loc, 3) for loc in locs]))

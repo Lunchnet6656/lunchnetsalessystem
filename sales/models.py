@@ -165,6 +165,11 @@ class SalesLocation(models.Model):
         help_text="持参数の画面の列の順番。振分だけの項目と同じ番号で並べる。空＝末尾に販売場所No.順。",
     )
     allocation_check_skip = models.BooleanField(default=False, verbose_name="消し込み不要")
+    # 振分の便（持参数の画面の便の区切り）。シフトの便（carpool_route）とは別に持つ
+    allocation_route = models.ForeignKey(
+        'CarpoolRoute', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name="振分の便",
+    )
     public_order = models.IntegerField(
         null=True, blank=True, verbose_name="出店状況ページの並び",
         help_text="お客様向け出店状況ページの順番。空＝末尾に販売場所No.順。",
@@ -183,6 +188,10 @@ class AllocationExtra(models.Model):
     allocation_order = models.IntegerField(null=True, blank=True, verbose_name="振分の並び")
     check_skip = models.BooleanField(default=False, verbose_name="消し込み不要")
     temp_date = models.DateField(null=True, blank=True, db_index=True, verbose_name="臨時の日")
+    allocation_route = models.ForeignKey(
+        CarpoolRoute, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name="振分の便",
+    )
 
     class Meta:
         verbose_name = "振分だけの項目"
@@ -254,6 +263,16 @@ class ItemQuantity(models.Model):
 
     def __str__(self):
         return f"{self.target_date} - {self.sales_location} - {self.product} - {self.quantity}"
+
+
+class AllocationLayout(models.Model):
+    """振分設定の並びの中での「臨時の列」の位置（1行だけ）。空＝末尾。"""
+    temp_order = models.IntegerField(null=True, blank=True, verbose_name="臨時の列の位置")
+
+    @classmethod
+    def temp_order_value(cls):
+        layout = cls.objects.first()
+        return layout.temp_order if layout else None
 
 
 class AllocationExtraQuantity(models.Model):

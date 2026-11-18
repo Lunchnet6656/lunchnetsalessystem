@@ -19,7 +19,7 @@ from sales import daily_questions_form as dqf
 from sales.discounts import SERVICE_FLAT_LABEL, legacy_lines, save_lines
 from django.utils.http import url_has_allowed_host_and_scheme
 from sales.models import DiscountItem
-from sales.models import AllocationExtra, CarpoolRoute, SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
+from sales.models import AllocationExtra, AllocationLayout, CarpoolRoute, SalesLocation, Product, ItemQuantity, DailyReport, DailyReportEntry, CustomUser, OthersItem, ShiftRequest, Holiday, UserMenuPermission, ReportMessage, CustomStamp
 from orders.models import Order, OrderItem, OrderExtraItem
 import openpyxl
 from django.db.models import Sum, Max, Count, Avg, Q
@@ -1800,8 +1800,8 @@ def location_qr_pdf_view(request):
 
 
 def _allocation_rows(data):
-    """振分設定の行（画面の並び順）。キーは L<販売場所id> / X<項目id> / N<新しい行の番号>。"""
-    return [k for k in data.getlist('alloc_row') if re.fullmatch(r'[LXN]\d+', k)]
+    """振分設定の行（画面の並び順）。キーは L<販売場所id> / X<項目id> / N<新しい行の番号> / T（臨時の列の位置）。"""
+    return [k for k in data.getlist('alloc_row') if re.fullmatch(r'[LXN]\d+|T', k)]
 
 
 def _allocation_errors(data):
@@ -1809,7 +1809,7 @@ def _allocation_errors(data):
     location_names = set(SalesLocation.objects.values_list('name', flat=True))
     errors, seen, dup, same = [], set(), [], []
     for key in _allocation_rows(data):
-        if key[0] == 'L' or key in deleted:
+        if key[0] in 'LT' or key in deleted:
             continue
         name = (data.get(f'alloc_name_{key}') or '').strip()
         if not name:
@@ -1828,8 +1828,15 @@ def _allocation_errors(data):
 
 
 def _save_allocation(data):
-    """並び（画面の行の順に1から）・消し込み不要・振分だけの項目の追加/名前/削除。"""
+    """並び（画面の行の順に1から）・消し込み不要・振分の便・振分だけの項目の追加/名前/削除・臨時の列の位置。"""
     deleted = set(data.getlist('alloc_delete'))
+    route_ids = set(CarpoolRoute.objects.values_list('id', flat=True))
+
+    def route_of(key):
+        # 振分の便（シフトの便とは別）。欄が無い・知らない値は「なし」
+        value = (data.get(f'alloc_route_{key}') or '').strip()
+        return int(value) if value.isdigit() and int(value) in route_ids else None
+
     with transaction.atomic():
         # 臨時の列（その日だけ・temp_date あり）はこのタブで扱わない
         registered = AllocationExtra.objects.filter(temp_date__isnull=True)
@@ -1839,15 +1846,23 @@ def _save_allocation(data):
             if key in deleted:
                 continue
             order += 1
+            if key == 'T':
+                layout = AllocationLayout.objects.first() or AllocationLayout()
+                layout.temp_order = order
+                layout.save()
+                continue
             skip = data.get(f'alloc_skip_{key}') == '1'
+            route = route_of(key)
             if key[0] == 'L':
-                SalesLocation.objects.filter(id=int(key[1:])).update(allocation_order=order, allocation_check_skip=skip)
+                SalesLocation.objects.filter(id=int(key[1:])).update(
+                    allocation_order=order, allocation_check_skip=skip, allocation_route_id=route)
                 continue
             name = data.get(f'alloc_name_{key}', '').strip()
             if key[0] == 'X':
-                registered.filter(id=int(key[1:])).update(name=name, allocation_order=order, check_skip=skip)
+                registered.filter(id=int(key[1:])).update(
+                    name=name, allocation_order=order, check_skip=skip, allocation_route_id=route)
             else:
-                AllocationExtra.objects.create(name=name, allocation_order=order, check_skip=skip)
+                AllocationExtra.objects.create(name=name, allocation_order=order, check_skip=skip, allocation_route_id=route)
 
 
 def _location_list_redirect(request):
