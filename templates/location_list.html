@@ -39,6 +39,8 @@
     .location-table .form-select.location-input.fit { min-width: 130px; }
     .loc-tabs .nav-link { white-space: nowrap; }
     .loc-off td { color: var(--ln-color-text-dim); background: var(--ln-color-surface-muted); }
+    .pub-override.pub-on { border-color: var(--bs-warning-text-emphasis); color: var(--bs-warning-text-emphasis); font-weight: 600; }
+    .pub-active-count { color: var(--bs-warning-text-emphasis); }
     .route-table .form-control { min-width: 0; }
     .location-placeholder {
         height: 48px;
@@ -61,6 +63,7 @@
         <li class="nav-item"><button type="button" class="nav-link" data-tab="shift" role="tab">シフト・便</button></li>
         <li class="nav-item"><button type="button" class="nav-link" data-tab="routes" role="tab">便の一覧</button></li>
         <li class="nav-item"><button type="button" class="nav-link" data-tab="allocation" role="tab">振分設定</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-tab="status" role="tab">出店状況</button></li>
     </ul>
 
     <form id="locationForm" method="POST">
@@ -206,7 +209,54 @@
             </div>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 mt-3" data-pane="basic shift allocation">
+        <div data-pane="status" hidden>
+            <input type="hidden" name="pub" value="1">
+            <div class="d-flex align-items-center gap-2 mb-2 small">
+                <span class="text-nowrap pub-active-count" id="pubActiveCount" hidden>本日 上書き中 <b></b>件</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle location-table">
+                    <thead>
+                        <tr>
+                            <th class="col-handle"></th>
+                            <th class="col-check"><input type="checkbox" id="pubSelectAll" aria-label="全選択"></th>
+                            <th class="text-end">順番</th>
+                            <th>販売場所</th>
+                            <th class="text-center">掲載</th>
+                            <th>本日</th>
+                            <th class="text-center"><span class="hp-lbl">QR受付{% include "includes/info_tip.html" with id="pub-qr-tip" label="QR受付" text="完売・お休みQRの受付" %}</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="pubBody">
+                        {% for r in public_rows %}{% with loc=r.loc %}
+                        <tr class="{% if loc.excluded_from_shift or loc.excluded_from_public_status %}loc-off{% endif %}">
+                            <td class="col-handle pub-handle drag-handle" title="ドラッグで並べ替え"><i class="material-icons">menu</i><input type="hidden" name="pub_row" value="{{ loc.id }}"></td>
+                            <td class="col-check"><input type="checkbox" class="pub-sel" name="pub_sel" value="{{ loc.id }}" aria-label="{{ loc.name }}を選択"></td>
+                            <td class="text-end pub-no">{{ forloop.counter }}</td>
+                            <td>{{ loc.name }}{% if loc.excluded_from_shift %} <span class="badge text-bg-secondary">シフト対象外</span>{% endif %}</td>
+                            {% if loc.excluded_from_shift %}
+                            <td class="text-center"><input type="checkbox" class="form-check-input" disabled aria-label="{{ loc.name }}は掲載なし"></td>
+                            <td><select class="form-select form-select-sm fit" disabled aria-label="{{ loc.name }}の本日の上書き"><option>なし</option></select></td>
+                            <td class="text-center"><input type="checkbox" class="form-check-input" {% if loc.qr_enabled %}checked{% endif %} disabled aria-label="{{ loc.name }}のQR受付"></td>
+                            {% else %}
+                            <td class="text-center"><input type="hidden" name="pub_edit_{{ loc.id }}" value="1"><input type="checkbox" class="form-check-input pub-show" name="pub_show_{{ loc.id }}" value="1" {% if not loc.excluded_from_public_status %}checked{% endif %} aria-label="{{ loc.name }}を掲載"></td>
+                            <td>
+                                <select class="form-select form-select-sm fit pub-override{% if r.override %} pub-on{% endif %}" name="pub_override_{{ loc.id }}" aria-label="{{ loc.name }}の本日の上書き">
+                                    <option value="" {% if not r.override %}selected{% endif %}>なし</option>
+                                    <option value="sold_out" {% if r.override == 'sold_out' %}selected{% endif %}>完売</option>
+                                    <option value="closed" {% if r.override == 'closed' %}selected{% endif %}>お休み</option>
+                                </select>
+                            </td>
+                            <td class="text-center"><input type="checkbox" class="form-check-input" name="pub_qr_{{ loc.id }}" value="1" {% if loc.qr_enabled %}checked{% endif %} aria-label="{{ loc.name }}のQR受付"></td>
+                            {% endif %}
+                        </tr>
+                        {% endwith %}{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3" data-pane="basic shift allocation status">
             <button type="button" class="btn btn-success" id="addRowButton" data-pane="basic">
                 <i class="material-icons align-middle" style="font-size:1.1rem;">add</i> 新規追加
             </button>
@@ -214,7 +264,10 @@
             <button type="button" class="btn btn-success" id="allocAdd" data-pane="allocation">
                 <i class="material-icons align-middle" style="font-size:1.1rem;">add</i> 項目を追加
             </button>
-            <button type="submit" class="btn btn-primary ms-auto">上書き保存</button>
+            <span class="ms-auto"></span>
+            <button type="submit" class="btn btn-outline-secondary text-nowrap" id="pubQrPdf" data-pane="status" disabled
+                    formaction="{% url 'location_qr_pdf' %}" formtarget="_blank" formnovalidate>QRのPDF</button>
+            <button type="submit" class="btn btn-primary" id="locSave">上書き保存</button>
         </div>
     </form>
 
@@ -273,7 +326,39 @@
             history.replaceState(null, '', '?tab=' + b.dataset.tab);
         }));
         const initial = new URLSearchParams(location.search).get('tab');
-        showTab(['basic', 'shift', 'routes', 'allocation'].includes(initial) ? initial : 'basic');
+        showTab(['basic', 'shift', 'routes', 'allocation', 'status'].includes(initial) ? initial : 'basic');
+
+        // 出店状況：行の順番＝公開ページの順番
+        const pubBody = document.getElementById('pubBody');
+        $('#pubBody').sortable({
+            handle: '.pub-handle', placeholder: 'location-placeholder',
+            update: () => pubBody.querySelectorAll('tr').forEach((tr, i) => { tr.querySelector('.pub-no').textContent = i + 1; }),
+        });
+        pubBody.querySelectorAll('.pub-show').forEach(cb => cb.addEventListener('change', () => {
+            cb.closest('tr').classList.toggle('loc-off', !cb.checked);
+        }));
+        function pubCount() {
+            const sels = pubBody.querySelectorAll('.pub-override');
+            let n = 0;
+            sels.forEach(s => { s.classList.toggle('pub-on', !!s.value); if (s.value) n++; });
+            const el = document.getElementById('pubActiveCount');
+            el.hidden = !n; el.querySelector('b').textContent = n;
+        }
+        pubBody.addEventListener('change', e => { if (e.target.classList.contains('pub-override')) pubCount(); });
+        pubCount();
+        const pubSels = () => pubBody.querySelectorAll('.pub-sel');
+        function pubSelChanged() {
+            const n = [...pubSels()].filter(c => c.checked).length;
+            document.getElementById('pubQrPdf').disabled = !n;
+            const all = document.getElementById('pubSelectAll');
+            all.checked = n > 0 && n === pubSels().length;
+            all.indeterminate = n > 0 && n < pubSels().length;
+        }
+        pubBody.addEventListener('change', e => { if (e.target.classList.contains('pub-sel')) pubSelChanged(); });
+        document.getElementById('pubSelectAll').addEventListener('change', e => {
+            pubSels().forEach(c => { c.checked = e.target.checked; });
+            pubSelChanged();
+        });
 
         // 振分設定：行の順番＝持参数の画面の列の順番。保存時に上から1で振り直す
         const allocBody = document.getElementById('allocBody');

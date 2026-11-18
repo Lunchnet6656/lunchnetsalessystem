@@ -165,6 +165,10 @@ class SalesLocation(models.Model):
         help_text="持参数の画面の列の順番。振分だけの項目と同じ番号で並べる。空＝末尾に販売場所No.順。",
     )
     allocation_check_skip = models.BooleanField(default=False, verbose_name="消し込み不要")
+    public_order = models.IntegerField(
+        null=True, blank=True, verbose_name="出店状況ページの並び",
+        help_text="お客様向け出店状況ページの順番。空＝末尾に販売場所No.順。",
+    )
 
     def __str__(self):
         return f"{self.name}"

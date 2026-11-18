@@ -1708,6 +1708,8 @@ def location_list_view(request):
 
         if request.POST.get('alloc') == '1':
             _save_allocation(request.POST)
+        if request.POST.get('pub') == '1':
+            _save_public_status(request)
 
         if skipped_rows:
             messages.warning(request, f'NOが未入力の{skipped_rows}行は保存しませんでした。')
@@ -1722,6 +1724,7 @@ def location_list_view(request):
     return render(request, 'location_list.html', {
         'locations': locations,
         'alloc_columns': iq_allocation_columns(),
+        'public_rows': _public_rows(),
         'routes': CarpoolRoute.objects.annotate(location_count=Count('locations')),
         'weather_areas': SalesLocation.WEATHER_AREA_CHOICES,
         'priorities': [c for c, _ in SalesLocation._meta.get_field('priority').choices],
@@ -1730,7 +1733,72 @@ def location_list_view(request):
         'pattern_options': [{'code': p.code, 'name': p.label} for p in patterns],
     })
 
-LOCATION_LIST_TABS = ('basic', 'shift', 'routes', 'allocation')
+LOCATION_LIST_TABS = ('basic', 'shift', 'routes', 'allocation', 'status')
+
+
+def _public_rows():
+    """［出店状況］タブの行。並びは公開ページの順（空＝末尾に販売場所No.順）。"""
+    today = timezone.localdate()
+    locs = sorted(SalesLocation.objects.all(),
+                  key=lambda loc: (loc.public_order is None, loc.public_order or 0, loc.no, loc.id))
+    return [{
+        'loc': loc,
+        # 本日の上書きは今日設定したものだけ（前の日の値は「なし」）
+        'override': loc.today_override if loc.today_override_date == today else '',
+    } for loc in locs]
+
+
+def _save_public_status(request):
+    """公開ページの並び・掲載・本日の上書き・QR受付。公開ページに関わる値が変わったらすぐ反映する。"""
+    data = request.POST
+    today = timezone.localdate()
+    overrides = {c for c, _ in SalesLocation.TODAY_OVERRIDE_CHOICES}
+    changed = False
+    ids = [int(x) for x in data.getlist('pub_row') if x.isdigit()]
+    locs = {loc.id: loc for loc in SalesLocation.objects.filter(id__in=ids)}
+    for order, lid in enumerate(ids, start=1):
+        loc = locs.get(lid)
+        if loc is None:
+            continue
+        before = (loc.public_order, loc.excluded_from_public_status, loc.today_override, loc.today_override_date)
+        loc.public_order = order
+        # シフト対象外の店は公開ページに出ないので、並び以外の欄は描いていない（今の値のまま）
+        if data.get(f'pub_edit_{lid}') == '1':
+            loc.excluded_from_public_status = data.get(f'pub_show_{lid}') != '1'
+            loc.qr_enabled = data.get(f'pub_qr_{lid}') == '1'
+            ov = data.get(f'pub_override_{lid}', '')
+            if ov in overrides:
+                current = loc.today_override if loc.today_override_date == today else ''
+                if ov != current:
+                    loc.today_override, loc.today_override_date = ov, (today if ov else None)
+        after = (loc.public_order, loc.excluded_from_public_status, loc.today_override, loc.today_override_date)
+        if not loc.excluded_from_shift and before != after:
+            changed = True
+        loc.save(update_fields=['public_order', 'excluded_from_public_status', 'qr_enabled',
+                                'today_override', 'today_override_date'])
+    if changed:
+        try:
+            call_command('publish_status_json')
+            messages.success(request, '出店状況ページ 更新')
+        except Exception:
+            logger.exception('出店状況タブの保存後の publish_status_json に失敗')
+            messages.warning(request, '出店状況ページの更新失敗（翌朝8:00に反映）')
+
+
+@menu_permission_required('can_view_location_list')
+@require_POST
+def location_qr_pdf_view(request):
+    """［出店状況］タブで選んだ店の完売・お休みQR（1店2ページ）。"""
+    from sales.qr_pdf import build_qr_pdf  # 重い import を遅延
+    ids = [int(x) for x in request.POST.getlist('pub_sel') if x.isdigit()]
+    locs = list(SalesLocation.objects.filter(id__in=ids).order_by('no'))
+    if not locs:
+        messages.warning(request, '販売場所 未選択')
+        return HttpResponseRedirect(reverse('location_list') + '?tab=status')
+    pdf = build_qr_pdf(locs, lambda token, kind: request.build_absolute_uri(f'/q/{kind}/{token}/'))
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="lunchnet-qr-{len(locs)}.pdf"'
+    return response
 
 
 def _allocation_rows(data):

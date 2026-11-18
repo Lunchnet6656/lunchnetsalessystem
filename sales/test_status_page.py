@@ -79,6 +79,16 @@ class StatusPageTests(TestCase):
         data = build_status(today=date(2026, 5, 12))
         self.assertEqual([loc["no"] for loc in data["locations"]], [1, 2, 3])
 
+    def test_sorted_by_public_order_then_no(self):
+        # 並びは［出店状況］タブの public_order。空は末尾に no 順。order は表示の順番
+        a = _location(1, "新宿"); b = _location(2, "渋谷"); c = _location(3, "品川")
+        SalesLocation.objects.filter(pk=c.pk).update(public_order=1)
+        SalesLocation.objects.filter(pk=a.pk).update(public_order=2)
+        SalesLocation.objects.filter(pk=b.pk).update(public_order=None)
+        data = build_status(today=date(2026, 5, 12))
+        self.assertEqual([(loc["name"], loc["order"]) for loc in data["locations"]],
+                         [("品川", 1), ("新宿", 2), ("渋谷", 3)])
+
     # --- QR上書き（today_override）の挙動 ---
 
     def test_override_sold_out_applied_when_set_today(self):

@@ -45,8 +45,9 @@ def build_status(today: date | None = None) -> dict:
     locations = list(
         SalesLocation.objects
         .filter(excluded_from_shift=False, excluded_from_public_status=False)
-        .order_by("no")
     )
+    # 並びは販売場所データの［出店状況］タブ。空（新しく足した店）は末尾に販売場所No.順
+    locations.sort(key=lambda loc: (loc.public_order is None, loc.public_order or 0, loc.no, loc.id))
     target_date = today.isoformat()  # ItemQuantity.target_date は "YYYY-MM-DD" 文字列（本番DB実データで確認・2026-05-13）
     totals = {
         row["sales_location"]: row["total"]
@@ -75,7 +76,8 @@ def build_status(today: date | None = None) -> dict:
 
         if status == "open":
             open_count += 1
-        rows.append({"no": loc.no, "name": loc.name, "status": status})
+        # order＝表示の順番（公開ページは no ではなく order で並べる。no はお気に入りのキーなので変えない）
+        rows.append({"no": loc.no, "name": loc.name, "status": status, "order": len(rows) + 1})
 
     return {
         "date": today.isoformat(),

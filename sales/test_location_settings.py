@@ -156,3 +156,66 @@ class ItemQuantityRouteOrderTest(TestCase):
         data = self.client.get(reverse("item_quantity_edit", args=["2026-11-05"])).context["grid_data"]
         self.assertEqual([(l["name"], l["routeName"], l["routeTime"]) for l in data["locations"]],
                          [("新川", "新川", "9:15"), ("広尾", "", ""), ("京橋", "新川", "9:15")])
+
+
+class LocationStatusTabTest(TestCase):
+    """販売場所データの［出店状況］タブ（公開ページの並び・掲載・本日の上書き・QR受付・QRのPDF）。#207"""
+
+    def setUp(self):
+        self.user = User.objects.create_user("jimu", password="pw-jimu-123456")
+        grant(self.user, "can_view_location_list")
+        self.client.force_login(self.user)
+        self.a = SalesLocation.objects.create(no=1, name="新川", type="", price_type="A", service_name="")
+        self.b = SalesLocation.objects.create(no=2, name="人形町", type="", price_type="A", service_name="")
+        self.off = SalesLocation.objects.create(no=3, name="配達", type="", price_type="A", service_name="",
+                                                excluded_from_shift=True, qr_enabled=True)
+        patcher = mock.patch("lunchnetsale.views.call_command")
+        self.publish = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def post(self, rows, **extra):
+        return self.client.post(reverse("location_list"), {"tab": "status", "pub": "1", "pub_row": rows, **extra})
+
+    def test_saves_order_show_override_qr_and_publishes(self):
+        res = self.post([self.b.id, self.off.id, self.a.id], **{
+            f"pub_edit_{self.a.id}": "1", f"pub_show_{self.a.id}": "1", f"pub_override_{self.a.id}": "sold_out",
+            f"pub_edit_{self.b.id}": "1", f"pub_override_{self.b.id}": "", f"pub_qr_{self.b.id}": "1",
+        })
+        self.assertRedirects(res, reverse("location_list") + "?tab=status", fetch_redirect_response=False)
+        for x in (self.a, self.b, self.off):
+            x.refresh_from_db()
+        today = timezone.localdate()
+        self.assertEqual((self.b.public_order, self.off.public_order, self.a.public_order), (1, 2, 3))
+        self.assertEqual((self.a.today_override, self.a.today_override_date, self.a.excluded_from_public_status),
+                         ("sold_out", today, False))
+        self.assertEqual((self.b.excluded_from_public_status, self.b.qr_enabled), (True, True))
+        self.assertTrue(self.off.qr_enabled)  # シフト対象外は並び以外を変えない
+        self.publish.assert_called_once_with("publish_status_json")
+
+    def test_no_publish_when_nothing_public_changes(self):
+        self.post([self.a.id, self.b.id, self.off.id])  # 初回で並びが入る
+        self.publish.reset_mock()
+        self.post([self.a.id, self.b.id, self.off.id], **{
+            f"pub_edit_{self.a.id}": "1", f"pub_show_{self.a.id}": "1",
+            f"pub_edit_{self.b.id}": "1", f"pub_show_{self.b.id}": "1", f"pub_qr_{self.b.id}": "1"})
+        self.publish.assert_not_called()
+
+    def test_stale_override_shown_as_none_and_kept_none(self):
+        SalesLocation.objects.filter(pk=self.a.pk).update(today_override="closed",
+                                                          today_override_date=datetime.date(2020, 1, 1))
+        res = self.client.get(reverse("location_list") + "?tab=status")
+        row = next(r for r in res.context["public_rows"] if r["loc"].id == self.a.id)
+        self.assertEqual(row["override"], "")
+
+    def test_qr_pdf_for_selected(self):
+        with mock.patch("sales.qr_pdf.build_qr_pdf", return_value=b"%PDF-1.4") as build:
+            res = self.client.post(reverse("location_qr_pdf"), {"pub_sel": [self.b.id]})
+        self.assertEqual(res["Content-Type"], "application/pdf")
+        self.assertEqual([l.name for l in build.call_args[0][0]], ["人形町"])
+        res = self.client.post(reverse("location_qr_pdf"), {})
+        self.assertRedirects(res, reverse("location_list") + "?tab=status", fetch_redirect_response=False)
+
+    def test_tab_rendered(self):
+        res = self.client.get(reverse("location_list") + "?tab=status")
+        self.assertContains(res, "出店状況")
+        self.assertContains(res, "QRのPDF")

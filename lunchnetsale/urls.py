@@ -122,6 +122,7 @@ urlpatterns = [
 
     path('location_list', views.location_list_view, name='location_list'),
     path('location_list/routes/', views.location_routes_view, name='location_routes'),
+    path('location_list/qr_pdf/', views.location_qr_pdf_view, name='location_qr_pdf'),
 
     path('item_quantity_list/', views.item_quantity_list_view, name='item_quantity_list'),
     path('item_quantity_list/<str:date>/', views.item_quantity_detail_view, name='item_quantity_detail'),
